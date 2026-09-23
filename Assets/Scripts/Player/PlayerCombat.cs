@@ -1,0 +1,428 @@
+// PlayerCombat.cs
+// Purpose: Velocity-based hammer swing damage, stamina, functional shield block,
+//          swing-angle tracking (stretch goal — flagged).
+// Dependencies: RoundManager, OVRInput (Meta XR), HitDetection, PlayerHealth, WeaponType, XPManager
+// Attach to: Player root / XR Rig (OVRCameraRig)
+
+using UnityEngine;
+
+public enum Hand { Right, Left }
+
+public class PlayerCombat : MonoBehaviour
+{
+    public static PlayerCombat Instance;
+
+    [Header("Weapons (set per level via LevelManager / Inspector)")]
+    [Tooltip("Primary attack weapon for this level.")]
+    public WeaponType primaryWeapon = WeaponType.Hammer;
+    [Tooltip("Offhand (e.g. Shield). Use None if single-weapon.")]
+    public WeaponType offhandWeapon = WeaponType.None;
+
+    [Header("Weapon Transforms")]
+    [Tooltip("Active swing / hit transform for PRIMARY hand (hammer head, sword blade, etc.).")]
+    public Transform weaponTransform;
+    [Tooltip("Active swing / hit transform for OFFHAND (second hammer). Null if single-weapon.")]
+    public Transform offhandWeaponTransform;
+    [Tooltip("Optional shield transform for block VFX/pose (disabled in Level 1 — no shield).")]
+    public Transform shieldTransform;
+
+    [Header("Weapon Prefab Roots (enable/disable by type)")]
+    public GameObject hammerObject;
+    [Tooltip("Second hammer for dual-wield (Level 1 loadout). Null if single-weapon.")]
+    public GameObject offhandHammerObject;
+    public GameObject swordObject;
+    public GameObject shieldObject; // disabled in Level 1 — no shield
+
+    [Header("Controller")]
+    public OVRInput.Controller swingController = OVRInput.Controller.RTouch;
+    [Tooltip("Controller for offhand hammer (dual-wield).")]
+    public OVRInput.Controller offhandSwingController = OVRInput.Controller.LTouch;
+    public OVRInput.Controller shieldController = OVRInput.Controller.LTouch; // unused in Level 1 (no shield)
+
+    [Header("Hand Assignment (configurable — flip without code)")]
+    [Tooltip("Which hand holds the primary weapon (hammer/sword). Shield goes to the other hand. " +
+             "Auto-sets swingController/shieldController. To physically reparent the weapon objects, " +
+             "move them under the matching HandAnchor in the scene (or ask MCP to do it).")]
+    public Hand weaponHand = Hand.Right;
+
+    [Header("Swing")]
+    public float attackCooldown = 0.15f;
+
+    [Header("Swing — Velocity Damage")]
+    [Tooltip("Below this controller speed (m/s) a hit does NOT register as an attack. Anti-spam.")]
+    public float minSwingVelocity = 1.2f;
+    [Tooltip("Speed at which damage scaling reaches its max multiplier.")]
+    public float maxSwingVelocity = 6.0f;
+    [Tooltip("Damage multiplier at maxSwingVelocity (1x at minSwingVelocity).")]
+    public float maxVelocityDamageMultiplier = 2.5f;
+    public float velocitySmooth = 0.12f;
+
+    [Header("Swing — Angle (STRETCH GOAL — partially implemented)")]
+    [Tooltip("Enable swing-arc tracking as a secondary damage multiplier. " +
+             "STRETCH GOAL: basic angular velocity tracking is implemented; full overhead-vs-flick " +
+             "classification is pending. Currently uses angular speed as a small bonus.")]
+    public bool useAngleMultiplier = true;
+    [Tooltip("Angular speed (deg/s) at which the angle bonus caps out.")]
+    public float maxAngularSpeed = 900f;
+    [Tooltip("Max bonus from swing angle (added on top of velocity damage).")]
+    public float maxAngleBonus = 0.4f;
+
+    [Header("Stamina / Energy")]
+    public float maxStamina = 100f;
+    public float currentStamina = 100f;
+    public float staminaCostPerHit = 8f;
+    public float staminaRegenPerSecond = 12f;
+
+    [Header("Fitness → Damage")]
+    [Tooltip("Extra damage per RoundManager tap accumulated this round.")]
+    public float damagePerTapBonus = 0.35f;
+    [Tooltip("Bonus damage from swing speed (legacy — kept for compat; velocity scaling above is primary).")]
+    public float swingSpeedDamageScale = 0.08f;
+
+    [Header("Block — Functional Shield")]
+    public bool blockEnabled = true;
+    [Tooltip("Fraction of incoming damage negated while blocking (0.7 = 70% reduction, 0.9 = 90%).")]
+    [Range(0f, 1f)] public float blockDamageReduction = 0.8f;
+    [Tooltip("Button used to raise the shield. Default: left hand trigger (grip).")]
+    public OVRInput.Button blockButton = OVRInput.Button.PrimaryHandTrigger;
+    [Tooltip("If true, shield stays raised while button held. If false, toggle on press.")]
+    public bool holdToBlock = true;
+
+    [Header("Runtime (read-only)")]
+    public float CurrentSwingSpeed { get; private set; }
+    [Tooltip("Swing speed of the offhand (left) hammer. Used by HitDetection on the second hammer.")]
+    public float CurrentOffhandSwingSpeed { get; private set; }
+    public float CurrentAngularSpeed { get; private set; }
+    public bool IsBlocking { get; private set; }
+    /// <summary>True only on the frame a block successfully absorbed a hit (for XP/SFX).</summary>
+    public bool BlockSucceededThisFrame { get; private set; }
+
+    // Back-compat alias used by older HitDetection wiring
+    public Transform hammerTransform
+    {
+        get => weaponTransform;
+        set => weaponTransform = value;
+    }
+
+    private float lastAttackTime = -999f;
+    private Vector3 lastWeaponPos;
+    private Vector3 lastOffhandWeaponPos;
+    private Quaternion lastWeaponRot;
+    private Vector3 smoothedVelocity;
+    private Vector3 smoothedOffhandVelocity;
+
+    void Awake()
+    {
+        Instance = this;
+        currentStamina = maxStamina;
+        ApplyHandAssignment();
+    }
+
+    void Start()
+    {
+        if (weaponTransform == null)
+        {
+            var tagged = GameObject.FindGameObjectWithTag("Hammer");
+            if (tagged != null)
+                weaponTransform = tagged.transform;
+        }
+
+        if (weaponTransform != null)
+        {
+            lastWeaponPos = weaponTransform.position;
+            lastWeaponRot = weaponTransform.rotation;
+        }
+        if (offhandWeaponTransform != null)
+            lastOffhandWeaponPos = offhandWeaponTransform.position;
+
+        ApplyWeaponVisuals();
+    }
+
+    void Update()
+    {
+        UpdateSwingVelocity();
+        RegenerateStamina();
+        UpdateBlockInput();
+
+#if UNITY_EDITOR
+        if (UnityEngine.InputSystem.Keyboard.current != null &&
+            UnityEngine.InputSystem.Keyboard.current.hKey.wasPressedThisFrame)
+        {
+            if (RoundManager.Instance != null && RoundManager.Instance.roundActive)
+                RoundManager.Instance.RegisterTap();
+        }
+
+        // Editor: hold Left Shift to simulate block (for testing without headset)
+        if (UnityEngine.InputSystem.Keyboard.current != null &&
+            UnityEngine.InputSystem.Keyboard.current.leftShiftKey.isPressed &&
+            offhandWeapon == WeaponType.Shield)
+        {
+            OnBlock(true);
+        }
+        else if (IsBlocking && UnityEngine.InputSystem.Keyboard.current != null &&
+                 !UnityEngine.InputSystem.Keyboard.current.leftShiftKey.isPressed)
+        {
+            OnBlock(false);
+        }
+#endif
+    }
+
+    void LateUpdate()
+    {
+        // Reset per-frame flag after all damage routing for this frame is done
+        BlockSucceededThisFrame = false;
+    }
+
+    /// <summary>
+    /// Called by LevelManager when the scene loadout is applied.
+    /// </summary>
+    public void SetLoadout(WeaponType primary, WeaponType offhand)
+    {
+        primaryWeapon = primary;
+        offhandWeapon = offhand;
+        ApplyWeaponVisuals();
+    }
+
+    /// <summary>
+    /// Sets OVRInput.Controller fields based on weaponHand enum.
+    /// Right: hammer on RTouch, shield on LTouch. Left: hammer on LTouch, shield on RTouch.
+    /// This makes hand-swapping a one-field Inspector change (controller tracking flips automatically).
+    /// Note: physically reparenting weapon objects under the matching HandAnchor is a scene step.
+    /// </summary>
+    public void ApplyHandAssignment()
+    {
+        if (weaponHand == Hand.Right)
+        {
+            swingController = OVRInput.Controller.RTouch;
+            shieldController = OVRInput.Controller.LTouch;
+        }
+        else
+        {
+            swingController = OVRInput.Controller.LTouch;
+            shieldController = OVRInput.Controller.RTouch;
+        }
+    }
+
+#if UNITY_EDITOR
+    void OnValidate()
+    {
+        // Auto-flip controllers when weaponHand changes in Inspector
+        ApplyHandAssignment();
+    }
+#endif
+
+    /// <summary>
+    /// Shows/hides hammer/sword/shield GameObjects based on WeaponType fields.
+    /// Level 1 loadout: dual hammers (hammerObject + offhandHammerObject), no shield.
+    /// </summary>
+    public void ApplyWeaponVisuals()
+    {
+        // Primary hammer (right hand)
+        if (hammerObject != null)
+            hammerObject.SetActive(primaryWeapon == WeaponType.Hammer);
+        // Offhand hammer (left hand) — dual-wield for Level 1
+        if (offhandHammerObject != null)
+            offhandHammerObject.SetActive(offhandWeapon == WeaponType.Hammer);
+        if (swordObject != null)
+            swordObject.SetActive(primaryWeapon == WeaponType.Sword || offhandWeapon == WeaponType.Sword);
+        // Shield disabled in Level 1 (no shield loadout) — kept for future re-enable
+        if (shieldObject != null)
+            shieldObject.SetActive(primaryWeapon == WeaponType.Shield || offhandWeapon == WeaponType.Shield);
+
+        // Prefer an active weapon transform for swing tracking (primary hand)
+        if (primaryWeapon == WeaponType.Hammer && hammerObject != null)
+            weaponTransform = hammerObject.transform;
+        else if (primaryWeapon == WeaponType.Sword && swordObject != null)
+            weaponTransform = swordObject.transform;
+        else if (primaryWeapon == WeaponType.Shield && shieldObject != null)
+            weaponTransform = shieldObject.transform;
+
+        // Offhand weapon transform (second hammer)
+        if (offhandWeapon == WeaponType.Hammer && offhandHammerObject != null)
+            offhandWeaponTransform = offhandHammerObject.transform;
+
+        if (shieldObject != null)
+            shieldTransform = shieldObject.transform;
+
+        if (weaponTransform != null)
+        {
+            lastWeaponPos = weaponTransform.position;
+            lastWeaponRot = weaponTransform.rotation;
+        }
+        if (offhandWeaponTransform != null)
+            lastOffhandWeaponPos = offhandWeaponTransform.position;
+    }
+
+    void UpdateBlockInput()
+    {
+        if (!blockEnabled || offhandWeapon != WeaponType.Shield)
+        {
+            if (IsBlocking) OnBlock(false);
+            return;
+        }
+
+        bool buttonDown = OVRInput.Get(blockButton, shieldController);
+
+        if (holdToBlock)
+        {
+            if (buttonDown != IsBlocking)
+                OnBlock(buttonDown);
+        }
+        else
+        {
+            if (buttonDown && !IsBlocking)
+                OnBlock(true);
+            else if (buttonDown && IsBlocking)
+                OnBlock(false);
+        }
+
+        // Visual: raise shield while blocking (simple local rotation)
+        if (shieldTransform != null)
+        {
+            Quaternion raised = Quaternion.Euler(-60f, 0f, 0f);
+            Quaternion lowered = Quaternion.Euler(0f, 0f, 0f);
+            float t = IsBlocking ? 1f : 0f;
+            shieldTransform.localRotation = Quaternion.Slerp(
+                shieldTransform.localRotation,
+                IsBlocking ? raised : lowered,
+                Time.deltaTime * 12f);
+        }
+    }
+
+    /// <summary>
+    /// Functional shield block. Sets raised/lowered state. Damage reduction applied in ModifyIncomingDamage.
+    /// </summary>
+    public void OnBlock(bool blocking)
+    {
+        IsBlocking = blocking;
+    }
+
+    /// <summary>
+    /// If blocking with a shield, reduce incoming damage. Used by PlayerHealth.
+    /// Sets BlockSucceededThisFrame when it actually absorbs damage (caller checks > 0).
+    /// </summary>
+    public float ModifyIncomingDamage(float amount)
+    {
+        if (IsBlocking && offhandWeapon == WeaponType.Shield && amount > 0f)
+        {
+            BlockSucceededThisFrame = true;
+            return amount * (1f - Mathf.Clamp01(blockDamageReduction));
+        }
+        return amount;
+    }
+
+    void UpdateSwingVelocity()
+    {
+        Vector3 controllerVel = OVRInput.GetLocalControllerVelocity(swingController);
+        float ovrSpeed = controllerVel.magnitude;
+
+        if (weaponTransform != null)
+        {
+            Vector3 raw = (weaponTransform.position - lastWeaponPos) / Mathf.Max(Time.deltaTime, 0.0001f);
+            lastWeaponPos = weaponTransform.position;
+            smoothedVelocity = Vector3.Lerp(smoothedVelocity, raw, 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.01f, velocitySmooth)));
+            CurrentSwingSpeed = Mathf.Max(ovrSpeed, smoothedVelocity.magnitude);
+
+            // Angular speed (deg/s) — stretch-goal angle tracking
+            if (useAngleMultiplier)
+            {
+                float angleDelta = Quaternion.Angle(lastWeaponRot, weaponTransform.rotation);
+                lastWeaponRot = weaponTransform.rotation;
+                CurrentAngularSpeed = angleDelta / Mathf.Max(Time.deltaTime, 0.0001f);
+            }
+        }
+        else
+        {
+            CurrentSwingSpeed = ovrSpeed;
+            CurrentAngularSpeed = 0f;
+        }
+
+        // Offhand (left) hammer velocity tracking — independent from primary hand
+        if (offhandWeaponTransform != null)
+        {
+            Vector3 offControllerVel = OVRInput.GetLocalControllerVelocity(offhandSwingController);
+            float ovrOffSpeed = offControllerVel.magnitude;
+            Vector3 rawOff = (offhandWeaponTransform.position - lastOffhandWeaponPos) / Mathf.Max(Time.deltaTime, 0.0001f);
+            lastOffhandWeaponPos = offhandWeaponTransform.position;
+            smoothedOffhandVelocity = Vector3.Lerp(smoothedOffhandVelocity, rawOff, 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.01f, velocitySmooth)));
+            CurrentOffhandSwingSpeed = Mathf.Max(ovrOffSpeed, smoothedOffhandVelocity.magnitude);
+        }
+        else
+        {
+            CurrentOffhandSwingSpeed = 0f;
+        }
+    }
+
+    void RegenerateStamina()
+    {
+        if (currentStamina < maxStamina)
+        {
+            currentStamina = Mathf.Min(maxStamina, currentStamina + staminaRegenPerSecond * Time.deltaTime);
+            if (CombatUIController.Instance != null)
+                CombatUIController.Instance.UpdateStamina(currentStamina, maxStamina);
+        }
+    }
+
+    public bool TrySpendAttackStamina()
+    {
+        if (Time.time < lastAttackTime + attackCooldown)
+            return currentStamina > 0f;
+
+        lastAttackTime = Time.time;
+
+        if (currentStamina < staminaCostPerHit * 0.25f)
+            return false;
+
+        currentStamina = Mathf.Max(0f, currentStamina - staminaCostPerHit);
+        if (CombatUIController.Instance != null)
+            CombatUIController.Instance.UpdateStamina(currentStamina, maxStamina);
+        return true;
+    }
+
+    /// <summary>
+    /// Velocity-based damage multiplier. 1x at minSwingVelocity, maxVelocityDamageMultiplier at maxSwingVelocity.
+    /// </summary>
+    public float GetVelocityDamageMultiplier(float swingSpeed)
+    {
+        float t = Mathf.InverseLerp(minSwingVelocity, maxSwingVelocity, swingSpeed);
+        return Mathf.Lerp(1f, maxVelocityDamageMultiplier, t);
+    }
+
+    /// <summary>
+    /// Stretch-goal angle bonus. Caps at maxAngleBonus when angular speed >= maxAngularSpeed.
+    /// </summary>
+    public float GetAngleBonusMultiplier(float angularSpeed)
+    {
+        if (!useAngleMultiplier) return 1f;
+        float t = Mathf.InverseLerp(0f, maxAngularSpeed, angularSpeed);
+        return 1f + Mathf.Lerp(0f, maxAngleBonus, t);
+    }
+
+    public float ApplyFitnessModifiers(float baseDamage, float swingSpeed)
+    {
+        int taps = 0;
+        if (RoundManager.Instance != null)
+            taps = RoundManager.Instance.currentTapCount;
+
+        float tapBonus = taps * damagePerTapBonus;
+        float speedBonus = swingSpeed * swingSpeedDamageScale;
+
+        // Small weapon flavor multipliers (still Inspector-tunable via WeaponType choice)
+        float weaponMul = primaryWeapon switch
+        {
+            WeaponType.Hammer => 1.15f,
+            WeaponType.Sword => 1.0f,
+            WeaponType.Shield => 0.6f, // bash
+            _ => 0.85f                 // unarmed
+        };
+
+        return (baseDamage + tapBonus + speedBonus) * weaponMul;
+    }
+
+    public void ResetStamina()
+    {
+        currentStamina = maxStamina;
+        if (CombatUIController.Instance != null)
+            CombatUIController.Instance.UpdateStamina(currentStamina, maxStamina);
+    }
+}
