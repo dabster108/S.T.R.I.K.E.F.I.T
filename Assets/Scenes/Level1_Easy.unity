@@ -5387,11 +5387,11 @@ MonoBehaviour:
   hitShakeMagnitude: 0.08
   hitShakeDuration: 0.2
   audioSource: {fileID: 1475721788}
-  hitSound: {fileID: 0}
-  hurtVocalSound: {fileID: 0}
-  defeatSound: {fileID: 0}
-  hitSoundVolume: 1
-  hurtVocalVolume: 0.8
+  hitSound: {fileID: 8300000, guid: 03824c938ff51470fbf8292588f92d10, type: 3}
+  hurtVocalSound: {fileID: 8300000, guid: e3fdc10796fb34a1ab26476dd1a2025e, type: 3}
+  defeatSound: {fileID: 8300000, guid: 97b60e9720b4d42ebad1f8a693cbc265, type: 3}
+  hitSoundVolume: 0.85
+  hurtVocalVolume: 0.75
   defeatSoundVolume: 1
   blockSound: {fileID: 0}
 --- !u!114 &1475721783
@@ -8005,9 +8005,9 @@ MonoBehaviour:
   hitCooldown: 0.35
   hitParticles: {fileID: 0}
   audioSource: {fileID: 2018423429}
-  hitSound: {fileID: 0}
-  heavyHitSound: {fileID: 0}
-  heavySwingSpeedThreshold: 4.8
+  hitSound: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+  heavyHitSound: {fileID: 8300000, guid: 74c677fd9a83e4f70b2ecf6f7710c3ea, type: 3}
+  heavySwingSpeedThreshold: 4.7
   soundButtonFallback: {fileID: 0}
   hammerTag: Hammer
   playerHandTag: PlayerHand
