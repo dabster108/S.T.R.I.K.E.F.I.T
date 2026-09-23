@@ -840,6 +840,7 @@ GameObject:
   - component: {fileID: 214438329}
   - component: {fileID: 214438328}
   - component: {fileID: 214438334}
+  - component: {fileID: 214438335}
   m_Layer: 0
   m_Name: BattleSystems
   m_TagString: Untagged
@@ -972,8 +973,9 @@ MonoBehaviour:
   startRoundButton: {fileID: 0}
   roundDuration: 40
   battleMode: 1
-  backendUrl: http://10.206.145.129:4000/api/sessions
+  backendUrl: http://localhost:4000/api/sessions
   playerName: Player1
+  preferSessionReporter: 1
   roundActive: 0
   currentTapCount: 0
 --- !u!4 &214438333
@@ -1010,6 +1012,25 @@ MonoBehaviour:
   weakSwingSpeed: 1.5
   mediumSwingSpeed: 3
   fullSwingSpeed: 5
+--- !u!114 &214438335
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 214438325}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1b2c3d4e5f6789012345678abcdef01, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SessionReporter
+  backendBaseUrl: http://localhost:4000
+  playerName: Player1
+  reportLiveHits: 1
+  currentSessionId: 
+  sessionStartedAt: 0
+  hitCount: 0
+  sessionOpen: 0
 --- !u!1 &234776359
 GameObject:
   m_ObjectHideFlags: 0

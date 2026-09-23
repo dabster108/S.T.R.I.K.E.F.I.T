@@ -48,8 +48,17 @@ See `Assets/Documentation/SETUP_GUIDE.md` for prefab wiring.
 - `Assets/Documentation/project_progress.md` — status / checklist
 - `Assets/Documentation/SETUP_GUIDE.md` — Unity steps
 - `Assets/Documentation/MOVE_LIST.md` — folder cleanup paths
+- `web/README.md` — Node backend + React stats board (`db.json` tracking)
+
+## Live stats (optional)
+
+```bash
+cd web/backend && npm install && npm start   # http://localhost:4000
+cd web/frontend && npm install && npm run dev # http://localhost:5173
+```
+
+Unity posts to `http://localhost:4000/api/sessions` (see `web/BACKEND_URL.json`). On Quest, use your Mac LAN IP.
 
 ## License / assets
 
 Third-party packs (Lite Dungeon, Old Sea Port, Mixamo characters, Sketchfab weapons) remain under their own Asset Store / author licenses. Do not redistribute those packages outside Unity’s license terms.
-# vr-fitness-monster-battle

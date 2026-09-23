@@ -1,0 +1,14 @@
+{
+  "description": "Shared backend URL for Unity VR client + React stats dashboard",
+  "port": 4000,
+  "local": "http://localhost:4000",
+  "lanExample": "http://10.0.0.0:4000",
+  "api": {
+    "health": "/api/health",
+    "sessions": "/api/sessions",
+    "events": "/api/events",
+    "stats": "/api/stats"
+  },
+  "unityPostUrl": "http://localhost:4000/api/sessions",
+  "note": "On headset/LAN, replace localhost with your Mac IP (ipconfig getifaddr en0). Update RoundManager.backendUrl in Unity to match."
+}

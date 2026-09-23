@@ -1,0 +1,54 @@
+{
+  "sessions": [
+    {
+      "id": "0eb5bfbc-62d2-40a8-b16e-148a63f6daba",
+      "playerName": "Demo",
+      "level": "Easy",
+      "outcome": "victory",
+      "score": 420,
+      "damageDealt": 100,
+      "hitCount": 8,
+      "tapCount": 12,
+      "durationSec": 0,
+      "playerHpRemaining": 0,
+      "monsterHpRemaining": 0,
+      "pointsEarned": 420,
+      "startedAt": "2026-09-23T17:04:15.469Z",
+      "endedAt": "2026-09-23T17:04:15.469Z",
+      "source": "unity",
+      "notes": ""
+    }
+  ],
+  "events": [
+    {
+      "id": "7fce8ac6-b00c-4ac2-b061-059062ffccec",
+      "type": "session_complete",
+      "sessionId": "0eb5bfbc-62d2-40a8-b16e-148a63f6daba",
+      "playerName": "Demo",
+      "message": "Demo finished Easy: victory — score 420",
+      "payload": {
+        "id": "0eb5bfbc-62d2-40a8-b16e-148a63f6daba",
+        "playerName": "Demo",
+        "level": "Easy",
+        "outcome": "victory",
+        "score": 420,
+        "damageDealt": 100,
+        "hitCount": 8,
+        "tapCount": 12,
+        "durationSec": 0,
+        "playerHpRemaining": 0,
+        "monsterHpRemaining": 0,
+        "pointsEarned": 420,
+        "startedAt": "2026-09-23T17:04:15.469Z",
+        "endedAt": "2026-09-23T17:04:15.469Z",
+        "source": "unity",
+        "notes": ""
+      },
+      "at": "2026-09-23T17:04:15.469Z"
+    }
+  ],
+  "meta": {
+    "createdAt": "2026-09-23T00:00:00.000Z",
+    "version": 1
+  }
+}

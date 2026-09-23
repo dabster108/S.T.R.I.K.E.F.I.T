@@ -86,6 +86,14 @@ public class BattleManager : MonoBehaviour
         TotalDamageDealt = 0f;
         IsBattleActive = true;
 
+        EnsureSessionReporter();
+        if (SessionReporter.Instance != null)
+        {
+            if (RoundManager.Instance != null)
+                SessionReporter.Instance.playerName = RoundManager.Instance.playerName;
+            SessionReporter.Instance.BeginSession();
+        }
+
         if (XPManager.Instance != null)
             XPManager.Instance.ResetSession();
 
@@ -214,6 +222,8 @@ public class BattleManager : MonoBehaviour
         if (!IsBattleActive) return;
         TotalDamageDealt += damage;
         AddScore(Mathf.RoundToInt(damage * scorePerDamagePoint));
+        if (SessionReporter.Instance != null)
+            SessionReporter.Instance.RegisterHit(damage, CurrentScore);
     }
 
     void AddScore(int delta)
@@ -299,6 +309,7 @@ public class BattleManager : MonoBehaviour
 
         OnVictory?.Invoke(CurrentScore);
         Debug.Log($"[BattleManager] VICTORY — score {CurrentScore}");
+        ReportSessionToBackend("victory", "");
 
         // Optional: auto-advance after a short celebration (wire a UI button instead if preferred)
         // GameStateManager.Instance?.LoadNextLevelOrResults();
@@ -323,6 +334,54 @@ public class BattleManager : MonoBehaviour
 
         OnDefeat?.Invoke(CurrentScore);
         Debug.Log($"[BattleManager] DEFEAT — {reason}, score {CurrentScore}");
+        ReportSessionToBackend("defeat", reason);
+    }
+
+    void ReportSessionToBackend(string outcome, string notes)
+    {
+        EnsureSessionReporter();
+        if (SessionReporter.Instance == null) return;
+
+        string level = LevelManager.Instance != null
+            ? LevelManager.Instance.sceneDifficulty.ToString()
+            : "Easy";
+
+        float playerHp = PlayerHealth.Instance != null ? PlayerHealth.Instance.currentHealth : 0f;
+        float monsterHp = 0f;
+        if (ActiveMonster != null)
+        {
+            var mh = ActiveMonster.GetComponent<MonsterHealth>();
+            if (mh != null) monsterHp = mh.currentHealth;
+        }
+        int taps = RoundManager.Instance != null ? RoundManager.Instance.currentTapCount : 0;
+
+        SessionReporter.Instance.ReportSessionComplete(
+            outcome,
+            CurrentScore,
+            TotalDamageDealt,
+            taps,
+            level,
+            playerHp,
+            monsterHp,
+            notes);
+    }
+
+    void EnsureSessionReporter()
+    {
+        if (SessionReporter.Instance != null) return;
+        var go = gameObject;
+        var reporter = go.GetComponent<SessionReporter>();
+        if (reporter == null)
+            reporter = go.AddComponent<SessionReporter>();
+        if (RoundManager.Instance != null)
+        {
+            reporter.playerName = RoundManager.Instance.playerName;
+            // Derive base URL from RoundManager.backendUrl if it still points at /api/sessions
+            string url = RoundManager.Instance.backendUrl ?? "";
+            int idx = url.IndexOf("/api/", StringComparison.OrdinalIgnoreCase);
+            if (idx > 0)
+                reporter.backendBaseUrl = url.Substring(0, idx);
+        }
     }
 
 #if UNITY_EDITOR

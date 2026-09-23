@@ -96,3 +96,9 @@ InitTestScene*.unity*
 # Optional local env / secrets
 .env
 .env.*
+
+# Web stack (Node / React)
+web/backend/node_modules/
+web/frontend/node_modules/
+web/frontend/dist/
+npm-debug.log*

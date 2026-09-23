@@ -28,8 +28,11 @@ public class RoundManager : MonoBehaviour
     public bool battleMode = false;
 
     [Header("Backend")]
-    public string backendUrl = "http://10.206.145.129:4000/api/sessions";
+    [Tooltip("Full sessions endpoint. Prefer SessionReporter + web/BACKEND_URL.json. Default: localhost.")]
+    public string backendUrl = "http://localhost:4000/api/sessions";
     public string playerName = "Player1";
+    [Tooltip("When true and SessionReporter exists, skip legacy tap-only POST (battle reports via SessionReporter).")]
+    public bool preferSessionReporter = true;
 
     [Header("Status (read-only)")]
     public bool roundActive = false;
@@ -158,12 +161,26 @@ public class RoundManager : MonoBehaviour
 
         Debug.Log($"Round ended. Total taps: {currentTapCount}. Sending to backend...");
         OnRoundEnded?.Invoke(currentTapCount);
+
+        // Battle mode: BattleManager/SessionReporter posts the full session.
+        if (preferSessionReporter && SessionReporter.Instance != null && battleMode)
+            return;
+
         StartCoroutine(SendResultToBackend(currentTapCount));
     }
 
     private IEnumerator SendResultToBackend(int taps)
     {
-        string json = "{\"playerName\":\"" + Escape(playerName) + "\",\"tapCount\":" + taps + "}";
+        // Legacy fitness-only payload (non-battle). Keep for cube-tap mode.
+        string json =
+            "{\"playerName\":\"" + Escape(playerName) +
+            "\",\"tapCount\":" + taps +
+            ",\"score\":" + (taps * 5) +
+            ",\"pointsEarned\":" + (taps * 5) +
+            ",\"outcome\":\"completed\"," +
+            "\"level\":\"Fitness\"," +
+            "\"hitCount\":" + taps +
+            ",\"damageDealt\":0,\"source\":\"unity-round\"}";
         byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
 
         UnityWebRequest request = new UnityWebRequest(backendUrl, "POST");
@@ -174,13 +191,9 @@ public class RoundManager : MonoBehaviour
         yield return request.SendWebRequest();
 
         if (request.result != UnityWebRequest.Result.Success)
-        {
             Debug.LogError("Failed to send tap result: " + request.error);
-        }
         else
-        {
             Debug.Log("Tap result sent successfully: " + taps + " taps");
-        }
     }
 
     private string Escape(string s)
