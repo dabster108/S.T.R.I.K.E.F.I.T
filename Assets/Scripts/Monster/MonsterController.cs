@@ -148,7 +148,7 @@ public class MonsterController : MonoBehaviour
     /// Same as BeginAttack, but allows selecting an attack animation variant trigger.
     /// Falls back to default Attack trigger if the variant trigger is not present.
     /// </summary>
-    public void BeginAttackVariant(int variantIndex)
+    public void BeginAttackVariant(MonsterAI.AttackPattern pattern)
     {
         if (!CanAttack()) return;
 
@@ -157,7 +157,7 @@ public class MonsterController : MonoBehaviour
         currentAnimState = MonsterAnimState.Attack;
 
         if (monsterAnimator != null)
-            monsterAnimator.PlayAttackVariant(variantIndex);
+            monsterAnimator.PlayAttackVariant(pattern);
         else
             SetAnimState(MonsterAnimState.Attack);
     }
@@ -201,11 +201,21 @@ public class MonsterController : MonoBehaviour
     {
         if (!isAlive || health == null) return;
 
+        bool isDefending = false;
+        if (ai != null) isDefending = ai.IsDefending;
+
+        if (isDefending)
+        {
+            // 70% damage reduction when defending
+            amount *= 0.3f;
+            Debug.Log($"[Monster] Blocked! Reduced damage to {amount:0.#}");
+        }
+
         health.TakeDamage(amount, hitPoint);
 
         if (health.IsDead)
             OnDeath();
-        else
+        else if (!isDefending)
         {
             SetAnimState(MonsterAnimState.Hit);
             CancelInvoke(nameof(ReturnToIdleIfAlive));

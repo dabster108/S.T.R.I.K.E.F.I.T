@@ -126,6 +126,9 @@ MonoBehaviour:
   hitParticles: {fileID: 0}
   audioSource: {fileID: 0}
   hitSound: {fileID: 0}
+  heavyHitSound: {fileID: 0}
+  heavySwingSpeedThreshold: 4.8
+  clashSound: {fileID: 8300000, guid: 37f035f19f96147c5a8ee49476309659, type: 3}
   soundButtonFallback: {fileID: 0}
   hammerTag: Hammer
   playerHandTag: PlayerHand

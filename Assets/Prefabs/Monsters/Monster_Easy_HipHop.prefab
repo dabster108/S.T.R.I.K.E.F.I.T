@@ -165,6 +165,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
       insertIndex: -1
       addedObject: {fileID: 4627137839898129430}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5393584181838314908}
   m_SourcePrefab: {fileID: 100100000, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
 --- !u!95 &851838198775933845 stripped
 Animator:
@@ -220,6 +223,9 @@ MonoBehaviour:
   currentHealth: 500
   spawnDamageNumbers: 1
   damageNumberColor: {r: 1, g: 0, b: 0, a: 1}
+  deathAudioSource: {fileID: 5393584181838314908}
+  deathSound: {fileID: 8300000, guid: be61f6cbb1e4d455bbe118e3d4c219a6, type: 3}
+  deathSoundVolume: 1
 --- !u!114 &8964117830698058586
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -247,9 +253,9 @@ MonoBehaviour:
   isAlive: 1
   isAttacking: 0
   attackPoint: {fileID: 0}
-  audioSource: {fileID: 0}
-  attackSound: {fileID: 0}
-  deathSound: {fileID: 0}
+  audioSource: {fileID: 5393584181838314908}
+  attackSound: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+  deathSound: {fileID: 8300000, guid: be61f6cbb1e4d455bbe118e3d4c219a6, type: 3}
 --- !u!114 &3327800642500988438
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -271,8 +277,27 @@ MonoBehaviour:
   attackHitDelay: 0.9
   attackRecoverDelay: 0.6
   minAttackCooldown: 3
+  randomizeAttackPattern: 1
+  slashHitDelay: 0.9
+  slashRecoverDelay: 0.6
+  slashDamageMultiplier: 1
+  heavyHitDelay: 1.25
+  heavyRecoverDelay: 0.85
+  heavyDamageMultiplier: 1.2
+  specialHitDelay: 1.5
+  specialRecoverDelay: 1
+  specialDamageMultiplier: 1.5
+  canDefend: 1
+  defendCooldown: 8
+  defendDuration: 1.5
   telegraphRenderer: {fileID: 8190314631309884529}
   telegraphColor: {r: 1, g: 0.2, b: 0.2, a: 1}
+  heavyTelegraphColor: {r: 1, g: 0.1, b: 0.1, a: 1}
+  sfxAudioSource: {fileID: 5393584181838314908}
+  telegraphCueClip: {fileID: 8300000, guid: dd2135b44acba4afcaead797bb815061, type: 3}
+  attackSwingClip: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+  telegraphCueVolume: 0.9
+  attackSwingVolume: 1
   aggression: 1
 --- !u!114 &4627137839898129430
 MonoBehaviour:
@@ -289,12 +314,112 @@ MonoBehaviour:
   animator: {fileID: 851838198775933845}
   idleTrigger: Idle
   attackTrigger: Attack
+  attackHeavyTrigger: AttackHeavy
+  attackSpecialTrigger: AttackSpecial
+  defendTrigger: Defend
   hitTrigger: Hit
   deathTrigger: Death
   speedFloat: Speed
   useTriggers: 1
   pulseOnHit: 1
   fallbackRenderer: {fileID: 0}
+--- !u!82 &5393584181838314908
+AudioSource:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6231198665464638293}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: 0}
+  m_audioClip: {fileID: 0}
+  m_Resource: {fileID: 0}
+  m_PlayOnAwake: 0
+  m_Volume: 1
+  m_Pitch: 1
+  Loop: 0
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 128
+  DopplerLevel: 1
+  MinDistance: 1
+  MaxDistance: 24
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!137 &8190314631309884529 stripped
 SkinnedMeshRenderer:
   m_CorrespondingSourceObject: {fileID: 3103283877742750325, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}

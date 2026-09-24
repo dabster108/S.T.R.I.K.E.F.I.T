@@ -31,6 +31,8 @@ public class HitDetection : MonoBehaviour
     public AudioClip heavyHitSound;
     [Tooltip("Swing speed threshold that switches to heavyHitSound.")]
     public float heavySwingSpeedThreshold = 4.8f;
+    [Tooltip("Played when hammer hits the monster's weapon (parry/clash).")]
+    public AudioClip clashSound;
     public VRSoundButton soundButtonFallback;
 
     [Header("Who can deal hits")]
@@ -54,6 +56,8 @@ public class HitDetection : MonoBehaviour
 
     void Start()
     {
+        if (audioSource == null)
+            audioSource = GetComponent<AudioSource>();
         lastPosition = transform.position;
     }
 
@@ -77,6 +81,25 @@ public class HitDetection : MonoBehaviour
     void TryHit(Collider other, Vector3? explicitPoint = null)
     {
         if (Time.time - lastHitTime < hitCooldown) return;
+
+        // --- Clash / Parry check ---
+        if (other.CompareTag("MonsterWeapon"))
+        {
+            lastHitTime = Time.time;
+            if (audioSource != null && clashSound != null)
+                audioSource.PlayOneShot(clashSound);
+            
+            // Optional: spawn sparks at hitPoint
+            Vector3 clashPoint = explicitPoint ?? other.ClosestPoint(transform.position);
+            if (hitParticles != null)
+            {
+                hitParticles.transform.position = clashPoint;
+                hitParticles.Play();
+            }
+            
+            Debug.Log("[HitDetection] Weapon Clash! Damage negated.");
+            return;
+        }
 
         MonsterController monster = other.GetComponentInParent<MonsterController>();
         if (monster == null) return;

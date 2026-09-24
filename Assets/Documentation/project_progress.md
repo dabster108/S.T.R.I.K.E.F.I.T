@@ -109,6 +109,24 @@ All changes executed directly via Unity MCP in the open `Level1_Easy.unity` scen
   - Attack clip is a 4.53s combo but damage lands at 0.9s — trim to first swing in Mixamo re-export or Unity clip editor if the follow-through looks odd.
   - "Great Sword Idle" is a two-handed pose on a one-handed Crystal Sword rig — may look slightly off. Swap to a one-handed idle from Mixamo if desired.
 
+### Monster Combat Variety & Defense (2026-09-24) ✅ PASS (NEW)
+- **Animation Clips Moved**: Moved 4 new FBX clips into `Assets/Animations/Monster/` and configured their rig to Humanoid with the correct Avatar.
+- **Attack Tiers**:
+  - **Standard (Slash)**: Uses `Great Sword Slash`. Triggered most often (80% normally).
+  - **Heavy**: Uses `Great Sword High Spin Attack`. Longer wind-up, higher damage. Triggered 20% normally, up to 40% when monster HP is below 50%.
+  - **Special**: Uses `Mutant Jump Attack`. Very long wind-up, highest damage. Triggered only when monster HP is below 25% (30% chance).
+- **Defense Mechanic**:
+  - Monster now periodically enters a **Defending** state (cooldown 8s, duration 1.5s).
+  - Uses `Great Sword Impact` animation.
+  - While defending, incoming hammer damage is reduced by 70% (amount * 0.3).
+- **Clash Sound**:
+  - Added `wings_of_freedom-riser-impact-606984.mp3` for weapon-on-weapon clash.
+  - When player's hammer hits the monster's sword collider (`MonsterWeapon` tag), the clash sound plays, sparks spawn, and NO damage is dealt to the monster.
+- **Audio Verification**:
+  - Re-assigned and verified all SFX (hit, heavy hit, telegraph, swing, death) on player and monster.
+  - Background music volume further reduced to `0.15`.
+- **Laser Pointer**: Added `ControllerLaserPointer` to `RightHandAnchor` for UI interaction.
+
 ---
 
 ## Level1_Easy Hierarchy (after today's pass)

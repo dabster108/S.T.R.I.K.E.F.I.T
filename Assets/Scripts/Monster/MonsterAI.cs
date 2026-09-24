@@ -13,7 +13,8 @@ public class MonsterAI : MonoBehaviour
     public enum AttackPattern
     {
         Slash = 0,
-        Heavy = 1
+        Heavy = 1,
+        Special = 2
     }
 
     [Header("Target")]
@@ -51,6 +52,19 @@ public class MonsterAI : MonoBehaviour
     public float heavyRecoverDelay = 0.85f;
     [Tooltip("Heavy attack damage multiplier.")]
     public float heavyDamageMultiplier = 1.2f;
+    [Tooltip("Special attack: very long wind-up.")]
+    public float specialHitDelay = 1.5f;
+    [Tooltip("Special attack: recovery after hit.")]
+    public float specialRecoverDelay = 1.0f;
+    [Tooltip("Special attack damage multiplier.")]
+    public float specialDamageMultiplier = 1.5f;
+
+    [Header("Defense")]
+    public bool canDefend = true;
+    public float defendCooldown = 8.0f;
+    public float defendDuration = 1.5f;
+    private float nextDefendTime = 0f;
+    public bool IsDefending { get; private set; }
 
     [Header("Telegraph VFX (optional)")]
     [Tooltip("Optional renderer that flashes red during wind-up so the player sees the attack coming.")]
@@ -75,7 +89,7 @@ public class MonsterAI : MonoBehaviour
     private bool busy;
     private MaterialPropertyBlock mpb;
     private Color baseColor = Color.white;
-    private AttackPattern lastPattern = AttackPattern.Heavy;
+    private int attackCycleCount;
 
     void Awake()
     {
@@ -138,8 +152,14 @@ public class MonsterAI : MonoBehaviour
 
         if (dist <= controller.attackRange)
         {
-            if (controller.CanAttack())
+            if (canDefend && Time.time >= nextDefendTime && !controller.isAttacking)
+            {
+                StartCoroutine(DefendRoutine());
+            }
+            else if (controller.CanAttack())
+            {
                 StartCoroutine(AttackRoutine(ChooseAttackPattern()));
+            }
         }
         else if (canMove)
         {
@@ -186,31 +206,59 @@ public class MonsterAI : MonoBehaviour
     /// </summary>
     AttackPattern ChooseAttackPattern()
     {
-        if (!randomizeAttackPattern)
-        {
-            lastPattern = lastPattern == AttackPattern.Slash ? AttackPattern.Heavy : AttackPattern.Slash;
-            return lastPattern;
-        }
+        if (!randomizeAttackPattern) return AttackPattern.Slash;
 
-        // Random with no immediate repeat for better variation feel
-        AttackPattern next = Random.value < 0.5f ? AttackPattern.Slash : AttackPattern.Heavy;
-        if (next == lastPattern)
-            next = next == AttackPattern.Slash ? AttackPattern.Heavy : AttackPattern.Slash;
-        lastPattern = next;
-        return next;
+        attackCycleCount++;
+        float hpPercent = 1f;
+        var health = GetComponent<MonsterHealth>();
+        if (health != null && health.maxHealth > 0)
+            hpPercent = health.currentHealth / health.maxHealth;
+
+        // Final phase: deterministic special cadence to guarantee variety.
+        if (hpPercent <= 0.25f)
+        {
+            if (attackCycleCount % 4 == 0) return AttackPattern.Special;
+            if (attackCycleCount % 2 == 0) return AttackPattern.Heavy;
+            return AttackPattern.Slash;
+        }
+        // Mid phase: heavy every 3rd cycle.
+        else if (hpPercent <= 0.5f)
+        {
+            return attackCycleCount % 3 == 0 ? AttackPattern.Heavy : AttackPattern.Slash;
+        }
+        // Normal phase: heavy every 4th cycle.
+        return attackCycleCount % 4 == 0 ? AttackPattern.Heavy : AttackPattern.Slash;
+    }
+
+    IEnumerator DefendRoutine()
+    {
+        busy = true;
+        IsDefending = true;
+        nextDefendTime = Time.time + defendCooldown;
+        Debug.Log("[MonsterAI] Enter Defend");
+
+        var anim = GetComponent<MonsterAnimator>();
+        if (anim != null) anim.PlayDefend();
+
+        yield return new WaitForSeconds(defendDuration);
+
+        IsDefending = false;
+        busy = false;
+        Debug.Log("[MonsterAI] Exit Defend");
+        if (anim != null) anim.PlayState(MonsterAnimState.Idle);
     }
 
     IEnumerator AttackRoutine(AttackPattern pattern)
     {
         busy = true;
         controller.attackCooldown = Mathf.Max(controller.attackCooldown, minAttackCooldown);
+        Debug.Log("[MonsterAI] Attack pattern: " + pattern);
 
-        // Variant index maps to MonsterAnimator attackTrigger / attackAltTrigger.
-        controller.BeginAttackVariant(pattern == AttackPattern.Heavy ? 1 : 0);
+        controller.BeginAttackVariant(pattern);
 
-        float baseHitDelay = pattern == AttackPattern.Heavy ? heavyHitDelay : slashHitDelay;
-        float baseRecover = pattern == AttackPattern.Heavy ? heavyRecoverDelay : slashRecoverDelay;
-        float damageMultiplier = pattern == AttackPattern.Heavy ? heavyDamageMultiplier : slashDamageMultiplier;
+        float baseHitDelay = pattern == AttackPattern.Heavy ? heavyHitDelay : (pattern == AttackPattern.Special ? specialHitDelay : slashHitDelay);
+        float baseRecover = pattern == AttackPattern.Heavy ? heavyRecoverDelay : (pattern == AttackPattern.Special ? specialRecoverDelay : slashRecoverDelay);
+        float damageMultiplier = pattern == AttackPattern.Heavy ? heavyDamageMultiplier : (pattern == AttackPattern.Special ? specialDamageMultiplier : slashDamageMultiplier);
 
         // --- Telegraph: visual + audio cue at wind-up start ---
         if (telegraphCueClip != null && sfxAudioSource != null)

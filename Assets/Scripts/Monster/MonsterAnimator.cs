@@ -13,8 +13,9 @@ public class MonsterAnimator : MonoBehaviour
     [Header("Trigger Names (match your Animator Controller)")]
     public string idleTrigger = "Idle";
     public string attackTrigger = "Attack";
-    [Tooltip("Optional secondary attack trigger for attack variety. If missing, falls back to Attack.")]
-    public string attackAltTrigger = "AttackAlt";
+    public string attackHeavyTrigger = "AttackHeavy";
+    public string attackSpecialTrigger = "AttackSpecial";
+    public string defendTrigger = "Defend";
     public string hitTrigger = "Hit";
     public string deathTrigger = "Death";
 
@@ -52,6 +53,9 @@ public class MonsterAnimator : MonoBehaviour
                 // Reset other triggers to avoid sticky states
                 SafeResetTrigger(idleTrigger);
                 SafeResetTrigger(attackTrigger);
+                SafeResetTrigger(attackHeavyTrigger);
+                SafeResetTrigger(attackSpecialTrigger);
+                SafeResetTrigger(defendTrigger);
                 SafeResetTrigger(hitTrigger);
                 SafeResetTrigger(deathTrigger);
 
@@ -83,11 +87,7 @@ public class MonsterAnimator : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Plays one of multiple attack trigger variants.
-    /// variantIndex 0 => attackTrigger, 1 => attackAltTrigger (fallback to attackTrigger if missing).
-    /// </summary>
-    public void PlayAttackVariant(int variantIndex)
+    public void PlayAttackVariant(MonsterAI.AttackPattern pattern)
     {
         if (animator == null || animator.runtimeAnimatorController == null)
         {
@@ -97,13 +97,31 @@ public class MonsterAnimator : MonoBehaviour
 
         SafeResetTrigger(idleTrigger);
         SafeResetTrigger(attackTrigger);
-        SafeResetTrigger(attackAltTrigger);
+        SafeResetTrigger(attackHeavyTrigger);
+        SafeResetTrigger(attackSpecialTrigger);
+        SafeResetTrigger(defendTrigger);
         SafeResetTrigger(hitTrigger);
         SafeResetTrigger(deathTrigger);
 
-        string chosen = variantIndex == 1 ? attackAltTrigger : attackTrigger;
+        string chosen = attackTrigger;
+        if (pattern == MonsterAI.AttackPattern.Heavy) chosen = attackHeavyTrigger;
+        else if (pattern == MonsterAI.AttackPattern.Special) chosen = attackSpecialTrigger;
+
         if (!TrySetTrigger(chosen))
             TrySetTrigger(attackTrigger);
+    }
+
+    public void PlayDefend()
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return;
+        SafeResetTrigger(idleTrigger);
+        SafeResetTrigger(attackTrigger);
+        SafeResetTrigger(attackHeavyTrigger);
+        SafeResetTrigger(attackSpecialTrigger);
+        SafeResetTrigger(defendTrigger);
+        SafeResetTrigger(hitTrigger);
+        SafeResetTrigger(deathTrigger);
+        TrySetTrigger(defendTrigger);
     }
 
     void SafeSetTrigger(string name)
