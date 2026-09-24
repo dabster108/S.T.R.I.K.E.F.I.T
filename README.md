@@ -1,4 +1,4 @@
-# S.T.R.I.K.E.F.I.T.
+# S.T.R.I.K.E.F.I.T
 
 ### Design, Development, and Evaluation of a Virtual Reality-Based Gamified Fitness System
 
