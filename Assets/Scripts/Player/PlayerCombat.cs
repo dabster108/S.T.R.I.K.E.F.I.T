@@ -31,6 +31,8 @@ public class PlayerCombat : MonoBehaviour
     [Tooltip("Second hammer for dual-wield (Level 1 loadout). Null if single-weapon.")]
     public GameObject offhandHammerObject;
     public GameObject swordObject;
+    [Tooltip("Second sword for dual-wield (Level 2 loadout). Null if single-weapon.")]
+    public GameObject offhandSwordObject;
     public GameObject shieldObject; // disabled in Level 1 — no shield
 
     [Header("Controller")]
@@ -116,10 +118,19 @@ public class PlayerCombat : MonoBehaviour
         Instance = this;
         currentStamina = maxStamina;
         ApplyHandAssignment();
+        ResolveWeaponReferences();
+        // Ensure weapons are hidden before first frame (Start UI + laser first).
+        if (hammerObject != null) hammerObject.SetActive(false);
+        if (offhandHammerObject != null) offhandHammerObject.SetActive(false);
+        if (swordObject != null) swordObject.SetActive(false);
+        if (offhandSwordObject != null) offhandSwordObject.SetActive(false);
+        if (shieldObject != null) shieldObject.SetActive(false);
     }
 
     void Start()
     {
+        ResolveWeaponReferences();
+
         if (weaponTransform == null)
         {
             var tagged = GameObject.FindGameObjectWithTag("Hammer");
@@ -217,17 +228,25 @@ public class PlayerCombat : MonoBehaviour
     /// </summary>
     public void ApplyWeaponVisuals()
     {
+        ResolveWeaponReferences();
+
+        // Hammers/swords stay hidden until battle starts (laser + Start UI first).
+        bool battleLive = BattleManager.Instance != null && BattleManager.Instance.IsBattleActive;
+
         // Primary hammer (right hand)
         if (hammerObject != null)
-            hammerObject.SetActive(primaryWeapon == WeaponType.Hammer);
+            hammerObject.SetActive(battleLive && primaryWeapon == WeaponType.Hammer);
         // Offhand hammer (left hand) — dual-wield for Level 1
         if (offhandHammerObject != null)
-            offhandHammerObject.SetActive(offhandWeapon == WeaponType.Hammer);
+            offhandHammerObject.SetActive(battleLive && offhandWeapon == WeaponType.Hammer);
+        // Offhand sword (left hand) — dual-wield for Level 2
+        if (offhandSwordObject != null)
+            offhandSwordObject.SetActive(battleLive && offhandWeapon == WeaponType.Sword);
         if (swordObject != null)
-            swordObject.SetActive(primaryWeapon == WeaponType.Sword || offhandWeapon == WeaponType.Sword);
+            swordObject.SetActive(battleLive && (primaryWeapon == WeaponType.Sword || offhandWeapon == WeaponType.Sword));
         // Shield disabled in Level 1 (no shield loadout) — kept for future re-enable
         if (shieldObject != null)
-            shieldObject.SetActive(primaryWeapon == WeaponType.Shield || offhandWeapon == WeaponType.Shield);
+            shieldObject.SetActive(battleLive && (primaryWeapon == WeaponType.Shield || offhandWeapon == WeaponType.Shield));
 
         // Prefer an active weapon transform for swing tracking (primary hand)
         if (primaryWeapon == WeaponType.Hammer && hammerObject != null)
@@ -240,6 +259,8 @@ public class PlayerCombat : MonoBehaviour
         // Offhand weapon transform (second hammer)
         if (offhandWeapon == WeaponType.Hammer && offhandHammerObject != null)
             offhandWeaponTransform = offhandHammerObject.transform;
+        else if (offhandWeapon == WeaponType.Sword && offhandSwordObject != null)
+            offhandWeaponTransform = offhandSwordObject.transform;
 
         if (shieldObject != null)
             shieldTransform = shieldObject.transform;
@@ -251,6 +272,45 @@ public class PlayerCombat : MonoBehaviour
         }
         if (offhandWeaponTransform != null)
             lastOffhandWeaponPos = offhandWeaponTransform.position;
+    }
+
+    /// <summary>
+    /// Defensive reference recovery for scenes/prefabs where one hammer wasn't assigned in Inspector.
+    /// Keeps dual-wield loadout resilient across scene reloads and prefab updates.
+    /// </summary>
+    void ResolveWeaponReferences()
+    {
+        if (hammerObject == null)
+        {
+            var right = transform.Find("TrackingSpace/RightHandAnchor/PlayerHammer");
+            if (right != null) hammerObject = right.gameObject;
+        }
+
+        if (offhandHammerObject == null)
+        {
+            var left = transform.Find("TrackingSpace/LeftHandAnchor/PlayerHammer_Left");
+            if (left != null) offhandHammerObject = left.gameObject;
+        }
+
+        if (swordObject == null)
+        {
+            var rightSword = transform.Find("TrackingSpace/RightHandAnchor/PlayerSword");
+            if (rightSword != null) swordObject = rightSword.gameObject;
+        }
+
+        if (offhandSwordObject == null)
+        {
+            var leftSword = transform.Find("TrackingSpace/LeftHandAnchor/PlayerSword_Left");
+            if (leftSword != null) offhandSwordObject = leftSword.gameObject;
+        }
+
+        if (weaponTransform == null && hammerObject != null)
+            weaponTransform = hammerObject.transform;
+
+        if (offhandWeaponTransform == null && offhandHammerObject != null)
+            offhandWeaponTransform = offhandHammerObject.transform;
+        if (offhandWeaponTransform == null && offhandSwordObject != null)
+            offhandWeaponTransform = offhandSwordObject.transform;
     }
 
     void UpdateBlockInput()

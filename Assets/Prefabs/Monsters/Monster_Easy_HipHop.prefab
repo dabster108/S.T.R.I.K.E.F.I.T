@@ -64,10 +64,17 @@ PrefabInstance:
       propertyPath: m_Name
       value: MonsterSword
       objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
+      propertyPath: m_TagString
+      value: MonsterWeapon
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2012771796561537739}
   m_SourcePrefab: {fileID: 100100000, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
 --- !u!4 &5831863967683481644 stripped
 Transform:
@@ -79,6 +86,27 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
   m_PrefabInstance: {fileID: 6297237464915507143}
   m_PrefabAsset: {fileID: 0}
+--- !u!65 &2012771796561537739
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6603721596561312406}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.35, y: 2.6, z: 0.3}
+  m_Center: {x: 0, y: 1.3, z: 0.05}
 --- !u!1001 &6537190354412983812
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -299,6 +327,7 @@ MonoBehaviour:
   telegraphCueVolume: 0.9
   attackSwingVolume: 1
   aggression: 1
+  verboseAttackLogs: 0
 --- !u!114 &4627137839898129430
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -314,6 +343,7 @@ MonoBehaviour:
   animator: {fileID: 851838198775933845}
   idleTrigger: Idle
   attackTrigger: Attack
+  attackAltTrigger: AttackAlt
   attackHeavyTrigger: AttackHeavy
   attackSpecialTrigger: AttackSpecial
   defendTrigger: Defend
@@ -323,6 +353,7 @@ MonoBehaviour:
   useTriggers: 1
   pulseOnHit: 1
   fallbackRenderer: {fileID: 0}
+  verboseAttackLogs: 0
 --- !u!82 &5393584181838314908
 AudioSource:
   m_ObjectHideFlags: 0

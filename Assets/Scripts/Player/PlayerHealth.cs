@@ -87,7 +87,8 @@ public class PlayerHealth : MonoBehaviour
             CombatUIController.Instance.ShowDamageNumber(
                 transform.position + Vector3.up * 1.5f,
                 amount,
-                partiallyBlocked ? new Color(0.5f, 0.8f, 1f) : Color.yellow);
+                partiallyBlocked ? new Color(0.5f, 0.8f, 1f) : Color.yellow,
+                countAsDealt: false);
 
         if (partiallyBlocked && XPManager.Instance != null)
             XPManager.Instance.AwardBlockXP();

@@ -58,6 +58,13 @@ public class HitDetection : MonoBehaviour
     {
         if (audioSource == null)
             audioSource = GetComponent<AudioSource>();
+        if (audioSource != null)
+        {
+            audioSource.playOnAwake = false;
+            audioSource.loop = false;
+            audioSource.pitch = 1f;
+            audioSource.dopplerLevel = 0f;
+        }
         lastPosition = transform.position;
     }
 
@@ -87,7 +94,11 @@ public class HitDetection : MonoBehaviour
         {
             lastHitTime = Time.time;
             if (audioSource != null && clashSound != null)
-                audioSource.PlayOneShot(clashSound);
+            {
+                // Clash clip in project is a long riser (~5s); keep it short/quiet so hits don't feel 2x frantic.
+                float vol = clashSound.length > 1.5f ? 0.45f : 0.85f;
+                audioSource.PlayOneShot(clashSound, vol);
+            }
             
             // Optional: spawn sparks at hitPoint
             Vector3 clashPoint = explicitPoint ?? other.ClosestPoint(transform.position);
@@ -97,7 +108,6 @@ public class HitDetection : MonoBehaviour
                 hitParticles.Play();
             }
             
-            Debug.Log("[HitDetection] Weapon Clash! Damage negated.");
             return;
         }
 
