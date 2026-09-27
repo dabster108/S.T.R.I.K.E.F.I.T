@@ -14,6 +14,9 @@ public class BattleManager : MonoBehaviour
     [Header("Spawn")]
     public Transform monsterSpawnPoint;
     public GameObject fallbackCubeMonsterPrefab; // use training/Cube.prefab until character prefab ready
+    [Tooltip("Optional: a monster already placed (and visible) in the scene. If set, StartBattle adopts it " +
+             "at the spawn point instead of instantiating the prefab, so the player sees it before the fight.")]
+    public MonsterController sceneMonster;
 
     [Header("Rules")]
     [Tooltip("If true, round timer ending while monster lives = defeat.")]
@@ -169,7 +172,16 @@ public class BattleManager : MonoBehaviour
         Vector3 pos = monsterSpawnPoint != null ? monsterSpawnPoint.position : transform.position + transform.forward * 2.5f;
         Quaternion rot = monsterSpawnPoint != null ? monsterSpawnPoint.rotation : Quaternion.LookRotation(-transform.forward);
 
-        if (prefab == null)
+        if (sceneMonster != null && sceneMonster.isAlive)
+        {
+            var go = sceneMonster.gameObject;
+            go.transform.SetPositionAndRotation(pos, rot);
+            go.SetActive(true);
+            go.tag = "Monster";
+            EnsureMonsterComponents(go);
+            ActiveMonster = sceneMonster;
+        }
+        else if (prefab == null)
         {
             // Last-resort runtime cube so combat is testable with zero prefabs
             var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -408,6 +420,13 @@ public class BattleManager : MonoBehaviour
 
     void Update()
     {
+        // Headset: B button on the right controller = start the battle (same as clicking Start with the laser).
+        if (!IsBattleActive && !outcomeHandled && OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch))
+        {
+            StartBattleFromInspector();
+            return;
+        }
+
         // Headset: A button = replay this level after Victory/Defeat (keyboard R below is editor-only).
         if (!IsBattleActive && outcomeHandled && OVRInput.GetDown(OVRInput.Button.One))
         {

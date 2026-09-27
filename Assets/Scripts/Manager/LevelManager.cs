@@ -179,9 +179,9 @@ public class LevelManager : MonoBehaviour
                 {
                     level = DifficultyLevel.Medium,
                     monsterMaxHealth = 800f,
-                    monsterDamage = 14f,
-                    monsterAttackCooldown = 2.05f,
-                    monsterAttackRange = 2.6f,
+                    monsterDamage = 14f,           // ×1.2 axe (Hammer slot) = 16.8 base; per-attack multipliers in MonsterAI.attackTable
+                    monsterAttackCooldown = 2.2f,  // start-to-start (L1: 3.2). MonsterAI shortens to ×0.85 as HP drops
+                    monsterAttackRange = 1.55f,    // L2 MonsterAI.useHeadTarget: HORIZONTAL metres to the headset (axe reach ~1.4 m)
                     monsterMoveSpeed = 0.75f,
                     aggression = 1.25f,
                     playerMaxHealth = 800f,

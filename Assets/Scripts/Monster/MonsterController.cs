@@ -162,6 +162,25 @@ public class MonsterController : MonoBehaviour
             SetAnimState(MonsterAnimState.Attack);
     }
 
+    /// <summary>
+    /// Attack-table path (Level 2+): start an attack by explicit Animator trigger name.
+    /// Returns false (and does nothing) if the monster cannot attack right now.
+    /// </summary>
+    public bool BeginAttackTrigger(string trigger)
+    {
+        if (!CanAttack()) return false;
+
+        isAttacking = true;
+        lastAttackTime = Time.time;
+        currentAnimState = MonsterAnimState.Attack;
+
+        if (monsterAnimator != null)
+            monsterAnimator.PlayAttackTrigger(trigger);
+        else
+            SetAnimState(MonsterAnimState.Attack);
+        return true;
+    }
+
     public void PerformAttackHit()
     {
         PerformAttackHit(1f);
@@ -206,8 +225,9 @@ public class MonsterController : MonoBehaviour
 
         if (isDefending)
         {
-            // 70% damage reduction when defending
-            amount *= 0.3f;
+            // Damage reduction while defending (MonsterAI.defendDamageMultiplier, default 0.3 = 70% reduction)
+            amount *= ai.defendDamageMultiplier;
+            ai.NotifyDefendedHit(hitPoint);
             Debug.Log($"[Monster] Blocked! Reduced damage to {amount:0.#}");
         }
 

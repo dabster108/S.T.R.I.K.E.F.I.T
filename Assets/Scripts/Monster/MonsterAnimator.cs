@@ -56,14 +56,7 @@ public class MonsterAnimator : MonoBehaviour
             if (useTriggers)
             {
                 // Reset other triggers to avoid sticky states
-                SafeResetTrigger(idleTrigger);
-                SafeResetTrigger(attackTrigger);
-                SafeResetTrigger(attackAltTrigger);
-                SafeResetTrigger(attackHeavyTrigger);
-                SafeResetTrigger(attackSpecialTrigger);
-                SafeResetTrigger(defendTrigger);
-                SafeResetTrigger(hitTrigger);
-                SafeResetTrigger(deathTrigger);
+                ResetAllTriggers();
 
                 switch (state)
                 {
@@ -101,14 +94,7 @@ public class MonsterAnimator : MonoBehaviour
             return;
         }
 
-        SafeResetTrigger(idleTrigger);
-        SafeResetTrigger(attackTrigger);
-        SafeResetTrigger(attackAltTrigger);
-        SafeResetTrigger(attackHeavyTrigger);
-        SafeResetTrigger(attackSpecialTrigger);
-        SafeResetTrigger(defendTrigger);
-        SafeResetTrigger(hitTrigger);
-        SafeResetTrigger(deathTrigger);
+        ResetAllTriggers();
 
         string chosen = attackTrigger;
         if (pattern == MonsterAI.AttackPattern.Heavy) chosen = attackHeavyTrigger;
@@ -148,15 +134,37 @@ public class MonsterAnimator : MonoBehaviour
     public void PlayDefend()
     {
         if (animator == null || animator.runtimeAnimatorController == null) return;
-        SafeResetTrigger(idleTrigger);
-        SafeResetTrigger(attackTrigger);
-        SafeResetTrigger(attackAltTrigger);
-        SafeResetTrigger(attackHeavyTrigger);
-        SafeResetTrigger(attackSpecialTrigger);
-        SafeResetTrigger(defendTrigger);
-        SafeResetTrigger(hitTrigger);
-        SafeResetTrigger(deathTrigger);
+        ResetAllTriggers();
         TrySetTrigger(defendTrigger);
+    }
+
+    /// <summary>
+    /// Attack-table path (Level 2+): fire one explicit attack trigger. Every trigger in the controller is
+    /// reset first so a stale trigger can never fire a second, unintended transition later.
+    /// </summary>
+    public bool PlayAttackTrigger(string trigger)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null)
+        {
+            HandleFallback(MonsterAnimState.Attack);
+            return false;
+        }
+        ResetAllTriggers();
+        bool ok = HasTrigger(trigger) && TrySetTrigger(trigger);
+        if (verboseAttackLogs)
+            Debug.Log($"[MonsterAnimator] PlayAttackTrigger {trigger} ok={ok}");
+        return ok;
+    }
+
+    /// <summary>Resets every trigger parameter the controller has (not only the named defaults).</summary>
+    void ResetAllTriggers()
+    {
+        if (animator == null) return;
+        foreach (var p in animator.parameters)
+        {
+            if (p.type == AnimatorControllerParameterType.Trigger)
+                animator.ResetTrigger(p.name);
+        }
     }
 
     void SafeSetTrigger(string name)

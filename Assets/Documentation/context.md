@@ -1,6 +1,6 @@
 # Fitness Monster Battle (VR) — Project Context
 
-Last updated: **2026-09-21 (MCP Level1 pass)**
+Last updated: **2026-09-27 (Level 2 rebuild — see project_progress.md)**
 
 ## Overview
 
@@ -10,7 +10,7 @@ Players fight monsters with VR weapons powered by real fitness movement.
 | Level | Scene | Environment | Player weapons | Monster weapon | Monster |
 |---|---|---|---|---|---|
 | 1 Easy | `Level1_Easy` ✅ built | Lite Dungeon Pack (Gridness) | Hammer | None | Hip Hop Mixamo |
-| 2 Medium | `Level2_Medium` shell | Lite Dungeon Pack | Sword + Shield | Sword | Warrok (TBD) |
+| 2 Medium | `Level2_Medium` ✅ built | Lite Dungeon Pack, night sky | Dual swords | Two-handed axe (7-attack table + defend) | Vampire A Lusth |
 | 3 Hard | `Level3_Hard` shell | Old Sea Port | Flexible | Hammer | TBD |
 
 ## What MCP built (2026-09-21)
@@ -57,6 +57,9 @@ Assets/Scripts/
 | Sword | `Assets/Models/Weapons/shattered-crystal-sword/` |
 | Hip Hop | `Assets/Models/Monsters/Hip Hop Dancing.fbx` |
 | Warrok | `Assets/Models/Monsters/Two Handed Sword Death.fbx` |
+| Vampire (L2) | `Assets/Models/Monsters/Level2/` (+ extracted `Textures/`) |
+| L2 swords / axe | `Assets/Models/Weapons/Player/L2_PlayerSword_Split.asset`, `Assets/Models/Weapons/Monster/L2_MonsterAxe_Split.asset` |
+| L2 audio / VFX | `Assets/Audio/SFX/Level2/`, `Assets/VFX/Level2/` |
 | Lite Dungeon | `Assets/Gridness Studios/Elementary Dungeon Pack Lite/` (do not move) |
 | Old Sea Port | `Assets/Old Sea Port/` (do not move) |
 | HotelRoom | `Assets/HotelRoom-Mavi3D/` (unused) |
