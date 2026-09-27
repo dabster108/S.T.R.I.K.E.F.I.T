@@ -1244,7 +1244,7 @@ MonoBehaviour:
   shieldController: 1
   weaponHand: 0
   attackCooldown: 0.15
-  minSwingVelocity: 1
+  minSwingVelocity: 1.2
   maxSwingVelocity: 8
   maxVelocityDamageMultiplier: 2.2
   velocitySmooth: 0.15
@@ -13634,7 +13634,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HitDetection
   baseDamage: 11
-  minSwingSpeed: 1
+  minSwingSpeed: 1.2
   maxSwingSpeed: 8
   maxForceMultiplier: 2.2
   facingBonusMultiplier: 1.25
@@ -14022,7 +14022,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HitDetection
   baseDamage: 11
-  minSwingSpeed: 1
+  minSwingSpeed: 1.2
   maxSwingSpeed: 8
   maxForceMultiplier: 2.2
   facingBonusMultiplier: 1.25
@@ -14153,7 +14153,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.07, y: 0.14, z: 0.76}
+  m_Size: {x: 0.07, y: 0.16, z: 0.76}
   m_Center: {x: 0, y: 0, z: 0.41}
 --- !u!54 &1808468827
 Rigidbody:
