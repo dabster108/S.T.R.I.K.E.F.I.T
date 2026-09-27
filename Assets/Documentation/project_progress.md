@@ -1,6 +1,196 @@
 # Project Progress — Fitness Monster Battle
 
-Last updated: **2026-09-26 — Level 1 re-audit (live Unity MCP inspection + Play-mode runtime traces)**
+Last updated: **2026-09-27 — Level 2 aligned to Level 1's start/spawn/death pattern (live Unity MCP inspection of both scenes + Play-mode traces)**
+
+---
+
+## Level 2 — editor view, music, B-to-start, build order (2026-09-27, pass 4)
+
+| Issue | Cause (verified) | Fix |
+|---|---|---|
+| Game view filled by a red shape / sword after Start | In the editor with no headset/controllers, `OVRCameraRig` leaves `Left/RightHandAnchor` exactly on `CenterEyeAnchor` (0,1.6,0) → both swords rendered 0.33 m from the camera. On Quest the controllers are tracked, so this is editor-only. | New `Player/EditorHandPoseFallback.cs` on `OVRCameraRig` (Level 1 + Level 2): in `LateUpdate`, any hand whose controller is **not tracked** goes to a resting pose (R (0.22,−0.42,0.38) rot (15,8,0), L mirrored) relative to the head. Wrapped in `#if UNITY_EDITOR`, never touches tracked controllers. Verified: swords 0.77–0.87 m from the eye, both visible in the lower half of the view; laser now leaves the right hand and still hits `StartBattleUIButton`. |
+| B on right controller should start | not implemented | `BattleManager.Update`: `OVRInput.GetDown(Button.Two, RTouch)` → `StartBattleFromInspector()` while no battle is running and no outcome is shown (both levels). Same path as the laser click. Needs headset to confirm (OVRInput cannot be simulated in the editor). |
+| Level 2 music | used L1 `music` | `Assets/Audio/Music/level2gamemusic.mp3` (copied from project root; 230 s) on `BackgroundMusic`: loop, play on awake, 2D, **volume 0.2** (0.03 matched L1's 0.08 loudness but both are ≈ −44 dBFS — effectively inaudible; 0.2 → ≈ 0.04 RMS, ~8 dB under hit/swing SFX at ≈ 0.1–0.15). Editor note: with `Run In Background` off the game and its audio pause whenever the Unity window is not focused. Import: **Streaming**, Vorbis q 0.6, load in background (Decompress On Load would hold ~40 MB PCM on Quest). |
+| Pre-battle HUD said "HP 100/100 / Enemy 100/100" | scene-authored placeholder text (L1 has its real 500/500) | Set to `HP 800/800` / `Enemy 800/800` |
+| Level 2 unreachable in the APK | build opened Level1_Easy; nothing loads Level 2 (Victory → A reloads the same level) | Per request (scenes tested as separate builds): **Level2_Medium is build index 0**, Level1_Easy index 1. Move Level1_Easy back to the top to build Level 1. |
+
+---
+
+## Level 2 player swords — two distinct models (2026-09-27, pass 3; supersedes the `PlayerSword_Left` rows below)
+
+Before this pass **both hands used the same `animated_sword` mesh** (left only had a blue-tinted blade material), so the two swords looked identical.
+
+| | Right — `PlayerSword` | Left — `PlayerSword_Left` |
+|---|---|---|
+| Source model | `Models/Weapons/Player/animated_sword.FBX.fbx` (= `_SourceDownloads` copy, byte-identical) | `Models/Weapons/Player/SwordZbrush.fbx` (byte-identical) |
+| Import | Rig **None** (rigid MeshRenderer, not skinned; leftover 3ds Max bones unused) — correct for a prop | Rig **None** (rigid; unused armature) |
+| What it is | Spiked-guard sword | **Zombie hand clutching a jagged blade.** The blade has no hilt of its own (it tapers to a spike at both ends, verified by rendering it without the hand); the only handle is the zombie forearm between the pommel ring and the red cuff. The player grips that forearm. |
+| Mesh used | `L2_PlayerSword_Split.asset` (3 submeshes) | **New** `L2_PlayerSwordZbrush_Split.asset`: 19 connected shells grouped into 5 submeshes |
+| Materials (URP/Lit — no texture files exist on disk for either model; FBX materials are plain grey 0.8/0.59) | `M_L2_SwordSteel` blade, `M_L2_SwordHilt`, `M_L2_SwordGrip` | **New:** `M_L2_ZSword_Blade` (grey-green steel, faint green emission), `M_L2_ZSword_Metal` (brass pommel/collar/9 rivets), `M_L2_ZSword_Bone` (zombie hand), `M_L2_ZSword_Wrap` (crimson cuff), `M_L2_ZSword_Grip` (dark leather forearm) |
+| Root (on hand anchor) | lpos (0,0,0), rot (320,0,0), scale 1 | lpos (0,0,0), rot (320,0,0), scale 1 |
+| `Visual` | lpos (0, 0, 0.306), rot (0, 0, 90), scale 0.0009 | lpos (−0.0010, −0.0055, 0.0383), rot (272.75, 270, 270), scale 0.009 |
+| Grip result | grip axis = L1 hammer axis (0, 0.643, 0.766); grip centre on anchor | handle (mesh +Y) → same L1 axis; grip centre (mesh −0.14, −4.25, 0.60) on anchor; blade offset (~11 cm, mesh −Z) → forward/down so the edge leads on chops |
+| Length | 0.90 m | 0.90 m (hand/guard 0.24 m wide) |
+| Trigger collider (striking part only) | c (0, 0, 0.41) s (0.07, 0.14, 0.76) | c (0, −0.115, 0.531) s (0.05, 0.16, 0.508) — blade above the zombie hand |
+| HitDetection | hand Right; base 11, gate max(1.0, PlayerCombat 1.2) = 1.2 m/s, cooldown 0.28 s | hand Left; same values |
+
+Verified in Play mode: swords inactive at load (`PlayerCombat.Awake` + saved inactive), laser `LineRenderer` visible and the real `UIRayOrigin` raycast hits `StartBattleUIButton`; after the click both swords active and `LaserPointer` inactive (`BattleManager.SetUiLaserPointersActive(false)`), so the laser and sword are never visible together. Real `HitDetection.TryHit` into the same monster: Right 18.94 dmg @ 5 m/s, Left 19.29 dmg @ 5 m/s; immediate repeat 0 (cooldown); 0.5 m/s → 0 (gate). Eye-view render: both swords coloured, no magenta. Console 0 errors (warnings: ISDK telemetry, `SessionReporter` localhost:4000). `M_L2_SwordSteel_Offhand` is now unused (kept).
+
+HitDetection numbers vs Level 1 hammers: same script and logic. L2 values (base 11, cooldown 0.28) were tuned for lighter swords in the rebuild pass; the effective speed gate is 1.2 m/s in both levels.
+
+---
+
+## Level 2 ↔ Level 1 alignment pass — 2026-09-27 (pass 2; supersedes §3 "Monster presence" below)
+
+Method: both scenes inspected live via Unity MCP, then the same Play-mode trace run on each: scene load → real `EventSystem.RaycastAll` from `UIRayOrigin` to `StartBattleUIButton` + click dispatch → spawn check → monster killed through `MonsterController.OnTakeDamage` → player killed through `PlayerHealth.TakeDamage` → Retry reload. Level 1 was only read, not modified.
+
+| Item | Level 1 reference (live) | Level 2 now (live) | Changed? |
+|---|---|---|---|
+| Weapon parent | `PlayerHammer` → `RightHandAnchor`, `PlayerHammer_Left` → `LeftHandAnchor` | `PlayerSword` → `RightHandAnchor`, `PlayerSword_Left` → `LeftHandAnchor` | no |
+| Weapon transform | lpos (∓0.0013, 0.1298, 0.1734), rot (320, 0, 90) R / (320, 0, 270) L, scale 0.085 (mesh pivot is off-grip, so the offset lives on the root) | root lpos (0,0,0), rot (320,0,0), scale 1; `Visual` child lpos (0,0,0.306), rot (0,0,90), scale 0.0009 (offset lives on the child) | no — different pivots, same result ↓ |
+| Grip result (measured from mesh verts in anchor space) | long axis (0, 0.643, 0.766) = 40° up from controller-forward; thin handle (r 1–3 cm) spans −0.08…+0.11 m along the axis through the anchor; head 0.11–0.35 m out; total 0.58 m | same axis (0, 0.643, 0.766); leather grip spans −0.067…+0.048 m, centroid (0, 0, 0.001) = on the anchor; blade 0.28–0.78 m; pommel −0.12 m; total 0.90 m (one-handed arming-sword length) | no — already identical alignment |
+| Hide until Start | hammers saved **inactive**; `PlayerCombat.Awake` hides all weapon slots; `BattleManager.StartBattle → PlayerCombat.SetLoadout → ApplyWeaponVisuals` shows them once `IsBattleActive` | swords were saved **active** (hidden only by `Awake`) → now saved **inactive**; same generic `PlayerCombat` path, no new code | ✅ |
+| Monster before Start | **0** monsters; `BattleManager.sceneMonster = null` | was a visible scene instance adopted via `sceneMonster` → **deleted**, `sceneMonster = null`, **0** monsters at load (instance had no overrides except name/active; only scene ref was `sceneMonster`) | ✅ |
+| Monster at Start | `LevelManager.monsterPrefabForThisScene` instantiated at `MonsterSpawnPoint` (0,0,3) rotY 180 | `Monster_Medium_VampireLust(Clone)` spawned at **(0.000, 0.000, 3.000) rotY 180**, avatar valid, 99 bones, head 1.52 m, `Monster_L2_Axe` controller, AI + `TwoHandedWeaponIK` on, axe on `mixamorig:RightHand`; walked in, stopped at 1.54 m, Backhand 15.12 / Diagonal 16.80 dmg landed | ✅ |
+| Monster death | `MonsterHealth.OnDeath` → `MonsterController.OnDeath` (`dramatic-death-collapse`, Death anim, colliders + AI off) → `BattleManager.VictorySequence` (GameState Victory) → `ShowVictory` after 0.75 s | identical chain and clip (single play) → panel "VICTORY! / Press A to Play Again / XP Earned: 320" | clip kept — no vampire vocal asset exists |
+| Player death | `PlayerHealth.OnDeath` → `male-death-scream` on rig AudioSource → `NotifyPlayerDefeated` (GameState Defeat) → "DEFEAT … Press A to Retry" | identical | no |
+| Victory hint | `VTitle` = `VICTORY!\n<size=24>Press A to Play Again</size>`, vOverflow Overflow | was `VICTORY!` only → copied from L1 | ✅ |
+| BGM on death | `music` 0.08 keeps playing (no script stops/ducks it) | same | no |
+| UI laser | 1 `LaserPointer` | had a 2nd, inactive, unreferenced `LaserPointer` under `RightHandAnchor` → deleted | ✅ |
+| Retry | 0 monsters, weapons hidden, laser on | 0 monsters, swords hidden, laser on, 800 HP | no |
+| Console | 0 errors; 3 warnings (ISDK telemetry native lib, 2× `SessionReporter` → `localhost:4000` not running) | same 0 errors / same 3 warnings | — |
+
+**Level 1 finding (not changed):** `Monster_Easy_HipHop.prefab` has the death clip on **both** `MonsterHealth.deathSound` and `MonsterController.deathSound`, same AudioSource, so it fires twice in the same frame (reads as one sound at ~2× volume). Level 2 deliberately uses only the `MonsterController` path. Clear `MonsterHealth.deathSound` on the L1 prefab if you want them identical.
+
+---
+
+## Level 2: Medium — REBUILT & AUDITED 2026-09-27 (supersedes every earlier Level 2 status in this file except the alignment pass above)
+
+Method: every item was inspected on the live `Level2_Medium` scene / `Monster_Medium_VampireLust.prefab` via Unity MCP and exercised in Play mode: real `EventSystem.RaycastAll` from `UIRayOrigin`, real `HitDetection.TryHit`, Animator state + clip time sampled at every damage frame, 4 000-pick Monte Carlo through the real `MonsterAI.ChooseFromTable`, forced death chains, scene reload. Editor ran throttled (~10 fps) in the background, so timing-critical checks were repeated with `Time.captureDeltaTime = 1/72` (headset rate). Evidence renders are in the session scratchpad, not the project.
+
+### Corrections to earlier Level 2 claims (they were wrong)
+
+| Earlier claim | What was actually true (inspected) | Fixed? |
+|---|---|---|
+| "No sword/monster textures exist; FBX materials had null albedo" | `Vampire A Lusth.fbx` **embeds 5 PNGs** (diffuse, diffuse_transparent, emission, normal, specular). Prefab used flat-colour `M_L2_VampireSkin/Cloth` → pink clay. Raw FBX materials render **magenta** in URP. | ✅ Extracted to `Models/Monsters/Level2/Textures/`, wired into URP/Lit |
+| Player swords "fixed" with `T_crystal_Sword.png` | `SwordZbrush` mesh is a **zombie hand clutching a sword**; crystal texture on foreign UVs = pink marbled claw in the player's face | ✅ Replaced by `animated_sword` blade (see §2) |
+| "Single axe on right hand, two-handed read" | All 5 `Standing Melee *` clips are **one-handed** (hands 1.1–1.9 m apart). `MonsterAxe_Left` on the left hand was the **Solitude_Ember staff** mesh. | ✅ Rebuilt axe + left-hand IK (§2) |
+| "UI refs wired" (`CombatUIController`) | **All 21 refs null** → HP bars/texts never updated, Victory/Defeat panels could never show | ✅ Wired from Level 1 mapping |
+| "Start button → StartBattleFromInspector" | `onClick` had **0 listeners**; `OVRInputModule.rayTransform` **null**; canvas faced away (dot −1, mirrored text); `HitFlash` drawn above the button | ✅ All four fixed (same fixes as Level 1) |
+| Level 2 in build order | `Level2_Medium` **disabled** in Build Settings (not in the APK) | ✅ Enabled |
+| Monster "placed at spawn point" | Scene copy **inactive**; spawn point rot Y=0 | ✅ Spawn point rot Y=180. *(Pass 2: scene copy removed — spawned from prefab on Start, as Level 1)* |
+| Fight ends by death | `timerExpireMeansSurvivalWin = true` → **VICTORY after 40 s with monster at 800/800** (reproduced) | ✅ Off (same fix as Level 1) |
+| "Solitude_Ember = fire VFX" | It is a **staff/sceptre mesh** with embedded colour/emission textures, not a VFX | Real particle fire built instead (§6) |
+| Animator attack variety | Every attack reachable from **Any State**, `Idle→Attack` duplicated by Any State, `Any→Hit`/`Any→Idle` could cut any swing — the Level 1 bug class | ✅ New controller (§4) |
+
+### 1. Materials — what was wrong / fixed
+
+| Asset | Found | Fix |
+|---|---|---|
+| Vampire (monster) | Flat URP/Lit colours, no textures; FBX-embedded mats magenta | `_BaseMap`=Vampire_diffuse (sub 0) / Vampire_diffuse_transparent (sub 1, alpha-clip 0.5), `_EmissionMap`=Vampire_emission (glowing eyes). **Normal map deliberately OFF:** URP/Lit `_NORMALMAP` + GPU skinning renders magenta on this Mac's Metal editor (3/3 reproductions; static/baked mesh fine). Alpha-clip + double-sided on the skinned mesh also magenta → cloth is single-sided. Can't prove Quest/Vulkan is safe, so kept off. |
+| Player swords | Zombie-hand mesh + crystal texture on wrong UVs | Mesh `animated_sword.FBX` (`sword_low`). Its texture `sword_dif.tga` **does not exist anywhere on disk**. Mesh split by geometry into 3 submeshes (`L2_PlayerSword_Split.asset`): polished steel blade (`M_L2_SwordSteel`, off-hand blue-steel `M_L2_SwordSteel_Offhand`), dark-iron horned guard/pommel with faint red glow (`M_L2_SwordHilt`), leather grip (`M_L2_SwordGrip`). |
+| Monster axe | Flat grey `M_L2_AxeIron`, fire cards disabled | Original `Axe_texture.png`, `fire_O.jpg`, `transparency.jpg` **do not exist on disk**. Split into 4 submeshes (`L2_MonsterAxe_Split.asset`): bright blade edges, dark-iron head/socket, wood haft, leather wrap. Dead fire cards removed. |
+| Metal readability | Near-black flat ambient, no reflections | Baked `ArenaReflectionProbe` + custom reflection (§7) |
+
+**Needs from you for full fidelity:** the original `Axe_texture.png` and `sword_dif.tga` (the FBXs reference them by name). Drop them in and they can replace the region materials.
+
+### 2. Weapon grips (Level 1 method: correct parent + local offset, weapon axis through the grip)
+
+Level 1 reference measured live: hammer long axis in hand-anchor space = (0, 0.64, 0.77) — pitched 40° up from controller-forward, passing through the anchor origin.
+
+| Weapon | Parent | Local position | Local rotation | Scale | Verified |
+|---|---|---|---|---|---|
+| `PlayerSword` | `RightHandAnchor` | (0, 0, 0) | (320, 0, 0) → axis (0, 0.64, 0.77) = L1 hammer | 1 | grip centre at anchor (0.000); tip 0.78 m out, pommel 0.12 m behind; render in hand pose |
+| └ `Visual` | — | (0, 0, 0.306) | (0, 0, 90) blade width vertical (edge leads on chops) | 0.0009 (0.90 m sword) | |
+| `PlayerSword_Left` | `LeftHandAnchor` | same | same | same | same |
+| Sword collider | BoxCollider trigger c=(0,0,0.41) s=(0.07,0.14,0.76) | | | | |
+| `MonsterAxe` | `mixamorig:RightHand` | (−0.0008, 0.0986, 0.0003) = right fist centre | (320.71, 341.23, 69.47) | 1 | haft axis = measured LH→RH line (−0.815, 0.271, −0.512); big blade faces monster-forward |
+| └ `Visual` | — | (0.0364, 0.156, −0.0104) | (0,0,0) | 0.013 (1.30 m axe) | |
+| └ `LeftHandGrip` (IK target) | — | (−0.0826, −0.2444, 0.0077) | (340.5, 224.0, 59.3) | | from 41 two-handed frames, spread 3.8 cm |
+| Axe clash colliders | head Box c=(0.036,0.514,−0.010) s=(0.936,0.585,0.234); `HaftCollider` capsule r 0.06 h 0.715 — both tag `MonsterWeapon` | | | | |
+
+Grip line measured by sampling 52 two-handed frames (Great Sword Idle/Slash/Impact/High Spin): fist separation 0.192 m.
+
+**`TwoHandedWeaponIK`** (new) keeps the left hand on the haft using the right-hand IK goal of the *current* frame (no lag). Measured: idle **0.0 cm** from grip; reachable swing frames 0–1.6 cm. **Limitation (physical):** in the one-handed Standing Melee swings the right hand goes 1.1–1.4 m from the left shoulder (arm = 0.75 m) — unreachable — so the IK fades out beyond 0.95–1.2× arm length and regrips on recovery. Truly two-handed swings throughout need two-handed axe clips from Mixamo.
+
+### 3. Monster presence
+⚠️ Superseded by the alignment pass at the top: there is **no monster in the scene**; `BattleManager` instantiates `Monster_Medium_VampireLust.prefab` at `MonsterSpawnPoint` (0,0,3) rot Y=180 when Start is clicked (Level 1 pattern). Runtime: 0 before Start, 1 after; 0 after retry. `BattleManager.sceneMonster` still exists as an optional field but is unused in both levels.
+
+### 4. Attack table (controller `Animations/Monster/Level2/Monster_L2_Axe.controller`)
+
+Every attack: **Idle → state on its own trigger** (no exit time, fixed 0.1 s blend, entry offset), back to Idle on `Idle` trigger or exit-time 0.98 fallback. **Any State is used only for Death.** Hit only from Idle. IK Pass on. Speeds/offsets computed from the measured impact frame of each clip (axe-head peak speed).
+
+| # | Attack | Clip | Category | Trigger / state | Speed · offset | Wind-up (trigger→hit) | Dmg ×16.8 | Arc | Weight full→0 HP | Rules |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | Horizontal Sweep | Standing Melee Attack Horizontal | Standard | `Atk_Sweep` | 1.15 · 0.30 s | 0.61 s | 1.0 = 16.8 | 70° | 30→18 | |
+| 2 | Diagonal Slash | Great Sword Slash | Standard | `Atk_Diagonal` | 1.2 · 0.25 s | 0.60 s | 1.0 = 16.8 | 45° | 26→14 | |
+| 3 | Backhand Cut | One Hand Sword Combo (1st swing) | Standard | `Atk_Backhand` | 1.1 · 0.45 s | 0.59 s | 0.9 = 15.1 | 45° | 22→12 | |
+| 4 | Twin Strike | Standing Melee Combo Attack Ver. 3 | **Combo** (2 hits) | `Atk_TwinStrike` | 1.15 · 0.35 s | 0.57 s + 0.67 s | 0.75 = 12.6 ×2 | 50° | 12→16 | |
+| 5 | Whirlwind Spin | Great Sword High Spin Attack | Heavy | `Atk_Whirlwind` | 1.1 · 0 | 0.97 s | 1.4 = 23.5 | 180° | 7→18 | 4 s cooldown |
+| 6 | Executioner Slam | Standing Melee Attack Downward | **Idle-slam** (heavy) | `Atk_ExecSlam` → `Atk_ExecSlam_Raise` (×0.4, slow raise) → exit-time at apex → `Atk_ExecSlam_Strike` (×1.2) | | 1.475 s | 1.75 = 29.4 | 35° | 5→14 | only after standing still ≥ 0.9 s; 6 s cd; fire VFX |
+| 7 | Leaping Cleave | Standing Melee Run Jump Attack | **Special** | `Atk_LeapCleave` | 1.2 · 0.5 s | 1.025 s | 2.0 = 33.6 | 40° | 10→16 | HP ≤ 40% only; forced once on first crossing; 8 s cd; fire VFX |
+
+Base damage = `monsterDamage 14 × 1.2` (Hammer slot = axe). Selection: weighted, no immediate repeat, heavy pity after 4 light cycles, cooldown shrinks to ×0.85 as HP drops.
+Pacing: `monsterAttackCooldown 2.2 s` start-to-start (L1 3.2 s); measured cycle **2.2–2.4 s**; standard wind-up ~0.6 s (L1 slash 0.9 s).
+
+**Verified at runtime:**
+- Natural 40 s trace: every attack reached its own state and returned to Idle; no stray transitions.
+- Damage-frame alignment at 72 fps: Sweep clip 0.99 s (impact 1.00), Slam 0.88 (0.87), Leap 1.72 (1.73) — within one frame.
+- Monte Carlo (1 000 picks each): big hits (Heavy+Idle-slam+Special) **24.8% → 29.8% → 36.2% → 39.9%** at HP 100/60/35/15%; standard 64.8% → 45.5%; 0 immediate repeats; first pick after crossing 40% = Leaping Cleave; Idle-slam never picked while walking (0/300).
+- Distance: MonsterAI `useHeadTarget` = horizontal distance to `CenterEyeAnchor` (L1 measures to the rig root, which does not move when the player steps). Monster stops at 1.48–1.55 m; hit needs ≤ 1.78 m **and** inside the arc → stepping back ~0.25 m or sidestepping out of the arc dodges.
+
+### 5. Defend
+`Great Sword Impact` (two-handed brace, closest fit — **a dedicated two-handed block clip would look better**) at speed 0.67 → pose lasts 1.0 s. Cooldown **5.5 s**, duration **1.0 s** (L1 8 s / 1.5 s), **70% reduction** (`defendDamageMultiplier 0.3`, same as L1). Visual cue: steel-blue body tint (0.45, 0.65, 1.0) via the same MaterialPropertyBlock method as the L1 telegraph flash, white flash on each blocked hit. Runtime: Idle→Defend→Idle every ~5.6 s; 100 dmg → 30 during window, 100 after; tint on/off verified.
+
+### 6. Audio + VFX (all assignments read from live objects; trigger paths exercised)
+
+| Event | Clip | Trigger path |
+|---|---|---|
+| Standard/combo wind-up | `dragon-studio-sword-unsheathing` (0.45) | `TableAttackRoutine` start |
+| Standard/combo swing | **`L2_Axe_Whoosh_Light`** (new, 0.30 s bright) | 0.12 s before each hit frame |
+| Heavy wind-up | **`L2_Heavy_Growl`** (new) | Whirlwind |
+| Heavy/slam/special swing | **`L2_Axe_Whoosh_Heavy`** (new, low + sub) | |
+| Idle-slam wind-up | **`L2_Slam_Windup`** (growl + fire ignite) | |
+| Special wind-up | **`L2_Special_FireRoar`** | |
+| Slam/special impact | **`L2_Slam_Impact`** (boom + debris) | on the hit frame, hit or miss |
+| Fire VFX | `AxeFireVFX` particles (world-space, additive `M_L2_FireAdditive`) + `AxeFireLight` 2.5 on the axe head; `SlamImpactVFX` ground burst (45+20) | Slam + Leap: ON at trigger, OFF + burst at impact (verified) |
+| Defend brace / block | **`L2_Defend_Brace`** / **`L2_Defend_Block`** (metal clang, distinct from flesh hits) | `DefendRoutine` / `MonsterController.OnTakeDamage` while defending |
+| Player sword swing | **`L2_PlayerSwing_R`** / **`L2_PlayerSwing_L`** via new `WeaponSwingAudio` (fires ≥ 2.2 m/s, re-arms < 1.2 m/s) | per hand |
+| Player sword hit | `sword-slice`; ≥ 4.6 m/s `impactful-damage` (not L1's hammer smash) | `HitDetection.TryHit` — measured 18.94 dmg @ 5 m/s; 0 dmg @ 0.5 m/s |
+| Clash (sword vs axe head or haft) | `swords-collide` | `TryHit` on `MonsterWeapon` → **0 dmg** (verified both colliders) |
+| Player hit / hurt / death | `damage-40114` / `male_hurt7` / `male-death-scream` | `PlayerHealth` (same as L1) |
+| Monster death | `dramatic-death-collapse` (own AudioSource, separate from attack SFX) | `MonsterController.OnDeath` |
+| BGM | `music` loop **0.08** (= L1) | playing at scene start |
+
+New clips are synthesized (numpy) in `Assets/Audio/SFX/Level2/`; **no scream/roar vocal asset exists in the project** — flag if you want a real monster vocal. Solitude_Ember is not used.
+
+### 7. Environment / sky lighting
+Skybox **AllSky Night MoonBurst (Equirect)** (arena has no ceiling). Ambient Trilight sky (0.20,0.25,0.36) / equator (0.16,0.15,0.17) / ground (0.07,0.06,0.06) — deterministic in builds. Fog exp² 0.022, blue-grey. `Directional Light` → **Moonlight** 0.55, cool blue, soft shadows. Added `ArenaTorch_Left/Right` (warm 2.6, range 6.5 at z 1.4 — the old lamps are at z≈9) and violet `MonsterRimLight` behind the vampire. Point-light shadows off (Quest cost); 2 duplicate "Point Light" objects disabled. `ArenaReflectionProbe` baked 128 px → `Scenes/Level2_Medium/ArenaReflectionProbe.exr`, used as custom reflection.
+
+### 8. Scene / flow fixes
+Canvas (0, 2.2, 1.3) rot (335,0,0) scale 0.0014 (L1 values); HitFlash sibling 0; Start `onClick` → `StartBattleFromInspector`; `OVRInputModule.rayTransform` + `OVRRaycaster.pointer` = `UIRayOrigin` (real raycast from the laser origin hits the button and starts the battle); `CombatUIController` 21 refs; survival-win off; Build Settings: Level2 enabled. HUD verified updating (HP 623/800, Enemy 720/800, Dmg 80). Victory chain: death anim → IK released → colliders off → panel "VICTORY! / XP Earned: 320 …". Defeat chain: death scream → "DEFEAT … Press A to Retry". Retry reload: 0 monsters (spawned on Start), swords hidden, laser on, 800 HP.
+
+### Code changes (Level 1 behaviour unchanged — regression run: Slash 8.8 / Heavy 10.6 every 3rd / Special 13.2 every 6th, defend 1.5 s every 8 s at 70%)
+| File | Change |
+|---|---|
+| `Monster/MonsterAI.cs` | Optional `attackTable` (empty = legacy tiers), weighted/escalating selection, desperation special, idle-slam stillness rule, combo follow-up hits, swing arc + head-target horizontal distance (`useHeadTarget`), weapon fire VFX/light, defend tint + brace/block audio, `defendDamageMultiplier`, `DebugForceAttack` |
+| `Monster/MonsterAnimator.cs` | `PlayAttackTrigger`; resets **all** controller triggers (not just named ones) |
+| `Monster/MonsterController.cs` | `BeginAttackTrigger`; defend reduction reads `MonsterAI.defendDamageMultiplier` (default 0.3) |
+| `Monster/TwoHandedWeaponIK.cs` | **New** — left-hand haft IK with reach-based release |
+| `Combat/WeaponSwingAudio.cs` | **New** — per-hand swing whoosh |
+| `Combat/BattleManager.cs` | `sceneMonster` adoption (optional; unused since the alignment pass) |
+| `Manager/LevelManager.cs` | Medium: cooldown 2.2, range 1.55 (horizontal to headset) |
+
+Old `Animations/Monster/Monster_Medium_VampireLust.controller`, `M_L2_EmberGlow`, `M_L2_FireSheet` are now unused (kept, not deleted).
+
+### Not verifiable in the editor (needs headset)
+- Real swing speeds / sword grip feel (40° pitch copies the L1 hammer — tune `PlayerSword` rot X if the blade feels too high/low).
+- Whether 1.55 m stand-off + arcs give a fair dodge window with real movement.
+- The vampire normal map is off; confirm the monster looks right on Quest (no magenta).
+- Editor was throttled to ~10 fps in background; frame-rate-sensitive timing was re-checked at 1/72 s steps.
+
+### Ready for headset test? **YES**
+Nothing known blocks a headset test: scene is in the build, UI is clickable, fight runs to a real outcome, retry works, 0 project console errors. Open content gaps (not blockers): original axe/sword textures, a two-handed axe attack set for full two-hand grip on every swing, a dedicated block clip, a real monster vocal.
 
 ---
 
@@ -55,7 +245,7 @@ Method: every item below was inspected on the live `Level1_Easy` scene / spawned
 
 ---
 
-## Level 2: Medium — status after verified MCP fix pass (2026-09-26)
+## Level 2: Medium — status after MCP fix pass (2026-09-26) — ⚠️ SUPERSEDED: several claims below were false (see 2026-09-27 section)
 
 **Previous “Level 2 complete” claims were inaccurate.** Headset testing exposed broken UI wiring, missing scene monster, invisible offhand sword, flat sword materials, and wrong canvas placement. This pass inspected live `Level2_Medium` via Unity MCP and fixed those issues in-scene.
 
@@ -106,7 +296,7 @@ Method: every item below was inspected on the live `Level1_Easy` scene / spawned
 
 ---
 
-## Level 2: Medium (original MCP build notes — partially stale)
+## Level 2: Medium (original MCP build notes — ⚠️ SUPERSEDED by 2026-09-27 section)
 
 Built `Level2_Medium` by reusing the Level 1 architecture and combat systems (`PlayerCombat`, `HitDetection`, `MonsterAI`, `MonsterController`, `MonsterHealth`, `PlayerHealth`, `CombatUIController`, `XPManager`, `BattleManager`) and adapting loadout/content/tuning for Medium.
 
