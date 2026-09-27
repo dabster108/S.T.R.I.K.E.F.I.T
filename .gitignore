@@ -97,6 +97,22 @@ InitTestScene*.unity*
 .env
 .env.*
 
+# Unity local tooling cache
+.utmp/
+
+# Large build / archive outputs
+*.obb
+*.symbols.zip
+*.zip
+*.7z
+*.rar
+
+# AllSkyFree: only the Space_AnotherPlanet cubemap skybox is used (Level1_Easy)
+/[Aa]ssets/AllSkyFree/*
+!/[Aa]ssets/AllSkyFree/Space_AnotherPlanet/
+!/[Aa]ssets/AllSkyFree/Space_AnotherPlanet.meta
+/[Aa]ssets/AllSkyFree/Space_AnotherPlanet/*Equirect*
+
 # Web stack (Node / React)
 web/backend/node_modules/
 web/frontend/node_modules/

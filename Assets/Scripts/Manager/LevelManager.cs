@@ -113,8 +113,9 @@ public class LevelManager : MonoBehaviour
                 break;
             case DifficultyLevel.Medium:
                 playerPrimaryWeapon = WeaponType.Sword;
-                playerOffhandWeapon = WeaponType.Shield;
-                monsterWeapon = WeaponType.Sword;
+                playerOffhandWeapon = WeaponType.Sword;
+                // WeaponType has no Axe entry; Medium axe monster uses Hammer flavor stats/slot.
+                monsterWeapon = WeaponType.Hammer;
                 break;
             case DifficultyLevel.Hard:
                 playerPrimaryWeapon = WeaponType.Hammer; // flexible — change in Inspector
@@ -177,16 +178,17 @@ public class LevelManager : MonoBehaviour
                 return new DifficultyParams
                 {
                     level = DifficultyLevel.Medium,
-                    monsterMaxHealth = 180f,
-                    monsterDamage = 16f,
-                    monsterAttackCooldown = 1.8f,
+                    monsterMaxHealth = 800f,
+                    monsterDamage = 14f,
+                    monsterAttackCooldown = 2.05f,
                     monsterAttackRange = 2.6f,
-                    monsterMoveSpeed = 0.9f,
-                    aggression = 1.4f,
-                    playerMaxHealth = 100f,
+                    monsterMoveSpeed = 0.75f,
+                    aggression = 1.25f,
+                    playerMaxHealth = 800f,
                     playerPrimaryWeapon = WeaponType.Sword,
-                    playerOffhandWeapon = WeaponType.Shield,
-                    monsterWeapon = WeaponType.Sword
+                    playerOffhandWeapon = WeaponType.Sword,
+                    // WeaponType has no Axe entry; Medium axe monster uses Hammer flavor slot.
+                    monsterWeapon = WeaponType.Hammer
                 };
             case DifficultyLevel.Hard:
                 return new DifficultyParams

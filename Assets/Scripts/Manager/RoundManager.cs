@@ -147,6 +147,10 @@ public class RoundManager : MonoBehaviour
 
         roundActive = false;
 
+        // Final tick: RoundTimer exits before pushing 0, which left the HUD stuck on "Time 1s".
+        if (CombatUIController.Instance != null)
+            CombatUIController.Instance.UpdateTimer(0f);
+
         if (startRoundButton != null && !battleMode)
             startRoundButton.SetActive(true);
 

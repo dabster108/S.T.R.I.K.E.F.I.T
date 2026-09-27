@@ -121,11 +121,15 @@ public class CombatUIController : MonoBehaviour
             timerText.text = $"Time {Mathf.CeilToInt(secondsRemaining)}s";
     }
 
-    public void ShowDamageNumber(Vector3 worldPos, float amount, Color color)
+    /// <param name="countAsDealt">False for damage the player TAKES, so the "Dmg" HUD counter only tracks damage dealt.</param>
+    public void ShowDamageNumber(Vector3 worldPos, float amount, Color color, bool countAsDealt = true)
     {
-        displayedDamageTotal += amount;
-        if (damageCounterText != null)
-            damageCounterText.text = $"Dmg {Mathf.RoundToInt(displayedDamageTotal)}";
+        if (countAsDealt)
+        {
+            displayedDamageTotal += amount;
+            if (damageCounterText != null)
+                damageCounterText.text = $"Dmg {Mathf.RoundToInt(displayedDamageTotal)}";
+        }
 
         if (damageNumberPrefab != null)
         {
@@ -203,7 +207,7 @@ public class CombatUIController : MonoBehaviour
             if (defeatHitsText != null) defeatHitsText.text = $"Hits Landed: {XPManager.Instance.HitsLanded}";
         }
         if (defeatDamageText != null) defeatDamageText.text = $"Score: {score}";
-        if (defeatRetryHintText != null) defeatRetryHintText.text = "Press R to Retry  |  ESC for Menu";
+        if (defeatRetryHintText != null) defeatRetryHintText.text = "Press A to Retry";
     }
 
     public void HideOutcomePanels()

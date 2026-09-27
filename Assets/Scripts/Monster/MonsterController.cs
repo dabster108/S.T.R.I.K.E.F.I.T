@@ -185,7 +185,7 @@ public class MonsterController : MonoBehaviour
         OnMonsterAttackDamage?.Invoke(dmg);
 
         // Route through PlayerHealth — which checks PlayerCombat.IsBlocking for shield block.
-        var playerHealth = FindFirstObjectByType<PlayerHealth>();
+        var playerHealth = FindAnyObjectByType<PlayerHealth>();
         if (playerHealth != null)
             playerHealth.TakeDamage(dmg);
     }
@@ -215,7 +215,9 @@ public class MonsterController : MonoBehaviour
 
         if (health.IsDead)
             OnDeath();
-        else if (!isDefending)
+        // No hit-flinch while attacking: Any State -> Hit would cancel the Slash/Heavy/Special clip mid-swing
+        // (damage still applies above). Flinch only from Idle.
+        else if (!isDefending && !isAttacking)
         {
             SetAnimState(MonsterAnimState.Hit);
             CancelInvoke(nameof(ReturnToIdleIfAlive));

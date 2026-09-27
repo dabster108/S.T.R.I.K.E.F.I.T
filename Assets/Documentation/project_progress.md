@@ -1,6 +1,235 @@
 # Project Progress — Fitness Monster Battle
 
-Last updated: **2026-09-23 22:15 (MCP Level 1 debug-overlay + attack-variety + audio pass)**
+Last updated: **2026-09-26 — Level 1 re-audit (live Unity MCP inspection + Play-mode runtime traces)**
+
+---
+
+## Level 1: Easy — RE-AUDITED 2026-09-26 (supersedes every earlier Level 1 status in this file)
+
+Method: every item below was inspected on the live `Level1_Easy` scene / spawned runtime objects via Unity MCP, and exercised in Play mode (UI ray click through `EventSystem.RaycastAll`, real `HitDetection.TryHit`, Animator state sampling, forced death chains). Evidence screenshots: `Captures/L1_final_*.png` (project root, not imported).
+
+### Corrections to earlier claims in this file (they were wrong)
+
+| Earlier claim | What was actually true | Fixed? |
+|---|---|---|
+| "Monster sword tag MonsterWeapon ✅ inspected" / "Clash wired ✅" | Collider + tag existed only as overrides on an **inactive scene copy** that is never used. `BattleManager` spawns from `Monster_Easy_HipHop.prefab`, whose `MonsterSword` had **no collider, Untagged** → clash could never fire. The scene collider also only covered the hilt (0.6 of ~2.9 local units). | ✅ Prefab: BoxCollider trigger c=(0,1.3,0.05) s=(0.35,2.6,0.3), tag `MonsterWeapon` |
+| "One laser active for Start UI" / laser click works | `StartBattleUIButton.onClick` had **0 listeners** (also at git HEAD). Canvas faced **away** (rot Y=180, dot=-1) → text mirrored and `OVRRaycaster` (ignoreReversedGraphics) rejected it. Full-canvas `HitFlash` drawn above the button swallowed the ray. **Battle could not be started on headset.** | ✅ onClick → `BattleManager.StartBattleFromInspector`; canvas faces player; HitFlash moved to sibling 0 |
+| "HUD @ (0,1.5,2.5) readable ✅" | Mirrored text; monster stands ~1.5 m away **in front of** the HUD and covered it. | ✅ Canvas (0, 2.2, 1.3), rot (-25,0,0), scale 0.0014 (1.26×0.70 m) |
+| Hammer scale 0.3 | Actual scale is **0.09** (world 0.20×0.40×0.62 m). Hit collider sat on the **handle** (mesh z -2.8…-1.6), not the head (z -1.2…1.6), world size 3×5×11 cm. | ✅ Collider c=(0,0,0.2) s=(3.2,2.2,2.8) → 0.29×0.20×0.25 m on both hammers + `Weapon_Hammer.prefab` |
+| "Attack variety fixed" | Tier selection was fine, but `OnTakeDamage` played Hit mid-attack; `Any State→Hit` cancelled Heavy/Special animations whenever the player landed a hit. | ✅ No hit-flinch while `isAttacking` |
+| "Defend 1.5 s" | Defend clip ran 0.67 s; 70% reduction stayed on ~0.8 s longer while monster looked idle. | ✅ Defend state speed 0.444 → pose lasts 1.50 s |
+| Victory = monster death | 40 s round timer + `timerExpireMeansSurvivalWin=true` gave **VICTORY with monster at 500/500 HP**. Timer HUD stuck at "Time 1s". | ✅ Survival-win off (fight continues until a death); timer pushes 0 |
+| Defeat "R to retry" | Keyboard-only, editor-only; "ESC for Menu" handled nowhere → headset player stuck. | ✅ A button retries (Victory + Defeat); hints updated |
+| "Dmg" HUD counter | Also counted damage the **player took**. | ✅ Counts damage dealt only |
+| Duplicate monster in Hierarchy | Inactive scene `Monster_Easy_HipHop` + runtime `(Clone)`. The clone also spawned facing away (spawn point rot 0). | ✅ Scene copy deleted; `MonsterSpawnPoint` rot Y=180 |
+| Shattered geometry screenshot | `screenshot-20260926-003844.png` / `-003758.png` are from the **Level 2** session (brick walls/door match `L2_verify_playerview.png`). Nothing like it reproduces in Level 1. | n/a — Level 2 issue |
+
+### Verified configuration (numbers read from the live objects)
+
+| Item | Value |
+|---|---|
+| Hierarchy roots | Directional Light, Environment_LiteDungeon, BattleSystems, MonsterSpawnPoint, PlayerSpawn, OVRCameraRig, EventSystem, CombatCanvas, BackgroundMusic (118 GameObjects) |
+| Runtime singletons | 1 enabled camera (`CenterEyeAnchor`; Left/RightEye cameras disabled), 1 AudioListener, 1 EventSystem, 1 monster after Start, 0 before |
+| Swing → damage | `baseDamage 12 × Lerp(1, 2.5, InverseLerp(1.2, 8 m/s))` × angle(1–1.4) × facing, + 0.08×speed + 0.35×taps, ×1.15 hammer. Measured: 4 m/s → 22.69, 6 m/s → 29.37, 7 m/s → 32.90 |
+| Min swing / cooldown | 1.2 m/s gate (0.8 m/s → 0 dmg), 0.35 s per hammer (verified blocks 2nd hit) |
+| HP | Monster 500, Player 500 |
+| Monster damage | base 8 × 1.1 sword: Slash 8.8, Heavy 10.6, Special 13.2 (measured) |
+| Telegraph | Slash 0.9 s, Heavy 1.25 s, Special 1.5 s; attack cooldown 3.2 s |
+| Tier cadence (HP > 50%) | Heavy every 3rd, Special every 6th — runtime trace 13 cycles, each reached its Animator state |
+| Defend | cooldown 8 s, duration 1.5 s, 70% reduction |
+| Clash | hammer vs `MonsterSword` → 0 dmg + clash SFX (verified via `TryHit`) |
+| Audio | Hammers: hit / heavy / clash · Monster: telegraph (unsheathing), swing (slice), death · Player: damage, hurt vocal, death scream · BGM `music` loop 0.08 — all clips non-null, played on the runtime objects |
+| Victory chain | MonsterHealth.OnDeath → MonsterController.OnMonsterDeath → Death anim + SFX → colliders off → BattleManager (GameState Victory) → panel after 0.75 s |
+| Defeat chain | PlayerHealth.OnDeath → death scream → BattleManager (GameState Defeat) → panel |
+| Retry | `ReloadCurrentLevel` reloads clean (0 monsters, hammers hidden, laser on) |
+| Console | 0 project errors, 0 project warnings (fixed 2 CS0618 obsolete-API warnings) |
+
+### Not verifiable in the editor (needs headset)
+- Real controller swing speeds, tracked hand positions, hammer grip feel, A-button press.
+- Monster stands off ~1.06 m (capsule front) because `MonsterAI` measures 3D distance to the rig at y=1.6 — reachable with a short step/lean; confirm feel.
+
+### Known design items (not bugs, decisions for you)
+- `HitDetection.ComputeFacingMultiplier` measures from the monster's feet, so the 1.25× front-hit bonus almost never triggers for chest-height hits.
+- Timer now informational only; a timed-defeat rule would need `timerExpireMeansDefeat` + a longer `roundDuration`.
+- `SessionReporter` posts to `http://localhost:4000` — on Quest that is the headset itself, so dashboard reporting needs a LAN IP.
+
+---
+
+## Level 2: Medium — status after verified MCP fix pass (2026-09-26)
+
+**Previous “Level 2 complete” claims were inaccurate.** Headset testing exposed broken UI wiring, missing scene monster, invisible offhand sword, flat sword materials, and wrong canvas placement. This pass inspected live `Level2_Medium` via Unity MCP and fixed those issues in-scene.
+
+### Verified fixes applied (MCP-inspected)
+
+| Area | Before (inspected) | After (inspected) |
+|---|---|---|
+| Sword materials | `M_L2_SwordSteel*` URP/Lit with **null** `_BaseMap` (flat grey clay) | `_BaseMap` = `T_crystal_Sword.png` on both sword materials *(see note below)* |
+| Dual swords | Left `Visual` **localScale (0,0,0)** + full `SwordZbrush` rig (`BN_main`); only right sword readable | Left rebuilt to same mesh as right (`ZombieSwordTextureReady.001`); both ~0.25–0.37 m cross-section in hand |
+| Monster | **No** `Monster_Medium_VampireLust` in scene hierarchy | Prefab instance at `MonsterSpawnPoint` `(0,0,3)`, **inactive** (Level1 pattern); `BattleManager` spawns active copy on Start |
+| Start / HUD UI | `CombatUIController` on `BattleSystems` had **all UI refs null**; canvas at ~(0,2,9.6) scale 0.0072; `autoStartBattleOnLoad=true` | UI refs wired; canvas **world (0, 1.5, 2.5)**, scale **0.0022**, `worldCamera=CenterEyeAnchor`; **autoStart=false**; Start button → `StartBattleFromInspector()` |
+| VR camera | OVRCameraRig confirmed at **(0, 1.6, 0)**; `CenterEyeAnchor` camera enabled | Matches Level 1 standing spawn pattern |
+
+**Sword texture note (honest):** The external downloads (`animated_sword.FBX.fbx`, `SwordZbrush.fbx`) and the project folder `/Users/dikshanta/Documents/VR-Game/` contain **no separate PNG/JPG sword textures**, and FBX embedded materials also had **null** albedo. Until original texture files are provided, swords use the existing project albedo `Assets/Models/Weapons/shattered-crystal-sword/textures/T_crystal_Sword.png` so blades are not flat grey clay.
+
+### Headset sign-off: **NOT YET** — re-test required
+
+- Console after save: **0 errors** (MCP `read_console`).
+- Code: `StartBattleTriggerButton` now uses **this scene’s** `LevelManager.sceneDifficulty` (was hardcoded Easy).
+
+### Level2_Medium hierarchy (roots + combat objects, MCP snapshot)
+
+```
++ Directional Light
++ BattleSystems [RoundManager, BattleManager, LevelManager(autoStart=OFF), GameStateManager, CombatUIController=WIRED, XPManager, SessionReporter]
++ MonsterSpawnPoint
++ PlayerSpawn
++ Monster_Medium_VampireLust [INACTIVE] — mixamorig:Hips …, Vampire (SkinnedMeshRenderer), MonsterAxe on prefab
++ OVRCameraRig @(0,1.6,0) [PlayerCombat dual swords, PlayerHealth]
+  - TrackingSpace
+    * CenterEyeAnchor [Camera, AudioListener]
+    * LeftHandAnchor
+      - PlayerSword_Left [HitDetection]
+        - Visual (scale 0.01)
+          - ZombieSwordTextureReady.001 [MeshRenderer → M_L2_SwordSteel_Offhand + T_crystal_Sword]
+    * RightHandAnchor
+      - PlayerSword [HitDetection]
+        - Visual (scale 0.01)
+          - Armature (DISABLED)
+          - ZombieSwordTextureReady.001 [MeshRenderer → M_L2_SwordSteel + T_crystal_Sword]
+      - UIRayOrigin, ControllerLaserPointer …
++ StartBattleButton3D
++ EventSystem [OVRInputModule]
++ CombatCanvas [World Space @(0,1.5,2.5), scale 0.0022] → StartBattleUIButton, HP bars, Victory/Defeat panels …
++ BackgroundMusic
++ Environment_Level2_Dungeon
+```
+
+---
+
+## Level 2: Medium (original MCP build notes — partially stale)
+
+Built `Level2_Medium` by reusing the Level 1 architecture and combat systems (`PlayerCombat`, `HitDetection`, `MonsterAI`, `MonsterController`, `MonsterHealth`, `PlayerHealth`, `CombatUIController`, `XPManager`, `BattleManager`) and adapting loadout/content/tuning for Medium.
+
+### Part 1 — New assets imported/classified/moved ✅
+
+External files imported from `/Users/dikshanta/Documents/VR-Game/` and moved into project structure:
+
+- `animated_sword.FBX.fbx` → `Assets/Models/Weapons/Player/animated_sword.FBX.fbx`
+- `SwordZbrush.fbx` → `Assets/Models/Weapons/Player/SwordZbrush.fbx`
+- `axe.fbx` → `Assets/Models/Weapons/Monster/axe.fbx`
+- `Solitude_Ember.fbx` → `Assets/VFX/Solitude_Ember.fbx`
+- `Vampire A Lusth.fbx` → `Assets/Models/Monsters/Level2/Vampire A Lusth.fbx`
+- `Standing Melee Attack Downward.fbx` → `Assets/Animations/Monster/Level2/Standing Melee Attack Downward.fbx`
+- `Standing Melee Attack Horizontal.fbx` → `Assets/Animations/Monster/Level2/Standing Melee Attack Horizontal.fbx`
+- `Standing Melee Combo Attack Ver. 1.fbx` → `Assets/Animations/Monster/Level2/Standing Melee Combo Attack Ver. 1.fbx`
+- `Standing Melee Run Jump Attack.fbx` → `Assets/Animations/Monster/Level2/Standing Melee Run Jump Attack.fbx`
+
+**All `Standing Me*` files found (exact list, 4 total):**
+- `Standing Melee Attack Downward.fbx`
+- `Standing Melee Attack Horizontal.fbx`
+- `Standing Melee Combo Attack Ver. 1.fbx`
+- `Standing Melee Run Jump Attack.fbx`
+
+Asset inspection summary:
+- `animated_sword` and `SwordZbrush`: weapon meshes (no usable attack clips in-file).
+- `axe`: weapon mesh (no clips), suitable for monster two-handed axe attachment.
+- `Solitude_Ember`: mesh/prop-like asset, no animation clip; not auto-usable as triggerable fire VFX without additional setup.
+- `Vampire A Lusth`: humanoid/skinned model used as Level 2 monster base.
+
+### Part 2 — Level2 scene setup ✅
+
+- Scene confirmed/used: `Assets/Scenes/Level2_Medium.unity`
+- Reused Level 1 architecture roots:
+  - `BattleSystems` (RoundManager, BattleManager, LevelManager, GameStateManager, CombatUIController, XPManager, SessionReporter)
+  - `MonsterSpawnPoint`, `PlayerSpawn`, `OVRCameraRig`, `CombatCanvas`, `BackgroundMusic`, `EventSystem`, `StartBattleButton3D`
+- Environment built as enclosed dark dungeon under `Environment_Level2_Dungeon` using repeated modular pack pieces (floors/walls/door/pillars/lamps).
+- Lighting tuned darker/moodier than Level 1 (dim ambient + warm lamp points + fog).
+- Build settings order verified includes Level2 after Level1:
+  - MainMenu → Level1_Easy → Level2_Medium → Level3_Hard → Results
+
+### Part 3 — Monster: Medium Vampire, single two-handed axe ✅
+
+- Created prefab: `Assets/Prefabs/Monsters/Monster_Medium_VampireLust.prefab`
+- Animator controller: `Assets/Animations/Monster/Monster_Medium_VampireLust.controller`
+- Attack-tier mapping:
+  - Standard: `Standing Melee Attack Horizontal`
+  - Standard variant (`AttackAlt`): `Standing Melee Combo Attack Ver. 1`
+  - Heavy: `Standing Melee Attack Downward`
+  - Special: `Standing Melee Run Jump Attack`
+  - Defend: `Great Sword Impact` (fallback brace/impact pose from existing project clips)
+- Axe setup:
+  - Single axe attached to right-hand bone and visually oriented for two-handed read.
+  - Tagged `MonsterWeapon` with trigger collider for clash/parry logic.
+- Medium tuning used:
+  - Monster HP: `650`
+  - Monster damage: `14`
+  - Attack cooldown: `2.05`
+  - Range: `2.6`
+  - Move speed: `0.75`
+  - Aggression: `1.25`
+  - AI delays: slash `0.68`, heavy `0.82`, special `0.98`
+  - AI recoveries: slash `0.45`, heavy `0.62`, special `0.75`
+  - AI multipliers: slash `1.05`, heavy `1.35`, special `1.65`
+  - Defend cooldown/duration: `6.5` / `1.15`
+
+### Part 4 — Player: dual swords for Level2 ✅
+
+- Right + left sword objects attached to `RightHandAnchor` / `LeftHandAnchor`:
+  - `PlayerSword`
+  - `PlayerSword_Left`
+- Both wired with `HitDetection`, trigger colliders, and clash-capable audio setup.
+- `PlayerCombat` updated for dual-sword scene wiring (`primaryWeapon=Sword`, `offhandWeapon=Sword`) using `offhandSwordObject`.
+- Sword visual scale in-hand: `0.02` (mesh-local, tunable after headset feel test).
+- Swing/damage tuning for sword feel:
+  - `minSwingVelocity=1.0`
+  - `maxVelocityDamageMultiplier=2.2`
+  - per-sword `baseDamage=11`
+  - `hitCooldown=0.28`
+- Shield is disabled in Level2 by design (dodging/timing focus), matching requested Medium combat style.
+
+### Part 5 — Damage / XP / UI adaptation for Medium ✅
+
+- Level2 health pattern kept symmetric:
+  - Player HP `650`
+  - Monster HP `650`
+- XP tuned above Level1 baseline (`10/25/15/200`):
+  - Hit XP: `15` (**1.5x**)
+  - Full swing bonus: `40` (**1.6x**)
+  - Block XP: `22` (**1.47x**)
+  - Victory bonus: `320` (**1.6x**)
+- CombatCanvas world-space kept as fixed front HUD pattern from Level1:
+  - Position `(0, 1.5, 2.5)`, rotation `(0, 180, 0)`
+
+### Part 6 — Sound setup status ⚠️ partial (asset-limited)
+
+- Reused working PlayOneShot pattern (player hit/death, monster death, clash logic, bgm).
+- Current assigned sword-vs-weapon clash clip is active.
+- Distinct dedicated **axe attack** and **player hero grunt** clips were not found in current audio assets.
+- Distinct **scream/fire combo** trigger remains blocked by missing suitable VFX/audio clips (and `Solitude_Ember` is mesh-like, not a drop-in attack VFX prefab).
+
+### Validation status (superseded — see verified fix pass above)
+
+- Earlier claim of “0 errors / playable / complete” was **not** validated on headset.
+- Re-validate in VR after 2026-09-26 fix pass before marking Level 2 complete.
+
+### Level2 hierarchy snapshot (root)
+
+- `Directional Light`
+- `BattleSystems`
+- `MonsterSpawnPoint`
+- `PlayerSpawn`
+- `OVRCameraRig`
+- `StartBattleButton3D`
+- `EventSystem`
+- `CombatCanvas`
+- `BackgroundMusic`
+- `Environment_Level2_Dungeon`
+
+### Blockers before "fully content-complete" headset signoff
+
+- Dedicated vampire/axe/scream/hero audio set is incomplete in current project assets.
+- No dedicated two-handed axe defend/block animation clip was provided; fallback defend clip is used.
+- `Solitude_Ember` is not an out-of-box attack VFX clip/prefab; needs authored VFX hookup if required for heavy/special fire moments.
 
 ---
 

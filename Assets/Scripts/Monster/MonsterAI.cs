@@ -84,6 +84,10 @@ public class MonsterAI : MonoBehaviour
     [Header("Aggression (set via ApplyDifficulty)")]
     [Range(0.5f, 3f)] public float aggression = 1f;
 
+    [Header("Debug")]
+    [Tooltip("When true, logs each chosen attack tier to the Console. Keep OFF for builds.")]
+    public bool verboseAttackLogs = false;
+
     private MonsterController controller;
     private float nextThinkTime;
     private bool busy;
@@ -214,20 +218,31 @@ public class MonsterAI : MonoBehaviour
         if (health != null && health.maxHealth > 0)
             hpPercent = health.currentHealth / health.maxHealth;
 
+        AttackPattern chosen;
         // Final phase: deterministic special cadence to guarantee variety.
         if (hpPercent <= 0.25f)
         {
-            if (attackCycleCount % 4 == 0) return AttackPattern.Special;
-            if (attackCycleCount % 2 == 0) return AttackPattern.Heavy;
-            return AttackPattern.Slash;
+            if (attackCycleCount % 4 == 0) chosen = AttackPattern.Special;
+            else if (attackCycleCount % 2 == 0) chosen = AttackPattern.Heavy;
+            else chosen = AttackPattern.Slash;
         }
         // Mid phase: heavy every 3rd cycle.
         else if (hpPercent <= 0.5f)
         {
-            return attackCycleCount % 3 == 0 ? AttackPattern.Heavy : AttackPattern.Slash;
+            if (attackCycleCount % 5 == 0) chosen = AttackPattern.Special;
+            else chosen = attackCycleCount % 3 == 0 ? AttackPattern.Heavy : AttackPattern.Slash;
         }
-        // Normal phase: heavy every 4th cycle.
-        return attackCycleCount % 4 == 0 ? AttackPattern.Heavy : AttackPattern.Slash;
+        else
+        {
+            // Normal phase: Heavy every 3rd, Special every 6th so variety is obvious in short fights.
+            if (attackCycleCount % 6 == 0) chosen = AttackPattern.Special;
+            else if (attackCycleCount % 3 == 0) chosen = AttackPattern.Heavy;
+            else chosen = AttackPattern.Slash;
+        }
+
+        if (verboseAttackLogs)
+            Debug.Log($"[MonsterAI] ChooseAttackPattern cycle={attackCycleCount} hp%={hpPercent:0.00} => {chosen}");
+        return chosen;
     }
 
     IEnumerator DefendRoutine()
@@ -235,7 +250,8 @@ public class MonsterAI : MonoBehaviour
         busy = true;
         IsDefending = true;
         nextDefendTime = Time.time + defendCooldown;
-        Debug.Log("[MonsterAI] Enter Defend");
+        if (verboseAttackLogs)
+            Debug.Log("[MonsterAI] Enter Defend");
 
         var anim = GetComponent<MonsterAnimator>();
         if (anim != null) anim.PlayDefend();
@@ -244,7 +260,8 @@ public class MonsterAI : MonoBehaviour
 
         IsDefending = false;
         busy = false;
-        Debug.Log("[MonsterAI] Exit Defend");
+        if (verboseAttackLogs)
+            Debug.Log("[MonsterAI] Exit Defend");
         if (anim != null) anim.PlayState(MonsterAnimState.Idle);
     }
 
@@ -252,7 +269,8 @@ public class MonsterAI : MonoBehaviour
     {
         busy = true;
         controller.attackCooldown = Mathf.Max(controller.attackCooldown, minAttackCooldown);
-        Debug.Log("[MonsterAI] Attack pattern: " + pattern);
+        if (verboseAttackLogs)
+            Debug.Log("[MonsterAI] Attack pattern: " + pattern);
 
         controller.BeginAttackVariant(pattern);
 

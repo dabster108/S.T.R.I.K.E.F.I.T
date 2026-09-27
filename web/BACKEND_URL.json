@@ -5,10 +5,13 @@
   "lanExample": "http://10.0.0.0:4000",
   "api": {
     "health": "/api/health",
+    "stats": "/api/stats",
     "sessions": "/api/sessions",
-    "events": "/api/events",
-    "stats": "/api/stats"
+    "session": "/api/sessions/:id",
+    "players": "/api/players",
+    "events": "/api/events"
   },
   "unityPostUrl": "http://localhost:4000/api/sessions",
-  "note": "On headset/LAN, replace localhost with your Mac IP (ipconfig getifaddr en0). Update RoundManager.backendUrl in Unity to match."
+  "note": "On headset/LAN, replace localhost with your Mac IP (ipconfig getifaddr en0, or see the dashboard's Connection page). Set SessionReporter.backendBaseUrl in Unity to match.",
+  "dashboard": "http://localhost:4000 (after npm run build in web/frontend) or http://localhost:5173 in dev"
 }

@@ -13,6 +13,7 @@ public class MonsterAnimator : MonoBehaviour
     [Header("Trigger Names (match your Animator Controller)")]
     public string idleTrigger = "Idle";
     public string attackTrigger = "Attack";
+    public string attackAltTrigger = "AttackAlt";
     public string attackHeavyTrigger = "AttackHeavy";
     public string attackSpecialTrigger = "AttackSpecial";
     public string defendTrigger = "Defend";
@@ -26,6 +27,10 @@ public class MonsterAnimator : MonoBehaviour
     [Header("Fallback Visual (no Animator)")]
     public bool pulseOnHit = true;
     public Renderer fallbackRenderer;
+
+    [Header("Debug")]
+    [Tooltip("When true, logs which attack trigger was fired. Keep OFF for builds.")]
+    public bool verboseAttackLogs = false;
 
     private MaterialPropertyBlock mpb;
     private Color baseColor = Color.white;
@@ -53,6 +58,7 @@ public class MonsterAnimator : MonoBehaviour
                 // Reset other triggers to avoid sticky states
                 SafeResetTrigger(idleTrigger);
                 SafeResetTrigger(attackTrigger);
+                SafeResetTrigger(attackAltTrigger);
                 SafeResetTrigger(attackHeavyTrigger);
                 SafeResetTrigger(attackSpecialTrigger);
                 SafeResetTrigger(defendTrigger);
@@ -97,6 +103,7 @@ public class MonsterAnimator : MonoBehaviour
 
         SafeResetTrigger(idleTrigger);
         SafeResetTrigger(attackTrigger);
+        SafeResetTrigger(attackAltTrigger);
         SafeResetTrigger(attackHeavyTrigger);
         SafeResetTrigger(attackSpecialTrigger);
         SafeResetTrigger(defendTrigger);
@@ -106,9 +113,36 @@ public class MonsterAnimator : MonoBehaviour
         string chosen = attackTrigger;
         if (pattern == MonsterAI.AttackPattern.Heavy) chosen = attackHeavyTrigger;
         else if (pattern == MonsterAI.AttackPattern.Special) chosen = attackSpecialTrigger;
+        else if (pattern == MonsterAI.AttackPattern.Slash)
+        {
+            // Only use AttackAlt when BOTH the trigger param AND a real state exist.
+            // Level 1 Monster_Easy has AttackAlt param but NO AttackAlt state — selecting it
+            // used to consume the trigger with no transition (silent no-op / stuck Idle).
+            if (HasTrigger(attackAltTrigger) &&
+                animator.HasState(0, Animator.StringToHash(attackAltTrigger)) &&
+                Random.value < 0.45f)
+            {
+                chosen = attackAltTrigger;
+            }
+        }
 
-        if (!TrySetTrigger(chosen))
-            TrySetTrigger(attackTrigger);
+        bool ok = TrySetTrigger(chosen);
+        if (!ok)
+            ok = TrySetTrigger(attackTrigger);
+
+        if (verboseAttackLogs)
+            Debug.Log($"[MonsterAnimator] PlayAttackVariant pattern={pattern} trigger={chosen} ok={ok}");
+    }
+
+    bool HasTrigger(string name)
+    {
+        if (string.IsNullOrEmpty(name) || animator == null) return false;
+        foreach (var p in animator.parameters)
+        {
+            if (p.type == AnimatorControllerParameterType.Trigger && p.name == name)
+                return true;
+        }
+        return false;
     }
 
     public void PlayDefend()
@@ -116,6 +150,7 @@ public class MonsterAnimator : MonoBehaviour
         if (animator == null || animator.runtimeAnimatorController == null) return;
         SafeResetTrigger(idleTrigger);
         SafeResetTrigger(attackTrigger);
+        SafeResetTrigger(attackAltTrigger);
         SafeResetTrigger(attackHeavyTrigger);
         SafeResetTrigger(attackSpecialTrigger);
         SafeResetTrigger(defendTrigger);

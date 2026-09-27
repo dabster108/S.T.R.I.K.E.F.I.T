@@ -47,7 +47,12 @@ public class StartBattleTriggerButton : MonoBehaviour
             soundButton.PlayClickSound();
 
         if (BattleManager.Instance != null)
-            BattleManager.Instance.StartBattle(DifficultyLevel.Easy);
+        {
+            var level = LevelManager.Instance != null
+                ? LevelManager.Instance.sceneDifficulty
+                : DifficultyLevel.Easy;
+            BattleManager.Instance.StartBattle(level);
+        }
 
         if (visualOn != null) visualOn.SetActive(false);
         if (visualOff != null) visualOff.SetActive(true);

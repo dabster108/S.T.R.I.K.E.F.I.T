@@ -121,6 +121,8 @@ public class BattleManager : MonoBehaviour
             PlayerCombat.Instance.ResetStamina();
         }
 
+        SetUiLaserPointersActive(false);
+
         SpawnMonster(level);
 
         if (CombatUIController.Instance != null)
@@ -384,9 +386,37 @@ public class BattleManager : MonoBehaviour
         }
     }
 
-#if UNITY_EDITOR
+    void SetUiLaserPointersActive(bool active)
+    {
+        var lasers = FindObjectsByType<ControllerLaserPointer>(FindObjectsInactive.Include);
+        for (int i = 0; i < lasers.Length; i++)
+        {
+            if (lasers[i] == null) continue;
+            lasers[i].gameObject.SetActive(active);
+            lasers[i].enabled = active;
+        }
+
+        // Hide Start UI button once combat begins (laser no longer needed).
+        if (!active)
+        {
+            var startBtn = GameObject.Find("CombatCanvas/StartBattleUIButton");
+            if (startBtn != null) startBtn.SetActive(false);
+            var start3d = GameObject.Find("StartBattleButton3D");
+            if (start3d != null) start3d.SetActive(false);
+        }
+    }
+
     void Update()
     {
+        // Headset: A button = replay this level after Victory/Defeat (keyboard R below is editor-only).
+        if (!IsBattleActive && outcomeHandled && OVRInput.GetDown(OVRInput.Button.One))
+        {
+            if (GameStateManager.Instance != null)
+                GameStateManager.Instance.ReloadCurrentLevel();
+            return;
+        }
+
+#if UNITY_EDITOR
         var kb = UnityEngine.InputSystem.Keyboard.current;
         if (kb == null) return;
 
@@ -400,6 +430,6 @@ public class BattleManager : MonoBehaviour
             if (GameStateManager.Instance != null)
                 GameStateManager.Instance.ReloadCurrentLevel();
         }
-    }
 #endif
+    }
 }

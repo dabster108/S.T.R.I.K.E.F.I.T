@@ -17,6 +17,78 @@
       "endedAt": "2026-09-23T17:04:15.469Z",
       "source": "unity",
       "notes": ""
+    },
+    {
+      "id": "3ac4d16a4b1048768f30c5bd496e5f72",
+      "playerName": "Player1",
+      "level": "Easy",
+      "outcome": "victory",
+      "score": 500,
+      "damageDealt": 0,
+      "hitCount": 0,
+      "tapCount": 0,
+      "durationSec": 21.5,
+      "playerHpRemaining": 454.2,
+      "monsterHpRemaining": 0,
+      "pointsEarned": 500,
+      "startedAt": "2026-09-26T15:54:57.1700990Z",
+      "endedAt": "2026-09-26T15:55:18.6563420Z",
+      "source": "unity",
+      "notes": ""
+    },
+    {
+      "id": "04af8a0f4bad41f69ec96b7b7724f654",
+      "playerName": "Player1",
+      "level": "Easy",
+      "outcome": "victory",
+      "score": 750,
+      "damageDealt": 0,
+      "hitCount": 0,
+      "tapCount": 0,
+      "durationSec": 43.3,
+      "playerHpRemaining": 404.1,
+      "monsterHpRemaining": 500,
+      "pointsEarned": 750,
+      "startedAt": "2026-09-26T16:03:16.5614760Z",
+      "endedAt": "2026-09-26T16:03:59.9041490Z",
+      "source": "unity",
+      "notes": ""
+    },
+    {
+      "id": "00df96dd9304495dbde6d001abc5031c",
+      "playerName": "Player1",
+      "level": "Easy",
+      "outcome": "victory",
+      "score": 500,
+      "damageDealt": 0,
+      "hitCount": 0,
+      "tapCount": 0,
+      "durationSec": 35.4,
+      "playerHpRemaining": 500,
+      "monsterHpRemaining": 0,
+      "pointsEarned": 500,
+      "startedAt": "2026-09-26T16:05:13.6603550Z",
+      "endedAt": "2026-09-26T16:05:49.0978460Z",
+      "source": "unity",
+      "notes": ""
+    },
+    {
+      "id": "b03dd394fdbb447e9722b76056c4d668",
+      "playerName": "Player1",
+      "level": "Easy",
+      "outcome": "defeat",
+      "score": 0,
+      "damageDealt": 0,
+      "hitCount": 0,
+      "tapCount": 0,
+      "durationSec": 224.2,
+      "playerHpRemaining": 0,
+      "monsterHpRemaining": 15,
+      "pointsEarned": 0,
+      "startedAt": "2026-09-26T17:19:27.1031790Z",
+      "endedAt": "2026-09-26T17:23:11.2704960Z",
+      "source": "unity",
+      "notes": "Player defeated"
     }
   ],
   "events": [
@@ -45,6 +117,329 @@
         "notes": ""
       },
       "at": "2026-09-23T17:04:15.469Z"
+    },
+    {
+      "id": "b615f9a8-7364-49af-8479-080249b7f03a",
+      "type": "session_start",
+      "sessionId": "6efca589df6a4574a74ce313fa7dce4a",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "6efca589df6a4574a74ce313fa7dce4a",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-25T17:37:02.147Z"
+    },
+    {
+      "id": "2affa80e-aab8-4951-a65d-6a830cdc1390",
+      "type": "session_start",
+      "sessionId": "ee36543a1c3140cfbf40a8407a8e78a8",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "ee36543a1c3140cfbf40a8407a8e78a8",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-25T18:43:18.639Z"
+    },
+    {
+      "id": "1a581826-2f05-4fb3-9600-92f82aa365a1",
+      "type": "session_start",
+      "sessionId": "c6dccb140628454abb3f422f44067b1b",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "c6dccb140628454abb3f422f44067b1b",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-25T18:50:47.896Z"
+    },
+    {
+      "id": "2eac2f3f-04d4-494d-a9d6-0e4e48ad295d",
+      "type": "session_start",
+      "sessionId": "33a91a9015be4884982ebd142fcebe02",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "33a91a9015be4884982ebd142fcebe02",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-25T18:52:06.187Z"
+    },
+    {
+      "id": "b9489cb9-f074-4b93-ada0-438c858371c9",
+      "type": "session_start",
+      "sessionId": "e122de51de5b41b3a4ce86215daa61f2",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "e122de51de5b41b3a4ce86215daa61f2",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-25T18:52:41.468Z"
+    },
+    {
+      "id": "7b7788a2-0618-4a28-9f4a-5a3df7714ea7",
+      "type": "session_start",
+      "sessionId": "d74ed9b940204440bdfc70210df90cea",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "d74ed9b940204440bdfc70210df90cea",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-25T18:55:02.081Z"
+    },
+    {
+      "id": "3c78f3a1-0071-49d1-95e8-d46e684cda73",
+      "type": "session_start",
+      "sessionId": "e9e9fb08907a4be4a334249dc5466928",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "e9e9fb08907a4be4a334249dc5466928",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-25T19:09:25.862Z"
+    },
+    {
+      "id": "20f24dd3-4884-4e39-8d11-a49131bdec1d",
+      "type": "session_start",
+      "sessionId": "eddb642aa5c64c2fa5d32c6e603e9cd6",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "eddb642aa5c64c2fa5d32c6e603e9cd6",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-25T19:11:55.610Z"
+    },
+    {
+      "id": "f4c9b2da-6339-4711-8022-53eaf6d7b3f7",
+      "type": "session_start",
+      "sessionId": "1f169493ffd6429580899775c5fc7431",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "1f169493ffd6429580899775c5fc7431",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-26T15:45:54.308Z"
+    },
+    {
+      "id": "e8bc6d97-8e6d-4f62-bc08-591b1c116a66",
+      "type": "session_start",
+      "sessionId": "e249154d6f014635b57b34d1bc59c128",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "e249154d6f014635b57b34d1bc59c128",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-26T15:46:17.291Z"
+    },
+    {
+      "id": "54182886-30b8-4e88-beff-62dfe68ec7a5",
+      "type": "session_start",
+      "sessionId": "6116a2a43f2141e2a2b5090a72115ede",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "6116a2a43f2141e2a2b5090a72115ede",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-26T15:51:25.579Z"
+    },
+    {
+      "id": "1c62d1fe-b49a-4f71-b6bc-98af42373858",
+      "type": "session_start",
+      "sessionId": "3ac4d16a4b1048768f30c5bd496e5f72",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "3ac4d16a4b1048768f30c5bd496e5f72",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-26T15:54:57.176Z"
+    },
+    {
+      "id": "0589fc18-8fbb-4e3f-8ad8-9ddcd54ca416",
+      "type": "session_complete",
+      "sessionId": "3ac4d16a4b1048768f30c5bd496e5f72",
+      "playerName": "Player1",
+      "message": "Player1 finished Easy: victory — score 500",
+      "payload": {
+        "id": "3ac4d16a4b1048768f30c5bd496e5f72",
+        "playerName": "Player1",
+        "level": "Easy",
+        "outcome": "victory",
+        "score": 500,
+        "damageDealt": 0,
+        "hitCount": 0,
+        "tapCount": 0,
+        "durationSec": 21.5,
+        "playerHpRemaining": 454.2,
+        "monsterHpRemaining": 0,
+        "pointsEarned": 500,
+        "startedAt": "2026-09-26T15:54:57.1700990Z",
+        "endedAt": "2026-09-26T15:55:18.6563420Z",
+        "source": "unity",
+        "notes": ""
+      },
+      "at": "2026-09-26T15:55:18.659Z"
+    },
+    {
+      "id": "79364a74-942f-4319-a146-b3984773fe3b",
+      "type": "session_start",
+      "sessionId": "04af8a0f4bad41f69ec96b7b7724f654",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "04af8a0f4bad41f69ec96b7b7724f654",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-26T16:03:16.575Z"
+    },
+    {
+      "id": "7470912c-c645-4226-a1e1-09389e18aa75",
+      "type": "session_complete",
+      "sessionId": "04af8a0f4bad41f69ec96b7b7724f654",
+      "playerName": "Player1",
+      "message": "Player1 finished Easy: victory — score 750",
+      "payload": {
+        "id": "04af8a0f4bad41f69ec96b7b7724f654",
+        "playerName": "Player1",
+        "level": "Easy",
+        "outcome": "victory",
+        "score": 750,
+        "damageDealt": 0,
+        "hitCount": 0,
+        "tapCount": 0,
+        "durationSec": 43.3,
+        "playerHpRemaining": 404.1,
+        "monsterHpRemaining": 500,
+        "pointsEarned": 750,
+        "startedAt": "2026-09-26T16:03:16.5614760Z",
+        "endedAt": "2026-09-26T16:03:59.9041490Z",
+        "source": "unity",
+        "notes": ""
+      },
+      "at": "2026-09-26T16:03:59.906Z"
+    },
+    {
+      "id": "496f6f53-e5f2-41e2-b51a-8b518490f4b5",
+      "type": "session_start",
+      "sessionId": "00df96dd9304495dbde6d001abc5031c",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "00df96dd9304495dbde6d001abc5031c",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-26T16:05:13.668Z"
+    },
+    {
+      "id": "efacad97-a873-4fb9-8bfb-44e6153baf1f",
+      "type": "session_complete",
+      "sessionId": "00df96dd9304495dbde6d001abc5031c",
+      "playerName": "Player1",
+      "message": "Player1 finished Easy: victory — score 500",
+      "payload": {
+        "id": "00df96dd9304495dbde6d001abc5031c",
+        "playerName": "Player1",
+        "level": "Easy",
+        "outcome": "victory",
+        "score": 500,
+        "damageDealt": 0,
+        "hitCount": 0,
+        "tapCount": 0,
+        "durationSec": 35.4,
+        "playerHpRemaining": 500,
+        "monsterHpRemaining": 0,
+        "pointsEarned": 500,
+        "startedAt": "2026-09-26T16:05:13.6603550Z",
+        "endedAt": "2026-09-26T16:05:49.0978460Z",
+        "source": "unity",
+        "notes": ""
+      },
+      "at": "2026-09-26T16:05:49.102Z"
+    },
+    {
+      "id": "7afa288c-4511-46b6-a73a-d5887b0bd266",
+      "type": "session_start",
+      "sessionId": "edcef826eb544d51b8e4e621abb98fa1",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": {
+        "type": "session_start",
+        "sessionId": "edcef826eb544d51b8e4e621abb98fa1",
+        "playerName": "Player1",
+        "message": "Session started (Player1)"
+      },
+      "at": "2026-09-26T16:07:30.938Z"
+    },
+    {
+      "id": "f92ce7e3-416d-42fb-bba7-96e6b86dd13f",
+      "type": "session_start",
+      "sessionId": "b03dd394fdbb447e9722b76056c4d668",
+      "playerName": "Player1",
+      "message": "Session started (Player1)",
+      "payload": null,
+      "at": "2026-09-26T17:19:27.107Z"
+    },
+    {
+      "id": "0392d461-4144-4588-b2b8-d62050135608",
+      "type": "session_complete",
+      "sessionId": "b03dd394fdbb447e9722b76056c4d668",
+      "playerName": "Player1",
+      "message": "Player1 finished Easy: defeat — score 0",
+      "payload": {
+        "id": "b03dd394fdbb447e9722b76056c4d668",
+        "playerName": "Player1",
+        "level": "Easy",
+        "outcome": "defeat",
+        "score": 0,
+        "damageDealt": 0,
+        "hitCount": 0,
+        "tapCount": 0,
+        "durationSec": 224.2,
+        "playerHpRemaining": 0,
+        "monsterHpRemaining": 15,
+        "pointsEarned": 0,
+        "startedAt": "2026-09-26T17:19:27.1031790Z",
+        "endedAt": "2026-09-26T17:23:11.2704960Z",
+        "source": "unity",
+        "notes": "Player defeated"
+      },
+      "at": "2026-09-26T17:23:11.272Z"
     }
   ],
   "meta": {
