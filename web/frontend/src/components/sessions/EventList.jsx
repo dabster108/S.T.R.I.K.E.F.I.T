@@ -5,6 +5,13 @@ export const EVENT_META = {
   session_start: { label: "Session start", icon: "play", cls: "bg-blue-50 text-blue-600", dot: "bg-blue-500" },
   hit: { label: "Hit", icon: "bolt", cls: "bg-amber-50 text-amber-600", dot: "bg-amber-500" },
   session_complete: { label: "Session complete", icon: "check", cls: "bg-emerald-50 text-emerald-600", dot: "bg-emerald-500" },
+  weak_swing: { label: "Too slow", icon: "hand", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-300" },
+  clash: { label: "Weapon clash", icon: "x", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-300" },
+  monster_attack: { label: "Monster attack", icon: "flame", cls: "bg-rose-50 text-rose-600", dot: "bg-rose-600" },
+  monster_defend: { label: "Monster guard", icon: "target", cls: "bg-rose-50 text-rose-600", dot: "bg-rose-600" },
+  dodge: { label: "Dodged", icon: "check", cls: "bg-blue-50 text-blue-600", dot: "bg-blue-500" },
+  block: { label: "Blocked", icon: "check", cls: "bg-blue-50 text-blue-600", dot: "bg-blue-500" },
+  player_hurt: { label: "Player hurt", icon: "heart", cls: "bg-red-50 text-[var(--bad)]", dot: "bg-[var(--bad)]" },
 };
 
 export function eventMeta(type) {

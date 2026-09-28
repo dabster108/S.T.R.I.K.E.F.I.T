@@ -28,7 +28,8 @@ public class RoundManager : MonoBehaviour
     public bool battleMode = false;
 
     [Header("Backend")]
-    [Tooltip("Full sessions endpoint. Prefer SessionReporter + web/BACKEND_URL.json. Default: localhost.")]
+    [Tooltip("Legacy cube-tap mode only, and only when the scene has no SessionReporter " +
+             "(otherwise SessionReporter.baseUrl is used).")]
     public string backendUrl = "http://localhost:4000/api/sessions";
     public string playerName = "Player1";
     [Tooltip("When true and SessionReporter exists, skip legacy tap-only POST (battle reports via SessionReporter).")]
@@ -187,7 +188,10 @@ public class RoundManager : MonoBehaviour
             ",\"damageDealt\":0,\"source\":\"unity-round\"}";
         byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
 
-        UnityWebRequest request = new UnityWebRequest(backendUrl, "POST");
+        string url = SessionReporter.Instance != null
+            ? SessionReporter.Instance.baseUrl.TrimEnd('/') + "/api/sessions"
+            : backendUrl;
+        UnityWebRequest request = new UnityWebRequest(url, "POST");
         request.uploadHandler = new UploadHandlerRaw(bodyRaw);
         request.downloadHandler = new DownloadHandlerBuffer();
         request.SetRequestHeader("Content-Type", "application/json");

@@ -73,6 +73,14 @@ public class MonsterAI : MonoBehaviour
         [System.NonSerialized] public float lastUsedTime = -999f;
     }
 
+    // Telemetry hooks (SessionReporter). Raised synchronously; listeners must not throw.
+    /// <summary>Telegraph began. Args: monster, attack name, tier (Slash/Heavy/Special or table category).</summary>
+    public static event System.Action<MonsterAI, string, string> AttackStarted;
+    /// <summary>Hit frame resolved. Args: monster, attack name, whether it reached the player.</summary>
+    public static event System.Action<MonsterAI, string, bool> AttackResolved;
+    /// <summary>Defend window opened.</summary>
+    public static event System.Action<MonsterAI> DefendStarted;
+
     [Header("Target")]
     public Transform playerTarget;
     public string playerTag = "Player";
@@ -387,6 +395,7 @@ public class MonsterAI : MonoBehaviour
         busy = true;
         IsDefending = true;
         nextDefendTime = Time.time + defendCooldown;
+        DefendStarted?.Invoke(this);
         if (verboseAttackLogs)
             Debug.Log("[MonsterAI] Enter Defend");
 
@@ -547,6 +556,7 @@ public class MonsterAI : MonoBehaviour
         TableAttackCount++;
         cyclesSinceHeavy = IsBigHit(a.category) ? 0 : cyclesSinceHeavy + 1;
         LastHitLanded = false;
+        AttackStarted?.Invoke(this, a.name, a.category.ToString());
 
         // --- Telegraph ---
         if (a.windUpClip != null && sfxAudioSource != null)
@@ -579,6 +589,8 @@ public class MonsterAI : MonoBehaviour
             }
         }
         if (a.fireVfx) SetWeaponFire(false);
+        if (controller != null && controller.isAlive)
+            AttackResolved?.Invoke(this, a.name, LastHitLanded);
 
         yield return new WaitForSeconds(a.recover);
 
@@ -626,6 +638,7 @@ public class MonsterAI : MonoBehaviour
             Debug.Log("[MonsterAI] Attack pattern: " + pattern);
 
         controller.BeginAttackVariant(pattern);
+        AttackStarted?.Invoke(this, pattern.ToString(), pattern.ToString());
 
         float baseHitDelay = pattern == AttackPattern.Heavy ? heavyHitDelay : (pattern == AttackPattern.Special ? specialHitDelay : slashHitDelay);
         float baseRecover = pattern == AttackPattern.Heavy ? heavyRecoverDelay : (pattern == AttackPattern.Special ? specialRecoverDelay : slashRecoverDelay);
@@ -648,10 +661,12 @@ public class MonsterAI : MonoBehaviour
         if (controller != null && controller.isAlive && playerTarget != null)
         {
             float dist = Vector3.Distance(transform.position, playerTarget.position);
-            if (dist <= controller.attackRange * 1.15f)
+            bool inRange = dist <= controller.attackRange * 1.15f;
+            if (inRange)
             {
                 controller.PerformAttackHit(damageMultiplier); // routes through PlayerHealth
             }
+            AttackResolved?.Invoke(this, pattern.ToString(), inRange);
         }
 
         yield return new WaitForSeconds(baseRecover / Mathf.Max(0.5f, aggression));

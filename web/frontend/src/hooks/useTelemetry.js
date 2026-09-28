@@ -1,31 +1,36 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { io } from "socket.io-client";
-import { API_BASE, api } from "../lib/api.js";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { api } from "../lib/api.js";
+import { liveStore, startLive } from "../live/liveStore.js";
 
 const HEALTH_INTERVAL_MS = 15000;
 const MAX_EVENTS = 300;
+// Stored, but too frequent for lists of "what happened" (one per second per fight).
+const HIDDEN_TYPES = new Set(["ping", "hp"]);
 
-// Owns all backend data. REST loads the full snapshot; the socket keeps it live.
+// The stream store has four states; the original views know three.
+const CONNECTION = { connected: "live", connecting: "connecting", reconnecting: "connecting", offline: "offline" };
+
+// Owns the session/event lists for the original views. REST loads the snapshot;
+// the one shared Server-Sent Events connection (live/liveStore.js) keeps it current.
 // Every (re)connect refetches, so a backend restart never leaves stale data.
 export function useTelemetry({ onSession, onConnectionChange } = {}) {
   const [sessions, setSessions] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
-  const [connection, setConnection] = useState("connecting"); // connecting | live | offline
   const [health, setHealth] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const connection = CONNECTION[useSyncExternalStore(liveStore.subscribeConnection, liveStore.getConnection)];
 
   const callbacks = useRef({ onSession, onConnectionChange });
   callbacks.current = { onSession, onConnectionChange };
-  const socketRef = useRef(null);
   const pingWaiters = useRef(new Map());
 
   const refresh = useCallback(async () => {
     try {
       const [s, e] = await Promise.all([api.sessions(), api.events(MAX_EVENTS)]);
-      setSessions(s);
-      setEvents(e);
+      setSessions(s.filter((x) => x.status !== "live"));
+      setEvents(e.filter((ev) => !HIDDEN_TYPES.has(ev.type)));
       setLoadError(null);
       setLastUpdate(new Date().toISOString());
     } catch (err) {
@@ -48,67 +53,59 @@ export function useTelemetry({ onSession, onConnectionChange } = {}) {
   }, []);
 
   useEffect(() => {
+    startLive();
     refresh();
     checkHealth();
     const timer = setInterval(checkHealth, HEALTH_INTERVAL_MS);
 
-    const socket = io(API_BASE || undefined, {
-      transports: ["websocket", "polling"],
-      timeout: 6000,
-      reconnectionDelayMax: 5000,
-    });
-    socketRef.current = socket;
-
-    const setConn = (state) => {
-      setConnection((prev) => {
-        if (prev !== state) callbacks.current.onConnectionChange?.(state, prev);
-        return state;
-      });
-    };
-
-    socket.on("connect", () => {
-      setConn("live");
-      refresh();
-      checkHealth();
-    });
-    socket.on("disconnect", () => setConn("offline"));
-    socket.on("connect_error", () => setConn("offline"));
-
-    socket.on("session", (session) => {
-      setSessions((prev) => [session, ...prev.filter((s) => s.id !== session.id)]);
-      setLastUpdate(new Date().toISOString());
-      callbacks.current.onSession?.(session);
-    });
-
-    socket.on("event", (event) => {
-      const waiter = event.type === "ping" && pingWaiters.current.get(event.message);
-      if (waiter) {
-        waiter(event);
-        pingWaiters.current.delete(event.message);
+    const off = liveStore.onMessage((type, payload) => {
+      if (type === "event_created") {
+        const waiter = payload.type === "ping" && pingWaiters.current.get(payload.message);
+        if (waiter) {
+          waiter(payload);
+          pingWaiters.current.delete(payload.message);
+        }
+        if (HIDDEN_TYPES.has(payload.type)) return;
+        setEvents((prev) => [payload, ...prev.filter((e) => e.id !== payload.id)].slice(0, MAX_EVENTS));
+        setLastUpdate(new Date().toISOString());
+      } else if (type === "session_finished") {
+        // These lists hold finished battles (as before live sessions existed); fights in
+        // progress, and their many session_updated messages, belong to the live components.
+        const s = payload.session;
+        setSessions((prev) => [s, ...prev.filter((x) => x.id !== s.id)]);
+        setLastUpdate(new Date().toISOString());
+        callbacks.current.onSession?.(s);
+      } else if (type === "session_deleted") {
+        if (payload.all) {
+          setSessions([]);
+          setEvents([]);
+        } else {
+          setSessions((prev) => prev.filter((s) => s.id !== payload.id));
+          setEvents((prev) => prev.filter((e) => e.sessionId !== payload.id));
+        }
       }
-      setEvents((prev) => [event, ...prev.filter((e) => e.id !== event.id)].slice(0, MAX_EVENTS));
-      setLastUpdate(new Date().toISOString());
-    });
-
-    socket.on("session_deleted", ({ id }) => {
-      setSessions((prev) => prev.filter((s) => s.id !== id));
-      setEvents((prev) => prev.filter((e) => e.sessionId !== id));
-    });
-
-    socket.on("cleared", () => {
-      setSessions([]);
-      setEvents([]);
-      setLastUpdate(new Date().toISOString());
     });
 
     return () => {
       clearInterval(timer);
-      socket.disconnect();
-      socketRef.current = null;
+      off();
     };
   }, [refresh, checkHealth]);
 
-  // Full round trip: POST /api/events → backend → socket broadcast → back here.
+  // Reconnected after a drop: refetch, and tell the shell (toasts).
+  const prevConnection = useRef(connection);
+  useEffect(() => {
+    const prev = prevConnection.current;
+    prevConnection.current = connection;
+    if (prev === connection) return;
+    callbacks.current.onConnectionChange?.(connection, prev);
+    if (connection === "live" && prev !== "live") {
+      refresh();
+      checkHealth();
+    }
+  }, [connection, refresh, checkHealth]);
+
+  // Full round trip: POST /api/events -> backend -> stream broadcast -> back here.
   const pingRoundTrip = useCallback(async () => {
     const token = `ping-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const t0 = performance.now();
@@ -126,16 +123,5 @@ export function useTelemetry({ onSession, onConnectionChange } = {}) {
     return { httpMs, socketMs: Math.round(performance.now() - t0), eventId: posted.event.id };
   }, []);
 
-  return {
-    sessions,
-    events: events.filter((e) => e.type !== "ping"),
-    loading,
-    loadError,
-    connection,
-    health,
-    lastUpdate,
-    refresh,
-    checkHealth,
-    pingRoundTrip,
-  };
+  return { sessions, events, loading, loadError, connection, health, lastUpdate, refresh, checkHealth, pingRoundTrip };
 }

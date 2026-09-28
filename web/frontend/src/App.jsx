@@ -1,20 +1,41 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useTelemetry } from "./hooks/useTelemetry.js";
-import { useHashRoute } from "./hooks/useHashRoute.js";
-import { filterByRange, liveSession } from "./lib/derive.js";
+import { filterByRange } from "./lib/derive.js";
 import { formatNumber } from "./lib/format.js";
-import { MobileNav, MobileTopbar, NAV, Sidebar } from "./components/layout/Sidebar.jsx";
+import { LiveProvider, useLiveIds } from "./live/LiveProvider.jsx";
+import { MobileNav, Sidebar } from "./components/layout/Sidebar.jsx";
+import Topbar from "./components/layout/Topbar.jsx";
 import { Banner, DashboardSkeleton } from "./components/ui/Feedback.jsx";
 import { ToastStack, useToasts } from "./components/ui/Toasts.jsx";
-import SessionDrawer from "./components/sessions/SessionDrawer.jsx";
+import { WakeNotice } from "./components/live/LiveFight.jsx";
+import Landing from "./views/Landing.jsx";
 import DashboardView from "./views/DashboardView.jsx";
 import LiveView from "./views/LiveView.jsx";
 import SessionsView from "./views/SessionsView.jsx";
+import SessionDetailView from "./views/SessionDetailView.jsx";
 import LeaderboardView from "./views/LeaderboardView.jsx";
 import PlayersView from "./views/PlayersView.jsx";
+import PlayerView from "./views/PlayerView.jsx";
+import CompareView from "./views/CompareView.jsx";
+import AnalyticsView from "./views/AnalyticsView.jsx";
+import ExportView from "./views/ExportView.jsx";
 import SettingsView from "./views/SettingsView.jsx";
 
 const RANGE_KEY = "vrfitness.range";
+const TITLES = {
+  "": "Overview",
+  live: "Live Arena",
+  players: "Players",
+  player: "Player",
+  sessions: "Sessions",
+  session: "Session",
+  leaderboard: "Leaderboard",
+  compare: "Compare",
+  analytics: "Analytics",
+  export: "Export",
+  connection: "Connection",
+};
 
 function readRange() {
   try {
@@ -24,13 +45,14 @@ function readRange() {
   }
 }
 
-export default function App() {
-  const [route] = useHashRoute();
-  const view = NAV.some((n) => n.id === route.view) ? route.view : "dashboard";
+function Dashboard() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const section = pathname.replace(/^\/dashboard\/?/, "").split("/")[0];
   const [range, setRangeState] = useState(readRange);
-  const [openId, setOpenId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const { toasts, push, dismiss } = useToasts();
+  const liveCount = useLiveIds().length;
 
   const onSession = useCallback(
     (s) =>
@@ -62,98 +84,92 @@ export default function App() {
   };
 
   const filtered = useMemo(() => filterByRange(t.sessions, range), [t.sessions, range]);
-  const live = useMemo(() => liveSession(t.events), [t.events]);
-  const openSession = useCallback((id) => setOpenId(id), []);
+  const openSession = useCallback((id) => navigate(`/dashboard/session/${encodeURIComponent(id)}`), [navigate]);
 
   useEffect(() => {
-    const label = NAV.find((n) => n.id === view)?.label || "Dashboard";
-    document.title = `${label} · Monster Battle`;
+    document.title = `${TITLES[section] || "Dashboard"} · STRIKEFIT`;
     window.scrollTo({ top: 0 });
-  }, [view]);
+    setMenuOpen(false);
+  }, [pathname, section]);
 
   const offline = !t.loading && t.connection === "offline" && !t.health?.ok;
-
-  function renderView() {
-    switch (view) {
-      case "live":
-        return <LiveView events={t.events} connection={t.connection} lastUpdate={t.lastUpdate} />;
-      case "sessions":
-        return <SessionsView sessions={filtered} range={range} onRange={setRange} openSession={openSession} />;
-      case "leaderboard":
-        return <LeaderboardView sessions={t.sessions} openSession={openSession} />;
-      case "players":
-        return <PlayersView sessions={t.sessions} />;
-      case "settings":
-        return (
-          <SettingsView
-            connection={t.connection}
-            health={t.health}
-            checkHealth={t.checkHealth}
-            pingRoundTrip={t.pingRoundTrip}
-            refresh={t.refresh}
-            toast={push}
-          />
-        );
-      default:
-        return (
-          <DashboardView
-            sessions={filtered}
-            allSessions={t.sessions}
-            events={t.events}
-            range={range}
-            onRange={setRange}
-            openSession={openSession}
-          />
-        );
-    }
-  }
+  // Pages that load their own data don't need to wait for the telemetry snapshot.
+  const needsTelemetry = ["", "sessions", "leaderboard", "players", "connection"].includes(section);
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
-      <Sidebar current={view} connection={t.connection} liveActive={Boolean(live)} health={t.health} />
-      <MobileTopbar connection={t.connection} onMenu={() => setMenuOpen(true)} />
-      <MobileNav open={menuOpen} onClose={() => setMenuOpen(false)} current={view} liveActive={Boolean(live)} />
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-[var(--surface)] focus:px-3 focus:py-2 focus:shadow-lg">
+        Skip to content
+      </a>
+      <Sidebar connection={t.connection} liveCount={liveCount} health={t.health} />
+      <MobileNav open={menuOpen} onClose={() => setMenuOpen(false)} liveCount={liveCount} />
 
       <div className="min-w-0 lg:pl-[var(--sidebar-w)]">
-        <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          {offline && view !== "settings" && (
+        <Topbar connection={t.connection} onMenu={() => setMenuOpen(true)} />
+        <main id="main" className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <WakeNotice />
+          {offline && section !== "connection" && (
             <Banner
               title="Can't reach the backend"
               action={
-                <a
-                  href="#/settings"
+                <Link
+                  to="/dashboard/connection"
                   className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--ink-secondary)] shadow-sm hover:text-[var(--ink)]"
                 >
                   Connection help
-                </a>
+                </Link>
               }
             >
-              Start it with <code>cd web/backend && npm start</code>. The dashboard reconnects on its own and shows the last data it loaded.
+              The dashboard reconnects on its own, checks for live fights every 3 seconds meanwhile, and shows the last data it loaded.
             </Banner>
           )}
 
-          {t.loading ? (
+          {t.loading && needsTelemetry ? (
             <DashboardSkeleton />
           ) : (
-            <div key={view} className="view-in min-w-0">
-              {renderView()}
+            <div key={section} className="view-in min-w-0">
+              <Routes>
+                <Route index element={<DashboardView sessions={filtered} allSessions={t.sessions} events={t.events} range={range} onRange={setRange} openSession={openSession} />} />
+                <Route path="live" element={<LiveView />} />
+                <Route path="players" element={<PlayersView sessions={t.sessions} />} />
+                <Route path="player/:name" element={<PlayerView />} />
+                <Route path="sessions" element={<SessionsView sessions={filtered} range={range} onRange={setRange} openSession={openSession} />} />
+                <Route path="session/:id" element={<SessionDetailView onDeleted={(s) => push({ tone: "info", title: "Session deleted", detail: s ? `${s.playerName} · ${s.level}` : undefined })} />} />
+                <Route path="leaderboard" element={<LeaderboardView sessions={t.sessions} openSession={openSession} />} />
+                <Route path="compare" element={<CompareView />} />
+                <Route path="analytics" element={<AnalyticsView />} />
+                <Route path="export" element={<ExportView />} />
+                <Route
+                  path="connection"
+                  element={<SettingsView connection={t.connection} health={t.health} checkHealth={t.checkHealth} pingRoundTrip={t.pingRoundTrip} refresh={t.refresh} toast={push} />}
+                />
+                <Route path="*" element={<DashboardView sessions={filtered} allSessions={t.sessions} events={t.events} range={range} onRange={setRange} openSession={openSession} />} />
+              </Routes>
             </div>
           )}
 
-          <footer className="pt-4 text-center text-xs text-[var(--muted)]">Fitness Monster Battle · VR combat telemetry</footer>
+          <footer className="pt-4 text-center text-xs text-[var(--muted)]">STRIKEFIT · VR combat telemetry</footer>
         </main>
       </div>
 
-      {openId && (
-        <SessionDrawer
-          sessionId={openId}
-          fallback={t.sessions.find((s) => s.id === openId)}
-          onClose={() => setOpenId(null)}
-          onDeleted={(s) => push({ tone: "info", title: "Session deleted", detail: s ? `${s.playerName} · ${s.level}` : undefined })}
-        />
-      )}
-
       <ToastStack toasts={toasts} onDismiss={dismiss} />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route
+        path="/dashboard/*"
+        element={
+          <LiveProvider>
+            <Dashboard />
+          </LiveProvider>
+        }
+      />
+      <Route path="*" element={<Landing />} />
+    </Routes>
   );
 }

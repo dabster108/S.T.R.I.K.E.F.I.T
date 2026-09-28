@@ -823,13 +823,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a1b2c3d4e5f6789012345678abcdef01, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SessionReporter
-  backendBaseUrl: http://localhost:4000
-  playerName: Player1
-  reportLiveHits: 1
+  baseUrl: https://s-t-r-i-k-e-f-i-t.onrender.com
+  playerName: Player 1
+  sendLiveEvents: 1
+  snapshotInterval: 1
+  flushInterval: 0.4
+  maxBufferedEvents: 256
+  maxEventsPerRequest: 50
+  requestTimeoutSeconds: 8
+  verboseLogging: 0
   currentSessionId: 
-  sessionStartedAt: 0
-  hitCount: 0
   sessionOpen: 0
+  hitCount: 0
+  bufferedEvents: 0
+  droppedRequests: 0
 --- !u!114 &121459568
 MonoBehaviour:
   m_ObjectHideFlags: 0

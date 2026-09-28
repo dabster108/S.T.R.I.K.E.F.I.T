@@ -13,9 +13,16 @@ const ENDPOINTS = [
   ["GET", "/api/sessions", "All sessions (filters: player, level, outcome, limit)"],
   ["GET", "/api/sessions/:id", "One session + its events"],
   ["GET", "/api/players", "Per-player summaries"],
-  ["GET", "/api/events", "Recent events (filters: type, sessionId, limit)"],
-  ["POST", "/api/sessions", "Unity: finished battle (same id = update)"],
-  ["POST", "/api/events", "Unity: session_start / hit events"],
+  ["GET", "/api/events", "Recent events (filters: type, sessionId, player, limit)"],
+  ["GET", "/api/stream", "Live updates (Server-Sent Events, ?player=)"],
+  ["GET", "/api/live", "Fights in progress with HP / XP / score"],
+  ["GET", "/api/players/:name", "One player's profile"],
+  ["GET", "/api/overview", "Dashboard totals, sessions per day, per level"],
+  ["GET", "/api/public-stats", "Aggregate numbers only (landing page)"],
+  ["GET", "/api/analytics", "Swing speed, effort and level comparisons"],
+  ["GET", "/api/export/:kind.csv", "sessions.csv or events.csv"],
+  ["POST", "/api/sessions", "Unity: live session start, final result (same id = update)"],
+  ["POST", "/api/events", "Unity: combat events, single or { events: [...] }"],
   ["DELETE", "/api/sessions/:id", "Remove one session"],
   ["DELETE", "/api/sessions", "Clear everything"],
 ];
@@ -119,7 +126,7 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
                 <span className="text-[var(--bad)]">{health?.error || "Unreachable"}</span>
               )}
             </Row>
-            <Row label="Realtime socket">
+            <Row label="Realtime stream">
               <span className="capitalize">{connection}</span>
             </Row>
             <Row label="Uptime">{health?.ok ? formatDuration(health.uptimeSec) : "—"}</Row>
@@ -145,20 +152,20 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
               )}
             </div>
             <p className="mt-2 text-xs text-[var(--muted)]">
-              Sends a ping through <code>POST /api/events</code> and waits for it to come back over Socket.io. Pings aren't saved.
+              Sends a ping through <code>POST /api/events</code> and waits for it to come back over the live stream. Pings aren't saved.
             </p>
           </div>
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader title="Connect Unity" subtitle="SessionReporter → Backend Base Url" />
+          <CardHeader title="Connect Unity" subtitle="SessionReporter → Base Url" />
           <div className="space-y-5 px-5 py-5">
             <ol className="space-y-4 text-sm text-[var(--ink-secondary)]">
               <li className="flex gap-3">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent)]">1</span>
                 <div className="min-w-0 flex-1">
                   <p>
-                    Start the backend: <code>cd web/backend && npm start</code>
+                    The game is set to the hosted backend, <code>https://s-t-r-i-k-e-f-i-t.onrender.com</code>, by default. For a local backend, start it with <code>cd web/backend && npm start</code>.
                   </p>
                 </div>
               </li>
@@ -166,7 +173,7 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent)]">2</span>
                 <div className="min-w-0 flex-1 space-y-2">
                   <p>
-                    In the Unity Editor (Play mode on this Mac) use <code>http://localhost:4000</code>. On the Quest over Wi-Fi, use this Mac&apos;s LAN address:
+                    In the Unity Editor (Play mode on this Mac) use <code>http://localhost:4000</code>. The Quest only allows https, so it should keep the hosted URL. This Mac&apos;s LAN address:
                   </p>
                   <CopyField value={unityUrl} />
                   {health?.lanUrls?.length > 1 && (
@@ -177,7 +184,7 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
               <li className="flex gap-3">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent)]">3</span>
                 <p className="min-w-0 flex-1">
-                  Paste it into <strong className="font-semibold text-[var(--ink)]">SessionReporter → Backend Base Url</strong> (no trailing slash). Battles show up on the dashboard as soon as they finish.
+                  Paste it into <strong className="font-semibold text-[var(--ink)]">SessionReporter → Base Url</strong> (no trailing slash). Fights show up in the Live Arena as soon as they start.
                 </p>
               </li>
             </ol>

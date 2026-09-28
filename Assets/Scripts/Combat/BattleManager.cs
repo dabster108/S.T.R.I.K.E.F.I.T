@@ -89,13 +89,10 @@ public class BattleManager : MonoBehaviour
         TotalDamageDealt = 0f;
         IsBattleActive = true;
 
+        // SessionReporter's own Inspector fields (baseUrl, playerName) are the single source.
         EnsureSessionReporter();
         if (SessionReporter.Instance != null)
-        {
-            if (RoundManager.Instance != null)
-                SessionReporter.Instance.playerName = RoundManager.Instance.playerName;
             SessionReporter.Instance.BeginSession();
-        }
 
         if (XPManager.Instance != null)
             XPManager.Instance.ResetSession();
@@ -383,19 +380,9 @@ public class BattleManager : MonoBehaviour
     void EnsureSessionReporter()
     {
         if (SessionReporter.Instance != null) return;
-        var go = gameObject;
-        var reporter = go.GetComponent<SessionReporter>();
-        if (reporter == null)
-            reporter = go.AddComponent<SessionReporter>();
-        if (RoundManager.Instance != null)
-        {
-            reporter.playerName = RoundManager.Instance.playerName;
-            // Derive base URL from RoundManager.backendUrl if it still points at /api/sessions
-            string url = RoundManager.Instance.backendUrl ?? "";
-            int idx = url.IndexOf("/api/", StringComparison.OrdinalIgnoreCase);
-            if (idx > 0)
-                reporter.backendBaseUrl = url.Substring(0, idx);
-        }
+        // Fallback for scenes without one: the component's defaults (Render URL, "Player 1") apply.
+        if (GetComponent<SessionReporter>() == null)
+            gameObject.AddComponent<SessionReporter>();
     }
 
     void SetUiLaserPointersActive(bool active)

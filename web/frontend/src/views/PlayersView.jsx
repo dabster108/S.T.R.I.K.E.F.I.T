@@ -1,5 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { byPlayer } from "../lib/derive.js";
+import { useLiveIds } from "../live/LiveProvider.jsx";
+import { liveStore } from "../live/liveStore.js";
+import { LiveChip } from "../components/live/LiveFight.jsx";
+import { SearchInput } from "../components/ui/Controls.jsx";
 import { formatDuration, formatNumber, formatPercent, formatRelative } from "../lib/format.js";
 import { Card, PageHeader } from "../components/ui/Card.jsx";
 import { EmptyState, ProgressBar } from "../components/ui/Feedback.jsx";
@@ -7,7 +12,17 @@ import { LevelBadge } from "../components/ui/Badge.jsx";
 import Sparkline from "../components/charts/Sparkline.jsx";
 
 export default function PlayersView({ sessions }) {
-  const players = useMemo(() => byPlayer(sessions), [sessions]);
+  const all = useMemo(() => byPlayer(sessions), [sessions]);
+  const [query, setQuery] = useState("");
+  const ids = useLiveIds();
+  const playing = useMemo(
+    () => new Set(ids.map((id) => liveStore.getSession(id)).filter((e) => e && !e.finishedAt).map((e) => e.session.playerName)),
+    [ids]
+  );
+  const players = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? all.filter((p) => p.playerName.toLowerCase().includes(q)) : all;
+  }, [all, query]);
 
   return (
     <div className="space-y-6">
@@ -15,15 +30,20 @@ export default function PlayersView({ sessions }) {
         eyebrow="Profiles"
         title="Players"
         description="Per-player progress, built from every recorded battle. Set the name in Unity on SessionReporter → Player Name."
+        actions={<SearchInput value={query} onChange={setQuery} placeholder="Search players…" label="Search players" />}
       />
 
       {players.length === 0 ? (
         <Card>
-          <EmptyState icon="players" title="No players yet" description="Players appear after their first finished battle." />
+          <EmptyState
+            icon="players"
+            title={all.length ? `No player matches “${query}”` : "No players yet"}
+            description={all.length ? "Try part of the name." : "Players appear after their first finished battle."}
+          />
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {players.map((p, i) => (
+          {players.map((p) => (
             <Card key={p.playerName} as="article" className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
@@ -31,13 +51,19 @@ export default function PlayersView({ sessions }) {
                     {p.playerName.slice(0, 2).toUpperCase()}
                   </span>
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-[var(--ink)]">{p.playerName}</p>
+                    <Link to={`/dashboard/player/${encodeURIComponent(p.playerName)}`} className="block truncate font-semibold text-[var(--ink)] hover:text-[var(--accent)] hover:underline">
+                      {p.playerName}
+                    </Link>
                     <p className="text-xs text-[var(--muted)]">Last played {formatRelative(p.lastPlayedAt)}</p>
                   </div>
                 </div>
-                <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[0.7rem] font-semibold text-[var(--muted)] ring-1 ring-inset ring-[var(--border)]">
-                  #{i + 1}
-                </span>
+                {playing.has(p.playerName) ? (
+                  <LiveChip label="Playing" />
+                ) : (
+                  <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[0.7rem] font-semibold text-[var(--muted)] ring-1 ring-inset ring-[var(--border)]">
+                    #{all.indexOf(p) + 1}
+                  </span>
+                )}
               </div>
 
               <div className="mt-5 flex items-end justify-between gap-3">

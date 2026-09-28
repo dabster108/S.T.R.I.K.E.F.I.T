@@ -1,17 +1,19 @@
 {
-  "description": "Shared backend URL for Unity VR client + React stats dashboard",
-  "port": 4000,
+  "description": "Shared backend URL for the Unity VR client and the STRIKEFIT web app",
+  "production": "https://s-t-r-i-k-e-f-i-t.onrender.com",
   "local": "http://localhost:4000",
-  "lanExample": "http://10.0.0.0:4000",
   "api": {
     "health": "/api/health",
-    "stats": "/api/stats",
+    "stream": "/api/stream",
+    "live": "/api/live",
     "sessions": "/api/sessions",
     "session": "/api/sessions/:id",
+    "events": "/api/events",
     "players": "/api/players",
-    "events": "/api/events"
+    "player": "/api/players/:name",
+    "overview": "/api/overview",
+    "publicStats": "/api/public-stats",
+    "analytics": "/api/analytics"
   },
-  "unityPostUrl": "http://localhost:4000/api/sessions",
-  "note": "On headset/LAN, replace localhost with your Mac IP (ipconfig getifaddr en0, or see the dashboard's Connection page). Set SessionReporter.backendBaseUrl in Unity to match.",
-  "dashboard": "http://localhost:4000 (after npm run build in web/frontend) or http://localhost:5173 in dev"
+  "unity": "SessionReporter.baseUrl defaults to the production URL (https is required on Quest). Use http://localhost:4000 in the Editor only."
 }

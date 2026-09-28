@@ -4,11 +4,20 @@
 // Dependencies: MonsterController, PlayerCombat, RoundManager, XPManager, optional VFX/SFX
 // Attach to: Hammer head collider (tag this object "Hammer")
 
+using System;
 using UnityEngine;
 
 [RequireComponent(typeof(Collider))]
 public class HitDetection : MonoBehaviour
 {
+    // Telemetry hooks (SessionReporter). Raised synchronously; listeners must not throw.
+    /// <summary>A swing landed and counted. Args: source, swing speed (m/s), monster was defending.</summary>
+    public static event Action<HitDetection, float, bool> HitLanded;
+    /// <summary>The weapon touched the monster below the minimum speed. Args: source, speed, minimum.</summary>
+    public static event Action<HitDetection, float, float> SwingTooSlow;
+    /// <summary>The weapon struck the monster's weapon (parry / clash). Args: source, speed.</summary>
+    public static event Action<HitDetection, float> WeaponClashed;
+
     [Header("Damage — Velocity Based")]
     public float baseDamage = 12f;
     [Tooltip("Below this controller speed (m/s) the hit is IGNORED. Anti-spam. " +
@@ -93,6 +102,7 @@ public class HitDetection : MonoBehaviour
         if (other.CompareTag("MonsterWeapon"))
         {
             lastHitTime = Time.time;
+            WeaponClashed?.Invoke(this, ImpactSpeed());
             if (audioSource != null && clashSound != null)
             {
                 // Clash clip in project is a long riser (~5s); keep it short/quiet so hits don't feel 2x frantic.
@@ -116,14 +126,7 @@ public class HitDetection : MonoBehaviour
         if (!monster.isAlive) return;
 
         // --- Swing speed at moment of impact ---
-        float speed = velocity.magnitude;
-        if (PlayerCombat.Instance != null)
-        {
-            float handSpeed = (hand == Hand.Left)
-                ? PlayerCombat.Instance.CurrentOffhandSwingSpeed
-                : PlayerCombat.Instance.CurrentSwingSpeed;
-            speed = Mathf.Max(speed, handSpeed);
-        }
+        float speed = ImpactSpeed();
 
         // --- Min velocity gate: anti-spam ---
         float minVel = minSwingSpeed;
@@ -133,6 +136,7 @@ public class HitDetection : MonoBehaviour
         if (speed < minVel)
         {
             // Too slow — ignore. This is the core anti-cheese rule.
+            SwingTooSlow?.Invoke(this, speed, minVel);
             return;
         }
 
@@ -167,6 +171,8 @@ public class HitDetection : MonoBehaviour
 
         lastHitTime = Time.time;
 
+        var monsterAi = monster.GetComponent<MonsterAI>();
+        bool monsterDefending = monsterAi != null && monsterAi.IsDefending;
         monster.OnTakeDamage(damage, hitPoint);
         PlayFeedback(hitPoint, speed);
 
@@ -178,8 +184,24 @@ public class HitDetection : MonoBehaviour
         if (RoundManager.Instance != null && RoundManager.Instance.roundActive)
             RoundManager.Instance.RegisterTap();
 
+        HitLanded?.Invoke(this, speed, monsterDefending);
+
         if (BattleManager.Instance != null)
             BattleManager.Instance.RegisterSuccessfulHit(damage);
+    }
+
+    /// <summary>Weapon speed right now: the faster of this collider's motion and its hand's tracked speed.</summary>
+    float ImpactSpeed()
+    {
+        float speed = velocity.magnitude;
+        if (PlayerCombat.Instance != null)
+        {
+            float handSpeed = (hand == Hand.Left)
+                ? PlayerCombat.Instance.CurrentOffhandSwingSpeed
+                : PlayerCombat.Instance.CurrentSwingSpeed;
+            speed = Mathf.Max(speed, handSpeed);
+        }
+        return speed;
     }
 
     float ComputeFacingMultiplier(Transform monsterRoot, Vector3 hitPoint)

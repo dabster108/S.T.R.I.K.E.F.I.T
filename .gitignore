@@ -97,6 +97,11 @@ InitTestScene*.unity*
 .env
 .env.*
 
+# Backend data now lives in Neon Postgres; the old JSON store and its backup stay local
+web/backend/db.json
+web/backend/db.json.bak
+web/backend/db.json.tmp
+
 # Unity local tooling cache
 .utmp/
 
