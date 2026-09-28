@@ -1,6 +1,45 @@
 # Project Progress — Fitness Monster Battle
 
-Last updated: **2026-09-27 — Level 2 aligned to Level 1's start/spawn/death pattern (live Unity MCP inspection of both scenes + Play-mode traces)**
+Last updated: **2026-09-27 — Level 2 final pre-demo check (live Unity MCP + Play-mode physics traces)**
+
+---
+
+## Level 2 — FINAL PRE-DEMO CHECK (2026-09-27, pass 5; supersedes all Level 2 sections below where they conflict)
+
+Every item re-inspected live via Unity MCP and exercised in Play mode (real UI raycast from `UIRayOrigin`, real physics trigger contacts, real `HitDetection.TryHit`, forced death chains).
+
+### 1. Monster body hit detection — FIXED
+- **Found:** one static root capsule (c (0,1,0), r 0.42, h 2.0) was the only body collider — it does not follow the animation, so swinging arms (hands reach ±1 m), spread legs/feet and lunges were outside it, and it counted hits on air 0.35–0.5 m above the hunched head. (Level 1's Hip Hop monster has the same single capsule; unchanged.)
+- **Fix (prefab `Monster_Medium_VampireLust`):** 12 bone-following `HitVol_*` capsules (non-trigger, Untagged, parented to the bones), radii from the skinned mesh (75th-percentile vertex distance per bone): Torso r 0.32, Head r 0.16, upper arms r 0.093, forearms r 0.104, thighs r 0.114/0.119, shins r 0.141/0.140, feet r 0.095. Root capsule trimmed to c (0,0.9,0) r 0.38 h 1.8 (kept: `BattleManager.EnsureMonsterComponents` adds a default one if the root has none). Axe `MonsterAxe` box + `HaftCollider` unchanged (trigger, `MonsterWeapon`).
+- **Verified (real physics):** sword box overlapped with each part → damage registered for Torso, Head, L upper arm, R forearm, L thigh, R shin, L foot (both swords used). Axe head and haft → 0 damage (clash path). Monster killed purely by these hits → Victory panel.
+
+### 2. Sword colliders — VERIFIED, right widened
+| Sword | Collider (trigger Box, root space) | Visible blade | Blade vertices inside |
+|---|---|---|---|
+| Right `animated_sword` | c (0,0,0.41) s (0.07, **0.16**, 0.76) — was 0.14 wide | z 0.28–0.78 (0.49 m), 0.15 wide | 96.4% → 100% (edge verts were outside) |
+| Left `SwordZbrush` | c (0,−0.115,0.531) s (0.05,0.16,0.508) | z 0.28–0.79 (0.51 m), 0.16 wide | 99.9% |
+
+### 3. Difficulty Level 1 vs Level 2 (live numbers)
+| | Level 1 (Easy) | Level 2 (Medium) |
+|---|---|---|
+| Monster max HP | 500 | **800** |
+| Telegraph (trigger → hit) | Slash 0.90 s, Heavy 1.25 s, Special 1.50 s | Standard 0.57–0.61 s, Whirlwind 0.97 s, Leap 1.03 s, Slam 1.48 s (idle-only) |
+| Attack cooldown (start→start) | 3.2 s | **2.2 s** (→ 1.87 s at low HP) |
+| Damage per hit | 8.8 / 10.6 / 13.2 | **15.1–33.6** (standard 16.8) |
+| Distinct attacks | 3 (+ defend) | **7** (+ defend) |
+| Defend | every 8 s for 1.5 s, −70% | every 5.5 s for 1.0 s, −70% |
+| Player HP | 500 | 800 (offsets part of the extra damage) |
+| Player dmg per hit @ 4 m/s | 22.7 (hammer ×1.15) | ~16.8 (sword) |
+| Hits needed to win (no tap bonus) | ~22 | ~48 |
+| Time for monster to kill player if every attack lands | ~163 s | ~100 s |
+Assessment: harder on every metric. Mitigation: L2 attacks need range + arc (side-steppable); L1 lands whenever in range. **Changed:** swing gate 1.0 → **1.2 m/s** (`PlayerCombat.minSwingVelocity` + both `HitDetection.minSwingSpeed`) — L2 was accepting slower swings than L1, the only easier value.
+
+### 4. Swing detection — VERIFIED (feel needs headset)
+Gate 1.2 m/s (1.1 → 0 dmg, 1.3 → 11.7/12.4), cooldown 0.28 s per sword (immediate repeat → 0), 5 m/s → 18.8 / 19.5. `maxVelocityDamageMultiplier` 2.2, max speed 8 m/s, angle bonus ≤ +40%, fitness tap bonus +0.35 per landed hit (same rule as L1). No hand/controller meshes are rendered, so there is nothing for a sword to clip through; grips sit on the anchors (see pass 3). **Swing feel can only be judged on the headset.**
+- **Editor-only bug found + fixed:** `EditorHandPoseFallback` placed hands relative to the head *position*; `PlayerHealth`'s hit shake moves `CenterEyeAnchor` ±8 cm, so in the editor the swords jolted at up to 10.5 m/s and scored phantom hits while the player was being hit. Now relative to the tracking origin → 12 s of monster attacks: sword speed 0.0, 0 phantom hits. Not possible on Quest (shake target is `CenterEyeAnchor`, hands are not its children; the fallback is compiled out of builds).
+
+### 5. Scene sanity — VERIFIED
+Load: 1 enabled camera (`CenterEyeAnchor`), 1 AudioListener, 1 EventSystem, 1 BattleManager, 1 OVRCameraRig, **0 monsters**, 0 missing scripts, no debug/test objects. Start via laser raycast → 1 monster at (0,0,3) rotY 180, swords shown, laser hidden. Victory and Defeat chains fire with sounds + panels. Music `level2gamemusic` 0.03 (matched to L1). Console: 0 errors; warnings only ISDK telemetry + `SessionReporter` → `localhost:4000` (backend not running; on Quest this points at the headset itself). The "unsaved changes" flag seen earlier on the open scene was spurious (in-memory scene diffed identical to disk).
 
 ---
 
@@ -10,7 +49,7 @@ Last updated: **2026-09-27 — Level 2 aligned to Level 1's start/spawn/death pa
 |---|---|---|
 | Game view filled by a red shape / sword after Start | In the editor with no headset/controllers, `OVRCameraRig` leaves `Left/RightHandAnchor` exactly on `CenterEyeAnchor` (0,1.6,0) → both swords rendered 0.33 m from the camera. On Quest the controllers are tracked, so this is editor-only. | New `Player/EditorHandPoseFallback.cs` on `OVRCameraRig` (Level 1 + Level 2): in `LateUpdate`, any hand whose controller is **not tracked** goes to a resting pose (R (0.22,−0.42,0.38) rot (15,8,0), L mirrored) relative to the head. Wrapped in `#if UNITY_EDITOR`, never touches tracked controllers. Verified: swords 0.77–0.87 m from the eye, both visible in the lower half of the view; laser now leaves the right hand and still hits `StartBattleUIButton`. |
 | B on right controller should start | not implemented | `BattleManager.Update`: `OVRInput.GetDown(Button.Two, RTouch)` → `StartBattleFromInspector()` while no battle is running and no outcome is shown (both levels). Same path as the laser click. Needs headset to confirm (OVRInput cannot be simulated in the editor). |
-| Level 2 music | used L1 `music` | `Assets/Audio/Music/level2gamemusic.mp3` (copied from project root; 230 s) on `BackgroundMusic`: loop, play on awake, 2D, **volume 0.2** (0.03 matched L1's 0.08 loudness but both are ≈ −44 dBFS — effectively inaudible; 0.2 → ≈ 0.04 RMS, ~8 dB under hit/swing SFX at ≈ 0.1–0.15). Editor note: with `Run In Background` off the game and its audio pause whenever the Unity window is not focused. Import: **Streaming**, Vorbis q 0.6, load in background (Decompress On Load would hold ~40 MB PCM on Quest). |
+| Level 2 music | used L1 `music` | `Assets/Audio/Music/level2gamemusic.mp3` (copied from project root; 230 s) on `BackgroundMusic`: loop, play on awake, 2D, **volume 0.03** = same loudness as L1 `music` at 0.08 (track is 2.55× louder RMS). Both levels' music sits ≈ −44 dBFS — faint in a room; kept matched and quiet by decision (2026-09-27). For louder, matched music: L2 0.2 + L1 0.5. Editor note: with `Run In Background` off the game and its audio pause whenever the Unity window is not focused. Import: **Streaming**, Vorbis q 0.6, load in background (Decompress On Load would hold ~40 MB PCM on Quest). |
 | Pre-battle HUD said "HP 100/100 / Enemy 100/100" | scene-authored placeholder text (L1 has its real 500/500) | Set to `HP 800/800` / `Enemy 800/800` |
 | Level 2 unreachable in the APK | build opened Level1_Easy; nothing loads Level 2 (Victory → A reloads the same level) | Per request (scenes tested as separate builds): **Level2_Medium is build index 0**, Level1_Easy index 1. Move Level1_Easy back to the top to build Level 1. |
 
@@ -32,11 +71,11 @@ Before this pass **both hands used the same `animated_sword` mesh** (left only h
 | Grip result | grip axis = L1 hammer axis (0, 0.643, 0.766); grip centre on anchor | handle (mesh +Y) → same L1 axis; grip centre (mesh −0.14, −4.25, 0.60) on anchor; blade offset (~11 cm, mesh −Z) → forward/down so the edge leads on chops |
 | Length | 0.90 m | 0.90 m (hand/guard 0.24 m wide) |
 | Trigger collider (striking part only) | c (0, 0, 0.41) s (0.07, 0.14, 0.76) | c (0, −0.115, 0.531) s (0.05, 0.16, 0.508) — blade above the zombie hand |
-| HitDetection | hand Right; base 11, gate max(1.0, PlayerCombat 1.2) = 1.2 m/s, cooldown 0.28 s | hand Left; same values |
+| HitDetection | hand Right; base 11, cooldown 0.28 s, gate 1.2 m/s (was 1.0 — corrected in the final pre-demo pass) | hand Left; same values |
 
 Verified in Play mode: swords inactive at load (`PlayerCombat.Awake` + saved inactive), laser `LineRenderer` visible and the real `UIRayOrigin` raycast hits `StartBattleUIButton`; after the click both swords active and `LaserPointer` inactive (`BattleManager.SetUiLaserPointersActive(false)`), so the laser and sword are never visible together. Real `HitDetection.TryHit` into the same monster: Right 18.94 dmg @ 5 m/s, Left 19.29 dmg @ 5 m/s; immediate repeat 0 (cooldown); 0.5 m/s → 0 (gate). Eye-view render: both swords coloured, no magenta. Console 0 errors (warnings: ISDK telemetry, `SessionReporter` localhost:4000). `M_L2_SwordSteel_Offhand` is now unused (kept).
 
-HitDetection numbers vs Level 1 hammers: same script and logic. L2 values (base 11, cooldown 0.28) were tuned for lighter swords in the rebuild pass; the effective speed gate is 1.2 m/s in both levels.
+HitDetection numbers vs Level 1 hammers: same script and logic. L2 values (base 11, cooldown 0.28) were tuned for lighter swords in the rebuild pass. ⚠️ This section originally said the gate was 1.2 m/s in both levels — wrong: L2 `PlayerCombat.minSwingVelocity` was 1.0. Now 1.2 (see final pass).
 
 ---
 

@@ -35,10 +35,12 @@ public class EditorHandPoseFallback : MonoBehaviour
     {
         if (hand == null || OVRInput.GetControllerPositionTracked(controller)) return;
 
+        // Relative to the tracking-space origin, not the head's position: PlayerHealth's hit shake moves
+        // CenterEyeAnchor, and following it would jolt the swords fast enough to pass the swing gate.
         Transform head = rig.centerEyeAnchor;
         Quaternion yaw = Quaternion.Euler(0f, head.localEulerAngles.y, 0f);
         Vector3 offset = new Vector3(rightHandOffset.x * side, rightHandOffset.y, rightHandOffset.z);
-        hand.localPosition = head.localPosition + yaw * offset;
+        hand.localPosition = yaw * offset;
         hand.localRotation = yaw * Quaternion.Euler(rightHandEuler.x, rightHandEuler.y * side, rightHandEuler.z * side);
     }
 #endif
