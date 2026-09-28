@@ -12,6 +12,12 @@ const MODES = [
   { id: "all", label: "All runs" },
 ];
 
+const OUTCOMES = [
+  { id: "all", label: "Any outcome" },
+  { id: "victory", label: "Victories" },
+  { id: "defeat", label: "Defeats" },
+];
+
 const PODIUM = [
   { place: 2, height: "h-20", ring: "ring-gray-300", medal: "bg-gray-100 text-gray-600" },
   { place: 1, height: "h-28", ring: "ring-amber-300", medal: "bg-amber-100 text-amber-700" },
@@ -24,6 +30,7 @@ const td = "px-4 py-3 text-sm whitespace-nowrap tabular-nums";
 export default function LeaderboardView({ sessions, openSession }) {
   const [mode, setMode] = useState("best");
   const [level, setLevel] = useState("all");
+  const [outcome, setOutcome] = useState("all");
 
   const levels = useMemo(
     () => [{ id: "all", label: "All levels" }, ...[...new Set(sessions.map((s) => s.level))].sort((a, b) => levelRank(a) - levelRank(b)).map((l) => ({ id: l, label: l }))],
@@ -31,12 +38,12 @@ export default function LeaderboardView({ sessions, openSession }) {
   );
 
   const ranked = useMemo(() => {
-    const pool = sessions.filter((s) => level === "all" || s.level === level);
+    const pool = sessions.filter((s) => (level === "all" || s.level === level) && (outcome === "all" || s.outcome === outcome));
     const sorted = [...pool].sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0) || (a.durationSec || 1e9) - (b.durationSec || 1e9));
     if (mode === "all") return sorted.slice(0, 50);
     const seen = new Set();
     return sorted.filter((s) => !seen.has(s.playerName) && seen.add(s.playerName));
-  }, [sessions, mode, level]);
+  }, [sessions, mode, level, outcome]);
 
   const podium = PODIUM.map((p) => ({ ...p, s: ranked[p.place - 1] })).filter((p) => p.s);
 
@@ -50,6 +57,7 @@ export default function LeaderboardView({ sessions, openSession }) {
           <>
             <SegmentedControl label="Ranking mode" options={MODES} value={mode} onChange={setMode} />
             <Select label="Level" value={level} onChange={setLevel} options={levels} />
+            <Select label="Outcome" value={outcome} onChange={setOutcome} options={OUTCOMES} />
           </>
         }
       />

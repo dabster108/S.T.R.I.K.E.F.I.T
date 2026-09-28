@@ -1,0 +1,59 @@
+/* STRIKEFIT design tokens — the one source of colours, type, radii and shadows.
+   Everything here is the existing blue-and-white design (commit 120b74e); the
+   original variables are unchanged. New names only point at shades that design
+   already used (its Tailwind gray / blue / amber / rose / emerald / red scales).
+   Never add a new font or a dark theme. */
+
+:root {
+  /* surfaces & ink (original) */
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-muted: #f9fafb;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --ink: #111827;
+  --ink-secondary: #374151;
+  --muted: #6b7280;
+
+  /* accent (original) */
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: #eff6ff;
+  --accent-ring: #bfdbfe;
+
+  /* status (original) — always shown with an icon or label */
+  --good: #059669;
+  --good-soft: #ecfdf5;
+  --warn: #d97706;
+  --warn-soft: #fffbeb;
+  --bad: #dc2626;
+  --bad-soft: #fef2f2;
+
+  /* charts (original grid + existing palette shades) */
+  --grid: #eef0f3;
+  --skeleton: #e9ebef;
+  --level-1: #2563eb; /* = accent; Level 1 badge family (blue/sky) */
+  --level-2: #d97706; /* = warn;  Level 2 badge family (amber) */
+  --level-3: #e11d48; /* rose-600; Level 3 badge family (rose) */
+  --hp-player: #2563eb;
+  --hp-monster: #e11d48;
+  --tier-tap: #60a5fa; /* blue-400 */
+  --tier-light: #3b82f6; /* blue-500 */
+  --tier-medium: #1d4ed8; /* blue-700 */
+  --tier-full: #1e3a8a; /* blue-900 */
+
+  /* type (original: Inter everywhere) */
+  --font-ui: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* shape */
+  --radius-sm: 6px; /* rounded-md: segmented items, level badges */
+  --radius: 8px; /* rounded-lg: buttons, inputs, nav items */
+  --radius-lg: 12px; /* rounded-xl: brand mark, tooltips, inner panels */
+  --radius-xl: 16px; /* rounded-2xl: cards, stat tiles */
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  /* layout (original) */
+  --sidebar-w: 15rem;
+}

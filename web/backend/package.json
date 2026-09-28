@@ -2,16 +2,24 @@
   "name": "vr-fitness-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Node API + realtime events for VR Fitness Monster Battle stats",
+  "description": "Node API + realtime (SSE) for STRIKEFIT VR session stats",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "db:schema": "node scripts/apply-schema.js",
+    "db:migrate": "node scripts/migrate-json-to-postgres.js",
+    "simulate": "node scripts/simulate-live.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "dotenv": "^18.0.4",
     "express": "^4.21.2",
+    "pg": "^8.23.0",
     "socket.io": "^4.8.1",
     "uuid": "^11.1.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

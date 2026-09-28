@@ -1,28 +1,5 @@
 @import "tailwindcss";
-
-:root {
-  --bg: #f3f4f6;
-  --surface: #ffffff;
-  --surface-muted: #f9fafb;
-  --border: #e5e7eb;
-  --border-strong: #d1d5db;
-  --ink: #111827;
-  --ink-secondary: #374151;
-  --muted: #6b7280;
-  --accent: #2563eb;
-  --accent-strong: #1d4ed8;
-  --accent-soft: #eff6ff;
-  --accent-ring: #bfdbfe;
-  --good: #059669;
-  --good-soft: #ecfdf5;
-  --warn: #d97706;
-  --warn-soft: #fffbeb;
-  --bad: #dc2626;
-  --bad-soft: #fef2f2;
-  --grid: #eef0f3;
-  --font-ui: "Inter", system-ui, -apple-system, sans-serif;
-  --sidebar-w: 15rem;
-}
+@import "./styles/tokens.css";
 
 @layer base {
   html,
@@ -150,7 +127,7 @@
 }
 
 .skeleton {
-  background: linear-gradient(90deg, #f3f4f6 25%, #e9ebef 50%, #f3f4f6 75%);
+  background: linear-gradient(90deg, var(--bg) 25%, var(--skeleton) 50%, var(--bg) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s linear infinite;
   border-radius: 8px;
@@ -173,6 +150,20 @@
   }
 }
 
+/* Landing page: subtle scroll reveal (same easing as .view-in). */
+.reveal {
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .status-live,
   .flash-in,
@@ -192,5 +183,11 @@
   .chart-area {
     opacity: 1;
     animation: none;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }

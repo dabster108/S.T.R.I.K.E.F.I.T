@@ -40,6 +40,9 @@ public class PlayerHealth : MonoBehaviour
     public event Action<float, float> OnHealthChanged;
     public event Action OnDeath;
 
+    /// <summary>Telemetry hook (SessionReporter). Args: damage taken after block, was blocking, HP after.</summary>
+    public static event Action<float, bool, float> DamageTaken;
+
     void Awake()
     {
         Instance = this;
@@ -74,11 +77,13 @@ public class PlayerHealth : MonoBehaviour
             // Successful block — reward defensive play with XP + feedback
             if (audioSource != null && blockSound != null) audioSource.PlayOneShot(blockSound);
             if (XPManager.Instance != null) XPManager.Instance.AwardBlockXP();
+            DamageTaken?.Invoke(0f, true, currentHealth);
             return; // no HP loss
         }
 
         currentHealth = Mathf.Max(0f, currentHealth - Mathf.Max(0f, amount));
         Notify();
+        DamageTaken?.Invoke(Mathf.Max(0f, amount), partiallyBlocked, currentHealth);
 
         // Hit reaction (first-person): flash + shake + sound
         PlayHitReaction();
