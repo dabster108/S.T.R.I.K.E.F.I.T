@@ -3,7 +3,6 @@ import { API_BASE, api } from "../lib/api.js";
 import { formatDuration, formatRelative } from "../lib/format.js";
 import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
 import { ConfirmDialog } from "../components/ui/Feedback.jsx";
-import { ConnectionBadge } from "../components/ui/Badge.jsx";
 import Button from "../components/ui/Button.jsx";
 import Icon from "../components/ui/Icon.jsx";
 
@@ -56,8 +55,8 @@ function CopyField({ value }) {
 function Row({ label, children }) {
   return (
     <div className="flex items-center justify-between gap-4 px-5 py-3 text-sm">
-      <span className="text-[var(--muted)]">{label}</span>
-      <span className="truncate text-right font-medium tabular-nums text-[var(--ink)]">{children}</span>
+      <span className="font-semibold text-[var(--muted)]">{label}</span>
+      <span className="truncate text-right font-bold tabular-nums text-[var(--ink)]">{children}</span>
     </div>
   );
 }
@@ -103,7 +102,6 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
         eyebrow="Connection"
         title="Backend & Unity setup"
         description="Check the Node backend is reachable, test the realtime channel, and get the URL to paste into Unity."
-        actions={<ConnectionBadge state={connection} />}
       />
 
       <div className="grid gap-6 xl:grid-cols-2">
@@ -121,13 +119,13 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
             <Row label="API address">{origin}</Row>
             <Row label="Health">
               {health?.ok ? (
-                <span className="text-[var(--good)]">OK · {health.latencyMs} ms</span>
+                <span className="text-[var(--good-ink)]">OK · {health.latencyMs} ms</span>
               ) : (
                 <span className="text-[var(--bad)]">{health?.error || "Unreachable"}</span>
               )}
             </Row>
             <Row label="Realtime stream">
-              <span className="capitalize">{connection}</span>
+              <span>{{ live: "Connected", connecting: "Reconnecting", offline: "Offline" }[connection] || connection}</span>
             </Row>
             <Row label="Uptime">{health?.ok ? formatDuration(health.uptimeSec) : "—"}</Row>
             <Row label="Stored sessions / events">{health?.ok ? `${health.sessions} / ${health.events}` : "—"}</Row>
@@ -139,7 +137,7 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
                 {testing ? "Testing…" : "Run connection test"}
               </Button>
               {test?.ok && (
-                <span className="flash-in text-sm text-[var(--good)]">
+                <span className="flash-in text-sm text-[var(--good-ink)]">
                   <Icon name="check" className="mr-1 inline h-4 w-4" />
                   HTTP {test.httpMs} ms · realtime echo {test.socketMs} ms
                 </span>
@@ -188,7 +186,7 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
                 </p>
               </li>
             </ol>
-            <p className="rounded-lg bg-[var(--warn-soft)] px-3 py-2 text-xs text-[var(--warn)]">
+            <p className="rounded-lg bg-[var(--warn-soft)] px-3 py-2 text-xs text-[var(--warn-ink)]">
               Headset can&apos;t connect? Both devices must be on the same Wi-Fi, and macOS may ask to allow incoming connections for <code>node</code>.
             </p>
           </div>
@@ -200,7 +198,7 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
         <ul className="divide-y divide-[var(--border)]">
           {ENDPOINTS.map(([method, path, desc]) => (
             <li key={`${method} ${path}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5 text-sm">
-              <span className={`w-16 rounded-md px-1.5 py-0.5 text-center font-mono text-[0.68rem] font-semibold ${METHOD_CLS[method]}`}>{method}</span>
+              <span className={`w-16 rounded-md px-1.5 py-0.5 text-center font-mono text-xs font-bold ${METHOD_CLS[method]}`}>{method}</span>
               <code className="border-0 bg-transparent p-0 text-[var(--ink)]">{path}</code>
               <span className="text-xs text-[var(--muted)] sm:ml-auto">{desc}</span>
             </li>
@@ -211,8 +209,8 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
       <Card className="border-red-200">
         <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
           <div>
-            <h2 className="text-sm font-semibold text-[var(--ink)]">Clear all data</h2>
-            <p className="mt-0.5 text-xs text-[var(--muted)]">Deletes every session and event from db.json. Can&apos;t be undone.</p>
+            <h2 className="text-sm font-bold text-[var(--ink)]">Clear all data</h2>
+            <p className="mt-0.5 text-xs text-[var(--muted)]">Deletes every session and event from the database. Can&apos;t be undone.</p>
           </div>
           <Button variant="danger" icon="trash" onClick={() => setConfirm(true)} disabled={!health?.ok}>
             Clear database
@@ -223,7 +221,7 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
       <ConfirmDialog
         open={confirm}
         title="Clear the whole database?"
-        description="Every recorded session and event will be permanently removed from db.json."
+        description="Every recorded session and event will be permanently removed from the database."
         confirmLabel="Clear everything"
         busy={clearing}
         onConfirm={clearAll}

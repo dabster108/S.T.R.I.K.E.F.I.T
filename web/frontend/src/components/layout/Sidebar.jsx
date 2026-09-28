@@ -1,6 +1,7 @@
-import { Link, NavLink } from "react-router-dom";
+import { useLayoutEffect, useRef, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import Icon from "../ui/Icon.jsx";
-import { ConnectionBadge } from "../ui/Badge.jsx";
+import Tooltip from "../ui/Tooltip.jsx";
 
 export const NAV = [
   { to: "/dashboard", label: "Overview", icon: "dashboard", end: true },
@@ -13,95 +14,164 @@ export const NAV = [
   { to: "/dashboard/export", label: "Export", icon: "download" },
 ];
 
-function NavList({ onNavigate, liveCount }) {
+const isActive = (item, pathname) => (item.end ? pathname === item.to || pathname === `${item.to}/` : pathname.startsWith(item.to));
+
+// A highlight that slides to the active item instead of jumping.
+function NavList({ onNavigate, liveCount, collapsed = false }) {
+  const { pathname } = useLocation();
+  const box = useRef(null);
+  const [pos, setPos] = useState(null);
+  const activeIndex = NAV.findIndex((item) => isActive(item, pathname));
+
+  useLayoutEffect(() => {
+    const el = activeIndex >= 0 ? box.current?.querySelectorAll("[data-nav]")[activeIndex] : null;
+    if (!el) return setPos(null);
+    const r = el.getBoundingClientRect();
+    setPos({ y: r.top - box.current.getBoundingClientRect().top, h: r.height });
+  }, [activeIndex, collapsed]);
+
   return (
-    <nav aria-label="Main" className="space-y-0.5">
-      {NAV.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.end}
-          onClick={() => onNavigate?.()}
-          className={({ isActive }) =>
-            `group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              isActive
-                ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                : "text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
-            }`
-          }
-        >
-          {({ isActive }) => (
-            <>
-              <Icon name={item.icon} className={`h-[18px] w-[18px] ${isActive ? "" : "text-[var(--muted)] group-hover:text-[var(--ink-secondary)]"}`} />
-              <span className="flex-1">{item.label}</span>
-              {item.icon === "live" && liveCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--good-soft)] px-1.5 py-0.5 text-[0.62rem] font-bold uppercase tracking-wide text-[var(--good)]">
-                  <span className="status-live h-1.5 w-1.5 rounded-full bg-[var(--good)]" aria-hidden />
-                  {liveCount} live
-                </span>
+    <nav aria-label="Main" ref={box} className="relative space-y-1">
+      <span
+        className="nav-indicator pointer-events-none absolute inset-x-0 top-0 rounded-lg bg-[var(--accent-soft)] ring-1 ring-inset ring-[var(--accent-ring)]"
+        style={{ height: pos?.h ?? 40, transform: `translateY(${pos?.y ?? 0}px)`, opacity: pos ? 1 : 0 }}
+        aria-hidden
+      >
+        <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--accent)]" />
+      </span>
+      {NAV.map((item) => {
+        const live = item.icon === "live" && liveCount > 0;
+        return (
+          <Tooltip key={item.to} label={item.label} side="right" disabled={!collapsed} className="flex w-full">
+            <NavLink
+              to={item.to}
+              end={item.end}
+              data-nav
+              aria-label={collapsed ? item.label : undefined}
+              onClick={() => onNavigate?.()}
+              className={({ isActive: on }) =>
+                `press group relative flex w-full items-center gap-3 rounded-lg py-2.5 text-sm font-semibold ${collapsed ? "justify-center px-0" : "px-3"} ${
+                  on ? "text-[var(--accent-strong)]" : "text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
+                }`
+              }
+            >
+              {({ isActive: on }) => (
+                <>
+                  <span className="relative">
+                    <Icon name={item.icon} className={`h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110 ${on ? "" : "text-[var(--muted)] group-hover:text-[var(--ink-secondary)]"}`} />
+                    {live && collapsed && <span className="status-live absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[var(--good)] ring-2 ring-[var(--surface)]" aria-hidden />}
+                  </span>
+                  {!collapsed && <span className="flex-1">{item.label}</span>}
+                  {live && !collapsed && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--good-soft)] px-1.5 py-0.5 text-xs font-extrabold uppercase tracking-wide text-[var(--good-ink)]">
+                      <span className="status-live h-1.5 w-1.5 rounded-full bg-[var(--good)]" aria-hidden />
+                      {liveCount} live
+                    </span>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </NavLink>
-      ))}
+            </NavLink>
+          </Tooltip>
+        );
+      })}
     </nav>
   );
 }
 
-export function Brand({ to = "/dashboard" }) {
+export function Brand({ to = "/dashboard", compact = false }) {
   return (
-    <Link to={to} className="flex items-center gap-2.5 rounded-xl">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent)] text-sm font-bold text-white shadow-sm">SF</span>
-      <span>
-        <span className="block text-sm font-semibold leading-tight text-[var(--ink)]">STRIKEFIT</span>
-        <span className="block text-xs text-[var(--muted)]">VR fitness telemetry</span>
-      </span>
+    <Link to={to} className="press flex items-center gap-2.5 rounded-xl" aria-label={compact ? "STRIKEFIT overview" : undefined}>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-sm font-extrabold text-white shadow-[var(--shadow-glow)]">SF</span>
+      {!compact && (
+        <span>
+          <span className="block text-sm font-extrabold leading-tight tracking-tight text-[var(--ink)]">STRIKEFIT</span>
+          <span className="block text-xs font-semibold text-[var(--muted)]">VR fitness telemetry</span>
+        </span>
+      )}
     </Link>
   );
 }
 
-export function Sidebar({ connection, liveCount, health }) {
+const DOT = { live: "bg-[var(--good)] status-live", connecting: "bg-[var(--warn)] status-live", offline: "bg-[var(--bad)]" };
+
+export function Sidebar({ connection, liveCount, health, collapsed, onToggle }) {
+  const clients = health?.streamClients ?? health?.clients ?? 0;
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[var(--sidebar-w)] flex-col border-r border-[var(--border)] bg-[var(--surface)] px-3 py-5 lg:flex">
-      <div className="px-2">
-        <Brand />
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[var(--sb)] flex-col border-r border-[var(--border)] bg-[var(--surface)] px-3 py-5 lg:flex">
+      <div className={`flex items-center ${collapsed ? "flex-col gap-3" : "justify-between px-2"}`}>
+        <Brand compact={collapsed} />
+        <Tooltip label={collapsed ? "Expand sidebar" : "Collapse sidebar"} side={collapsed ? "right" : "bottom"}>
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            className="press rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
+          >
+            <Icon name={collapsed ? "sidebarOpen" : "sidebarClose"} className="h-[18px] w-[18px]" />
+          </button>
+        </Tooltip>
       </div>
       <div className="mt-8 flex-1">
-        <p className="mb-2 px-3 text-[0.65rem] font-semibold uppercase tracking-wider text-[var(--muted)]">Menu</p>
-        <NavList liveCount={liveCount} />
+        {!collapsed && <p className="mb-2 px-3 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Menu</p>}
+        <NavList liveCount={liveCount} collapsed={collapsed} />
       </div>
-      <Link
-        to="/dashboard/connection"
-        className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-3 transition-colors hover:border-[var(--border-strong)]"
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-[var(--ink-secondary)]">Backend</span>
-          <ConnectionBadge state={connection} />
-        </div>
-        <p className="mt-2 truncate text-[0.7rem] text-[var(--muted)]">
-          {health?.ok ? `${health.latencyMs} ms · ${health.streamClients ?? health.clients ?? 0} dashboard${(health.streamClients ?? health.clients) === 1 ? "" : "s"}` : "Not reachable"}
-        </p>
-      </Link>
+      <Tooltip label="Connection and Unity setup" side="right" disabled={!collapsed} className="flex w-full">
+        <Link
+          to="/dashboard/connection"
+          aria-label={collapsed ? "Connection and Unity setup" : undefined}
+          className={`press flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] hover:border-[var(--border-strong)] hover:bg-[var(--surface)] ${collapsed ? "justify-center p-2.5" : "p-3"}`}
+        >
+          <span className="relative">
+            <Icon name="server" className="h-[18px] w-[18px] text-[var(--ink-secondary)]" />
+            <span className={`absolute -right-1 -top-1 h-2 w-2 rounded-full ring-2 ring-[var(--surface-muted)] ${DOT[connection] || DOT.offline}`} aria-hidden />
+          </span>
+          {!collapsed && (
+            <span className="min-w-0">
+              <span className="block text-xs font-bold text-[var(--ink)]">Connection</span>
+              <span className="block truncate text-xs font-medium text-[var(--muted)]">
+                {health?.ok ? `${health.latencyMs} ms · ${clients} dashboard${clients === 1 ? "" : "s"}` : "Unity setup and health"}
+              </span>
+            </span>
+          )}
+        </Link>
+      </Tooltip>
     </aside>
   );
 }
 
 export function MobileNav({ open, onClose, liveCount }) {
+  const panel = useRef(null);
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    panel.current?.querySelector("button")?.focus();
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
   if (!open) return null;
   return (
     <div className="fade-in fixed inset-0 z-40 bg-gray-900/30 lg:hidden" onClick={onClose}>
       <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu"
         className="drawer-in ml-auto h-full w-72 max-w-[85vw] border-l border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-6 flex items-center justify-between">
           <Brand />
-          <button type="button" onClick={onClose} aria-label="Close menu" className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-muted)]">
+          <button type="button" onClick={onClose} aria-label="Close menu" className="press rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]">
             <Icon name="x" className="h-5 w-5" />
           </button>
         </div>
         <NavList onNavigate={onClose} liveCount={liveCount} />
-        <Link to="/dashboard/connection" onClick={onClose} className="mt-4 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)]">
+        <Link
+          to="/dashboard/connection"
+          onClick={onClose}
+          className="press mt-4 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
+        >
           <Icon name="settings" className="h-[18px] w-[18px] text-[var(--muted)]" />
           Connection
         </Link>

@@ -23,7 +23,7 @@ const fmtDefault = (v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 100) / 10}k` 
 export function Legend({ items, shape = "rect" }) {
   if (!items || items.length < 2) return null;
   return (
-    <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--ink-secondary)]">
+    <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-[var(--ink-secondary)]">
       {items.map((it) => (
         <li key={it.label} className="inline-flex items-center gap-1.5">
           <span
@@ -46,7 +46,7 @@ function Tooltip({ tip, width }) {
       style={{ left: Math.min(Math.max(tip.x - 88, 0), Math.max(0, width - 176)), top: Math.max(0, tip.y - 12), transform: "translateY(-100%)" }}
       role="status"
     >
-      {tip.title && <p className="mb-1 text-[var(--muted)]">{tip.title}</p>}
+      {tip.title && <p className="mb-1 font-semibold text-[var(--muted)]">{tip.title}</p>}
       {tip.rows.map((r) => (
         <p key={r.label} className="flex items-center gap-2">
           <span className="h-0.5 w-3 rounded-full" style={{ background: r.color }} aria-hidden />
@@ -124,7 +124,7 @@ export function LineChart({ series, height = 220, xFormat = fmtDefault, yFormat 
         <svg
           width={width}
           height={height}
-          className="block"
+          className="block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
           role="img"
           aria-label={caption}
           tabIndex={0}
@@ -142,24 +142,38 @@ export function LineChart({ series, height = 220, xFormat = fmtDefault, yFormat 
           {yTicks.map((t) => (
             <g key={t}>
               <line x1={pad.l} x2={width - pad.r} y1={sy(t)} y2={sy(t)} stroke={t === y0 ? "var(--border-strong)" : "var(--grid)"} />
-              <text x={pad.l - 8} y={sy(t) + 3.5} textAnchor="end" fontSize="10.5" fill="var(--muted)" className="tabular-nums">
+              <text x={pad.l - 8} y={sy(t) + 3.5} textAnchor="end" fontSize="11" fill="var(--muted)" className="tabular-nums">
                 {yFormat(t)}
               </text>
             </g>
           ))}
           {xTicks.map((t) => (
-            <text key={t} x={sx(t)} y={height - 10} textAnchor="middle" fontSize="10.5" fill="var(--muted)">
+            <text key={t} x={sx(t)} y={height - 10} textAnchor="middle" fontSize="11" fill="var(--muted)">
               {xFormat(t)}
             </text>
           ))}
           {tip && <line x1={tip.x} x2={tip.x} y1={pad.t} y2={pad.t + ih} stroke="var(--border-strong)" strokeDasharray="3 3" />}
           {series.map((s) => (
             <g key={s.key}>
-              {s.points.length > 1 && <path d={path(s.points)} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
+              {s.points.length > 1 && (
+                <path d={path(s.points)} pathLength="1" fill="none" stroke={s.color} strokeWidth="2.25" strokeLinejoin="round" strokeLinecap="round" className="chart-line" />
+              )}
               {(showMarkers || s.points.length === 1) &&
                 s.points.map((p, i) => {
                   const hot = tip?.rows.some((r) => r.p === p);
-                  return <circle key={i} cx={sx(p.x)} cy={sy(p.y)} r={hot ? 5.5 : 4} fill="var(--surface)" stroke={s.color} strokeWidth={hot ? 2.5 : 2} />;
+                  return (
+                    <circle
+                      key={i}
+                      cx={sx(p.x)}
+                      cy={sy(p.y)}
+                      r={hot ? 5.5 : 4}
+                      fill={hot ? s.color : "var(--surface)"}
+                      stroke={s.color}
+                      strokeWidth={hot ? 2.5 : 2}
+                      className="dot-in"
+                      style={{ "--i": Math.min(i, 30) }}
+                    />
+                  );
                 })}
               {!showMarkers && tip?.rows.filter((r) => r.label === s.label).map((r) => (
                 <circle key="hot" cx={sx(r.p.x)} cy={sy(r.p.y)} r="5" fill="var(--surface)" stroke={s.color} strokeWidth="2.5" />
@@ -223,7 +237,7 @@ export function BarChart({ categories, series, height = 200, yFormat = fmtDefaul
           {yTicks.map((t) => (
             <g key={t}>
               <line x1={pad.l} x2={width - pad.r} y1={sy(t)} y2={sy(t)} stroke={t === 0 ? "var(--border-strong)" : "var(--grid)"} />
-              <text x={pad.l - 8} y={sy(t) + 3.5} textAnchor="end" fontSize="10.5" fill="var(--muted)" className="tabular-nums">
+              <text x={pad.l - 8} y={sy(t) + 3.5} textAnchor="end" fontSize="11" fill="var(--muted)" className="tabular-nums">
                 {yFormat(t)}
               </text>
             </g>
@@ -231,7 +245,7 @@ export function BarChart({ categories, series, height = 200, yFormat = fmtDefaul
           {categories.map((c, ci) => (
             <g key={`${c}-${ci}`}>
               {ci % labelEvery === 0 && (
-                <text x={pad.l + band * ci + band / 2} y={height - 10} textAnchor="middle" fontSize="10.5" fill="var(--muted)">
+                <text x={pad.l + band * ci + band / 2} y={height - 10} textAnchor="middle" fontSize="11" fill="var(--muted)">
                   {c}
                 </text>
               )}
@@ -242,9 +256,9 @@ export function BarChart({ categories, series, height = 200, yFormat = fmtDefaul
                 const isHot = hot && hot.ci === ci && hot.si === si;
                 return (
                   <g key={s.key}>
-                    <path d={bar(x, v)} fill={colorOf(s, ci)} opacity={hot && !isHot ? 0.55 : 1} className="transition-opacity" />
+                    <path d={bar(x, v)} fill={colorOf(s, ci)} opacity={hot && !isHot ? 0.55 : 1} className="bar-grow transition-opacity" style={{ "--i": ci }} />
                     {showValues && v > 0 && (
-                      <text x={x + barW / 2} y={sy(v) - 6} textAnchor="middle" fontSize="10.5" fill="var(--ink-secondary)" className="tabular-nums">
+                      <text x={x + barW / 2} y={sy(v) - 6} textAnchor="middle" fontSize="11" fill="var(--ink-secondary)" className="tabular-nums">
                         {yFormat(v)}
                       </text>
                     )}
@@ -293,19 +307,21 @@ export function TierBar({ counts }) {
         role="img"
         aria-label={TIERS.map((t) => `${t.label} ${counts[t.key] || 0}`).join(", ")}
       >
-        {TIERS.filter((t) => counts[t.key]).map((t) => (
-          <div key={t.key} className="h-full transition-all duration-500 first:rounded-l-full last:rounded-r-full" style={{ width: `${(counts[t.key] / total) * 100}%`, background: t.color }} />
+        {TIERS.filter((t) => counts[t.key]).map((t, i) => (
+          <div key={t.key} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${(counts[t.key] / total) * 100}%` }}>
+            <div className="grow-x h-full w-full" style={{ background: t.color, "--i": i }} />
+          </div>
         ))}
       </div>
       <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {TIERS.map((t) => (
           <li key={t.key} className="rounded-xl border border-[var(--border)] px-3 py-2">
-            <p className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--muted)]">
               <span className="h-2.5 w-2.5 rounded-sm" style={{ background: t.color }} aria-hidden />
               {t.label}
             </p>
-            <p className="mt-0.5 text-lg font-bold tabular-nums text-[var(--ink)]">
-              {counts[t.key] || 0} <span className="text-xs font-normal text-[var(--muted)]">{Math.round(((counts[t.key] || 0) / total) * 100)}%</span>
+            <p className="mt-0.5 text-lg font-extrabold tabular-nums text-[var(--ink)]">
+              {counts[t.key] || 0} <span className="text-xs font-semibold text-[var(--muted)]">{Math.round(((counts[t.key] || 0) / total) * 100)}%</span>
             </p>
           </li>
         ))}
@@ -335,9 +351,9 @@ export function CompareBars({ rows, a, b }) {
             const top = Math.max(Number.isFinite(r.a) ? r.a : 0, Number.isFinite(r.b) ? r.b : 0) || 1;
             return (
               <tr key={r.label}>
-                <th scope="row" className="w-[30%] py-2.5 pr-3 text-left align-middle text-xs font-medium text-[var(--ink-secondary)]">
+                <th scope="row" className="w-[30%] py-2.5 pr-3 text-left align-middle text-xs font-semibold text-[var(--ink-secondary)]">
                   {r.label}
-                  {r.hint && <span className="block text-[0.68rem] font-normal text-[var(--muted)]">{r.hint}</span>}
+                  {r.hint && <span className="block text-xs font-medium text-[var(--muted)]">{r.hint}</span>}
                 </th>
                 {[
                   [r.a, a.color],
@@ -345,7 +361,9 @@ export function CompareBars({ rows, a, b }) {
                 ].map(([v, color], i) => (
                   <td key={i} className="w-[35%] py-2.5 pr-3 align-middle last:pr-0">
                     <div className="h-2 w-full rounded-full bg-gray-100">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Number.isFinite(v) ? Math.max(2, (v / top) * 100) : 0}%`, background: color }} />
+                      <div className="h-full" style={{ width: `${Number.isFinite(v) ? Math.max(2, (v / top) * 100) : 0}%` }}>
+                        <div className="grow-x h-full w-full rounded-full" style={{ background: color, "--i": i }} />
+                      </div>
                     </div>
                     <p className="mt-1 text-xs font-semibold tabular-nums text-[var(--ink)]">{Number.isFinite(v) ? r.fmt(v) : "—"}</p>
                   </td>

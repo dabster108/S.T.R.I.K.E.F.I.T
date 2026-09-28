@@ -1,11 +1,11 @@
 import { useId, useMemo, useState } from "react";
 import { formatDateTime, formatShortDate } from "../../lib/format.js";
 import { sessionTime } from "../../lib/derive.js";
-
-const formatHourMinute = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 import { OutcomeBadge } from "../ui/Badge.jsx";
 import { EmptyState } from "../ui/Feedback.jsx";
 import { useElementWidth } from "./useElementWidth.js";
+
+const formatHourMinute = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
 const HEIGHT = 240;
 const PAD = { top: 16, right: 16, bottom: 30, left: 44 };
@@ -69,12 +69,21 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
       <svg
         width={width}
         height={HEIGHT}
-        className="block"
         role="img"
-        aria-label={`Score trend across ${sessions.length} sessions`}
+        tabIndex={0}
+        aria-label={`Score trend across ${sessions.length} sessions. Use the arrow keys to step through battles and Enter to open one.`}
         onMouseMove={(e) => setActive(nearest(e.clientX, e.currentTarget.getBoundingClientRect()))}
         onMouseLeave={() => setActive(null)}
+        onBlur={() => setActive(null)}
+        onKeyDown={(e) => {
+          const last = geo.points.length - 1;
+          if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+            e.preventDefault();
+            setActive((a) => (a === null ? last : Math.max(0, Math.min(last, a + (e.key === "ArrowRight" ? 1 : -1)))));
+          } else if (e.key === "Enter" && hover) onSelect?.(hover.s);
+        }}
         onClick={() => hover && onSelect?.(hover.s)}
+        className="block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
         style={{ cursor: onSelect && hover ? "pointer" : "default" }}
       >
         <defs>
@@ -87,7 +96,7 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
         {geo.ticks.map((t) => (
           <g key={t.v}>
             <line x1={PAD.left} x2={width - PAD.right} y1={t.y} y2={t.y} stroke={t.v === 0 ? "var(--border-strong)" : "var(--grid)"} />
-            <text x={PAD.left - 8} y={t.y + 3.5} textAnchor="end" fontSize="10.5" fill="var(--muted)" className="tabular-nums">
+            <text x={PAD.left - 8} y={t.y + 3.5} textAnchor="end" fontSize="11" fill="var(--muted)" className="tabular-nums">
               {t.v}
             </text>
           </g>
@@ -95,7 +104,7 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
 
         {geo.area && <path d={geo.area} fill={`url(#${gradId})`} className="chart-area" />}
         {geo.points.length > 1 && (
-          <path d={geo.line} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" className="chart-line" />
+          <path d={geo.line} pathLength="1" fill="none" stroke="var(--accent)" strokeWidth="2.25" strokeLinejoin="round" strokeLinecap="round" className="chart-line" />
         )}
 
         {hover && <line x1={hover.x} x2={hover.x} y1={PAD.top} y2={geo.base} stroke="var(--border-strong)" strokeDasharray="3 3" />}
@@ -106,9 +115,11 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
             cx={p.x}
             cy={p.y}
             r={active === p.i ? 5.5 : 4}
-            fill="var(--surface)"
+            fill={active === p.i ? "var(--accent)" : "var(--surface)"}
             stroke="var(--accent)"
             strokeWidth={active === p.i ? 2.5 : 2}
+            className="dot-in"
+            style={{ "--i": Math.min(p.i, 30) }}
           />
         ))}
 
@@ -119,12 +130,11 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
           if (!last && geo.points.length - 1 - p.i < geo.labelEvery && p.i !== 0) return null;
           const anchor = geo.points.length > 1 && p.i === 0 ? "start" : last && geo.points.length > 1 ? "end" : "middle";
           return (
-            <text key={`l-${p.s.id}`} x={p.x} y={HEIGHT - 10} textAnchor={anchor} fontSize="10.5" fill="var(--muted)">
+            <text key={`l-${p.s.id}`} x={p.x} y={HEIGHT - 10} textAnchor={anchor} fontSize="11" fill="var(--muted)">
               {geo.label(p.s.endedAt || p.s.startedAt)}
             </text>
           );
         })}
-        )}
       </svg>
 
       {hover && (

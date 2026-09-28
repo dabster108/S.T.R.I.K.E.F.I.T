@@ -10,13 +10,24 @@
     <meta property="og:title" content="STRIKEFIT · Swing harder, hit harder" />
     <meta property="og:description" content="A VR fitness game that measures effort, not gestures. Research prototype, Softwarica College." />
     <meta name="twitter:card" content="summary" />
+    <meta name="theme-color" content="#2563eb" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap"
     />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>

@@ -7,12 +7,14 @@ import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useReducedMotion } from "../hooks/motion.js";
 import { useLiveMessages } from "../live/LiveProvider.jsx";
 import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
-import { ConfirmDialog, EmptyState, Skeleton } from "../components/ui/Feedback.jsx";
+import { ConfirmDialog, EmptyState } from "../components/ui/Feedback.jsx";
+import { SessionDetailSkeleton } from "../components/ui/Skeletons.jsx";
 import { LevelBadge, OutcomeBadge } from "../components/ui/Badge.jsx";
 import { SegmentedControl } from "../components/ui/Controls.jsx";
-import Button from "../components/ui/Button.jsx";
+import Button, { buttonClass } from "../components/ui/Button.jsx";
 import Icon from "../components/ui/Icon.jsx";
 import EventList from "../components/sessions/EventList.jsx";
+import Scrubber, { SCRUB_LEGEND } from "../components/sessions/Scrubber.jsx";
 import { HpBar, LiveChip } from "../components/live/LiveFight.jsx";
 import { BarChart, Legend, LineChart } from "../components/charts/Charts.jsx";
 
@@ -76,10 +78,23 @@ function Replay({ events, duration, live }) {
   }, [shown.length, reduced]);
 
   const atEnd = t >= duration - 0.05;
+  const seek = (v) => {
+    setT(v);
+    follow.current = v >= duration - 0.05;
+  };
+  const keyEvents = events.filter((e) => ["hit", "monster_attack", "player_hurt", "clash", "session_complete"].includes(e.type));
+  const jump = (dir) => {
+    setPlaying(false);
+    const target = dir > 0 ? keyEvents.find((e) => e.t > t + 0.01) : [...keyEvents].reverse().find((e) => e.t < t - 0.01);
+    seek(target ? target.t : dir > 0 ? duration : 0);
+  };
+
   return (
     <div className="px-5 py-5">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
+          variant="primary"
+          size="md"
           icon={playing ? "pause" : "play"}
           onClick={() => {
             if (playing) return setPlaying(false);
@@ -90,29 +105,31 @@ function Replay({ events, duration, live }) {
         >
           {playing ? "Pause" : atEnd ? "Replay" : "Play"}
         </Button>
-        <label className="flex min-w-[10rem] flex-1 items-center">
-          <span className="sr-only">Replay position</span>
-          <input
-            type="range"
-            min="0"
-            max={Math.max(0.1, duration)}
-            step="0.05"
-            value={Math.min(t, duration)}
-            onChange={(e) => {
-              setPlaying(false);
-              const v = Number(e.target.value);
-              follow.current = v >= duration - 0.05;
-              setT(v);
-            }}
-            aria-valuetext={`${clock(t)} of ${clock(duration)}`}
-            className="w-full accent-[var(--accent)]"
-          />
-        </label>
-        <span className="text-xs tabular-nums text-[var(--muted)]">
-          {clock(t)} / {clock(duration)}
-          {live && " · live"}
+        <Button variant="ghost" icon="chevronLeft" onClick={() => jump(-1)} aria-label="Previous event">
+          <span className="hidden sm:inline">Prev event</span>
+        </Button>
+        <Button variant="ghost" onClick={() => jump(1)} aria-label="Next event">
+          <span className="hidden sm:inline">Next event</span>
+          <Icon name="chevronRight" className="h-3.5 w-3.5" />
+        </Button>
+        <span className="ml-auto text-sm font-bold tabular-nums text-[var(--ink)]">
+          {clock(t)} <span className="font-semibold text-[var(--muted)]">/ {clock(duration)}</span>
+          {live && <span className="ml-1 text-xs font-bold text-[var(--good-ink)]">· live</span>}
         </span>
         <SegmentedControl label="Replay speed" options={SPEEDS} value={speed} onChange={setSpeed} />
+      </div>
+
+      <div className="mt-2">
+        <Scrubber t={Math.min(t, duration)} duration={duration} events={events} onSeek={seek} onScrubStart={() => setPlaying(false)} />
+        <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-[var(--ink-secondary)]" aria-label="Marker legend">
+          {SCRUB_LEGEND.map((m) => (
+            <li key={m.label} className="inline-flex items-center gap-1.5">
+              <span className={`h-3 w-[3px] rounded-full ${m.cls}`} aria-hidden />
+              {m.label}
+            </li>
+          ))}
+          <li className="ml-auto hidden font-medium text-[var(--muted)] sm:block">Arrow keys move 1 s, Shift for 5 s</li>
+        </ul>
       </div>
 
       <div className="mt-5 grid gap-6 lg:grid-cols-5">
@@ -126,14 +143,14 @@ function Replay({ events, duration, live }) {
               ["Hits", state.hits],
             ].map(([k, v]) => (
               <div key={k}>
-                <dt className="text-[0.68rem] text-[var(--muted)]">{k}</dt>
-                <dd className="text-sm font-semibold tabular-nums text-[var(--ink)]">{isNum(v) ? formatNumber(v) : "—"}</dd>
+                <dt className="text-xs font-semibold text-[var(--muted)]">{k}</dt>
+                <dd className="text-base font-extrabold tabular-nums text-[var(--ink)]">{isNum(v) ? formatNumber(v) : "—"}</dd>
               </div>
             ))}
           </dl>
         </div>
         <div ref={list} className="scrollbar-thin max-h-80 overflow-y-auto rounded-xl border border-[var(--border)] lg:col-span-3">
-          {shown.length ? <EventList events={shown} dense /> : <p className="px-4 py-6 text-xs text-[var(--muted)]">Press play or drag the slider.</p>}
+          {shown.length ? <EventList events={shown} dense /> : <p className="px-4 py-6 text-xs font-medium text-[var(--muted)]">Press play or drag along the timeline.</p>}
         </div>
       </div>
     </div>
@@ -188,7 +205,7 @@ export default function SessionDetailView({ onDeleted }) {
             title="This session doesn't exist"
             description="It may have been deleted."
             action={
-              <Link to="/dashboard/sessions" className="text-xs font-medium text-[var(--accent)] hover:underline">
+              <Link to="/dashboard/sessions" className={buttonClass("secondary")}>
                 All sessions
               </Link>
             }
@@ -197,17 +214,18 @@ export default function SessionDetailView({ onDeleted }) {
       </div>
     );
   }
+  if (!data && !error) return <SessionDetailSkeleton />;
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow={
-          <Link to="/dashboard/sessions" className="inline-flex items-center gap-1 hover:underline">
+          <Link to="/dashboard/sessions" className="press inline-flex items-center gap-1 rounded hover:underline">
             <Icon name="chevronLeft" className="h-3 w-3" strokeWidth={2.4} /> Sessions
           </Link>
         }
         title={s ? `${s.playerName} · ${levelName(s.level)}` : "Session"}
-        description={s ? `${formatDateTime(s.startedAt)} · ${s.source}${s.notes ? ` · ${s.notes}` : ""}` : "Loading…"}
+        description={s ? `${formatDateTime(s.startedAt)} · ${s.source}${s.notes ? ` · ${s.notes}` : ""}` : undefined}
         actions={
           s && (
             <>
@@ -222,18 +240,13 @@ export default function SessionDetailView({ onDeleted }) {
 
       {error && !data ? (
         <Card>
-          <EmptyState icon="xCircle" title="Couldn't load this session" description={error.message} />
+          <EmptyState icon="sessions" title="This session will appear here" description="It loads as soon as the server answers." />
         </Card>
-      ) : !data ? (
-        <div className="space-y-6" aria-busy="true">
-          <Skeleton className="h-24 w-full rounded-2xl" />
-          <Skeleton className="h-72 w-full rounded-2xl" />
-        </div>
       ) : (
         <>
           <Card className="overflow-hidden">
             <CardHeader title="Summary" />
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 px-5 py-5 sm:grid-cols-3 lg:grid-cols-5">
+            <dl className="stagger grid grid-cols-2 gap-x-6 gap-y-4 px-5 py-5 sm:grid-cols-3 lg:grid-cols-5">
               {[
                 ["Level", <LevelBadge key="l" level={s.level} />],
                 ["Score", formatNumber(s.score)],
@@ -244,11 +257,11 @@ export default function SessionDetailView({ onDeleted }) {
                 ["Duration", formatDuration(s.durationSec)],
                 ["Player HP left", formatNumber(s.playerHpRemaining)],
                 ["Monster HP left", formatNumber(s.monsterHpRemaining)],
-                ["Player", <Link key="p" to={`/dashboard/player/${encodeURIComponent(s.playerName)}`} className="text-[var(--accent)] hover:underline">{s.playerName}</Link>],
+                ["Player", <Link key="p" to={`/dashboard/player/${encodeURIComponent(s.playerName)}`} className="press rounded text-[var(--accent)] hover:underline">{s.playerName}</Link>],
               ].map(([k, v]) => (
                 <div key={k}>
-                  <dt className="text-[0.68rem] font-medium text-[var(--muted)]">{k}</dt>
-                  <dd className="mt-0.5 text-sm font-semibold tabular-nums text-[var(--ink)]">{v}</dd>
+                  <dt className="text-xs font-semibold text-[var(--muted)]">{k}</dt>
+                  <dd className="mt-0.5 text-base font-extrabold tabular-nums text-[var(--ink)]">{v}</dd>
                 </div>
               ))}
             </dl>

@@ -7,10 +7,13 @@ import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useFeed, useLiveForPlayer, useLiveMessages } from "../live/LiveProvider.jsx";
 import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
 import { SegmentedControl, Select } from "../components/ui/Controls.jsx";
-import { EmptyState, Skeleton } from "../components/ui/Feedback.jsx";
+import { EmptyState } from "../components/ui/Feedback.jsx";
+import { PlayerSkeleton } from "../components/ui/Skeletons.jsx";
 import { LevelBadge, OutcomeBadge } from "../components/ui/Badge.jsx";
+import { buttonClass } from "../components/ui/Button.jsx";
+import Icon from "../components/ui/Icon.jsx";
 import StatTile from "../components/ui/StatTile.jsx";
-import SessionsTable from "../components/sessions/SessionsTable.jsx";
+import { SessionList } from "../components/sessions/SessionCards.jsx";
 import EventList from "../components/sessions/EventList.jsx";
 import { LiveArenaCard } from "../components/live/LiveFight.jsx";
 import { BarChart, CompareBars, LEVEL_COLORS, Legend, LineChart, TierBar } from "../components/charts/Charts.jsx";
@@ -28,6 +31,42 @@ const OUTCOMES = [
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const speed = (v) => (isNum(v) ? `${v.toFixed(1)} m/s` : "—");
 const share = (r) => (isNum(r) ? formatPercent(r * 100) : "—");
+const pct = (v) => `${Math.round(v * 10) / 10}%`;
+
+function Avatar({ name }) {
+  return (
+    <span className="pop-in flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--blue-800)] text-xl font-extrabold text-white shadow-[var(--shadow-glow)] sm:h-16 sm:w-16">
+      {name.slice(0, 2).toUpperCase()}
+    </span>
+  );
+}
+
+// Win streaks from finished fights, oldest to newest.
+function streaks(sessions) {
+  const chrono = sessions.filter((s) => s.status !== "live" && s.outcome).sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt));
+  let best = 0;
+  let run = 0;
+  for (const s of chrono) {
+    run = s.outcome === "victory" ? run + 1 : 0;
+    best = Math.max(best, run);
+  }
+  return { current: run, best };
+}
+
+function Highlight({ icon, children, tone = "accent" }) {
+  const cls =
+    tone === "gold"
+      ? "bg-amber-50 text-amber-800 ring-amber-200"
+      : tone === "good"
+        ? "bg-[var(--good-soft)] text-[var(--good-ink)] ring-emerald-200"
+        : "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-[var(--accent-ring)]";
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${cls}`}>
+      <Icon name={icon} className="h-3.5 w-3.5" />
+      {children}
+    </span>
+  );
+}
 
 function LivePanel({ name, latest }) {
   const live = useLiveForPlayer(name);
@@ -60,7 +99,7 @@ function LivePanel({ name, latest }) {
         title="Latest session"
         subtitle={`${formatRelative(latest.endedAt)} · not playing right now`}
         actions={
-          <Link to={`/dashboard/session/${encodeURIComponent(latest.id)}`} className="text-xs font-medium text-[var(--accent)] hover:underline">
+          <Link to={`/dashboard/session/${encodeURIComponent(latest.id)}`} className="press rounded text-xs font-semibold text-[var(--accent)] hover:underline">
             Open session
           </Link>
         }
@@ -78,8 +117,8 @@ function LivePanel({ name, latest }) {
           ["Duration", formatDuration(latest.durationSec)],
         ].map(([k, v]) => (
           <div key={k}>
-            <p className="text-[0.68rem] font-medium text-[var(--muted)]">{k}</p>
-            <p className="text-lg font-bold tabular-nums text-[var(--ink)]">{v}</p>
+            <p className="text-xs font-semibold text-[var(--muted)]">{k}</p>
+            <p className="text-lg font-extrabold tabular-nums text-[var(--ink)]">{v}</p>
           </div>
         ))}
       </div>
@@ -92,6 +131,7 @@ export default function PlayerView() {
   const name = decodeURIComponent(raw || "");
   const navigate = useNavigate();
   const { data: p, error, reload } = useApi(() => api.player(name), [name]);
+  const players = useApi(() => api.players(), []);
   const refresh = useThrottledCallback(reload, 3000);
   useLiveMessages((type, payload) => {
     const who = payload?.session?.playerName;
@@ -104,11 +144,12 @@ export default function PlayerView() {
     () => (p?.sessions || []).filter((s) => s.status !== "live" && (level === "all" || s.level === level) && (outcome === "all" || s.outcome === outcome)),
     [p, level, outcome]
   );
+  const streak = useMemo(() => streaks(p?.sessions || []), [p]);
 
   if (error?.status === 404) {
     return (
       <div className="space-y-6">
-        <PageHeader eyebrow="Player" title={name} />
+        <PageHeader eyebrow="Player" title={name} leading={<Avatar name={name} />} />
         <LivePanel name={name} latest={null} />
         <Card>
           <EmptyState
@@ -116,7 +157,7 @@ export default function PlayerView() {
             title="No sessions for this player yet"
             description="Names must match what's set on the headset exactly, including spaces and capitals."
             action={
-              <Link to="/dashboard/players" className="text-xs font-medium text-[var(--accent)] hover:underline">
+              <Link to="/dashboard/players" className={buttonClass("secondary")}>
                 All players
               </Link>
             }
@@ -125,6 +166,7 @@ export default function PlayerView() {
       </div>
     );
   }
+  if (!p && !error) return <PlayerSkeleton />;
 
   const t = p?.totals;
   const series = (p?.series || []).map((s, i) => ({ ...s, n: i + 1 })).filter((s) => s.status !== "live");
@@ -144,48 +186,79 @@ export default function PlayerView() {
     return s ? `Session ${n} · ${formatShortDate(s.startedAt)}` : `Session ${n}`;
   };
 
+  // Rank among all players by best score (the order /api/players returns).
+  const roster = players.data || [];
+  const rankIndex = roster.findIndex((x) => x.playerName === name);
+  const finished = (p?.sessions || []).filter((s) => s.status !== "live");
+  const best = finished.reduce((m, s) => (!m || (Number(s.score) || 0) > (Number(m.score) || 0) ? s : m), null);
+  const latestIsBest = finished.length > 1 && best && finished[0]?.id === best.id && Number(best.score) > 0;
+
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Player"
         title={name}
-        description={p ? `First played ${formatRelative(p.firstPlayedAt)} · last played ${formatRelative(p.lastPlayedAt)}` : "Loading profile…"}
+        leading={<Avatar name={name} />}
+        description={p ? `First played ${formatRelative(p.firstPlayedAt)} · last played ${formatRelative(p.lastPlayedAt)}` : undefined}
         actions={
-          <Link
-            to={`/dashboard/compare?a=${encodeURIComponent(name)}`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--ink-secondary)] shadow-sm hover:border-[var(--border-strong)] hover:text-[var(--ink)]"
-          >
+          <Link to={`/dashboard/compare?a=${encodeURIComponent(name)}`} className={buttonClass("secondary", "sm")}>
+            <Icon name="compare" className="h-3.5 w-3.5" />
             Compare with…
           </Link>
         }
       />
 
+      {p && (rankIndex >= 0 || streak.best >= 2 || latestIsBest || best) && (
+        <div className="stagger -mt-2 flex flex-wrap gap-2">
+          {rankIndex >= 0 && roster.length > 1 && (
+            <Highlight icon={rankIndex === 0 ? "crown" : "medal"} tone={rankIndex < 3 ? "gold" : "accent"}>
+              Rank #{rankIndex + 1} of {roster.length} by best score
+            </Highlight>
+          )}
+          {best && Number(best.score) > 0 && (
+            <Highlight icon="trophy">
+              Best {formatNumber(best.score)} on {levelName(best.level)} · {formatShortDate(best.startedAt)}
+            </Highlight>
+          )}
+          {latestIsBest && (
+            <Highlight icon="sparkles" tone="good">
+              Latest fight is a personal best
+            </Highlight>
+          )}
+          {streak.current >= 2 && (
+            <Highlight icon="flame" tone="good">
+              {streak.current} wins in a row
+            </Highlight>
+          )}
+          {streak.best >= 2 && streak.best > streak.current && <Highlight icon="flame">Best streak: {streak.best} wins</Highlight>}
+        </div>
+      )}
+
       {error && !p ? (
         <Card>
-          <EmptyState icon="xCircle" title="Couldn't load this player" description={error.message} />
+          <EmptyState icon="players" title="This profile will appear here" description="It loads as soon as the server answers." />
         </Card>
-      ) : !p ? (
-        <div className="space-y-6" aria-busy="true">
-          <Skeleton className="h-24 w-full rounded-2xl" />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-32 w-full rounded-2xl" />
-            ))}
-          </div>
-        </div>
       ) : (
         <>
           <LivePanel name={name} latest={p.sessions.find((s) => s.status !== "live")} />
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatTile label="Sessions" value={formatNumber(t.sessions)} icon="sessions" tone="blue" hint={`${formatDuration(t.totalDurationSec)} in fights`} />
+          <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatTile label="Sessions" count={t.sessions} icon="sessions" tone="blue" hint={`${formatDuration(t.totalDurationSec)} in fights`} />
             <StatTile label="Wins / losses" value={`${t.wins} / ${t.losses}`} icon="check" tone="green" hint={t.winRate === null ? "No decided fights yet" : `${formatPercent(t.winRate)} win rate`} />
-            <StatTile label="Best score" value={formatNumber(t.bestScore)} icon="trophy" tone="indigo" hint={`${formatNumber(t.totalXp)} XP earned`} />
-            <StatTile label="Total damage" value={formatNumber(t.totalDamage)} icon="flame" tone="rose" hint="HP taken off monsters" />
-            <StatTile label="Swings counted" value={formatNumber(t.totalSwings)} icon="bolt" tone="amber" hint={t.swingSamples ? `avg ${speed(t.avgSwingSpeed)} · peak ${speed(t.peakSwingSpeed)}` : "fast enough to register"} />
-            <StatTile label="Full-power swings" value={share(t.fullPowerRatio)} icon="score" tone="blue" hint={t.swingSamples ? `of ${formatNumber(t.swingSamples)} measured hits` : "No speed data yet"} />
-            <StatTile label="Win rate" value={t.winRate === null ? "—" : formatPercent(t.winRate)} icon="target" tone="green" hint="of fights won or lost" />
-            <StatTile label="Levels played" value={formatNumber(levelsAll.length)} icon="dashboard" tone="slate" hint={levelsAll.map(levelName).join(" · ") || "—"} />
+            <StatTile label="Best score" count={t.bestScore} icon="trophy" tone="indigo" hint={`${formatNumber(t.totalXp)} XP earned`} />
+            <StatTile label="Total damage" count={t.totalDamage} icon="flame" tone="rose" hint="HP taken off monsters" />
+            <StatTile label="Swings counted" count={t.totalSwings} icon="bolt" tone="amber" hint={t.swingSamples ? `avg ${speed(t.avgSwingSpeed)} · peak ${speed(t.peakSwingSpeed)}` : "fast enough to register"} />
+            <StatTile
+              label="Full-power swings"
+              count={isNum(t.fullPowerRatio) ? t.fullPowerRatio * 100 : undefined}
+              value={share(t.fullPowerRatio)}
+              format={pct}
+              icon="gauge"
+              tone="blue"
+              hint={t.swingSamples ? `of ${formatNumber(t.swingSamples)} measured hits` : "No speed data yet"}
+            />
+            <StatTile label="Win rate" count={isNum(t.winRate) ? t.winRate : undefined} value="—" format={pct} icon="target" tone="green" hint="of fights won or lost" />
+            <StatTile label="Levels played" count={levelsAll.length} icon="layers" tone="slate" hint={levelsAll.map(levelName).join(" · ") || "—"} />
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">
@@ -209,7 +282,7 @@ export default function PlayerView() {
                 {t.swingSamples ? (
                   <TierBar counts={p.tiers} />
                 ) : (
-                  <EmptyState icon="bolt" title="No swing-speed data yet" description="Speeds are recorded from the live-telemetry build of the game onward; older sessions only kept totals." />
+                  <EmptyState icon="gauge" title="No swing-speed data yet" description="Speeds are recorded from the live-telemetry build of the game onward; older sessions only kept totals." />
                 )}
               </div>
             </Card>
@@ -229,7 +302,7 @@ export default function PlayerView() {
                     <Legend items={played.map((l) => ({ label: levelName(l), color: LEVEL_COLORS[l] }))} />
                   </>
                 ) : (
-                  <EmptyState icon="score" title="No XP recorded yet" description="XP is sent with each session from the live-telemetry build onward." />
+                  <EmptyState icon="sparkles" title="No XP recorded yet" description="XP is sent with each session from the live-telemetry build onward." />
                 )}
               </div>
             </Card>
@@ -273,7 +346,9 @@ export default function PlayerView() {
               }
             />
             {history.length ? (
-              <SessionsTable rows={history} onSelect={(s) => navigate(`/dashboard/session/${encodeURIComponent(s.id)}`)} />
+              <div className="p-4 sm:p-5">
+                <SessionList rows={history} onSelect={(s) => navigate(`/dashboard/session/${encodeURIComponent(s.id)}`)} />
+              </div>
             ) : (
               <EmptyState icon="search" title="No sessions match these filters" />
             )}

@@ -23,15 +23,18 @@ export const wakeStore = {
   isWaking: () => wake.slow > 0,
 };
 
-async function request(path, { method = "GET", body, timeoutMs = 75000 } = {}) {
+// quiet: never reported to the wake store (the public landing page shows no server state).
+async function request(path, { method = "GET", body, timeoutMs = 75000, quiet = false } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let slow = false;
-  const slowTimer = setTimeout(() => {
-    slow = true;
-    wake.slow++;
-    emitWake();
-  }, SLOW_AFTER_MS);
+  const slowTimer = quiet
+    ? null
+    : setTimeout(() => {
+        slow = true;
+        wake.slow++;
+        emitWake();
+      }, SLOW_AFTER_MS);
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       method,
@@ -77,7 +80,19 @@ export const api = {
   player: (name) => request(`/api/players/${enc(name)}`),
   overview: () => request(`/api/overview${qs({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`),
   publicStats: () => request("/api/public-stats"),
+  // Landing page: short timeouts, no wake-up signalling, callers swallow failures.
+  liveQuiet: () => request("/api/live", { quiet: true, timeoutMs: 12000 }),
+  publicStatsQuiet: () => request("/api/public-stats", { quiet: true, timeoutMs: 20000 }),
   analytics: (filters) => request(`/api/analytics${qs(filters)}`),
   exportUrl: (kind, filters) => `${API_BASE}/api/export/${kind}.csv${qs(filters)}`,
   streamUrl: () => `${API_BASE}/api/stream`,
 };
+
+// Fire-and-forget request that makes a sleeping Render instance start booting
+// while the visitor reads the landing page. Never throws, never reports.
+let warmed = false;
+export function warmUp() {
+  if (warmed || typeof fetch === "undefined") return;
+  warmed = true;
+  fetch(`${API_BASE}/api/health`, { cache: "no-store", keepalive: true }).catch(() => {});
+}

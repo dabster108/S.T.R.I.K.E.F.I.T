@@ -2,10 +2,10 @@ import { useMemo, useState } from "react";
 import { api } from "../lib/api.js";
 import { formatNumber } from "../lib/format.js";
 import { useApi } from "../hooks/useApi.js";
-import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
-import { Select } from "../components/ui/Controls.jsx";
-import { Banner } from "../components/ui/Feedback.jsx";
+import { Card, PageHeader } from "../components/ui/Card.jsx";
+import { Select, inputClass } from "../components/ui/Controls.jsx";
 import Button from "../components/ui/Button.jsx";
+import Icon from "../components/ui/Icon.jsx";
 
 const EVENT_TYPES = [
   { id: "all", label: "All event types" },
@@ -18,15 +18,102 @@ const EVENT_TYPES = [
   { id: "clash", label: "Weapon clashes" },
   { id: "session_complete", label: "Session results" },
 ];
-const input =
-  "rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--ink)] shadow-sm focus:border-[var(--accent-ring)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]";
+const LEVEL_OPTS = [
+  { id: "all", label: "All levels" },
+  { id: "Easy", label: "Level 1" },
+  { id: "Medium", label: "Level 2" },
+];
+
+// The exact CSV headers the backend writes (web/backend/analytics.js).
+const SESSION_COLS = ["id", "playerName", "level", "status", "outcome", "score", "xp", "damageDealt", "hitCount", "fullSwings", "tapCount", "durationSec", "playerHpRemaining", "monsterHpRemaining", "startedAt", "endedAt", "source", "notes"];
+const EVENT_COLS = ["id", "at", "sessionId", "playerName", "level", "type", "message", "t", "damage", "swingSpeed", "tier", "hand", "defended", "score", "xp", "hits", "playerHp", "playerMaxHp", "monsterHp", "monsterMaxHp", "attack", "category", "amount", "blocked", "timeLeft", "payload"];
 
 function Field({ label, children }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[0.7rem] font-medium text-[var(--muted)]">{label}</span>
+      <span className="text-xs font-semibold text-[var(--ink-secondary)]">{label}</span>
       {children}
     </label>
+  );
+}
+
+function Step({ n, title, subtitle, children }) {
+  return (
+    <section className="relative pl-12">
+      <span className="absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-extrabold text-white shadow-[var(--shadow-glow)]">{n}</span>
+      <h2 className="text-base font-bold tracking-tight text-[var(--ink)]">{title}</h2>
+      {subtitle && <p className="mt-0.5 text-xs font-medium text-[var(--muted)]">{subtitle}</p>}
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function Columns({ cols }) {
+  const [open, setOpen] = useState(false);
+  const shown = open ? cols : cols.slice(0, 8);
+  return (
+    <div>
+      <ul className="flex flex-wrap gap-1.5" aria-label="Columns">
+        {shown.map((c) => (
+          <li key={c} className="rounded-md bg-[var(--surface-muted)] px-1.5 py-0.5 font-mono text-xs font-semibold text-[var(--ink-secondary)] ring-1 ring-inset ring-[var(--border)]">
+            {c}
+          </li>
+        ))}
+      </ul>
+      {cols.length > 8 && (
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="press mt-2 rounded text-xs font-semibold text-[var(--accent)] hover:underline">
+          {open ? "Show fewer columns" : `Show all ${cols.length} columns`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Status({ status }) {
+  if (!status) return null;
+  if (status.state === "done")
+    return (
+      <p className="fade-in flex items-center gap-1.5 text-xs font-semibold text-[var(--good-ink)]" role="status">
+        <Icon name="check" className="h-3.5 w-3.5" />
+        Saved {status.name} · {formatNumber(status.rows)} row{status.rows === 1 ? "" : "s"}
+        {status.rows === 0 && " (nothing matched these filters)"}
+      </p>
+    );
+  if (status.state === "error")
+    return (
+      <p className="fade-in flex items-center gap-1.5 text-xs font-semibold text-[var(--bad)]" role="alert">
+        <Icon name="info" className="h-3.5 w-3.5" />
+        The download didn't finish: {status.message}. Try again in a moment.
+      </p>
+    );
+  return null;
+}
+
+function Dataset({ icon, title, file, description, cols, busy, disabled, onDownload, status, children }) {
+  return (
+    <Card className="lift flex flex-col p-5">
+      <div className="flex items-start gap-4">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)] ring-1 ring-inset ring-[var(--accent-ring)]">
+          <Icon name={icon} className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-base font-bold text-[var(--ink)]">{title}</h3>
+          <p className="mt-0.5 text-sm font-medium leading-relaxed text-[var(--muted)]">{description}</p>
+        </div>
+      </div>
+      <div className="mt-4">
+        <Columns cols={cols} />
+      </div>
+      <div className="mt-auto space-y-3 pt-5">
+        <div className="flex flex-wrap items-center gap-3">
+          {children}
+          <Button variant="primary" size="md" icon={busy ? "loader" : "download"} disabled={disabled} onClick={onDownload}>
+            {busy ? "Preparing…" : `Download ${file}`}
+          </Button>
+        </div>
+        <Status status={status} />
+      </div>
+    </Card>
   );
 }
 
@@ -40,6 +127,8 @@ export default function ExportView() {
   const [status, setStatus] = useState(null);
   const playerOpts = useMemo(() => [{ id: "all", label: "All players" }, ...(players.data || []).map((p) => ({ id: p.playerName, label: p.playerName }))], [players.data]);
   const badRange = from && to && from > to;
+  const busy = status?.state === "loading";
+  const active = [player !== "all" && player, level !== "all" && LEVEL_OPTS.find((l) => l.id === level)?.label, from && `from ${from}`, to && `to ${to}`].filter(Boolean);
 
   const download = async (kind) => {
     setStatus({ kind, state: "loading" });
@@ -57,60 +146,77 @@ export default function ExportView() {
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       setStatus({ kind, state: "done", rows, name });
     } catch (err) {
-      setStatus({ kind, state: "error", message: err.message === "Failed to fetch" ? "can't reach the server" : err.message });
+      setStatus({ kind, state: "error", message: err.message === "Failed to fetch" ? "the server didn't answer" : err.message });
     }
   };
+  const statusFor = (kind) => (status?.kind === kind ? status : null);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader eyebrow="Data" title="Export" description="Download raw sessions and events as CSV for thesis analysis in a spreadsheet, R or Python." />
 
-      <Card className="overflow-hidden">
-        <CardHeader title="What to include" subtitle="Dates filter on when a session started; both days are included" />
-        <div className="grid gap-4 px-5 py-5 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Player">
-            <Select label="Player" value={player} onChange={setPlayer} options={playerOpts} />
-          </Field>
-          <Field label="Level">
-            <Select label="Level" value={level} onChange={setLevel} options={[{ id: "all", label: "All levels" }, { id: "Easy", label: "Level 1" }, { id: "Medium", label: "Level 2" }]} />
-          </Field>
-          <Field label="From">
-            <input type="date" className={input} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
-          </Field>
-          <Field label="To">
-            <input type="date" className={input} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
-          </Field>
-        </div>
-        {badRange && <p className="px-5 pb-4 text-xs text-[var(--bad)]">The start date is after the end date.</p>}
-      </Card>
+      <div className="relative space-y-10 before:absolute before:bottom-10 before:left-4 before:top-10 before:w-px before:bg-[var(--border)]">
+        <Step n={1} title="Choose what to include" subtitle="Dates filter on when a session started; both days are included.">
+          <Card className="p-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label="Player">
+                <Select label="Player" value={player} onChange={setPlayer} options={playerOpts} />
+              </Field>
+              <Field label="Level">
+                <Select label="Level" value={level} onChange={setLevel} options={LEVEL_OPTS} />
+              </Field>
+              <Field label="From">
+                <input type="date" className={inputClass} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+              </Field>
+              <Field label="To">
+                <input type="date" className={inputClass} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+              </Field>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-4 text-xs font-semibold text-[var(--ink-secondary)]">
+              <Icon name="filter" className="h-3.5 w-3.5 text-[var(--muted)]" />
+              {active.length ? (
+                active.map((f) => (
+                  <span key={f} className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[var(--accent-strong)] ring-1 ring-inset ring-[var(--accent-ring)]">
+                    {f}
+                  </span>
+                ))
+              ) : (
+                <span>Everything recorded, all players and levels</span>
+              )}
+              {badRange && <span className="font-bold text-[var(--bad)]">The start date is after the end date.</span>}
+            </div>
+          </Card>
+        </Step>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="flex flex-col">
-          <CardHeader title="Sessions" subtitle="One row per fight: player, level, status, outcome, score, XP, damage, hits, full-power hits, duration, HP left, start and end" />
-          <div className="mt-auto px-5 py-4">
-            <Button variant="primary" size="md" icon="download" disabled={badRange || status?.state === "loading"} onClick={() => download("sessions")}>
-              {status?.kind === "sessions" && status.state === "loading" ? "Preparing…" : "Download sessions.csv"}
-            </Button>
+        <Step n={2} title="Pick a dataset" subtitle="Both files use the filters above. Column names match the headers in the CSV.">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Dataset
+              icon="spreadsheet"
+              title="Sessions"
+              file="sessions.csv"
+              description="One row per fight: who played which level, how it ended, score, XP, damage, hits and timing."
+              cols={SESSION_COLS}
+              busy={busy && status.kind === "sessions"}
+              disabled={badRange || busy}
+              onDownload={() => download("sessions")}
+              status={statusFor("sessions")}
+            />
+            <Dataset
+              icon="activity"
+              title="Events"
+              file="events.csv"
+              description="One row per event, with the common payload fields as columns plus the full payload as JSON."
+              cols={EVENT_COLS}
+              busy={busy && status.kind === "events"}
+              disabled={badRange || busy}
+              onDownload={() => download("events")}
+              status={statusFor("events")}
+            >
+              <Select label="Event type" value={type} onChange={setType} options={EVENT_TYPES} />
+            </Dataset>
           </div>
-        </Card>
-        <Card className="flex flex-col">
-          <CardHeader title="Events" subtitle="One row per event, with the common payload fields as columns (t, damage, swingSpeed, tier, hand, HP, XP, attack…) plus the full payload as JSON" />
-          <div className="mt-auto flex flex-wrap items-center gap-3 px-5 py-4">
-            <Select label="Event type" value={type} onChange={setType} options={EVENT_TYPES} />
-            <Button variant="primary" size="md" icon="download" disabled={badRange || status?.state === "loading"} onClick={() => download("events")}>
-              {status?.kind === "events" && status.state === "loading" ? "Preparing…" : "Download events.csv"}
-            </Button>
-          </div>
-        </Card>
+        </Step>
       </div>
-
-      {status?.state === "done" && (
-        <Banner tone="info" title={`Downloaded ${status.name}`}>
-          {formatNumber(status.rows)} row{status.rows === 1 ? "" : "s"}
-          {status.rows === 0 ? " — nothing matched these filters." : "."}
-        </Banner>
-      )}
-      {status?.state === "error" && <Banner title="Export failed">The download didn't complete: {status.message}.</Banner>}
     </div>
   );
 }

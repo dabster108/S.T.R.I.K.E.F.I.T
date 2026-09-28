@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState } from "react";
-import { useConnection, useFeed, useLiveIds, useLiveReady } from "../live/LiveProvider.jsx";
+import { useFeed, useLiveIds, useLiveReady } from "../live/LiveProvider.jsx";
 import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
 import { SegmentedControl } from "../components/ui/Controls.jsx";
-import { EmptyState, Skeleton } from "../components/ui/Feedback.jsx";
+import { EmptyState } from "../components/ui/Feedback.jsx";
+import { LiveSkeleton } from "../components/ui/Skeletons.jsx";
 import Button from "../components/ui/Button.jsx";
-import { ConnectionBadge } from "../components/ui/Badge.jsx";
 import EventList from "../components/sessions/EventList.jsx";
-import { LiveArenaCard } from "../components/live/LiveFight.jsx";
+import { LiveArenaCard, LiveChip } from "../components/live/LiveFight.jsx";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -21,12 +21,10 @@ const MATCH = {
   hurt: (e) => e.type === "player_hurt",
   results: (e) => e.type === "session_start" || e.type === "session_complete",
 };
-const CONNECTION = { connected: "live", connecting: "connecting", reconnecting: "connecting", offline: "offline" };
 
 export default function LiveView() {
   const ids = useLiveIds();
   const ready = useLiveReady();
-  const { connection, mode } = useConnection();
   const [filter, setFilter] = useState("all");
   const [paused, setPaused] = useState(false);
   const events = useFeed(null);
@@ -36,6 +34,8 @@ export default function LiveView() {
   const shown = useMemo(() => (filter === "all" ? source : source.filter(MATCH[filter])), [source, filter]);
   const queued = paused ? events.length - frozen.current.length : 0;
 
+  if (!ready) return <LiveSkeleton />;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -43,19 +43,19 @@ export default function LiveView() {
         title="Live Arena"
         description="Every fight in progress, with both health bars, XP and score updating the moment the headset reports a hit, an attack or an HP change."
         actions={
-          <>
-            <ConnectionBadge state={CONNECTION[connection]} />
-            {mode === "polling" && connection !== "connected" && <span className="text-xs text-[var(--muted)]">Checking every 3 s</span>}
-          </>
+          ids.length ? (
+            <LiveChip label={`${ids.length} fight${ids.length === 1 ? "" : "s"} live`} />
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-semibold text-[var(--ink-secondary)] ring-1 ring-inset ring-[var(--border)]">
+              <span className="h-2 w-2 rounded-full bg-gray-400" aria-hidden />
+              No fights right now
+            </span>
+          )
         }
       />
 
-      {!ready ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-busy="true">
-          <Skeleton className="h-64 w-full rounded-2xl" />
-        </div>
-      ) : ids.length ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {ids.length ? (
+        <div className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {ids.map((id) => (
             <LiveArenaCard key={id} id={id} />
           ))}
@@ -77,7 +77,7 @@ export default function LiveView() {
           actions={
             <>
               <SegmentedControl label="Event type" options={FILTERS} value={filter} onChange={setFilter} />
-              <Button icon={paused ? "play" : "pause"} onClick={() => setPaused((p) => !p)}>
+              <Button icon={paused ? "play" : "pause"} onClick={() => setPaused((p) => !p)} aria-pressed={paused}>
                 {paused ? `Resume${queued > 0 ? ` (${queued} new)` : ""}` : "Pause"}
               </Button>
             </>

@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const query = "(prefers-reduced-motion: reduce)";
+const hasWindow = typeof window !== "undefined";
+export const prefersReducedMotion = () => hasWindow && window.matchMedia(query).matches;
 
 export function useReducedMotion() {
-  const [reduced, setReduced] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  const [reduced, setReduced] = useState(prefersReducedMotion);
   useEffect(() => {
     const m = window.matchMedia(query);
     const on = () => setReduced(m.matches);
@@ -13,60 +15,87 @@ export function useReducedMotion() {
   return reduced;
 }
 
-// Adds `is-visible` once the element scrolls into view (CSS does the animation).
-// One shared, rAF-throttled scroll check. An element is revealed once its top
-// passes 92% of the viewport height, so content that was scrolled past quickly
-// or jumped over (anchor links) is never left invisible.
-const pending = new Set();
-let scheduled = false;
-function check() {
-  scheduled = false;
-  const line = window.innerHeight * 0.92;
-  for (const el of pending) {
-    if (el.getBoundingClientRect().top < line) {
-      el.classList.add("is-visible");
-      pending.delete(el);
-    }
+// One shared IntersectionObserver per option set. Elements already scrolled past
+// (anchor jumps) count as seen, so nothing is ever left invisible above the fold.
+const observers = new Map();
+function observe(el, cb, { rootMargin = "0px 0px -8% 0px", once = true } = {}) {
+  if (!hasWindow || typeof IntersectionObserver === "undefined") {
+    cb(true);
+    return () => {};
   }
-}
-function schedule() {
-  if (!scheduled) {
-    scheduled = true;
-    requestAnimationFrame(check);
+  const key = `${rootMargin}|${once}`;
+  let entry = observers.get(key);
+  if (!entry) {
+    const callbacks = new Map();
+    const io = new IntersectionObserver(
+      (items) => {
+        for (const it of items) {
+          const fn = callbacks.get(it.target);
+          if (!fn) continue;
+          const seen = it.isIntersecting || it.boundingClientRect.bottom < 0;
+          fn(seen, it);
+          if (seen && once) {
+            io.unobserve(it.target);
+            callbacks.delete(it.target);
+          }
+        }
+      },
+      { rootMargin, threshold: [0, 0.01] }
+    );
+    entry = { io, callbacks };
+    observers.set(key, entry);
   }
-}
-if (typeof window !== "undefined") {
-  window.addEventListener("scroll", schedule, { passive: true });
-  window.addEventListener("resize", schedule);
+  entry.callbacks.set(el, cb);
+  entry.io.observe(el);
+  return () => {
+    entry.callbacks.delete(el);
+    entry.io.unobserve(el);
+  };
 }
 
-export function useReveal() {
+// Adds `is-visible` once the element scrolls into view (CSS does the animation).
+export function useReveal(options) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
-    pending.add(el);
-    schedule();
-    return () => pending.delete(el);
+    return observe(el, (seen) => seen && el.classList.add("is-visible"), options);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return ref;
 }
 
+// [ref, inView]. once=false keeps tracking (used to pause loops off screen).
+export function useInView({ rootMargin = "0px 0px -10% 0px", once = true } = {}) {
+  const [el, setEl] = useState(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    if (!el) return undefined;
+    return observe(el, (seen) => setInView(seen), { rootMargin, once });
+  }, [el, rootMargin, once]);
+  return [setEl, inView];
+}
+
 // Animates 0 -> target once `start` is true. Reduced motion: jumps straight to target.
-export function useCountUp(target, start, duration = 1400) {
+export function useCountUp(target, start = true, duration = 1400) {
   const reduced = useReducedMotion();
   const [value, setValue] = useState(0);
+  const from = useRef(0);
   useEffect(() => {
-    if (!start || typeof target !== "number") return;
+    if (!start || typeof target !== "number" || !Number.isFinite(target)) return undefined;
     if (reduced) {
+      from.current = target;
       setValue(target);
-      return;
+      return undefined;
     }
+    const begin = from.current;
     let raf;
     const t0 = performance.now();
     const tick = (now) => {
       const p = Math.min(1, (now - t0) / duration);
-      setValue(target * (1 - Math.pow(1 - p, 3)));
+      const v = begin + (target - begin) * (1 - Math.pow(1 - p, 3));
+      from.current = v;
+      setValue(v);
       if (p < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -79,21 +108,20 @@ export function useCountUp(target, start, duration = 1400) {
 export function useTween(target, duration = 450) {
   const reduced = useReducedMotion();
   const [value, setValue] = useState(target);
-  const from = useRef(target);
   const current = useRef(target);
   useEffect(() => {
-    if (typeof target !== "number") return;
+    if (typeof target !== "number") return undefined;
     if (reduced) {
       current.current = target;
       setValue(target);
-      return;
+      return undefined;
     }
-    from.current = current.current;
+    const from = current.current;
     let raf;
     const t0 = performance.now();
     const tick = (now) => {
       const p = Math.min(1, (now - t0) / duration);
-      const v = from.current + (target - from.current) * (1 - Math.pow(1 - p, 3));
+      const v = from + (target - from) * (1 - Math.pow(1 - p, 3));
       current.current = v;
       setValue(v);
       if (p < 1) raf = requestAnimationFrame(tick);
@@ -102,4 +130,111 @@ export function useTween(target, duration = 450) {
     return () => cancelAnimationFrame(raf);
   }, [target, duration, reduced]);
   return value;
+}
+
+// Shared rAF-throttled scroll listener; callbacks write styles directly (no re-render).
+const scrollFns = new Set();
+let scrollQueued = false;
+function runScroll() {
+  scrollQueued = false;
+  for (const fn of scrollFns) fn(window.scrollY);
+}
+function onScroll() {
+  if (!scrollQueued) {
+    scrollQueued = true;
+    requestAnimationFrame(runScroll);
+  }
+}
+export function useScroll(fn) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  useEffect(() => {
+    const cb = (y) => ref.current(y);
+    if (!scrollFns.size) {
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll);
+    }
+    scrollFns.add(cb);
+    cb(window.scrollY);
+    return () => {
+      scrollFns.delete(cb);
+      if (!scrollFns.size) {
+        window.removeEventListener("scroll", onScroll);
+        window.removeEventListener("resize", onScroll);
+      }
+    };
+  }, []);
+}
+
+// Pulls an element a few pixels toward the pointer (hero buttons).
+export function useMagnetic(strength = 0.25) {
+  const reduced = useReducedMotion();
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || reduced || !window.matchMedia("(pointer: fine)").matches) return undefined;
+    const move = (e) => {
+      const r = el.getBoundingClientRect();
+      const x = (e.clientX - (r.left + r.width / 2)) * strength;
+      const y = (e.clientY - (r.top + r.height / 2)) * strength;
+      el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
+    };
+    const leave = () => {
+      el.style.transform = "";
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerleave", leave);
+    return () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerleave", leave);
+    };
+  }, [reduced, strength]);
+  return ref;
+}
+
+// 3D tilt toward the pointer; sets --rx/--ry for the .tilt class.
+export function useTilt(max = 7) {
+  const reduced = useReducedMotion();
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || reduced || !window.matchMedia("(pointer: fine)").matches) return undefined;
+    const move = (e) => {
+      const r = el.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width - 0.5;
+      const py = (e.clientY - r.top) / r.height - 0.5;
+      el.style.setProperty("--rx", `${(-py * max).toFixed(2)}deg`);
+      el.style.setProperty("--ry", `${(px * max).toFixed(2)}deg`);
+      el.style.setProperty("--ty", "-4px");
+    };
+    const leave = () => {
+      el.style.setProperty("--rx", "0deg");
+      el.style.setProperty("--ry", "0deg");
+      el.style.setProperty("--ty", "0px");
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerleave", leave);
+    return () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerleave", leave);
+    };
+  }, [reduced, max]);
+  return ref;
+}
+
+// Moves an element at `speed` × the scroll offset while it's near the top (hero parallax).
+export function useParallax(speed = 0.15) {
+  const reduced = useReducedMotion();
+  const ref = useRef(null);
+  const apply = useCallback(
+    (y) => {
+      const el = ref.current;
+      if (!el) return;
+      if (reduced || y > window.innerHeight * 1.2) return;
+      el.style.transform = `translate3d(0, ${(y * speed).toFixed(1)}px, 0)`;
+    },
+    [reduced, speed]
+  );
+  useScroll(apply);
+  return ref;
 }

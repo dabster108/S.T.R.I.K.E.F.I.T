@@ -5,8 +5,11 @@ import { formatDuration, formatNumber, formatPercent } from "../lib/format.js";
 import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useLiveMessages } from "../live/LiveProvider.jsx";
 import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
-import { Select } from "../components/ui/Controls.jsx";
-import { EmptyState, Skeleton } from "../components/ui/Feedback.jsx";
+import { SegmentedControl, Select } from "../components/ui/Controls.jsx";
+import { EmptyState } from "../components/ui/Feedback.jsx";
+import { AnalyticsSkeleton } from "../components/ui/Skeletons.jsx";
+import { LevelBadge } from "../components/ui/Badge.jsx";
+import Icon from "../components/ui/Icon.jsx";
 import { BarChart, LEVEL_COLORS, Legend, LineChart, TIERS, TierBar } from "../components/charts/Charts.jsx";
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
@@ -17,32 +20,123 @@ const LEVEL_OPTS = [
   { id: "Medium", label: "Level 2" },
 ];
 const PHASES = ["Start", "2nd fifth", "Middle", "4th fifth", "End"];
-const th = "px-4 py-2.5 text-right text-[0.68rem] font-semibold uppercase tracking-wide text-[var(--muted)] whitespace-nowrap first:text-left";
-const td = "px-4 py-3 text-right text-sm tabular-nums whitespace-nowrap first:text-left";
 
-function ChartCard({ title, measures, children, note }) {
+// Light to dark along the existing blue scale; white text from --accent (5.2:1) onward.
+const HEAT = ["var(--accent-soft)", "var(--blue-100)", "var(--accent-ring)", "var(--blue-300)", "var(--blue-400)", "var(--accent)", "var(--accent-strong)", "var(--blue-800)", "var(--blue-900)"];
+const HEAT_METRICS = [
+  { id: "speed", label: "Swing speed", get: (p) => p.avgSwingSpeed, fmt: (v) => v.toFixed(1), unit: "m/s avg" },
+  { id: "full", label: "Full power", get: (p) => (isNum(p.fullPowerRatio) ? p.fullPowerRatio * 100 : null), fmt: (v) => `${Math.round(v)}%`, unit: "of hits" },
+  { id: "hits", label: "Hits", get: (p) => (p.hits ? p.hits : null), fmt: (v) => formatNumber(v), unit: "counted" },
+];
+
+function ChartCard({ title, measures, children, note, className = "" }) {
   return (
-    <Card className="overflow-hidden">
+    <Card className={`overflow-hidden ${className}`}>
       <CardHeader title={title} subtitle={measures} />
       <div className="px-3 pb-4 pt-4 sm:px-5">{children}</div>
-      {note && <p className="border-t border-[var(--border)] px-5 py-2.5 text-[0.7rem] text-[var(--muted)]">{note}</p>}
+      {note && <p className="border-t border-[var(--border)] px-5 py-2.5 text-xs font-medium text-[var(--muted)]">{note}</p>}
     </Card>
+  );
+}
+
+// Levels × five slices of round time, coloured by the chosen measure.
+function Heatmap({ effort }) {
+  const [metricId, setMetricId] = useState("speed");
+  const [focus, setFocus] = useState(null);
+  const metric = HEAT_METRICS.find((m) => m.id === metricId);
+  const rows = effort.filter((l) => LEVEL_COLORS[l.level]);
+  const values = rows.flatMap((l) => l.phases.map(metric.get)).filter(isNum);
+  if (!values.length) return <EmptyState icon="gauge" title="Needs finished fights with timing data" description="Each hit's time in the round comes from the live-telemetry build." />;
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const shade = (v) => (hi === lo ? 5 : Math.round(((v - lo) / (hi - lo)) * (HEAT.length - 1)));
+  const detail = focus && rows.find((l) => l.level === focus.level)?.phases[focus.phase];
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <SegmentedControl label="Heatmap measure" options={HEAT_METRICS} value={metricId} onChange={setMetricId} />
+        <div className="flex items-center gap-2 text-xs font-semibold text-[var(--muted)]" aria-hidden>
+          <span className="tabular-nums">{metric.fmt(lo)}</span>
+          <span className="flex h-2.5 w-28 overflow-hidden rounded-full">
+            {HEAT.map((c) => (
+              <span key={c} className="flex-1" style={{ background: c }} />
+            ))}
+          </span>
+          <span className="tabular-nums">{metric.fmt(hi)}</span>
+        </div>
+      </div>
+
+      <div className="scrollbar-thin overflow-x-auto">
+        <div className="grid min-w-[520px] grid-cols-[6.5rem_repeat(5,minmax(0,1fr))] gap-1.5" onMouseLeave={() => setFocus(null)}>
+          <span />
+          {PHASES.map((p, i) => (
+            <span key={p} className="pb-1 text-center text-xs font-bold text-[var(--ink-secondary)]">
+              {p}
+              <span className="block font-medium text-[var(--muted)]">
+                {i * 20}–{i * 20 + 20}%
+              </span>
+            </span>
+          ))}
+          {rows.map((l, r) => (
+            <div key={`${l.level}-${metricId}`} className="contents">
+              <span className="flex items-center gap-2 text-sm font-bold text-[var(--ink)]">
+                <LevelBadge level={l.level} />
+                <span className="truncate">{levelName(l.level).replace("Level ", "L")}</span>
+              </span>
+              {l.phases.map((p) => {
+                const v = metric.get(p);
+                const s = isNum(v) ? shade(v) : null;
+                const on = focus?.level === l.level && focus?.phase === p.phase;
+                return (
+                  <button
+                    key={p.phase}
+                    type="button"
+                    onMouseEnter={() => setFocus({ level: l.level, phase: p.phase })}
+                    onFocus={() => setFocus({ level: l.level, phase: p.phase })}
+                    onBlur={() => setFocus(null)}
+                    aria-label={`${levelName(l.level)}, ${PHASES[p.phase]} of the round: ${isNum(v) ? `${metric.fmt(v)} ${metric.unit}` : "no data"}, ${p.hits} hits`}
+                    className={`cell-in press flex h-16 flex-col items-center justify-center rounded-xl text-center ring-offset-2 transition-shadow ${on ? "ring-2 ring-[var(--ink)]" : ""} ${
+                      s === null ? "border border-dashed border-[var(--border-strong)] bg-[var(--surface-muted)]" : ""
+                    }`}
+                    style={{ "--i": r * 5 + p.phase, background: s === null ? undefined : HEAT[s] }}
+                  >
+                    <span className={`text-base font-extrabold tabular-nums ${s === null ? "text-[var(--muted)]" : s >= 5 ? "text-white" : "text-[var(--blue-900)]"}`}>
+                      {isNum(v) ? metric.fmt(v) : "—"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="mt-4 flex min-h-[1.25rem] items-center gap-2 text-xs font-semibold text-[var(--ink-secondary)]" aria-live="polite">
+        <Icon name="info" className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
+        {detail
+          ? `${levelName(focus.level)} · ${PHASES[focus.phase]} (${detail.label} of round time): ${formatNumber(detail.hits)} hits from ${formatNumber(detail.sessions)} session${detail.sessions === 1 ? "" : "s"}, avg ${speed(detail.avgSwingSpeed)}, ${
+              isNum(detail.fullPowerRatio) ? `${Math.round(detail.fullPowerRatio * 100)}% full power` : "no tier data"
+            }`
+          : "Hover or focus a cell for its sample size. Darker blue means a higher value; colours are scaled to this grid."}
+      </p>
+    </div>
   );
 }
 
 function Histogram({ data, level }) {
   const step = data.histogramStep;
   const rows = data.speedHistogram.filter((r) => r.level === level);
-  if (!rows.length) return <EmptyState icon="bolt" title={`No measured swings on ${levelName(level)}`} />;
+  if (!rows.length) return <EmptyState icon="gauge" title={`No measured swings on ${levelName(level)}`} />;
   const s = LEVELS[level]?.swing;
   const top = Math.max(...rows.map((r) => r.to), s ? s.tiers.full + step : 0);
   const buckets = [];
   for (let b = 0; b < top - 1e-9; b += step) buckets.push(Math.round(b * 100) / 100);
   return (
     <div className="min-w-0">
-      <p className="mb-2 flex flex-wrap items-center gap-x-2 text-xs text-[var(--ink-secondary)]">
+      <p className="mb-2 flex flex-wrap items-center gap-x-2 text-xs font-medium text-[var(--ink-secondary)]">
         <span className="h-2.5 w-2.5 rounded-sm" style={{ background: LEVEL_COLORS[level] }} aria-hidden />
-        <span className="font-semibold text-[var(--ink)]">{levelName(level)}</span>
+        <span className="font-bold text-[var(--ink)]">{levelName(level)}</span>
         {s && <span className="text-[var(--muted)]">no hit below {s.min} · full power from {s.tiers.full} m/s</span>}
       </p>
       <BarChart
@@ -54,6 +148,38 @@ function Histogram({ data, level }) {
         tipTitle={(c) => `${c}–${(Number(c) + step).toFixed(1)} m/s`}
       />
     </div>
+  );
+}
+
+function LevelCard({ l }) {
+  const facts = [
+    ["Sessions", formatNumber(l.sessions)],
+    ["Win rate", isNum(l.winRate) ? formatPercent(l.winRate) : "—"],
+    ["Avg score", isNum(l.avgScore) ? formatNumber(l.avgScore) : "—"],
+    ["Avg length", formatDuration(l.avgSessionSec)],
+    ["Hits / min", isNum(l.hitsPerMinute) ? l.hitsPerMinute.toFixed(1) : "—"],
+    ["Damage / hit", isNum(l.damagePerHit) ? l.damagePerHit.toFixed(1) : "—"],
+    ["Avg swing", speed(l.avgSwingSpeed)],
+    ["Full power", isNum(l.fullPowerRatio) ? formatPercent(l.fullPowerRatio * 100) : "—"],
+  ];
+  return (
+    <article className="lift rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <header className="flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2 text-base font-extrabold text-[var(--ink)]">
+          <span className="h-3 w-3 rounded-full" style={{ background: LEVEL_COLORS[l.level] || "var(--border-strong)" }} aria-hidden />
+          {levelName(l.level)}
+        </span>
+        <span className="text-xs font-semibold text-[var(--muted)]">{formatNumber(l.swingSamples)} measured hits</span>
+      </header>
+      <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {facts.map(([k, v]) => (
+          <div key={k} className="rounded-xl bg-[var(--surface-muted)] px-3 py-2 ring-1 ring-inset ring-[var(--border)]">
+            <dt className="text-xs font-semibold text-[var(--muted)]">{k}</dt>
+            <dd className="mt-0.5 text-sm font-extrabold tabular-nums text-[var(--ink)]">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </article>
   );
 }
 
@@ -77,6 +203,8 @@ export default function AnalyticsView() {
   }, [data]);
   const hasSpeed = data?.sample.hitsWithSpeed > 0;
 
+  if (!data && !error) return <AnalyticsSkeleton />;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -91,7 +219,8 @@ export default function AnalyticsView() {
         }
       />
       {data && (
-        <p className="text-xs text-[var(--muted)]">
+        <p className="-mt-2 flex items-center gap-2 text-xs font-semibold text-[var(--muted)]">
+          <Icon name="database" className="h-3.5 w-3.5" />
           Sample: {formatNumber(data.sample.hitsWithSpeed)} hits with measured speed, from {formatNumber(data.sample.sessionsWithSpeed)} session
           {data.sample.sessionsWithSpeed === 1 ? "" : "s"} · {formatNumber(data.sample.finishedSessions)} finished sessions in total.
         </p>
@@ -99,22 +228,27 @@ export default function AnalyticsView() {
 
       {error && !data ? (
         <Card>
-          <EmptyState icon="xCircle" title="Couldn't load analytics" description={error.message} />
+          <EmptyState icon="analytics" title="Analytics will appear here" description="They load as soon as the server answers." />
         </Card>
-      ) : !data ? (
-        <div className="grid gap-6 xl:grid-cols-2" aria-busy="true">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-64 w-full rounded-2xl" />
-          ))}
-        </div>
       ) : (
-        <div className={`space-y-6 transition-opacity ${loading ? "opacity-60" : ""}`}>
+        <div className={`space-y-6 transition-opacity duration-300 ${loading ? "opacity-60" : ""}`}>
           {!hasSpeed ? (
             <Card>
-              <EmptyState icon="bolt" title="No swing-speed data for this selection yet" description="Speed, tier and timing of each hit come from the live-telemetry build of the game. The level table below still uses every finished session." />
+              <EmptyState
+                icon="gauge"
+                title="No swing-speed data for this selection yet"
+                description="Speed, tier and timing of each hit come from the live-telemetry build of the game. The level cards below still use every finished session."
+              />
             </Card>
           ) : (
             <>
+              <ChartCard
+                title="Swing intensity through the round"
+                measures="Each finished fight is cut into five equal slices of round time. A cell shows what happened in that slice across every fight on that level."
+              >
+                <Heatmap effort={data.effortOverSession || []} />
+              </ChartCard>
+
               <ChartCard title="Swing velocity distribution" measures="How fast the controller was moving when each counted hit landed, in 0.5 m/s bands. Further right means more physical effort.">
                 <div className={`grid gap-6 ${!level || level === "all" ? "xl:grid-cols-2" : ""}`}>
                   {(level !== "all" ? [level] : levels).map((l) => (
@@ -124,11 +258,7 @@ export default function AnalyticsView() {
               </ChartCard>
 
               <div className="grid gap-6 xl:grid-cols-2">
-                <ChartCard
-                  title="Effort over the course of a session"
-                  measures="Average swing speed (m/s) in each fifth of a finished fight. A falling line means intensity drops late in the round."
-                  note={`Hits per fifth: ${(data.effortOverSession || []).filter((l) => LEVEL_COLORS[l.level]).map((l) => `${levelName(l.level)} ${l.phases.map((p) => p.hits).join(" / ")}`).join(" · ")}`}
-                >
+                <ChartCard title="Effort over the course of a session" measures="Average swing speed (m/s) in each fifth of a finished fight. A falling line means intensity drops late in the round.">
                   {effort.length ? (
                     <>
                       <LineChart caption="Average swing speed by fifth of the session" series={effort} xTicks={[0, 1, 2, 3, 4]} xFormat={(x) => PHASES[x] ?? ""} yFormat={(v) => v.toFixed(1)} markers />
@@ -162,42 +292,27 @@ export default function AnalyticsView() {
             </>
           )}
 
-          <Card className="overflow-hidden">
-            <CardHeader title="Level 1 vs Level 2" subtitle="Every finished session by level. Hits per minute and damage per hit use session totals, so they include fights recorded before per-hit telemetry." />
+          <section aria-labelledby="levels-title" className="space-y-3">
+            <div>
+              <h2 id="levels-title" className="text-[0.95rem] font-bold tracking-tight text-[var(--ink)]">
+                Level 1 vs Level 2
+              </h2>
+              <p className="mt-0.5 text-xs font-medium text-[var(--muted)]">
+                Every finished session by level. Hits per minute and damage per hit use session totals, so they include fights recorded before per-hit telemetry.
+              </p>
+            </div>
             {data.levelComparison.length ? (
-              <div className="scrollbar-thin overflow-x-auto">
-                <table className="w-full min-w-[820px] border-collapse">
-                  <thead>
-                    <tr className="border-b border-[var(--border)] bg-[var(--surface-muted)]">
-                      {["Level", "Sessions", "Win rate", "Avg score", "Avg length", "Hits / min", "Dmg / hit", "Avg swing", "Full power", "Measured hits"].map((h) => (
-                        <th key={h} className={th}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.levelComparison.map((l) => (
-                      <tr key={l.level} className="border-b border-[var(--border)] last:border-0">
-                        <td className={`${td} font-medium`}>{levelName(l.level)}</td>
-                        <td className={td}>{formatNumber(l.sessions)}</td>
-                        <td className={td}>{isNum(l.winRate) ? formatPercent(l.winRate) : "—"}</td>
-                        <td className={td}>{isNum(l.avgScore) ? formatNumber(l.avgScore) : "—"}</td>
-                        <td className={td}>{formatDuration(l.avgSessionSec)}</td>
-                        <td className={td}>{isNum(l.hitsPerMinute) ? l.hitsPerMinute.toFixed(1) : "—"}</td>
-                        <td className={td}>{isNum(l.damagePerHit) ? l.damagePerHit.toFixed(1) : "—"}</td>
-                        <td className={td}>{speed(l.avgSwingSpeed)}</td>
-                        <td className={td}>{isNum(l.fullPowerRatio) ? formatPercent(l.fullPowerRatio * 100) : "—"}</td>
-                        <td className={td}>{formatNumber(l.swingSamples)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="stagger grid gap-4 xl:grid-cols-2">
+                {data.levelComparison.map((l) => (
+                  <LevelCard key={l.level} l={l} />
+                ))}
               </div>
             ) : (
-              <EmptyState icon="compare" title="No finished sessions for this selection" />
+              <Card>
+                <EmptyState icon="compare" title="No finished sessions for this selection" />
+              </Card>
             )}
-          </Card>
+          </section>
         </div>
       )}
     </div>

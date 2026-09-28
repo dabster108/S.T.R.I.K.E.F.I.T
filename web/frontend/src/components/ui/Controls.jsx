@@ -1,20 +1,33 @@
 import Icon from "./Icon.jsx";
 
-// Pill-style single choice (range pickers, outcome filters).
+const field =
+  "rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] shadow-sm transition-colors hover:border-[var(--border-strong)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-ring)]";
+
+// Pill-style single choice (range pickers, outcome filters). Arrow keys move between options.
 export function SegmentedControl({ options, value, onChange, label }) {
+  const onKey = (e) => {
+    if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+    e.preventDefault();
+    const i = options.findIndex((o) => o.id === value);
+    const next = options[(i + (e.key === "ArrowRight" ? 1 : options.length - 1)) % options.length];
+    onChange(next.id);
+    e.currentTarget.querySelector(`[data-id="${CSS.escape(String(next.id))}"]`)?.focus();
+  };
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-0.5">
+    <div role="radiogroup" aria-label={label} onKeyDown={onKey} className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-0.5">
       {options.map((o) => {
         const active = o.id === value;
         return (
           <button
             key={o.id}
+            data-id={o.id}
             type="button"
             role="radio"
             aria-checked={active}
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(o.id)}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
-              active ? "bg-[var(--surface)] text-[var(--ink)] shadow-sm" : "text-[var(--muted)] hover:text-[var(--ink)]"
+            className={`press rounded-md px-2.5 py-1 text-xs font-semibold ${
+              active ? "bg-[var(--surface)] text-[var(--ink)] shadow-sm ring-1 ring-[var(--border)]" : "text-[var(--muted)] hover:bg-[var(--surface)]/60 hover:text-[var(--ink)]"
             }`}
           >
             {o.label}
@@ -35,7 +48,7 @@ export function SearchInput({ value, onChange, placeholder = "Search…", label 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-44 rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-2.5 text-xs text-[var(--ink)] shadow-sm placeholder:text-[var(--muted)] focus:border-[var(--accent-ring)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] sm:w-56"
+        className={`w-44 py-1.5 pl-8 pr-2.5 placeholder:font-medium placeholder:text-[var(--muted)] sm:w-56 ${field}`}
       />
     </label>
   );
@@ -43,12 +56,7 @@ export function SearchInput({ value, onChange, placeholder = "Search…", label 
 
 export function Select({ value, onChange, options, label }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={label}
-      className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--ink)] shadow-sm focus:border-[var(--accent-ring)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
-    >
+    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className={`cursor-pointer px-2.5 py-1.5 ${field}`}>
       {options.map((o) => (
         <option key={o.id} value={o.id}>
           {o.label}
@@ -58,35 +66,26 @@ export function Select({ value, onChange, options, label }) {
   );
 }
 
+export const inputClass = `px-2.5 py-1.5 ${field}`;
+
 export function Pagination({ page, pageCount, onPage, total, pageSize }) {
   if (pageCount <= 1) return null;
   const from = page * pageSize + 1;
   const to = Math.min(total, (page + 1) * pageSize);
+  const btn = "press rounded-md p-1.5 text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)] disabled:opacity-40 disabled:hover:bg-transparent";
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-3 text-xs text-[var(--muted)]">
+    <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-3 text-xs font-semibold text-[var(--muted)]">
       <span className="tabular-nums">
         {from}–{to} of {total}
       </span>
       <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => onPage(page - 1)}
-          disabled={page === 0}
-          aria-label="Previous page"
-          className="rounded-md p-1.5 hover:bg-[var(--surface-muted)] disabled:opacity-40"
-        >
+        <button type="button" onClick={() => onPage(page - 1)} disabled={page === 0} aria-label="Previous page" className={btn}>
           <Icon name="chevronLeft" className="h-4 w-4" />
         </button>
-        <span className="px-1 tabular-nums">
+        <span className="px-1 tabular-nums text-[var(--ink-secondary)]">
           {page + 1} / {pageCount}
         </span>
-        <button
-          type="button"
-          onClick={() => onPage(page + 1)}
-          disabled={page >= pageCount - 1}
-          aria-label="Next page"
-          className="rounded-md p-1.5 hover:bg-[var(--surface-muted)] disabled:opacity-40"
-        >
+        <button type="button" onClick={() => onPage(page + 1)} disabled={page >= pageCount - 1} aria-label="Next page" className={btn}>
           <Icon name="chevronRight" className="h-4 w-4" />
         </button>
       </div>

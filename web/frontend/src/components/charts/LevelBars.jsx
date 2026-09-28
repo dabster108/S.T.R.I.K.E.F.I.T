@@ -13,26 +13,23 @@ export default function LevelBars({ rows }) {
 
   return (
     <ul className="space-y-4 px-5 py-5">
-      {rows.map((r) => (
-        <li
-          key={r.level}
-          className="relative"
-          onMouseEnter={() => setActive(r.level)}
-          onMouseLeave={() => setActive(null)}
-        >
+      {rows.map((r, i) => (
+        <li key={r.level} className="relative" onMouseEnter={() => setActive(r.level)} onMouseLeave={() => setActive(null)}>
           <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
             <LevelBadge level={r.level} />
-            <span className="text-[var(--muted)]">
-              <span className="font-semibold tabular-nums text-[var(--ink)]">{Math.round(r.avgScore)}</span> avg score
+            <span className="font-semibold text-[var(--muted)]">
+              <span className="text-sm font-extrabold tabular-nums text-[var(--ink)]">{Math.round(r.avgScore)}</span> avg score
             </span>
           </div>
           <div className="h-2.5 w-full rounded-full bg-gray-100">
-            <div
-              className={`h-full rounded-full bg-[var(--accent)] transition-all duration-500 ${active && active !== r.level ? "opacity-40" : ""}`}
-              style={{ width: `${(r.avgScore / max) * 100}%` }}
-            />
+            <div className="h-full" style={{ width: `${(r.avgScore / max) * 100}%` }}>
+              <div
+                className={`grow-x h-full w-full rounded-full bg-[var(--accent)] transition-opacity duration-200 ${active && active !== r.level ? "opacity-40" : ""}`}
+                style={{ "--i": i }}
+              />
+            </div>
           </div>
-          <p className="mt-1.5 text-[0.7rem] text-[var(--muted)]">
+          <p className="mt-1.5 text-xs font-medium text-[var(--muted)]">
             {r.sessions} session{r.sessions === 1 ? "" : "s"} · {formatPercent(r.winRate)} win rate · best {r.bestScore}
           </p>
         </li>
