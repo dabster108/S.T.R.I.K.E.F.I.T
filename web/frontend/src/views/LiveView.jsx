@@ -5,7 +5,7 @@ import { SegmentedControl } from "../components/ui/Controls.jsx";
 import { EmptyState } from "../components/ui/Feedback.jsx";
 import { LiveSkeleton } from "../components/ui/Skeletons.jsx";
 import Button from "../components/ui/Button.jsx";
-import EventList from "../components/sessions/EventList.jsx";
+import EventList, { collapseRepeats } from "../components/sessions/EventList.jsx";
 import { LiveArenaCard, LiveChip } from "../components/live/LiveFight.jsx";
 
 const FILTERS = [
@@ -31,7 +31,8 @@ export default function LiveView() {
   const frozen = useRef(events);
   if (!paused) frozen.current = events;
   const source = paused ? frozen.current : events;
-  const shown = useMemo(() => (filter === "all" ? source : source.filter(MATCH[filter])), [source, filter]);
+  const shown = useMemo(() => collapseRepeats(filter === "all" ? source : source.filter(MATCH[filter])), [source, filter]);
+  const manyPlayers = useMemo(() => new Set(source.map((e) => e.playerName)).size > 1, [source]);
   const queued = paused ? events.length - frozen.current.length : 0;
 
   if (!ready) return <LiveSkeleton />;
@@ -93,7 +94,7 @@ export default function LiveView() {
             </div>
             {shown.length ? (
               <div className="scrollbar-thin max-h-[60vh] overflow-y-auto xl:max-h-[calc(100vh-12rem)]">
-                <EventList events={shown.slice(0, 150)} dense />
+                <EventList events={shown.slice(0, 150)} dense showPlayer={manyPlayers} />
               </div>
             ) : (
               <EmptyState icon="live" title="No events yet" description="Recent events load from the server, then new ones stream in as they happen." />

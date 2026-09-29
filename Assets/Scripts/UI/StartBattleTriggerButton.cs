@@ -31,6 +31,7 @@ public class StartBattleTriggerButton : MonoBehaviour
         if (_started && disableAfterStart) return;
         if (Time.time < _lastStart + debounceSeconds) return;
         if (other == null) return;
+        if (PlayerNamePicker.BlocksStart) return;
 
         bool valid = other.CompareTag(hammerTag) || other.CompareTag(handTag);
         if (!valid && other.transform.parent != null)

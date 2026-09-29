@@ -15,8 +15,8 @@ import Icon from "../components/ui/Icon.jsx";
 import { FigureStrip } from "../components/ui/StatTile.jsx";
 import PlayerName from "../components/players/PlayerName.jsx";
 import { SessionList } from "../components/sessions/SessionCards.jsx";
-import EventList from "../components/sessions/EventList.jsx";
-import { LiveArenaCard } from "../components/live/LiveFight.jsx";
+import EventList, { collapseRepeats } from "../components/sessions/EventList.jsx";
+import { LiveArenaCard, LiveChip } from "../components/live/LiveFight.jsx";
 import { BarChart, CompareBars, LEVEL_COLORS, Legend, LineChart, TierBar } from "../components/charts/Charts.jsx";
 
 const LEVELS = [
@@ -75,7 +75,7 @@ function LivePanel({ name, latest }) {
 
   if (live) {
     return (
-      <div className="grid gap-6 xl:grid-cols-12">
+      <div id="live-now" className="grid scroll-mt-20 gap-6 xl:grid-cols-12">
         <div className="xl:col-span-5">
           <LiveArenaCard id={live.session.id} />
         </div>
@@ -83,7 +83,7 @@ function LivePanel({ name, latest }) {
           <CardHeader title="This fight, as it happens" subtitle="Newest first" />
           {feed.length ? (
             <div className="scrollbar-thin max-h-80 overflow-y-auto">
-              <EventList events={feed.slice(0, 40)} dense />
+              <EventList events={collapseRepeats(feed).slice(0, 40)} dense />
             </div>
           ) : (
             <EmptyState icon="live" title="Waiting for the first event" />
@@ -130,7 +130,12 @@ export default function PlayerView() {
   const { name: raw } = useParams();
   const name = decodeURIComponent(raw || "");
   const navigate = useNavigate();
-  const { data: p, error, reload, set: setProfile } = useApi(() => api.player(name), [name]);
+  const { data: fetched, error: fetchError, loading, reload, set: setProfile } = useApi(() => api.player(name), [name]);
+  // useApi keeps the previous response while the next one loads; after switching players that
+  // is someone else's profile (or 404), so show the skeleton instead of mixing two people.
+  const p = fetched && fetched.playerName === name ? fetched : undefined;
+  const error = loading && !p ? null : fetchError;
+  const liveNow = useLiveForPlayer(name);
   const players = useApi(() => api.players(), []);
   const refresh = useThrottledCallback(reload, 3000);
   useLiveMessages((type, payload) => {
@@ -163,7 +168,7 @@ export default function PlayerView() {
           <EmptyState
             icon="players"
             title="No sessions for this player yet"
-            description="Names must match what's set on the headset exactly, including spaces and capitals."
+            description="Players are named on the headset before each fight (the name picker in front of the Start button). Names must match exactly, including spaces and capitals."
             action={
               <Link to="/dashboard/players" className={buttonClass("secondary")}>
                 All players
@@ -213,6 +218,11 @@ export default function PlayerView() {
                 <h1 className="t-h1 truncate text-[var(--ink)]">{name}</h1>
               </PlayerName>
             </div>
+            {liveNow && (
+              <a href="#live-now" className="mt-2 inline-block">
+                <LiveChip label={`Playing now · ${levelName(liveNow.session.level)}`} />
+              </a>
+            )}
             {p && (
               <p className="mt-1.5 text-sm font-medium text-[var(--muted)]">
                 First played {formatRelative(p.firstPlayedAt)} · last played {formatRelative(p.lastPlayedAt)}

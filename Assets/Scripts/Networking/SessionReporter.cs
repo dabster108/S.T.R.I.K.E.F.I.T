@@ -24,8 +24,9 @@ public class SessionReporter : MonoBehaviour
     [Tooltip("Base URL only, no trailing slash. Must be https on Quest (plain http is blocked). " +
              "For a backend on this Mac use http://localhost:4000 in the Editor only.")]
     public string baseUrl = "https://s-t-r-i-k-e-f-i-t.onrender.com";
-    [Tooltip("Name shown on the dashboard. Each player's history is grouped by this exact name.")]
-    public string playerName = "Player 1";
+    [Tooltip("Name shown on the dashboard. Each player's history is grouped by this exact name. " +
+             "Default only: PlayerNamePicker sets it in-game before the Start button appears.")]
+    public string playerName = DefaultPlayerName;
     [Tooltip("Send combat events and HP snapshots during the fight (the live dashboard). " +
              "Off = only the session start and final result are sent.")]
     public bool sendLiveEvents = true;
@@ -44,6 +45,8 @@ public class SessionReporter : MonoBehaviour
 
     [Header("Runtime (read-only)")]
     public string currentSessionId;
+    [Tooltip("Name locked in when the battle started; every request of that battle uses it.")]
+    public string sessionPlayerName;
     public bool sessionOpen;
     public int hitCount;
     public int bufferedEvents;
@@ -82,10 +85,38 @@ public class SessionReporter : MonoBehaviour
     MonsterHealth monsterHealth;
 
     const float WeakSwingRepeatWindow = 0.35f;
+    public const string DefaultPlayerName = "Player 1";
+    const int MaxPlayerNameLength = 40; // backend limit (PATCH /api/players/:name)
 
     void Awake()
     {
         Instance = this;
+#if !UNITY_EDITOR
+        if (!baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            Debug.LogWarning($"[SessionReporter] baseUrl '{baseUrl}' is not https; Quest may block it.");
+#endif
+    }
+
+    /// <summary>
+    /// Name for the next battle. Ignored while a battle is being reported, so one fight is never split
+    /// across two names. Returns the name that will be used.
+    /// </summary>
+    public string SetPlayerName(string name)
+    {
+        string clean = CleanName(name);
+        if (sessionOpen)
+        {
+            Debug.LogWarning($"[SessionReporter] Name change to '{clean}' ignored during a battle (keeping '{sessionPlayerName}').");
+            return sessionPlayerName;
+        }
+        playerName = clean;
+        return playerName;
+    }
+
+    public static string CleanName(string name)
+    {
+        string clean = string.IsNullOrWhiteSpace(name) ? DefaultPlayerName : name.Trim();
+        return clean.Length > MaxPlayerNameLength ? clean.Substring(0, MaxPlayerNameLength) : clean;
     }
 
     void OnEnable()
@@ -123,6 +154,7 @@ public class SessionReporter : MonoBehaviour
     public void BeginSession()
     {
         currentSessionId = Guid.NewGuid().ToString("N");
+        sessionPlayerName = CleanName(playerName);
         sessionStartedAt = Time.realtimeSinceStartup;
         hitCount = 0;
         sessionOpen = true;
@@ -135,7 +167,7 @@ public class SessionReporter : MonoBehaviour
         // posted on the next Update with the real starting values.
         startPending = true;
         nextSnapshotTime = Time.realtimeSinceStartup + snapshotInterval;
-        if (verboseLogging) Debug.Log($"[SessionReporter] Session {currentSessionId} → {baseUrl}");
+        if (verboseLogging) Debug.Log($"[SessionReporter] Session {currentSessionId} ({sessionPlayerName}) → {baseUrl}");
     }
 
     /// <summary>Called by BattleManager for every hit that counted (after score was added).</summary>
@@ -187,7 +219,7 @@ public class SessionReporter : MonoBehaviour
         sb.Clear();
         sb.Append('{');
         JStr("id", currentSessionId, true);
-        JStr("playerName", playerName);
+        JStr("playerName", sessionPlayerName);
         JStr("level", level);
         JStr("outcome", outcome);
         JStr("status", "finished");
@@ -222,7 +254,7 @@ public class SessionReporter : MonoBehaviour
         sb.Clear();
         sb.Append('{');
         JStr("id", currentSessionId, true);
-        JStr("playerName", playerName);
+        JStr("playerName", sessionPlayerName);
         JStr("level", CurrentLevel());
         JStr("status", "live");
         JStr("startedAt", DateTime.UtcNow.AddSeconds(-(Time.realtimeSinceStartup - sessionStartedAt)).ToString("o"));
@@ -231,7 +263,7 @@ public class SessionReporter : MonoBehaviour
         sb.Append('}');
         requests.Enqueue(new PendingRequest { url = SessionsUrl, json = sb.ToString(), label = "start" });
 
-        Begin("session_start", $"{playerName} started {LevelLabel(CurrentLevel())}");
+        Begin("session_start", $"{sessionPlayerName} started {LevelLabel(CurrentLevel())}");
         Str("level", CurrentLevel());
         AppendState(BattleManager.Instance != null ? BattleManager.Instance.CurrentScore : 0);
         End();
@@ -481,7 +513,7 @@ public class SessionReporter : MonoBehaviour
         sb.Append('{');
         JStr("type", type, true);
         JStr("sessionId", currentSessionId ?? "");
-        JStr("playerName", playerName);
+        JStr("playerName", sessionPlayerName);
         JStr("message", message);
         sb.Append(",\"payload\":{\"t\":").Append(FormatNum(Time.realtimeSinceStartup - sessionStartedAt));
     }

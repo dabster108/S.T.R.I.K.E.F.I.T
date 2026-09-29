@@ -52,6 +52,15 @@ function CopyField({ value }) {
   );
 }
 
+function Step({ n, children }) {
+  return (
+    <li className="flex gap-3">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent)]">{n}</span>
+      <div className="min-w-0 flex-1 space-y-2">{children}</div>
+    </li>
+  );
+}
+
 function Row({ label, children }) {
   return (
     <div className="flex items-center justify-between gap-4 px-5 py-3 text-sm">
@@ -68,7 +77,9 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
   const [clearing, setClearing] = useState(false);
 
   const origin = API_BASE || window.location.origin;
-  const unityUrl = health?.lanUrls?.[0] || `http://localhost:${health?.port || 4000}`;
+  // Only meaningful when the backend runs on this machine (on Render it's a private address).
+  const isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(new URL(origin).hostname);
+  const lanUrl = health?.lanUrls?.[0] || `http://localhost:${health?.port || 4000}`;
 
   async function runTest() {
     setTesting(true);
@@ -101,7 +112,7 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
       <PageHeader
         eyebrow="Connection"
         title="Backend & Unity setup"
-        description="Check the Node backend is reachable, test the realtime channel, and get the URL to paste into Unity."
+        description="Check the backend is reachable, test the live channel, and see how the headset reports fights."
       />
 
       <div className="grid gap-6 xl:grid-cols-2">
@@ -129,7 +140,7 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
             </Row>
             <Row label="Uptime">{health?.ok ? formatDuration(health.uptimeSec) : "—"}</Row>
             <Row label="Stored sessions / events">{health?.ok ? `${health.sessions} / ${health.events}` : "—"}</Row>
-            <Row label="Connected dashboards">{health?.ok ? health.clients : "—"}</Row>
+            <Row label="Open dashboards">{health?.ok ? (health.streamClients ?? health.clients) : "—"}</Row>
           </div>
           <div className="border-t border-[var(--border)] bg-[var(--surface-muted)] px-5 py-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -156,39 +167,36 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader title="Connect Unity" subtitle="SessionReporter → Base Url" />
+          <CardHeader title="Connect the headset" subtitle="How the game reports fights to this dashboard" />
           <div className="space-y-5 px-5 py-5">
             <ol className="space-y-4 text-sm text-[var(--ink-secondary)]">
-              <li className="flex gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent)]">1</span>
-                <div className="min-w-0 flex-1">
-                  <p>
-                    The game is set to the hosted backend, <code>https://s-t-r-i-k-e-f-i-t.onrender.com</code>, by default. For a local backend, start it with <code>cd web/backend && npm start</code>.
-                  </p>
-                </div>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent)]">2</span>
-                <div className="min-w-0 flex-1 space-y-2">
-                  <p>
-                    In the Unity Editor (Play mode on this Mac) use <code>http://localhost:4000</code>. The Quest only allows https, so it should keep the hosted URL. This Mac&apos;s LAN address:
-                  </p>
-                  <CopyField value={unityUrl} />
-                  {health?.lanUrls?.length > 1 && (
-                    <p className="text-xs text-[var(--muted)]">Other addresses: {health.lanUrls.slice(1).join(", ")}</p>
-                  )}
-                </div>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent)]">3</span>
-                <p className="min-w-0 flex-1">
-                  Paste it into <strong className="font-semibold text-[var(--ink)]">SessionReporter → Base Url</strong> (no trailing slash). Fights show up in the Live Arena as soon as they start.
+              <Step n={1}>
+                <p>
+                  The game sends every fight to this backend. It&apos;s already set in <strong className="font-semibold text-[var(--ink)]">SessionReporter → Base Url</strong>; the
+                  Quest only accepts https addresses.
                 </p>
-              </li>
+                <CopyField value={origin} />
+              </Step>
+              <Step n={2}>
+                <p>
+                  Players pick their name in the headset before each fight: point at a name and pull the trigger. If nobody picks within 10 seconds, the last name
+                  used (or Player 1) is taken. Edit the list in <strong className="font-semibold text-[var(--ink)]">BattleSystems → PlayerNamePicker</strong>.
+                </p>
+              </Step>
+              <Step n={3}>
+                <p>
+                  Press Start and the fight appears in the Live Arena. If the Wi-Fi drops, the game keeps playing; that fight just isn&apos;t recorded.
+                </p>
+              </Step>
             </ol>
-            <p className="rounded-lg bg-[var(--warn-soft)] px-3 py-2 text-xs text-[var(--warn-ink)]">
-              Headset can&apos;t connect? Both devices must be on the same Wi-Fi, and macOS may ask to allow incoming connections for <code>node</code>.
-            </p>
+            {isLocal && (
+              <div className="space-y-2 border-t border-[var(--border)] pt-4 text-xs text-[var(--muted)]">
+                <p>
+                  Backend running on this Mac: Editor Play mode can use <code>http://localhost:4000</code>. A headset on the same Wi-Fi can reach it at:
+                </p>
+                <CopyField value={lanUrl} />
+              </div>
+            )}
           </div>
         </Card>
       </div>

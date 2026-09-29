@@ -4,6 +4,21 @@ Last updated: **2026-09-27 — Level 2 final pre-demo check (live Unity MCP + Pl
 
 ---
 
+## Pre-demo pass — 2026-09-29 (player naming, backend link, Level 2 re-verification)
+
+Verified live through Unity MCP (Play mode, real UI raycasts from `UIRayOrigin`, real `HitDetection.TryHit`) and against the production backend.
+
+**Player naming (new).** `UI/PlayerNamePicker.cs` on `BattleSystems` (both levels; `BattleManager` adds one at runtime if missing). On scene load it covers `CombatCanvas` with "WHO'S PLAYING?" and four laser-clickable preset buttons (Player 1/2/3, Guest; edit `presetNames` in the Inspector), cloned from `StartBattleUIButton` so they use the same raycaster. Start is hidden and `BattleManager.StartBattle` refuses to run (laser, B button, 3D button) until a name is chosen. Default is auto-picked after 10 s of running time (paused time doesn't count; the countdown restarts when the headset is put back on). After a pick the Start button reads "START BATTLE / as <name>" with a "Change name" button below it. Retry keeps the last name as the default (per app run). `SessionReporter.BeginSession` locks the name for the whole battle (`sessionPlayerName`); `SetPlayerName` is refused mid-fight.
+
+**Backend link.** Single URL: `SessionReporter.baseUrl = https://s-t-r-i-k-e-f-i-t.onrender.com` (`RoundManager.backendUrl/playerName` removed). `android.permission.INTERNET` explicit in the manifest + Player Settings Internet Access = Require. Production test: session `Player 2 / Medium` live → 497 events all tagged `Player 2` → finished/defeat; then deleted. Offline test (baseUrl → unroutable IP): fight continued to Victory, requests timed out after 8 s and were dropped with 2 warnings, 0 errors.
+
+**Level 2 re-verified:** all 7 table attacks reach their own Animator state from Idle and return (Leaping Cleave = first pick after crossing 40% HP); defend every 5.5 s for 1.0 s, 100 dmg → 30, tint (0.45,0.65,1) on/off; all 12 `HitVol_*` + root capsule take damage from both swords, axe head/haft = clash 0 dmg; gate 1.1 m/s → 0, 1.3 → hit; Victory + Defeat panels; 1 camera / 1 listener / 0 monsters at load / 0 missing scripts; eye render shows textured vampire and coloured swords.
+**Changed:** `StartBattleButton3D` (legacy touch-start disc behind the player, not in L1) deactivated; `preloadAudioData` on for the 20 SFX clips (was off → synchronous decode on first play; BGM untouched).
+
+**Dashboard:** Live Arena cards have large labelled PLAYER (blue) / MONSTER (red) bars with %; repeated "Too slow"/"Weapon clash" rows collapse to ×N; player names shown in mixed feeds; player page shows "Playing now" chip and no longer shows the previous player's stats while switching. Top bar no longer has the "Connected" pill or "Landing page" link (it shows plain status text only while connecting/offline); the sidebar's Connection card is now two ordinary menu items, "Connection" (status dot) and "Back to site". Connection page "Connect the headset" steps describe the hosted URL, the in-game name picker and offline behaviour (the LAN URL only appears when the backend runs locally).
+
+---
+
 ## Level 2 — FINAL PRE-DEMO CHECK (2026-09-27, pass 5; supersedes all Level 2 sections below where they conflict)
 
 Every item re-inspected live via Unity MCP and exercised in Play mode (real UI raycast from `UIRayOrigin`, real physics trigger contacts, real `HitDetection.TryHit`, forced death chains).

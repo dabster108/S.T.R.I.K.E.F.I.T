@@ -1,10 +1,11 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useLiveMessages, useLiveSession } from "../../live/LiveProvider.jsx";
-import { levelName } from "../../lib/game.js";
+import { LEVELS, levelName } from "../../lib/game.js";
 import { formatClock, formatNumber } from "../../lib/format.js";
 import { useTween } from "../../hooks/motion.js";
 import { LevelBadge, OutcomeBadge } from "../ui/Badge.jsx";
+import Icon from "../ui/Icon.jsx";
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const TIER_TONE = { full: "text-[var(--accent-strong)]", medium: "text-[var(--accent)]", light: "text-[var(--ink-secondary)]", tap: "text-[var(--muted)]" };
@@ -22,7 +23,8 @@ export function LiveChip({ label = "Live" }) {
 }
 
 // Fill eases on transform; a pale trail lags behind, and a flash marks the chunk just lost.
-export function HpBar({ label, value, max, tone = "player", popups = [] }) {
+// size "lg" (Live Arena): taller bar, side icon + name, percentage — readable from across a room.
+export function HpBar({ label, value, max, tone = "player", popups = [], size = "md", sub }) {
   const ok = isNum(value) && isNum(max) && max > 0;
   const pct = ok ? Math.max(0, Math.min(1, value / max)) : 0;
   const shown = useTween(ok ? value : 0);
@@ -35,14 +37,40 @@ export function HpBar({ label, value, max, tone = "player", popups = [] }) {
   }, [pct]);
 
   const monster = tone === "monster";
+  const lg = size === "lg";
   return (
     <div className="relative">
-      <div className="mb-1.5 flex items-center justify-between text-xs">
-        <span className="font-semibold text-[var(--ink-secondary)]">{label}</span>
-        <span className="font-bold tabular-nums text-[var(--ink)]">{ok ? `${Math.round(shown)} / ${Math.round(max)}` : "—"}</span>
-      </div>
+      {lg ? (
+        <div className="mb-2 flex items-end justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-2">
+            <span
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white"
+              style={{ background: monster ? "var(--hp-monster)" : "var(--hp-player)" }}
+              aria-hidden
+            >
+              <Icon name={monster ? "flame" : "player"} className="h-4 w-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[0.7rem] font-extrabold uppercase tracking-wider" style={{ color: monster ? "var(--hp-monster)" : "var(--hp-player)" }}>
+                {label}
+              </span>
+              {sub && <span className="block truncate text-sm font-bold text-[var(--ink)]">{sub}</span>}
+            </span>
+          </span>
+          <span className="shrink-0 text-right tabular-nums">
+            <span className="text-lg font-extrabold text-[var(--ink)]">{ok ? Math.round(shown) : "—"}</span>
+            <span className="text-sm font-semibold text-[var(--muted)]">{ok ? ` / ${Math.round(max)}` : ""}</span>
+            {ok && <span className="ml-2 text-sm font-bold text-[var(--ink-secondary)]">{Math.round(pct * 100)}%</span>}
+          </span>
+        </div>
+      ) : (
+        <div className="mb-1.5 flex items-center justify-between text-xs">
+          <span className="font-semibold text-[var(--ink-secondary)]">{label}</span>
+          <span className="font-bold tabular-nums text-[var(--ink)]">{ok ? `${Math.round(shown)} / ${Math.round(max)}` : "—"}</span>
+        </div>
+      )}
       <div
-        className="relative h-3 w-full overflow-hidden rounded-full bg-gray-100"
+        className={`relative w-full overflow-hidden rounded-full bg-gray-100 ${lg ? "h-5" : "h-3"}`}
         role="meter"
         aria-label={`${label} health`}
         aria-valuemin={0}
@@ -59,9 +87,9 @@ export function HpBar({ label, value, max, tone = "player", popups = [] }) {
         />
         {flash && <div key={flash.key} className="hp-flash absolute inset-y-0 bg-white" style={{ left: `${flash.from * 100}%`, width: `${(flash.to - flash.from) * 100}%` }} aria-hidden />}
       </div>
-      <div className="pointer-events-none absolute -top-1 right-12" aria-hidden>
+      <div className={`pointer-events-none absolute right-12 ${lg ? "-top-3" : "-top-1"}`} aria-hidden>
         {popups.map((p) => (
-          <span key={p.key} className={`popup-float absolute right-0 whitespace-nowrap text-sm font-extrabold tabular-nums ${p.className}`}>
+          <span key={p.key} className={`popup-float absolute right-0 whitespace-nowrap font-extrabold tabular-nums ${lg ? "text-lg" : "text-sm"} ${p.className}`}>
             {p.text}
           </span>
         ))}
@@ -161,10 +189,17 @@ export const LiveArenaCard = memo(function LiveArenaCard({ id, compact = false }
         {live ? <LiveChip /> : <OutcomeBadge outcome={session.outcome} />}
       </div>
 
-      <div className="mt-5 space-y-3.5">
-        <HpBar label="Player" tone="player" value={st?.playerHp} max={st?.playerMaxHp} popups={inBar("player")} />
-        <HpBar label="Monster" tone="monster" value={st?.monsterHp} max={st?.monsterMaxHp} popups={inBar("monster")} />
-      </div>
+      {compact ? (
+        <div className="mt-5 space-y-3.5">
+          <HpBar label="Player" tone="player" value={st?.playerHp} max={st?.playerMaxHp} popups={inBar("player")} />
+          <HpBar label="Monster" tone="monster" value={st?.monsterHp} max={st?.monsterMaxHp} popups={inBar("monster")} />
+        </div>
+      ) : (
+        <div className="mt-5 space-y-5">
+          <HpBar label="Player" sub={session.playerName} size="lg" tone="player" value={st?.playerHp} max={st?.playerMaxHp} popups={inBar("player")} />
+          <HpBar label="Monster" sub={LEVELS[session.level]?.monster} size="lg" tone="monster" value={st?.monsterHp} max={st?.monsterMaxHp} popups={inBar("monster")} />
+        </div>
+      )}
 
       <dl className="mt-4 grid grid-cols-4 gap-2 border-t border-[var(--border)] pt-3 text-center">
         {[

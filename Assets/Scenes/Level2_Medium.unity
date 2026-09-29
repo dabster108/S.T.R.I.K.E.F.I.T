@@ -804,6 +804,7 @@ GameObject:
   - component: {fileID: 121459569}
   - component: {fileID: 121459568}
   - component: {fileID: 121459567}
+  - component: {fileID: 121459575}
   m_Layer: 0
   m_Name: BattleSystems
   m_TagString: Untagged
@@ -833,6 +834,7 @@ MonoBehaviour:
   requestTimeoutSeconds: 8
   verboseLogging: 0
   currentSessionId: 
+  sessionPlayerName: 
   sessionOpen: 0
   hitCount: 0
   bufferedEvents: 0
@@ -982,8 +984,6 @@ MonoBehaviour:
   startRoundButton: {fileID: 0}
   roundDuration: 40
   battleMode: 1
-  backendUrl: http://localhost:4000/api/sessions
-  playerName: Player1
   preferSessionReporter: 1
   roundActive: 0
   currentTapCount: 0
@@ -1002,6 +1002,25 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &121459575
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 121459566}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 48078a036c9114322a9e47e2d3d31a9e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerNamePicker
+  presetNames:
+  - Player 1
+  - Player 2
+  - Player 3
+  - Guest
+  autoSelectSeconds: 10
+  startButtonPath: CombatCanvas/StartBattleUIButton
 --- !u!1 &135784492
 GameObject:
   m_ObjectHideFlags: 0
@@ -4865,7 +4884,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1143504452
 MonoBehaviour:
   m_ObjectHideFlags: 0

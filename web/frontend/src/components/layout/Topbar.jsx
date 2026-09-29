@@ -3,44 +3,33 @@ import { Link } from "react-router-dom";
 import { wakeStore } from "../../lib/api.js";
 import { useConnection } from "../../live/LiveProvider.jsx";
 import Icon from "../ui/Icon.jsx";
-import Tooltip from "../ui/Tooltip.jsx";
 import { Brand } from "./Sidebar.jsx";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
-const STATES = {
-  connecting: { label: "Connecting", dot: "bg-[var(--warn)] status-live", text: "text-[var(--warn-ink)]", tip: "Opening the live stream" },
-  connected: { label: "Connected", dot: "bg-[var(--good)]", text: "text-[var(--good-ink)]", tip: "Live updates are streaming" },
-  reconnecting: { label: "Reconnecting", dot: "bg-[var(--warn)] status-live", text: "text-[var(--warn-ink)]", tip: "Lost the stream, retrying automatically" },
-  offline: { label: "Offline", dot: "bg-[var(--bad)]", text: "text-[var(--bad)]", tip: "The server isn't answering. Data will reload when it's back." },
+// Only shown while something is wrong; a healthy connection needs no badge
+// (the sidebar's Connection item carries the steady-state dot).
+const PROBLEMS = {
+  connecting: { label: "Connecting…", cls: "text-[var(--warn-ink)]" },
+  reconnecting: { label: "Reconnecting…", cls: "text-[var(--warn-ink)]" },
+  offline: { label: "Server offline", cls: "text-[var(--bad)]" },
 };
 
-// The only place the app talks about the backend's state.
-function ConnectionIndicator() {
+function ConnectionNotice() {
   const { connection } = useConnection();
   const waking = useSyncExternalStore(wakeStore.subscribe, wakeStore.isWaking);
-  const s = STATES[connection] || STATES.connecting;
-  const showWake = waking && connection !== "connected";
-  const tip = showWake ? "Waking the server, this can take up to a minute" : s.tip;
-
+  const problem = PROBLEMS[connection];
   return (
-    <div className="flex items-center gap-2" role="status" aria-live="polite">
-      {showWake && (
-        <span className="fade-in hidden items-center gap-1.5 text-xs font-semibold text-[var(--ink-secondary)] md:inline-flex">
-          <Icon name="loader" className="h-3.5 w-3.5 animate-spin text-[var(--accent)] motion-reduce:animate-none" />
-          Waking the server, this can take up to a minute
-        </span>
-      )}
-      <Tooltip label={tip} side="bottom">
+    <div role="status" aria-live="polite">
+      {problem && (
         <Link
           to="/dashboard/connection"
-          className="press inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-semibold text-[var(--ink-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--ink)]"
+          className={`fade-in inline-flex items-center gap-1.5 text-xs font-semibold hover:underline ${problem.cls}`}
         >
-          <span className={`h-2 w-2 rounded-full ${s.dot}`} aria-hidden />
-          <span className={connection === "connected" ? "" : s.text}>{s.label}</span>
-          <span className="sr-only">{showWake ? ". Waking the server, this can take up to a minute" : ""}</span>
+          <Icon name={connection === "offline" ? "offline" : "loader"} className={`h-3.5 w-3.5 ${connection === "offline" ? "" : "animate-spin motion-reduce:animate-none"}`} />
+          {waking ? "Waking the server (up to a minute)" : problem.label}
         </Link>
-      </Tooltip>
+      )}
     </div>
   );
 }
@@ -88,14 +77,7 @@ export default function Topbar({ onMenu, onSearch }) {
         </div>
         <PaletteTrigger onSearch={onSearch} />
         <div className="ml-auto flex items-center gap-2">
-          <ConnectionIndicator />
-          <Link
-            to="/"
-            className="press hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)] xl:inline-flex"
-          >
-            <Icon name="chevronLeft" className="h-3.5 w-3.5" />
-            Landing page
-          </Link>
+          <ConnectionNotice />
           <button type="button" onClick={onMenu} aria-label="Open menu" className="press rounded-lg p-2 text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] lg:hidden">
             <Icon name="menu" className="h-5 w-5" />
           </button>

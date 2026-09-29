@@ -153,8 +153,8 @@ function Dashboard() {
       >
         Skip to content
       </a>
-      <Sidebar connection={t.connection} liveCount={liveCount} health={t.health} collapsed={collapsed} onToggle={toggleSidebar} />
-      <MobileNav open={menuOpen} onClose={() => setMenuOpen(false)} liveCount={liveCount} />
+      <Sidebar connection={t.connection} liveCount={liveCount} collapsed={collapsed} onToggle={toggleSidebar} />
+      <MobileNav open={menuOpen} onClose={() => setMenuOpen(false)} liveCount={liveCount} connection={t.connection} />
 
       <div className="min-w-0 lg:pl-[var(--sb)]">
         <Topbar onMenu={() => setMenuOpen(true)} onSearch={() => setPaletteOpen(true)} />

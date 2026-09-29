@@ -92,10 +92,46 @@ export function Brand({ to = "/dashboard", compact = false }) {
   );
 }
 
-const DOT = { live: "bg-[var(--good)] status-live", connecting: "bg-[var(--warn)] status-live", offline: "bg-[var(--bad)]" };
+const DOT = { live: "bg-[var(--good)]", connecting: "bg-[var(--warn)]", offline: "bg-[var(--bad)]" };
+const DOT_LABEL = { live: "connected", connecting: "connecting", offline: "offline" };
 
-export function Sidebar({ connection, liveCount, health, collapsed, onToggle }) {
-  const clients = health?.streamClients ?? health?.clients ?? 0;
+// Secondary links under the main menu, styled exactly like the menu items.
+function FooterLinks({ connection, collapsed = false, onNavigate }) {
+  const { pathname } = useLocation();
+  const item = (on) =>
+    `press group relative flex w-full items-center gap-3 rounded-lg py-2.5 text-sm font-semibold ${collapsed ? "justify-center px-0" : "px-3"} ${
+      on ? "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-1 ring-inset ring-[var(--accent-ring)]" : "text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
+    }`;
+  const icon = (on) => `h-[18px] w-[18px] ${on ? "" : "text-[var(--muted)] group-hover:text-[var(--ink-secondary)]"}`;
+  const onConnection = pathname.startsWith("/dashboard/connection");
+  const dot = connection ? DOT[connection] || DOT.offline : null;
+  return (
+    <div className="space-y-1 border-t border-[var(--border)] pt-3">
+      <Tooltip label="Connection" side="right" disabled={!collapsed} className="flex w-full">
+        <Link to="/dashboard/connection" onClick={() => onNavigate?.()} aria-label={collapsed ? "Connection" : undefined} className={item(onConnection)}>
+          <span className="relative">
+            <Icon name="server" className={icon(onConnection)} />
+            {collapsed && dot && <span className={`absolute -right-1 -top-1 h-2 w-2 rounded-full ring-2 ring-[var(--surface)] ${dot}`} aria-hidden />}
+          </span>
+          {!collapsed && <span className="flex-1">Connection</span>}
+          {!collapsed && dot && (
+            <span className={`h-2 w-2 rounded-full ${dot}`} title={`Server ${DOT_LABEL[connection] || "offline"}`}>
+              <span className="sr-only">Server {DOT_LABEL[connection] || "offline"}</span>
+            </span>
+          )}
+        </Link>
+      </Tooltip>
+      <Tooltip label="Back to site" side="right" disabled={!collapsed} className="flex w-full">
+        <Link to="/" onClick={() => onNavigate?.()} aria-label={collapsed ? "Back to site" : undefined} className={item(false)}>
+          <Icon name="chevronLeft" className={icon(false)} />
+          {!collapsed && <span className="flex-1">Back to site</span>}
+        </Link>
+      </Tooltip>
+    </div>
+  );
+}
+
+export function Sidebar({ connection, liveCount, collapsed, onToggle }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[var(--sb)] flex-col border-r border-[var(--border)] bg-[var(--surface)] px-3 py-5 lg:flex">
       <div className={`flex items-center ${collapsed ? "flex-col gap-3" : "justify-between px-2"}`}>
@@ -116,31 +152,12 @@ export function Sidebar({ connection, liveCount, health, collapsed, onToggle }) 
         {!collapsed && <p className="mb-2 px-3 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Menu</p>}
         <NavList liveCount={liveCount} collapsed={collapsed} />
       </div>
-      <Tooltip label="Connection and Unity setup" side="right" disabled={!collapsed} className="flex w-full">
-        <Link
-          to="/dashboard/connection"
-          aria-label={collapsed ? "Connection and Unity setup" : undefined}
-          className={`press flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] hover:border-[var(--border-strong)] hover:bg-[var(--surface)] ${collapsed ? "justify-center p-2.5" : "p-3"}`}
-        >
-          <span className="relative">
-            <Icon name="server" className="h-[18px] w-[18px] text-[var(--ink-secondary)]" />
-            <span className={`absolute -right-1 -top-1 h-2 w-2 rounded-full ring-2 ring-[var(--surface-muted)] ${DOT[connection] || DOT.offline}`} aria-hidden />
-          </span>
-          {!collapsed && (
-            <span className="min-w-0">
-              <span className="block text-xs font-bold text-[var(--ink)]">Connection</span>
-              <span className="block truncate text-xs font-medium text-[var(--muted)]">
-                {health?.ok ? `${health.latencyMs} ms · ${clients} dashboard${clients === 1 ? "" : "s"}` : "Unity setup and health"}
-              </span>
-            </span>
-          )}
-        </Link>
-      </Tooltip>
+      <FooterLinks connection={connection} collapsed={collapsed} />
     </aside>
   );
 }
 
-export function MobileNav({ open, onClose, liveCount }) {
+export function MobileNav({ open, onClose, liveCount, connection }) {
   const panel = useRef(null);
   useLayoutEffect(() => {
     if (!open) return undefined;
@@ -167,14 +184,9 @@ export function MobileNav({ open, onClose, liveCount }) {
           </button>
         </div>
         <NavList onNavigate={onClose} liveCount={liveCount} />
-        <Link
-          to="/dashboard/connection"
-          onClick={onClose}
-          className="press mt-4 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
-        >
-          <Icon name="settings" className="h-[18px] w-[18px] text-[var(--muted)]" />
-          Connection
-        </Link>
+        <div className="mt-4">
+          <FooterLinks connection={connection} onNavigate={onClose} />
+        </div>
       </div>
     </div>
   );

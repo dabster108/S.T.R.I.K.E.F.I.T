@@ -16,7 +16,9 @@ A fitness game that only rewards you when you actually move like you mean it.
 ![Mixamo](https://img.shields.io/badge/Mixamo-FF0000?style=for-the-badge&logo=adobe&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)
-![Socket.io](https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socketdotio&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Render](https://img.shields.io/badge/Render-000000?style=for-the-badge&logo=render&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
@@ -24,6 +26,10 @@ A fitness game that only rewards you when you actually move like you mean it.
 ![Cursor](https://img.shields.io/badge/Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white)
 ![Git](https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white)
 ![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)
+
+<p align="center">
+  <img src="docs/images/landing.png" alt="STRIKEFIT landing page: 'Swing harder. Hit harder.' with a live arena preview and the swing-speed numbers the game uses" width="100%">
+</p>
 
 ---
 
@@ -42,6 +48,7 @@ A fitness game that only rewards you when you actually move like you mean it.
 - [Evaluation](#evaluation)
 - [Technical architecture](#technical-architecture)
 - [Web stats dashboard](#web-stats-dashboard)
+- [Screenshots](#screenshots)
 - [Project structure](#project-structure)
 - [Getting started](#getting-started)
 - [Technologies used](#technologies-used)
@@ -103,11 +110,12 @@ A lot of VR fitness titles fall into one of two patterns. Either they're closer 
 ## How a round plays
 
 1. **Arrive.** The player stands in the arena. Weapons are hidden, a laser pointer is shown, and no monster is present yet.
-2. **Start.** The player points the laser at **Start** and clicks it, or presses **B** on the right controller.
-3. **Spawn.** The monster spawns a few metres in front of the player and the weapons appear in both hands. The laser is hidden so it can never be confused with a weapon.
-4. **Fight.** The monster walks in, telegraphs attacks, swings and defends. The player swings to deal damage and moves to avoid incoming hits.
-5. **Finish.** The fight only ends when someone dies. The monster's death plays a collapse animation and sound before the **Victory** panel appears. The player's death plays a death scream before the **Defeat** panel appears.
-6. **Replay.** Press **A** to reload the level from a clean state.
+2. **Pick a name.** A "Who's playing?" panel offers Player 1, Player 2, Player 3 and Guest. The player points the laser at their name and pulls the trigger; if nobody picks within 10 seconds, the last name used is chosen. The name is locked for the whole fight, so every hit is recorded under the right person.
+3. **Start.** The Start button appears only after a name is chosen. The player points the laser at **Start** and clicks it, or presses **B** on the right controller.
+4. **Spawn.** The monster spawns a few metres in front of the player and the weapons appear in both hands. The laser is hidden so it can never be confused with a weapon.
+5. **Fight.** The monster walks in, telegraphs attacks, swings and defends. The player swings to deal damage and moves to avoid incoming hits.
+6. **Finish.** The fight only ends when someone dies. The monster's death plays a collapse animation and sound before the **Victory** panel appears. The player's death plays a death scream before the **Defeat** panel appears.
+7. **Replay.** Press **A** to reload the level from a clean state. The name picker comes back with the same name already selected.
 
 ---
 
@@ -116,8 +124,9 @@ A lot of VR fitness titles fall into one of two patterns. Either they're closer 
 | Input | Action |
 |---|---|
 | Swing either controller | Attack with the weapon in that hand (speed decides whether it counts and how much damage it does) |
+| Laser + trigger on a name | Choose who is playing (before the fight) |
 | Laser + trigger on **Start** | Start the battle |
-| **B** (right controller) | Start the battle (same as clicking Start) |
+| **B** (right controller) | Start the battle once a name is chosen (same as clicking Start) |
 | **A** (after Victory/Defeat) | Replay the level |
 | Step back / sidestep | Dodge out of the monster's range or swing arc |
 | **R** (editor only) | Replay the level while testing in the Unity Editor |
@@ -244,8 +253,9 @@ flowchart LR
     BM[BattleManager<br/>start, spawn, victory, defeat] --> MC
     BM --> UI[CombatUIController<br/>HUD + panels]
     BM --> SR[SessionReporter]
-    SR -->|HTTP| BE[Node backend]
-    BE -->|Socket.io| DB[React dashboard]
+    SR -->|HTTPS| BE[Node backend<br/>Render]
+    BE --> PG[(Postgres<br/>Neon)]
+    BE -->|Server-Sent Events| DB[React dashboard<br/>Vercel]
 ```
 
 | Script | Responsibility |
@@ -264,7 +274,8 @@ flowchart LR
 | `Manager/LevelManager` | Per-level difficulty values and weapon loadouts |
 | `Manager/GameStateManager`, `RoundManager`, `XPManager` | Game state, round timer, experience points |
 | `UI/CombatUIController` | HUD bars, texts and Victory/Defeat panels |
-| `Networking/SessionReporter` | Posts sessions and live hits to the web backend |
+| `UI/PlayerNamePicker` | Pre-battle name choice (laser-clickable presets); Start stays hidden until a name is picked |
+| `Networking/SessionReporter` | Streams the session, live combat events and the final result to the web backend; failures are dropped silently so the game never waits on the network |
 
 ---
 
@@ -272,15 +283,42 @@ flowchart LR
 
 The `web/` folder contains a Node backend that Unity posts battle results to, and a React dashboard that shows them live.
 
-- **Backend:** Express + Socket.io, stores sessions and events in a JSON file.
-- **Dashboard:** React + Vite + Tailwind, with live session view, session history, leaderboard, per-player summaries, charts, and a connection page with a built-in connection test.
+- **Backend:** Node + Express, hosted on Render, storing every session and combat event in Postgres (Neon). The dashboard receives updates over Server-Sent Events.
+- **Dashboard:** React + Vite + Tailwind, hosted on Vercel, with a live arena, session history, leaderboard, per-player profiles, player and level comparison, analytics, CSV export, and a connection page with a built-in connection test.
+
+The headset build already points at the hosted backend (**SessionReporter → Base Url**, https, which the Quest requires), so nothing needs configuring on the day. To run everything locally instead:
 
 ```bash
-cd web/backend && npm install && npm start      # http://localhost:4000
+cd web/backend && npm install && npm start      # http://localhost:4000 (needs DATABASE_URL in web/backend/.env)
 cd web/frontend && npm install && npm run dev   # http://localhost:5173
 ```
 
-To report from the headset, set **SessionReporter → Backend Base Url** to `http://<your-computer-ip>:4000` (the headset and computer must be on the same Wi-Fi). Full setup, API routes and environment variables are in [`web/README.md`](web/README.md).
+Full setup, API routes and environment variables are in [`web/README.md`](web/README.md).
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/dashboard-overview.png" alt="Performance overview: battles, win rate, latest score, active time and score trend" width="100%">
+  <br>
+  <sub><b>Performance overview.</b> Battles, win rate, latest score and time spent fighting, with the score trend across recent battles.</sub>
+</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/leaderboard.png" alt="Leaderboard with a podium for the top players and full standings" width="100%">
+      <br>
+      <sub><b>Leaderboard.</b> Best score per player, with level, outcome and fight time for every run.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/player-comparison.png" alt="Compare view: two players side by side on effort and engagement" width="100%">
+      <br>
+      <sub><b>Compare.</b> Two players (or Level 1 against Level 2) side by side on effort and engagement.</sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -299,8 +337,10 @@ VR-Gamification-Fitness/
 │   ├── VFX/              Level 2 fire and impact effects
 │   └── Documentation/    Setup guide, move list, context, detailed progress log
 ├── web/
-│   ├── backend/          Node + Express + Socket.io
-│   └── frontend/         React + Vite dashboard
+│   ├── backend/          Node + Express API, Postgres schema, live stream
+│   └── frontend/         React + Vite dashboard and landing page
+├── docs/
+│   └── images/           Screenshots used in this README
 ├── Packages/
 └── ProjectSettings/
 ```
@@ -335,16 +375,40 @@ VR-Gamification-Fitness/
 
 ## Technologies used
 
-- **Engine:** Unity 6 (6000.5), Universal Render Pipeline 17.5
-- **XR:** Meta XR SDK 205, OpenXR 1.17, Unity Input System
-- **Target hardware:** Meta Quest 2
-- **Animation:** Mixamo clips retargeted onto Humanoid rigs, Unity Animator Controllers, humanoid IK for two-handed grips
-- **Audio:** layered sound design with distinct clips for swings, hits, weapon clashes, telegraphs, defends, damage taken and death, mixed against lowered background music. Some Level 2 effects were synthesised specifically for the project.
-- **VFX:** Unity particle systems (additive fire, ground impact bursts), baked reflection probes
-- **Environments:** Elementary Dungeon Pack Lite (Gridness Studios) for Levels 1 and 2, Old Sea Port for Level 3, both from the Unity Asset Store
-- **Web:** Node.js, Express, Socket.io, React, Vite, Tailwind CSS
-- **Development tooling:** Cursor with a Unity MCP server, for AI-assisted, editor-integrated development and verification
-- **Version control:** Git, with a Unity-specific `.gitignore` and `.gitattributes` to keep generated editor files and large binaries out of the tracked history
+### VR game
+
+| Area | Technology | What it does in STRIKEFIT |
+|---|---|---|
+| Engine | **Unity 6** (6000.5.11f1) | Game engine for every level scene |
+| Rendering | **Universal Render Pipeline 17.5** | Mobile-friendly lighting and materials that hold frame rate on Quest |
+| XR runtime | **Meta XR SDK 205** + **OpenXR 1.17** | Headset and Touch controller tracking, camera rig, UI laser input |
+| Input | **Unity Input System 1.20** | Controller buttons (A, B, trigger) and editor shortcuts |
+| Language | **C#** | All gameplay code: combat, AI, networking, UI |
+| Target device | **Meta Quest 2** (Android) | Standalone headset the game is built and tested on |
+| Characters and animation | **Mixamo** clips on Humanoid rigs, **Animator Controllers**, humanoid **IK** | Monster movement and attacks, two-handed axe grip in Level 2 |
+| Effects | **Particle Systems**, baked **reflection probes** | Axe fire, ground impact bursts, readable metal on weapons |
+| Environments | **Elementary Dungeon Pack Lite** (Gridness Studios), **Old Sea Port** | Level 1 and 2 arena, Level 3 setting (Unity Asset Store) |
+| Audio | Layered SFX and music (some Level 2 effects synthesised for the project) | Distinct sounds for swings, hits, clashes, telegraphs, defends, damage and death |
+
+### Web platform
+
+| Area | Technology | What it does in STRIKEFIT |
+|---|---|---|
+| API | **Node.js** + **Express 4** | Receives sessions and combat events from the headset, serves stats |
+| Database | **PostgreSQL** on **Neon** (serverless) | Stores every session and event for analysis |
+| Realtime | **Server-Sent Events** | Pushes hits and HP changes to open dashboards as they happen |
+| Dashboard | **React 18**, **React Router 6**, **Vite 6** | Live arena, players, sessions, leaderboard, compare, analytics, export |
+| Styling | **Tailwind CSS 4**, **Lucide** icons | Consistent, responsive UI on desktop and phone |
+| Hosting | **Render** (API), **Vercel** (dashboard) | Public https endpoints the headset and browsers can reach |
+| Monitoring | **UptimeRobot** | Keeps the free-tier API awake and alerts if it goes down |
+
+### Development workflow
+
+| Area | Technology | What it does in STRIKEFIT |
+|---|---|---|
+| Editor | **Cursor** | Code editing and AI-assisted development |
+| Editor integration | **Unity MCP** (MCP for Unity) | Inspecting and testing the live Unity Editor: scenes, components, Play mode |
+| Version control | **Git** + **GitHub** | History, with a Unity-specific `.gitignore` and `.gitattributes` to keep generated files and large binaries out |
 
 ---
 

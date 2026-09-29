@@ -45,6 +45,10 @@ public class BattleManager : MonoBehaviour
     void Awake()
     {
         Instance = this;
+
+        // Pre-battle name step (every level). Start stays hidden until a name is picked.
+        if (FindAnyObjectByType<PlayerNamePicker>() == null)
+            gameObject.AddComponent<PlayerNamePicker>();
     }
 
     void OnEnable()
@@ -83,13 +87,19 @@ public class BattleManager : MonoBehaviour
     public void StartBattle(DifficultyLevel level)
     {
         if (IsBattleActive) return;
+        if (PlayerNamePicker.BlocksStart)
+        {
+            Debug.Log("[BattleManager] Start ignored: pick a player name first.");
+            return;
+        }
 
         outcomeHandled = false;
         CurrentScore = 0;
         TotalDamageDealt = 0f;
         IsBattleActive = true;
 
-        // SessionReporter's own Inspector fields (baseUrl, playerName) are the single source.
+        // SessionReporter.baseUrl is the single backend URL; playerName was set by PlayerNamePicker
+        // and is locked for this battle inside BeginSession.
         EnsureSessionReporter();
         if (SessionReporter.Instance != null)
             SessionReporter.Instance.BeginSession();
@@ -377,7 +387,7 @@ public class BattleManager : MonoBehaviour
             notes);
     }
 
-    void EnsureSessionReporter()
+    public void EnsureSessionReporter()
     {
         if (SessionReporter.Instance != null) return;
         // Fallback for scenes without one: the component's defaults (Render URL, "Player 1") apply.

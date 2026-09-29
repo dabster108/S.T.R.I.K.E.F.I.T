@@ -19,6 +19,22 @@ export function eventMeta(type) {
   return EVENT_META[type] || { label: type || "Event", icon: "signal", cls: "bg-gray-100 text-gray-600" };
 }
 
+// Resting a sword on the monster (or its axe) reports several "too slow" / "clash" events a
+// second; back-to-back repeats from the same fight become one row with a count.
+const REPEATABLE = new Set(["weak_swing", "clash"]);
+export function collapseRepeats(events) {
+  const out = [];
+  for (const e of events) {
+    const prev = out[out.length - 1];
+    if (prev && REPEATABLE.has(e.type) && prev.type === e.type && prev.sessionId === e.sessionId) {
+      out[out.length - 1] = { ...prev, repeat: (prev.repeat || 1) + 1 };
+    } else {
+      out.push(e);
+    }
+  }
+  return out;
+}
+
 // Rows that arrive after the list first rendered keep a "new" flag, so their
 // slide-in + highlight isn't cut short when later events re-render the list.
 function useArrivals(events) {
@@ -31,7 +47,9 @@ function useArrivals(events) {
 }
 
 // Vertical timeline of events, rendered in the order given.
-export default function EventList({ events, dense = false }) {
+// showPlayer: prefix rows with the player's name (feeds that mix several players).
+// ev.repeat (Live Arena): identical back-to-back events folded into one row.
+export default function EventList({ events, dense = false, showPlayer = false }) {
   const arrived = useArrivals(events);
   return (
     <ol className="relative">
@@ -51,7 +69,15 @@ export default function EventList({ events, dense = false }) {
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-2">
-                <p className="text-xs font-bold text-[var(--ink)]">{meta.label}</p>
+                <p className="min-w-0 truncate text-xs font-bold text-[var(--ink)]">
+                  {showPlayer && ev.playerName && <span className="text-[var(--accent-strong)]">{ev.playerName} · </span>}
+                  {meta.label}
+                  {ev.repeat > 1 && (
+                    <span className="ml-1.5 rounded-full bg-[var(--surface-muted)] px-1.5 py-0.5 text-[0.7rem] font-extrabold tabular-nums text-[var(--ink-secondary)]">
+                      ×{ev.repeat}
+                    </span>
+                  )}
+                </p>
                 <time className="shrink-0 text-xs font-medium tabular-nums text-[var(--muted)]">{formatClock(ev.at)}</time>
               </div>
               <p className="mt-0.5 text-xs font-medium leading-snug text-[var(--muted)]">{ev.message}</p>
