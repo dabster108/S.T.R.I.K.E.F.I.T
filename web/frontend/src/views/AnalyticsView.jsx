@@ -4,7 +4,8 @@ import { LEVELS, TIER_LABEL, levelName } from "../lib/game.js";
 import { formatDuration, formatNumber, formatPercent } from "../lib/format.js";
 import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useLiveMessages } from "../live/LiveProvider.jsx";
-import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
+import { Card, CardHeader, PageHeader, SectionRule } from "../components/ui/Card.jsx";
+import { FigureStrip } from "../components/ui/StatTile.jsx";
 import { SegmentedControl, Select } from "../components/ui/Controls.jsx";
 import { EmptyState } from "../components/ui/Feedback.jsx";
 import { AnalyticsSkeleton } from "../components/ui/Skeletons.jsx";
@@ -171,11 +172,11 @@ function LevelCard({ l }) {
         </span>
         <span className="text-xs font-semibold text-[var(--muted)]">{formatNumber(l.swingSamples)} measured hits</span>
       </header>
-      <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-[var(--border)] ring-1 ring-[var(--border)] sm:grid-cols-4">
         {facts.map(([k, v]) => (
-          <div key={k} className="rounded-xl bg-[var(--surface-muted)] px-3 py-2 ring-1 ring-inset ring-[var(--border)]">
-            <dt className="text-xs font-semibold text-[var(--muted)]">{k}</dt>
-            <dd className="mt-0.5 text-sm font-extrabold tabular-nums text-[var(--ink)]">{v}</dd>
+          <div key={k} className="bg-[var(--surface)] px-3 py-2.5">
+            <dt className="t-kicker">{k}</dt>
+            <dd className="mt-1 text-base font-extrabold tabular-nums tracking-tight text-[var(--ink)]">{v}</dd>
           </div>
         ))}
       </dl>
@@ -189,7 +190,13 @@ export default function AnalyticsView() {
   const players = useApi(() => api.players(), []);
   const { data, error, loading, reload } = useApi(() => api.analytics({ level, player }), [level, player]);
   const refresh = useThrottledCallback(reload, 6000);
-  useLiveMessages((type) => type === "session_finished" && refresh());
+  useLiveMessages((type, payload) => {
+    if (type === "session_finished") refresh();
+    if (type === "player_renamed") {
+      players.reload();
+      if (player === payload.oldName) setPlayer(payload.newName);
+    }
+  });
 
   const playerOpts = useMemo(() => [{ id: "all", label: "Everyone" }, ...(players.data || []).map((p) => ({ id: p.playerName, label: p.playerName }))], [players.data]);
   const levels = (data?.levelComparison || []).map((l) => l.level).filter((l) => LEVEL_COLORS[l]);
@@ -219,11 +226,13 @@ export default function AnalyticsView() {
         }
       />
       {data && (
-        <p className="-mt-2 flex items-center gap-2 text-xs font-semibold text-[var(--muted)]">
-          <Icon name="database" className="h-3.5 w-3.5" />
-          Sample: {formatNumber(data.sample.hitsWithSpeed)} hits with measured speed, from {formatNumber(data.sample.sessionsWithSpeed)} session
-          {data.sample.sessionsWithSpeed === 1 ? "" : "s"} · {formatNumber(data.sample.finishedSessions)} finished sessions in total.
-        </p>
+        <FigureStrip
+          items={[
+            { label: "Hits with measured speed", value: formatNumber(data.sample.hitsWithSpeed), sub: "the sample every speed chart uses", lead: true },
+            { label: "Sessions with speed", value: formatNumber(data.sample.sessionsWithSpeed) },
+            { label: "Finished sessions", value: formatNumber(data.sample.finishedSessions), sub: "used by the level comparison" },
+          ]}
+        />
       )}
 
       {error && !data ? (
@@ -231,7 +240,7 @@ export default function AnalyticsView() {
           <EmptyState icon="analytics" title="Analytics will appear here" description="They load as soon as the server answers." />
         </Card>
       ) : (
-        <div className={`space-y-6 transition-opacity duration-300 ${loading ? "opacity-60" : ""}`}>
+        <div className={`transition-opacity duration-300 ${loading ? "opacity-60" : ""}`}>
           {!hasSpeed ? (
             <Card>
               <EmptyState
@@ -242,14 +251,26 @@ export default function AnalyticsView() {
             </Card>
           ) : (
             <>
-              <ChartCard
-                title="Swing intensity through the round"
-                measures="Each finished fight is cut into five equal slices of round time. A cell shows what happened in that slice across every fight on that level."
-              >
-                <Heatmap effort={data.effortOverSession || []} />
-              </ChartCard>
+              <SectionRule index="01" title="Intensity through the round" className="mt-4" />
+              <div className="mt-4 grid gap-6 xl:grid-cols-12">
+                <ChartCard
+                  className="xl:col-span-8"
+                  title="Swing intensity heatmap"
+                  measures="Each finished fight is cut into five equal slices of round time. A cell shows what happened in that slice across every fight on that level."
+                >
+                  <Heatmap effort={data.effortOverSession || []} />
+                </ChartCard>
+                <ChartCard className="xl:col-span-4" title="Swing tiers" measures="Share of counted hits per tier, slowest (tap) to fastest (full power).">
+                  <TierBar counts={tierCounts} columns={2} />
+                </ChartCard>
+              </div>
 
-              <ChartCard title="Swing velocity distribution" measures="How fast the controller was moving when each counted hit landed, in 0.5 m/s bands. Further right means more physical effort.">
+              <SectionRule index="02" title="How fast people swing" className="mt-12" />
+              <ChartCard
+                className="mt-4"
+                title="Swing velocity distribution"
+                measures="How fast the controller was moving when each counted hit landed, in 0.5 m/s bands. Further right means more physical effort."
+              >
                 <div className={`grid gap-6 ${!level || level === "all" ? "xl:grid-cols-2" : ""}`}>
                   {(level !== "all" ? [level] : levels).map((l) => (
                     <Histogram key={l} data={data} level={l} />
@@ -257,8 +278,13 @@ export default function AnalyticsView() {
                 </div>
               </ChartCard>
 
-              <div className="grid gap-6 xl:grid-cols-2">
-                <ChartCard title="Effort over the course of a session" measures="Average swing speed (m/s) in each fifth of a finished fight. A falling line means intensity drops late in the round.">
+              <SectionRule index="03" title="Does effort hold up, and does it pay" className="mt-12" />
+              <div className="mt-4 grid gap-6 xl:grid-cols-12">
+                <ChartCard
+                  className="xl:col-span-7"
+                  title="Effort over the course of a session"
+                  measures="Average swing speed (m/s) in each fifth of a finished fight. A falling line means intensity drops late in the round."
+                >
                   {effort.length ? (
                     <>
                       <LineChart caption="Average swing speed by fifth of the session" series={effort} xTicks={[0, 1, 2, 3, 4]} xFormat={(x) => PHASES[x] ?? ""} yFormat={(v) => v.toFixed(1)} markers />
@@ -270,8 +296,9 @@ export default function AnalyticsView() {
                 </ChartCard>
 
                 <ChartCard
+                  className="xl:col-span-5"
                   title="Damage per swing"
-                  measures="Average damage of one hit in each swing tier: what the game pays for putting more speed into a swing."
+                  measures="Average damage of one hit in each swing tier: what the game pays for more speed."
                   note={`Sample: ${data.damagePerSwing.map((d) => `${TIER_LABEL[d.tier]} ${formatNumber(d.hits)}`).join(" · ")} hits`}
                 >
                   <BarChart
@@ -283,32 +310,22 @@ export default function AnalyticsView() {
                   />
                 </ChartCard>
               </div>
-
-              <ChartCard title="Swing tiers" measures="Share of counted hits in each tier. Tap is the slowest swing that still counts; full power is the fastest.">
-                <div className="px-2">
-                  <TierBar counts={tierCounts} />
-                </div>
-              </ChartCard>
             </>
           )}
 
-          <section aria-labelledby="levels-title" className="space-y-3">
-            <div>
-              <h2 id="levels-title" className="text-[0.95rem] font-bold tracking-tight text-[var(--ink)]">
-                Level 1 vs Level 2
-              </h2>
-              <p className="mt-0.5 text-xs font-medium text-[var(--muted)]">
-                Every finished session by level. Hits per minute and damage per hit use session totals, so they include fights recorded before per-hit telemetry.
-              </p>
-            </div>
+          <section aria-labelledby="levels-title">
+            <SectionRule index={hasSpeed ? "04" : "01"} id="levels-title" title="Level 1 vs Level 2" className="mt-12" />
+            <p className="measure mt-3 text-xs font-medium text-[var(--muted)]">
+              Every finished session by level. Hits per minute and damage per hit use session totals, so they include fights recorded before per-hit telemetry.
+            </p>
             {data.levelComparison.length ? (
-              <div className="stagger grid gap-4 xl:grid-cols-2">
+              <div className="stagger mt-4 grid gap-4 xl:grid-cols-2">
                 {data.levelComparison.map((l) => (
                   <LevelCard key={l.level} l={l} />
                 ))}
               </div>
             ) : (
-              <Card>
+              <Card className="mt-4">
                 <EmptyState icon="compare" title="No finished sessions for this selection" />
               </Card>
             )}

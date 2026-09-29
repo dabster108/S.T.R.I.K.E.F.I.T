@@ -2,27 +2,54 @@ import { useInView } from "../../hooks/motion.js";
 import Icon from "../ui/Icon.jsx";
 import { Reveal, SectionHead } from "./shared.jsx";
 
-// Loops only run while the card is on screen.
-function Bento({ className = "", icon, title, children, art, delay = 0 }) {
+// Loops only run while the card is on screen. `layout` varies the composition so
+// no two neighbours are built the same way: art above text, text above art, or
+// side by side.
+function Bento({ className = "", kicker, title, children, art, delay = 0, layout = "art-top", artClass = "" }) {
   const [ref, inView] = useInView({ once: false, rootMargin: "0px" });
+  const artBlock = (
+    <div
+      className={`relative flex items-center justify-center overflow-hidden px-6 py-7 ${
+        layout === "row" ? "min-h-[11rem] md:w-1/2 md:border-l md:border-[var(--border)]" : "min-h-[9.5rem] flex-1"
+      } ${artClass || "bg-gradient-to-br from-[var(--accent-soft)] via-[var(--surface)] to-[var(--surface)]"}`}
+      aria-hidden
+    >
+      {art}
+    </div>
+  );
+  const text = (
+    <div
+      className={`p-6 ${layout === "art-top" ? "border-t border-[var(--border)]" : layout === "text-top" ? "border-b border-[var(--border)]" : "flex flex-col justify-center md:w-1/2 md:p-8"}`}
+    >
+      {kicker && <p className="t-kicker">{kicker}</p>}
+      <h3 className={`font-bold tracking-tight text-[var(--ink)] ${layout === "row" ? "t-h3 mt-2" : "text-base"} ${kicker && layout !== "row" ? "mt-1.5" : ""}`}>{title}</h3>
+      <p className="measure-tight mt-2 text-sm font-medium leading-relaxed text-[var(--ink-secondary)]">{children}</p>
+    </div>
+  );
   return (
     <Reveal delay={delay} className={className}>
       <article
         ref={ref}
-        className={`bento lift group flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)] hover:border-[var(--accent-ring)] ${inView ? "is-visible" : ""}`}
+        className={`bento lift flex h-full overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)] hover:border-[var(--accent-ring)] ${
+          layout === "row" ? "flex-col md:flex-row" : "flex-col"
+        } ${inView ? "is-visible" : ""}`}
       >
-        <div className="relative flex min-h-[9.5rem] flex-1 items-center justify-center overflow-hidden bg-gradient-to-br from-[var(--accent-soft)] via-[var(--surface)] to-[var(--surface)] px-6 py-6" aria-hidden>
-          {art}
-        </div>
-        <div className="border-t border-[var(--border)] p-5">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110">
-              <Icon name={icon} className="h-4 w-4" />
-            </span>
-            <h3 className="text-base font-bold tracking-tight text-[var(--ink)]">{title}</h3>
-          </div>
-          <p className="mt-2 text-sm font-medium leading-relaxed text-[var(--ink-secondary)]">{children}</p>
-        </div>
+        {layout === "text-top" ? (
+          <>
+            {text}
+            {artBlock}
+          </>
+        ) : layout === "row" ? (
+          <>
+            {text}
+            {artBlock}
+          </>
+        ) : (
+          <>
+            {artBlock}
+            {text}
+          </>
+        )}
       </article>
     </Reveal>
   );
@@ -65,12 +92,17 @@ function TelegraphArt() {
 
 function DefendArt() {
   return (
-    <div className="relative flex items-center">
-      <span className="anim-deflect absolute -left-2 top-1/2 h-1.5 w-10 -translate-y-1/2 rounded-full bg-[var(--hp-player)]" />
-      <span className="anim-shield flex h-20 w-20 items-center justify-center rounded-2xl bg-[var(--accent)] text-white shadow-[var(--shadow-glow)]">
-        <Icon name="shield" className="h-10 w-10" strokeWidth={2.2} />
-      </span>
-      <span className="ml-4 rounded-lg bg-white px-2.5 py-1 text-lg font-extrabold text-[var(--ink)] shadow-sm ring-1 ring-[var(--border)]">−70%</span>
+    <div className="flex w-full items-end justify-between gap-4">
+      <p className="leading-none">
+        <span className="t-figure-md block text-[var(--ink)] sm:text-[4rem]">−70%</span>
+        <span className="t-kicker mt-3 block">damage while it guards</span>
+      </p>
+      <div className="relative mb-1 flex shrink-0 items-center">
+        <span className="anim-deflect absolute -left-6 top-1/2 h-1.5 w-8 -translate-y-1/2 rounded-full bg-[var(--hp-player)]" />
+        <span className="anim-shield flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent)] text-white shadow-[var(--shadow-glow)]">
+          <Icon name="shield" className="h-7 w-7" strokeWidth={2.2} />
+        </span>
+      </div>
     </div>
   );
 }
@@ -155,28 +187,28 @@ function TiersArt() {
 export default function Combat() {
   return (
     <section id="combat" aria-labelledby="combat-title" className="border-y border-[var(--border)] bg-[var(--surface-muted)]">
-      <div className="mx-auto max-w-6xl px-4 py-24 sm:px-6 lg:py-32">
-        <SectionHead id="combat-title" eyebrow="Combat" title="A monster that fights back">
+      <div className="mx-auto max-w-6xl px-4 pb-20 pt-24 sm:px-6 lg:pb-28 lg:pt-32">
+        <SectionHead id="combat-title" index="04" eyebrow="Combat" title="A monster that fights back" layout="split">
           Hitting a target is a drill. Something that winds up, guards and swings at you makes you move.
         </SectionHead>
-        <div className="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-6">
-          <Bento className="md:col-span-2 lg:col-span-4" icon="timer" title="Telegraphed attacks" art={<TelegraphArt />}>
+        <div className="mt-14 grid gap-4 md:grid-cols-2 lg:mt-16 lg:grid-cols-6">
+          <Bento className="md:col-span-2 lg:col-span-4" kicker="Read it, then move" title="Telegraphed attacks" art={<TelegraphArt />}>
             Every monster attack starts with a wind-up: the body flashes and a cue sound plays before the blow lands. On Level 1 that&apos;s 0.9 s for a slash, 1.25 s for a heavy and 1.5 s for
             a special. Step out of reach in time and it misses.
           </Bento>
-          <Bento className="lg:col-span-2" delay={80} icon="shield" title="Defend state" art={<DefendArt />}>
+          <Bento className="lg:col-span-2" delay={80} layout="text-top" title="Defend state" art={<DefendArt />} artClass="bg-[var(--surface)]">
             The monster periodically raises its guard. Hits that land while it&apos;s guarding do 70% less damage, so timing matters as much as force.
           </Bento>
-          <Bento className="lg:col-span-2" icon="swords" title="Weapon clash" art={<ClashArt />}>
+          <Bento className="lg:col-span-2" title="Weapon clash" art={<ClashArt />}>
             Strike the monster&apos;s weapon instead of its body and the game detects a parry: sparks and a clash sound, and no damage to the monster.
           </Bento>
-          <Bento className="lg:col-span-2" delay={80} icon="waveform" title="Layered sound" art={<SoundArt />}>
+          <Bento className="lg:col-span-2" delay={80} layout="text-top" title="Layered sound" art={<SoundArt />}>
             Separate sounds for normal and heavy hits (above 4.8 m/s), the monster&apos;s wind-up, swing and impact, its guard and block, weapon clashes, and your own hurt and defeat cues.
           </Bento>
-          <Bento className="md:col-span-2 lg:col-span-2" delay={160} icon="monitor" title="World-space HUD" art={<HudArt />}>
+          <Bento className="md:col-span-2 lg:col-span-2" delay={160} title="World-space HUD" art={<HudArt />}>
             Health, score, round timer, stamina and XP sit in the arena instead of stuck to your face, with damage numbers appearing where each hit lands.
           </Bento>
-          <Bento className="md:col-span-2 lg:col-span-6" icon="layers" title="Multiple attack tiers" art={<TiersArt />}>
+          <Bento className="md:col-span-2 lg:col-span-6" layout="row" kicker="Level 1: 3 attacks · Level 2: 7 attacks" title="Multiple attack tiers" art={<TiersArt />}>
             Level 1 mixes slashes, heavies and specials, with more of the big hits as the monster weakens. Level 2 draws from a weighted table of seven attacks in five categories.
           </Bento>
         </div>

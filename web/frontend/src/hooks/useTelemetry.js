@@ -75,6 +75,11 @@ export function useTelemetry({ onSession, onConnectionChange } = {}) {
         setSessions((prev) => [s, ...prev.filter((x) => x.id !== s.id)]);
         setLastUpdate(new Date().toISOString());
         callbacks.current.onSession?.(s);
+      } else if (type === "player_renamed") {
+        const rename = (x) => (x.playerName === payload.oldName ? { ...x, playerName: payload.newName } : x);
+        setSessions((prev) => prev.map(rename));
+        setEvents((prev) => prev.map(rename));
+        setLastUpdate(new Date().toISOString());
       } else if (type === "session_deleted") {
         if (payload.all) {
           setSessions([]);

@@ -45,6 +45,7 @@ import {
   Monitor,
   PanelLeftClose,
   PanelLeftOpen,
+  PencilLine,
   Pause,
   Play,
   Radio,
@@ -143,6 +144,7 @@ const ICONS = {
   list: List,
   monitor: Monitor,
   external: ExternalLink,
+  pencil: PencilLine,
 };
 
 // Lucide dropped brand marks, so GitHub keeps its own outline path in the same style.

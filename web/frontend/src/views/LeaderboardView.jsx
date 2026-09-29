@@ -85,9 +85,12 @@ export default function LeaderboardView({ sessions, openSession }) {
   }, [sessions, mode, level, outcome]);
 
   const podium = PODIUM.map((p) => ({ ...p, s: ranked[p.place - 1] })).filter((p) => p.s);
-  const rest = ranked.slice(3);
   const top = Math.max(1, Number(ranked[0]?.score) || 0);
   const filterKey = `${mode}-${level}-${outcome}`;
+  const leader = ranked[0];
+  const runnerUp = ranked[1];
+  const margin = leader && runnerUp ? (Number(leader.score) || 0) - (Number(runnerUp.score) || 0) : null;
+  const MEDAL = ["bg-amber-100 text-amber-800 ring-amber-300", "bg-gray-100 text-gray-700 ring-gray-300", "bg-orange-50 text-orange-800 ring-orange-200"];
 
   return (
     <div className="space-y-6">
@@ -110,58 +113,128 @@ export default function LeaderboardView({ sessions, openSession }) {
         </Card>
       ) : (
         <>
-          <Card className="relative overflow-hidden px-4 pb-0 pt-10">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-[var(--accent-soft)] to-transparent" aria-hidden />
-            <div key={filterKey} className="relative">
-              <Podium entries={podium} openSession={openSession} />
+          {/* podium on the left, the leader's numbers on the right */}
+          <Card className="relative grid overflow-hidden lg:grid-cols-12">
+            <div className="relative px-4 pb-0 pt-10 lg:col-span-7">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-[var(--accent-soft)] to-transparent" aria-hidden />
+              <div key={filterKey} className="relative">
+                <Podium entries={podium} openSession={openSession} />
+              </div>
+            </div>
+            <div key={`lead-${filterKey}`} className="fade-in flex flex-col justify-between gap-6 border-t border-[var(--border)] p-6 sm:p-7 lg:col-span-5 lg:border-l lg:border-t-0">
+              <div>
+                <p className="flex items-center gap-2">
+                  <span className="t-index">01</span>
+                  <span className="t-kicker text-[var(--accent-strong)]">Leader</span>
+                </p>
+                <p className="mt-3 truncate text-xl font-extrabold tracking-tight text-[var(--ink)]">{leader.playerName}</p>
+                <p className="t-figure mt-4 text-[var(--ink)]">{formatNumber(leader.score)}</p>
+                <p className="mt-3 text-sm font-semibold text-[var(--ink-secondary)]">
+                  {margin === null ? (
+                    "No one else on the board yet"
+                  ) : margin > 0 ? (
+                    <>
+                      <span className="font-extrabold text-[var(--good-ink)]">+{formatNumber(margin)}</span> ahead of {runnerUp.playerName}
+                    </>
+                  ) : (
+                    <>Level with {runnerUp.playerName}, faster run</>
+                  )}
+                </p>
+              </div>
+              <dl className="readout grid grid-cols-3 divide-x divide-[var(--border)] border-y border-[var(--border)] py-3 text-sm">
+                {[
+                  ["Level", levelName(leader.level)],
+                  ["Time", formatDuration(leader.durationSec)],
+                  ["When", formatRelative(leader.endedAt)],
+                ].map(([k, v], i) => (
+                  <div key={k} className={i ? "pl-3" : ""}>
+                    <dt className="t-kicker">{k}</dt>
+                    <dd className="mt-1 truncate font-extrabold text-[var(--ink)]">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+              <button type="button" onClick={() => openSession(leader.id)} className="press self-start rounded text-xs font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline">
+                Open the winning battle
+              </button>
             </div>
           </Card>
 
-          {rest.length > 0 && (
-            <Card className="overflow-hidden">
-              <CardHeader title={mode === "best" ? "Everyone else" : "The rest of the top 50"} subtitle={`${ranked.length} ranked · bars are relative to the top score`} />
-              <ol key={filterKey} className="stagger space-y-2 p-4 sm:p-5">
-                {rest.map((s, i) => {
-                  const rank = i + 4;
-                  const share = Math.max(0.02, (Number(s.score) || 0) / top);
-                  return (
-                    <li key={s.id}>
-                      <button
-                        type="button"
+          <Card className="overflow-hidden">
+            <CardHeader title="Full standings" subtitle={`${ranked.length} ranked${mode === "all" ? " (top 50 runs)" : ", one row per player"} · bars are relative to the top score`} />
+            <div className="scrollbar-thin overflow-x-auto">
+              <table key={filterKey} className="w-full min-w-[640px] text-left text-sm">
+                <thead>
+                  <tr className="border-b-2 border-[var(--ink)] bg-[var(--surface-muted)]">
+                    {[
+                      ["Rank", "w-16 pl-5"],
+                      ["Player", ""],
+                      ["Level", "hidden md:table-cell"],
+                      ["Outcome", "hidden lg:table-cell"],
+                      ["Time", "hidden md:table-cell text-right"],
+                      ["Score", "w-56 pr-5 text-right"],
+                    ].map(([h, cls]) => (
+                      <th key={h} scope="col" className={`t-kicker px-3 py-2.5 font-bold ${cls}`}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="stagger divide-y divide-[var(--border)]">
+                  {ranked.map((s, i) => {
+                    const rank = i + 1;
+                    const share = Math.max(0.02, (Number(s.score) || 0) / top);
+                    const first = rank === 1;
+                    return (
+                      <tr
+                        key={s.id}
                         onClick={() => openSession(s.id)}
-                        className="press group flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-left hover:border-[var(--accent-ring)] hover:bg-[var(--surface-muted)] sm:gap-4 sm:px-4"
-                        aria-label={`Rank ${rank}: ${s.playerName}, ${formatNumber(s.score)} points`}
+                        className={`group cursor-pointer transition-colors ${first ? "relative bg-[var(--accent-soft)] hover:bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-muted)]"}`}
                       >
-                        <span className="w-8 shrink-0 text-center text-sm font-extrabold tabular-nums text-[var(--muted)]">#{rank}</span>
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-extrabold text-[var(--accent-strong)] ring-1 ring-inset ring-[var(--accent-ring)]">
-                          {s.playerName.slice(0, 2).toUpperCase()}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex flex-wrap items-center gap-2">
-                            <span className="truncate text-sm font-bold text-[var(--ink)]">{s.playerName}</span>
-                            <LevelBadge level={s.level} />
-                            <span className="hidden sm:inline-flex">
-                              <OutcomeBadge outcome={s.outcome} />
+                        <td className={`py-3 pl-5 pr-3 ${first ? "shadow-[inset_3px_0_0_var(--accent)]" : ""}`}>
+                          {rank <= 3 ? (
+                            <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-extrabold ring-2 ${MEDAL[rank - 1]}`}>{rank}</span>
+                          ) : (
+                            <span className="t-index pl-1.5 text-[var(--muted)]">{String(rank).padStart(2, "0")}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openSession(s.id);
+                            }}
+                            aria-label={`Rank ${rank}: ${s.playerName}, ${formatNumber(s.score)} points, open battle`}
+                            className={`press max-w-[14rem] truncate rounded text-left ${first ? "text-base font-extrabold" : "font-bold"} text-[var(--ink)] group-hover:text-[var(--accent)]`}
+                          >
+                            {s.playerName}
+                          </button>
+                          <span className="block text-xs font-medium text-[var(--muted)]">{formatRelative(s.endedAt)}</span>
+                        </td>
+                        <td className="hidden px-3 py-3 md:table-cell">
+                          <LevelBadge level={s.level} />
+                        </td>
+                        <td className="hidden px-3 py-3 lg:table-cell">
+                          <OutcomeBadge outcome={s.outcome} />
+                        </td>
+                        <td className="readout hidden px-3 py-3 text-right font-semibold text-[var(--ink-secondary)] md:table-cell">{formatDuration(s.durationSec)}</td>
+                        <td className="py-3 pl-3 pr-5">
+                          <span className="flex items-center justify-end gap-3">
+                            <span className="h-1.5 w-24 rounded-full bg-gray-100" aria-hidden>
+                              <span className="block h-full" style={{ width: `${share * 100}%` }}>
+                                <span className={`grow-x block h-full w-full rounded-full ${first ? "bg-[var(--accent)]" : "bg-[var(--blue-400)]"}`} style={{ "--i": Math.min(i, 10) }} />
+                              </span>
                             </span>
+                            <span className={`w-16 text-right tabular-nums text-[var(--ink)] ${first ? "text-lg font-extrabold" : "text-base font-extrabold"}`}>{formatNumber(s.score)}</span>
                           </span>
-                          <span className="mt-1.5 block h-1.5 w-full rounded-full bg-gray-100">
-                            <span className="block h-full" style={{ width: `${share * 100}%` }}>
-                              <span className="grow-x block h-full w-full rounded-full bg-[var(--accent)]" style={{ "--i": Math.min(i, 10) }} />
-                            </span>
-                          </span>
-                        </span>
-                        <span className="hidden shrink-0 text-right text-xs font-semibold text-[var(--muted)] md:block">
-                          <span className="block">{formatDuration(s.durationSec)}</span>
-                          <span className="block font-medium">{formatRelative(s.endedAt)}</span>
-                        </span>
-                        <span className="w-16 shrink-0 text-right text-base font-extrabold tabular-nums text-[var(--ink)]">{formatNumber(s.score)}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-            </Card>
-          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </>
       )}
     </div>

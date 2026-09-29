@@ -164,6 +164,7 @@ export default function SessionDetailView({ onDeleted }) {
   const refresh = useThrottledCallback(reload, 1500);
   useLiveMessages((type, payload) => {
     if ((payload?.session?.id || payload?.sessionId) === id) refresh();
+    else if (type === "player_renamed" && payload.oldName === data?.session?.playerName) reload();
   });
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);

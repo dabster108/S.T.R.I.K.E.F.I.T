@@ -103,6 +103,15 @@ New:
 - `GET /api/public-stats`: aggregates only, no names (landing page).
 - `GET /api/analytics?player=&level=&from=&to=`: swing-speed histogram, tiers, effort by fifth of a session, damage per swing, level comparison.
 - `GET /api/export/sessions.csv` · `/api/export/events.csv` (`player`, `level`, `from`, `to`, `type`).
+- `PATCH /api/players/:name` with `{ "newName": "..." }`: renames a player. In one transaction it
+  rewrites `sessions.player_name` and `events.player_name`, then answers with the new profile (same
+  shape as `GET /api/players/:name`) plus `X-Renamed-Sessions` / `X-Renamed-Events` headers, and
+  broadcasts `player_renamed` `{ oldName, newName, sessions, events }` on `/api/stream` to every client.
+  `newName` is trimmed and must be 1–40 characters. Errors: `400` (empty, too long, control
+  characters, unchanged), `404` (no such player), `409` if the name is already taken (players are
+  never merged: that would combine two people's histories irreversibly) or if the player is in a
+  live fight. Event payload snapshots and message text (e.g. `session_complete`) keep the name as
+  recorded. Unity keeps posting under its own `Player Name`, so change it there too.
 
 ### Live sessions
 

@@ -297,7 +297,8 @@ export const TIERS = [
 export const LEVEL_COLORS = { Easy: "var(--level-1)", Medium: "var(--level-2)", Hard: "var(--level-3)" };
 
 // Share of hits per swing tier: one stacked bar (2px gaps, like OutcomeSplit) plus a counted legend.
-export function TierBar({ counts }) {
+// columns={2} keeps the legend in two columns for narrow panels.
+export function TierBar({ counts, columns = 4 }) {
   const total = TIERS.reduce((a, t) => a + (counts?.[t.key] || 0), 0);
   if (!total) return null;
   return (
@@ -313,7 +314,7 @@ export function TierBar({ counts }) {
           </div>
         ))}
       </div>
-      <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <ul className={`mt-4 grid grid-cols-2 gap-2 ${columns === 4 ? "sm:grid-cols-4" : ""}`}>
         {TIERS.map((t) => (
           <li key={t.key} className="rounded-xl border border-[var(--border)] px-3 py-2">
             <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--muted)]">

@@ -119,6 +119,35 @@ function pushFeed(events, { seeded = false } = {}) {
   emit(listeners.feed);
 }
 
+// ---------------------------------------------------------------- renames
+
+// A rename is applied twice in the tab that made it: straight after the PATCH
+// answers, then again when the stream echoes it. The second one is skipped.
+const RENAME_DEDUPE_MS = 15_000;
+const recentRenames = new Map(); // "old\u0000new" -> ms
+
+function renameSeen(payload) {
+  const key = `${payload.oldName}\u0000${payload.newName}`;
+  const now = Date.now();
+  for (const [k, t] of recentRenames) if (now - t > RENAME_DEDUPE_MS) recentRenames.delete(k);
+  if (recentRenames.has(key)) return true;
+  recentRenames.set(key, now);
+  recentRenames.delete(`${payload.newName}\u0000${payload.oldName}`); // renaming back is a new change
+  return false;
+}
+
+function applyRename({ oldName, newName }) {
+  for (const [id, entry] of state.sessions) {
+    if (entry.session.playerName !== oldName) continue;
+    state.sessions.set(id, { ...entry, session: { ...entry.session, playerName: newName } });
+    emitSession(id);
+  }
+  if (state.feed.some((e) => e.playerName === oldName)) {
+    state.feed = state.feed.map((e) => (e.playerName === oldName ? { ...e, playerName: newName } : e));
+    emit(listeners.feed);
+  }
+}
+
 // ---------------------------------------------------------------- transport
 
 let es = null;
@@ -130,6 +159,7 @@ let started = false;
 
 function handle(type, payload) {
   state.lastMessageAt = Date.now();
+  if (type === "player_renamed" && (!payload?.oldName || !payload?.newName || renameSeen(payload))) return;
   switch (type) {
     case "session_started":
     case "session_updated":
@@ -150,6 +180,9 @@ function handle(type, payload) {
         state.feed = state.feed.filter((e) => e.sessionId !== payload.id);
         if (state.feed.length !== before) emit(listeners.feed);
       }
+      break;
+    case "player_renamed":
+      applyRename(payload);
       break;
     default:
       break;
@@ -210,7 +243,7 @@ function dropped() {
   reconnectTimer = setTimeout(connect, delay);
 }
 
-const TYPES = ["hello", "heartbeat", "session_started", "session_updated", "session_finished", "event_created", "session_deleted"];
+const TYPES = ["hello", "heartbeat", "session_started", "session_updated", "session_finished", "event_created", "session_deleted", "player_renamed"];
 
 function connect() {
   // Only ever one connection: a pending backoff retry and a tab refocus can both land here.
@@ -256,6 +289,11 @@ function connect() {
       }
     });
   }
+}
+
+// Called by the tab that renamed a player, so it updates without waiting for the stream.
+export function announceRename(change) {
+  handle("player_renamed", change);
 }
 
 export function startLive() {

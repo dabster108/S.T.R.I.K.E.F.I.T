@@ -33,3 +33,17 @@ export function PageHeader({ eyebrow, title, description, actions, leading }) {
     </div>
   );
 }
+
+// "02 ── Trend ─────────── aside": numbered section divider for long dashboard pages.
+export function SectionRule({ index, title, aside, id, className = "" }) {
+  return (
+    <div className={`flex items-center gap-3 ${className}`}>
+      {index && <span className="t-index">{index}</span>}
+      <h2 id={id} className="t-kicker shrink-0 text-[var(--ink-secondary)]">
+        {title}
+      </h2>
+      <span className="h-px min-w-6 flex-1 bg-[var(--border)]" aria-hidden />
+      {aside && <div className="flex shrink-0 items-center gap-2">{aside}</div>}
+    </div>
+  );
+}

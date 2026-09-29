@@ -1,9 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useTelemetry } from "./hooks/useTelemetry.js";
 import { filterByRange } from "./lib/derive.js";
 import { formatNumber } from "./lib/format.js";
-import { LiveProvider, useLiveIds } from "./live/LiveProvider.jsx";
+import { LiveProvider, useLiveIds, useLiveMessages } from "./live/LiveProvider.jsx";
 import { MobileNav, Sidebar } from "./components/layout/Sidebar.jsx";
 import Topbar from "./components/layout/Topbar.jsx";
 import CommandPalette from "./components/layout/CommandPalette.jsx";
@@ -76,7 +76,12 @@ const write = (key, value) => {
 };
 
 function Dashboard() {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
+  // A rename swaps the player's URL in place: same page instance, no remount or scroll jump.
+  const renamed = Boolean(location.state?.renamedFrom);
+  const pageKey = useRef(pathname);
+  if (!renamed) pageKey.current = pathname;
   const navigate = useNavigate();
   const section = pathname.replace(/^\/dashboard\/?/, "").split("/")[0];
   const [range, setRangeState] = useState(() => read(RANGE_KEY, "all"));
@@ -98,6 +103,12 @@ function Dashboard() {
 
   const t = useTelemetry({ onSession });
 
+  // Every rename, from this tab or any other, confirms once here.
+  useLiveMessages((type, payload) => {
+    if (type !== "player_renamed") return;
+    push({ tone: "good", title: "Player renamed", detail: `${payload.oldName} → ${payload.newName}` });
+  });
+
   const setRange = (r) => {
     setRangeState(r);
     write(RANGE_KEY, r);
@@ -113,9 +124,10 @@ function Dashboard() {
 
   useEffect(() => {
     document.title = `${TITLES[section] || "Dashboard"} · STRIKEFIT`;
+    if (renamed) return;
     window.scrollTo({ top: 0 });
     setMenuOpen(false);
-  }, [pathname, section]);
+  }, [pathname, section, renamed]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -150,7 +162,7 @@ function Dashboard() {
           {t.loading && needsTelemetry ? (
             <Fallback />
           ) : (
-            <div key={pathname} className="page-in min-w-0">
+            <div key={pageKey.current} className="page-in min-w-0">
               <Suspense fallback={<Fallback />}>
                 <Routes>
                   <Route index element={overview} />

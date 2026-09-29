@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { api } from "../lib/api.js";
 import { formatNumber } from "../lib/format.js";
 import { useApi } from "../hooks/useApi.js";
+import { useLiveMessages } from "../live/LiveProvider.jsx";
 import { Card, PageHeader } from "../components/ui/Card.jsx";
 import { Select, inputClass } from "../components/ui/Controls.jsx";
 import Button from "../components/ui/Button.jsx";
@@ -37,12 +38,15 @@ function Field({ label, children }) {
   );
 }
 
-function Step({ n, title, subtitle, children }) {
+function Step({ n, title, subtitle, children, className = "" }) {
   return (
-    <section className="relative pl-12">
-      <span className="absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-extrabold text-white shadow-[var(--shadow-glow)]">{n}</span>
-      <h2 className="text-base font-bold tracking-tight text-[var(--ink)]">{title}</h2>
-      {subtitle && <p className="mt-0.5 text-xs font-medium text-[var(--muted)]">{subtitle}</p>}
+    <section className={className}>
+      <div className="flex items-center gap-3">
+        <span className="t-index">{String(n).padStart(2, "0")}</span>
+        <h2 className="t-kicker text-[var(--ink-secondary)]">{title}</h2>
+        <span className="h-px flex-1 bg-[var(--border)]" aria-hidden />
+      </div>
+      {subtitle && <p className="measure mt-2 text-xs font-medium text-[var(--muted)]">{subtitle}</p>}
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -89,17 +93,19 @@ function Status({ status }) {
   return null;
 }
 
-function Dataset({ icon, title, file, description, cols, busy, disabled, onDownload, status, children }) {
+function Dataset({ title, file, description, cols, busy, disabled, onDownload, status, children }) {
   return (
-    <Card className="lift flex flex-col p-5">
-      <div className="flex items-start gap-4">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)] ring-1 ring-inset ring-[var(--accent-ring)]">
-          <Icon name={icon} className="h-5 w-5" />
-        </span>
+    <Card className="lift flex flex-col p-5 sm:p-6">
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <div className="min-w-0">
-          <h3 className="text-base font-bold text-[var(--ink)]">{title}</h3>
-          <p className="mt-0.5 text-sm font-medium leading-relaxed text-[var(--muted)]">{description}</p>
+          <p className="t-kicker">{file}</p>
+          <h3 className="mt-1.5 text-lg font-extrabold tracking-tight text-[var(--ink)]">{title}</h3>
+          <p className="measure mt-1 text-sm font-medium leading-relaxed text-[var(--muted)]">{description}</p>
         </div>
+        <p className="text-left sm:text-right">
+          <span className="t-figure-md block text-[var(--ink)]">{cols.length}</span>
+          <span className="t-kicker">columns</span>
+        </p>
       </div>
       <div className="mt-4">
         <Columns cols={cols} />
@@ -125,6 +131,11 @@ export default function ExportView() {
   const [to, setTo] = useState("");
   const [type, setType] = useState("all");
   const [status, setStatus] = useState(null);
+  useLiveMessages((type, payload) => {
+    if (type !== "player_renamed") return;
+    players.reload();
+    if (player === payload.oldName) setPlayer(payload.newName);
+  });
   const playerOpts = useMemo(() => [{ id: "all", label: "All players" }, ...(players.data || []).map((p) => ({ id: p.playerName, label: p.playerName }))], [players.data]);
   const badRange = from && to && from > to;
   const busy = status?.state === "loading";
@@ -155,10 +166,10 @@ export default function ExportView() {
     <div className="space-y-8">
       <PageHeader eyebrow="Data" title="Export" description="Download raw sessions and events as CSV for thesis analysis in a spreadsheet, R or Python." />
 
-      <div className="relative space-y-10 before:absolute before:bottom-10 before:left-4 before:top-10 before:w-px before:bg-[var(--border)]">
-        <Step n={1} title="Choose what to include" subtitle="Dates filter on when a session started; both days are included.">
+      <div className="grid gap-10 lg:grid-cols-12 lg:gap-8">
+        <Step n={1} title="Choose what to include" subtitle="Dates filter on when a session started; both days are included." className="lg:sticky lg:top-20 lg:col-span-4 lg:self-start">
           <Card className="p-5">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <Field label="Player">
                 <Select label="Player" value={player} onChange={setPlayer} options={playerOpts} />
               </Field>
@@ -188,10 +199,9 @@ export default function ExportView() {
           </Card>
         </Step>
 
-        <Step n={2} title="Pick a dataset" subtitle="Both files use the filters above. Column names match the headers in the CSV.">
-          <div className="grid gap-6 lg:grid-cols-2">
+        <Step n={2} title="Pick a dataset" subtitle="Both files use the filters on the left. Column names match the headers in the CSV." className="lg:col-span-8">
+          <div className="space-y-5">
             <Dataset
-              icon="spreadsheet"
               title="Sessions"
               file="sessions.csv"
               description="One row per fight: who played which level, how it ended, score, XP, damage, hits and timing."
@@ -202,7 +212,6 @@ export default function ExportView() {
               status={statusFor("sessions")}
             />
             <Dataset
-              icon="activity"
               title="Events"
               file="events.csv"
               description="One row per event, with the common payload fields as columns plus the full payload as JSON."

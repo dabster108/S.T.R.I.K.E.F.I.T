@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { formatDuration, formatNumber, formatPercent } from "../lib/format.js";
 import { useApi } from "../hooks/useApi.js";
+import { useLiveMessages } from "../live/LiveProvider.jsx";
 import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
 import { SegmentedControl, Select } from "../components/ui/Controls.jsx";
 import { EmptyState } from "../components/ui/Feedback.jsx";
@@ -84,9 +85,9 @@ function DiffRow({ row, i }) {
   );
 }
 
-function DiffCard({ title, subtitle, rows, a, b }) {
+function DiffCard({ title, subtitle, rows, a, b, className = "" }) {
   return (
-    <Card className="overflow-hidden">
+    <Card className={`overflow-hidden ${className}`}>
       <CardHeader title={title} subtitle={subtitle} />
       <div className="px-4 pb-2 pt-1 sm:px-6">
         <div className="flex items-center justify-between border-b border-[var(--border)] py-2 text-xs font-bold">
@@ -190,13 +191,14 @@ function PlayersCompare({ a, b, setParam, names }) {
           <EmptyState icon="players" title="One of these profiles isn't available" description="It loads as soon as the server answers, or pick another player." />
         </Card>
       ) : !ma || !mb ? (
-        <div className="grid gap-6 xl:grid-cols-2" aria-busy="true">
-          <div className="skeleton h-80 w-full rounded-2xl" />
-          <div className="skeleton h-80 w-full rounded-2xl" />
+        <div className="grid gap-6 xl:grid-cols-12" aria-busy="true">
+          <div className="skeleton h-80 w-full rounded-2xl xl:col-span-7" />
+          <div className="skeleton h-80 w-full rounded-2xl xl:col-span-5" />
         </div>
       ) : (
-        <div key={`${a}|${b}`} className="grid gap-6 xl:grid-cols-2">
+        <div key={`${a}|${b}`} className="grid gap-6 xl:grid-cols-12">
           <DiffCard
+            className="xl:col-span-7"
             title="Effort"
             subtitle="How hard they swing when they play"
             a={a}
@@ -209,6 +211,7 @@ function PlayersCompare({ a, b, setParam, names }) {
             ]}
           />
           <DiffCard
+            className="xl:col-span-5"
             title="Engagement and results"
             subtitle="How much they play, and how it goes"
             a={a}
@@ -251,8 +254,9 @@ function LevelsCompare() {
           />
         </Card>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="grid gap-6 xl:grid-cols-12">
           <DiffCard
+            className="xl:col-span-7"
             title="Effort"
             subtitle="How hard people swing on each level"
             a="Level 1"
@@ -265,6 +269,7 @@ function LevelsCompare() {
             ]}
           />
           <DiffCard
+            className="xl:col-span-5"
             title="Engagement and results"
             subtitle="How long fights last, and how they end"
             a="Level 1"
@@ -287,6 +292,20 @@ export default function CompareView() {
   const mode = params.get("mode") === "levels" ? "levels" : "players";
   const players = useApi(() => api.players(), []);
   const names = useMemo(() => (players.data || []).map((p) => p.playerName).sort((x, y) => x.localeCompare(y)), [players.data]);
+  // A renamed player keeps their slot in the comparison.
+  useLiveMessages((type, payload) => {
+    if (type !== "player_renamed") return;
+    players.reload();
+    const next = new URLSearchParams(params);
+    let moved = false;
+    for (const k of ["a", "b"]) {
+      if (next.get(k) === payload.oldName) {
+        next.set(k, payload.newName);
+        moved = true;
+      }
+    }
+    if (moved) setParams(next, { replace: true });
+  });
   const setParam = (k, v) => {
     const next = new URLSearchParams(params);
     if (v && v !== "players") next.set(k, v);

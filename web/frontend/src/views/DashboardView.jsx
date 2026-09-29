@@ -9,11 +9,10 @@ import { LiveArenaCard } from "../components/live/LiveFight.jsx";
 import { BarChart } from "../components/charts/Charts.jsx";
 import { LevelBadge } from "../components/ui/Badge.jsx";
 import { formatDuration, formatNumber, formatPercent, formatRelative } from "../lib/format.js";
-import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
+import { Card, CardHeader, PageHeader, SectionRule } from "../components/ui/Card.jsx";
 import { SegmentedControl } from "../components/ui/Controls.jsx";
 import { EmptyState } from "../components/ui/Feedback.jsx";
-import StatTile from "../components/ui/StatTile.jsx";
-import Icon from "../components/ui/Icon.jsx";
+import StatTile, { FigureStrip } from "../components/ui/StatTile.jsx";
 import ScoreTrendChart from "../components/charts/ScoreTrendChart.jsx";
 import OutcomeSplit from "../components/charts/OutcomeSplit.jsx";
 import LevelBars from "../components/charts/LevelBars.jsx";
@@ -126,16 +125,16 @@ function ActivityCards() {
                     {formatNumber(l.sessions)} session{l.sessions === 1 ? "" : "s"}
                   </span>
                 </div>
-                <dl className="mt-3 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+                <dl className="mt-3 grid grid-cols-2 gap-y-3 sm:grid-cols-4 sm:divide-x sm:divide-[var(--border)]">
                   {[
                     ["Win rate", l.winRate === null ? "—" : formatPercent(l.winRate)],
                     ["Avg score", formatNumber(l.avgScore)],
                     ["Avg swing", fmtSpeed(l.avgSwingSpeed)],
                     ["Full power", fmtShare(l.fullPowerRatio)],
-                  ].map(([k, v]) => (
-                    <div key={k} className="rounded-lg bg-[var(--surface-muted)] px-2 py-2 ring-1 ring-inset ring-[var(--border)]">
-                      <dt className="text-xs font-semibold text-[var(--muted)]">{k}</dt>
-                      <dd className="mt-0.5 text-sm font-extrabold tabular-nums text-[var(--ink)]">{v}</dd>
+                  ].map(([k, v], i) => (
+                    <div key={k} className={i ? "sm:pl-3" : ""}>
+                      <dt className="t-kicker">{k}</dt>
+                      <dd className="mt-1 text-lg font-extrabold tabular-nums tracking-tight text-[var(--ink)]">{v}</dd>
                     </div>
                   ))}
                 </dl>
@@ -155,25 +154,30 @@ function ActivityCards() {
   );
 }
 
-function RecordRow({ icon, label, session, value, onOpen }) {
+function RecordRow({ label, session, value, onOpen, lead = false }) {
   return (
     <li>
       <button
         type="button"
         disabled={!session}
         onClick={() => session && onOpen(session.id)}
-        className="press group flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-[var(--surface-muted)] disabled:cursor-default disabled:hover:bg-transparent"
+        className={`press group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-3.5 text-left hover:bg-[var(--surface-muted)] disabled:cursor-default disabled:hover:bg-transparent ${
+          lead ? "relative bg-[var(--accent-soft)] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-[var(--accent)] hover:bg-[var(--accent-soft)]" : ""
+        }`}
       >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)] transition-transform duration-200 group-enabled:group-hover:scale-110">
-          <Icon name={icon} className="h-4 w-4" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-xs font-semibold text-[var(--muted)]">{label}</span>
-          <span className="block truncate text-sm font-bold text-[var(--ink)]">
-            {session ? `${session.playerName} · ${formatRelative(session.endedAt)}` : "No qualifying session yet"}
+        <span className="min-w-0">
+          <span className={`t-kicker block ${lead ? "text-[var(--accent-strong)]" : ""}`}>{label}</span>
+          <span className="mt-1 block truncate text-sm font-bold text-[var(--ink)]">
+            {session ? (
+              <>
+                {session.playerName} <span className="font-medium text-[var(--muted)]">· {formatRelative(session.endedAt)}</span>
+              </>
+            ) : (
+              <span className="font-medium text-[var(--muted)]">No qualifying session yet</span>
+            )}
           </span>
         </span>
-        {session && <span className="text-base font-extrabold tabular-nums text-[var(--ink)]">{value}</span>}
+        <span className={`tabular-nums tracking-tight text-[var(--ink)] ${lead ? "text-2xl font-extrabold" : "text-lg font-extrabold"}`}>{session ? value : "—"}</span>
       </button>
     </li>
   );
@@ -198,7 +202,6 @@ export default function DashboardView({ sessions, allSessions, events, range, on
       battles: b.map((l) => l.length),
       winRate,
       score: chrono.slice(-12).map((s) => Number(s.score) || 0),
-      time: b.map((l) => l.reduce((a, s) => a + (Number(s.durationSec) || 0), 0)),
     };
   }, [sessions, range, chrono]);
 
@@ -210,7 +213,7 @@ export default function DashboardView({ sessions, allSessions, events, range, on
   const sparkWord = range === "24h" ? "two-hour block" : "day";
 
   return (
-    <div className="space-y-6">
+    <div>
       <PageHeader
         eyebrow="Dashboard"
         title="Performance overview"
@@ -222,25 +225,30 @@ export default function DashboardView({ sessions, allSessions, events, range, on
         actions={<SegmentedControl label="Time range" options={RANGES} value={range} onChange={onRange} />}
       />
 
-      <PlayingNow />
+      <div className="mt-6">
+        <PlayingNow />
+      </div>
 
-      <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* 01: one lead figure, then three tiles of different widths */}
+      <SectionRule index="01" title={`Headline · ${rangeLabel}`} className="mt-8" />
+      <div className="stagger mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-12">
         <StatTile
+          feature
+          className="sm:col-span-2 lg:col-span-5 lg:row-span-2"
           label="Battles"
           count={stats.sessions}
-          icon="sessions"
-          tone="blue"
+          icon={null}
           spark={sessions.length ? sparks.battles : null}
           sparkLabel={`Battles per ${sparkWord}`}
           trend={prev ? { value: stats.sessions - prev.sessions, label: formatNumber(Math.abs(stats.sessions - prev.sessions)), suffix: vsPrev } : null}
-          hint={prev ? null : `${stats.players} player${stats.players === 1 ? "" : "s"}`}
+          hint={prev ? null : `${stats.players} player${stats.players === 1 ? "" : "s"}${sessions.length ? ` · battles per ${sparkWord}` : ""}`}
         />
         <StatTile
+          className="sm:col-span-2 lg:col-span-7"
           label="Win rate"
           count={stats.winRate}
           format={(v) => `${Math.round(v * 10) / 10}%`}
-          icon="check"
-          tone="green"
+          icon={null}
           spark={sparks.winRate.length > 1 ? sparks.winRate : null}
           sparkLabel="Win rate over the last battles"
           trend={
@@ -251,24 +259,22 @@ export default function DashboardView({ sessions, allSessions, events, range, on
           hint={prev && stats.sessions ? null : stats.currentStreak > 1 ? `${stats.currentStreak} wins in a row` : `${stats.victories} won · ${stats.defeats} lost`}
         />
         <StatTile
+          className="lg:col-span-4"
           label="Latest score"
           count={latest ? Number(latest.score) || 0 : undefined}
           value="—"
-          icon="score"
-          tone="indigo"
+          icon={null}
           spark={sparks.score.length > 1 ? sparks.score : null}
           sparkLabel="Scores of the last battles"
-          trend={scoreDelta !== null ? { value: scoreDelta, label: formatNumber(Math.abs(scoreDelta)), suffix: "vs previous battle" } : null}
+          trend={scoreDelta !== null ? { value: scoreDelta, label: formatNumber(Math.abs(scoreDelta)), suffix: "vs previous" } : null}
           hint={scoreDelta !== null ? null : `best ${formatNumber(stats.bestScore)}`}
         />
         <StatTile
+          className="lg:col-span-3"
           label="Active time"
           count={stats.totalDurationSec}
           format={(v) => formatDuration(v)}
-          icon="clock"
-          tone="amber"
-          spark={sessions.length ? sparks.time : null}
-          sparkLabel={`Active time per ${sparkWord}`}
+          icon={null}
           trend={
             prev
               ? {
@@ -282,7 +288,9 @@ export default function DashboardView({ sessions, allSessions, events, range, on
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-12">
+      {/* 02: the primary chart with one supporting panel */}
+      <SectionRule index="02" title="Score and outcomes" className="mt-12" />
+      <div className="mt-4 grid gap-6 xl:grid-cols-12">
         <Card className="overflow-hidden xl:col-span-8">
           <CardHeader
             title="Score trend"
@@ -295,72 +303,72 @@ export default function DashboardView({ sessions, allSessions, events, range, on
         <Card className="overflow-hidden xl:col-span-4">
           <CardHeader title="Outcomes" subtitle="Victories vs defeats" />
           <OutcomeSplit victories={stats.victories} defeats={stats.defeats} other={stats.other} />
-          <div className="grid grid-cols-2 border-t border-[var(--border)] text-center">
-            <div className="border-r border-[var(--border)] px-3 py-3">
-              <p className="text-xl font-extrabold tabular-nums text-[var(--ink)]">{stats.currentStreak}</p>
-              <p className="text-xs font-semibold text-[var(--muted)]">Current win streak</p>
-            </div>
-            <div className="px-3 py-3">
-              <p className="text-xl font-extrabold tabular-nums text-[var(--ink)]">{stats.bestStreak}</p>
-              <p className="text-xs font-semibold text-[var(--muted)]">Best win streak</p>
-            </div>
-          </div>
+          <dl className="grid grid-cols-2 gap-px border-t border-[var(--border)] bg-[var(--border)]">
+            {[
+              ["Current streak", stats.currentStreak],
+              ["Best streak", stats.bestStreak],
+            ].map(([k, v]) => (
+              <div key={k} className="bg-[var(--surface)] px-5 py-3.5">
+                <dt className="t-kicker">{k}</dt>
+                <dd className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-[var(--ink)]">{v}</dd>
+              </div>
+            ))}
+          </dl>
         </Card>
       </div>
 
-      <ActivityCards />
+      {/* 03: fixed 14-day window, independent of the range filter */}
+      <SectionRule index="03" title="Last 14 days · every level" className="mt-12" />
+      <div className="mt-4">
+        <ActivityCards />
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-12">
-        <Card className="overflow-hidden xl:col-span-4">
+      {/* 04: totals as a ledger, then levels and records side by side at different widths */}
+      <SectionRule index="04" title="Combat" className="mt-12" />
+      <FigureStrip
+        className="mt-4"
+        items={[
+          { label: "Points earned", value: formatNumber(stats.totalScore), sub: `across ${formatNumber(stats.sessions)} battle${stats.sessions === 1 ? "" : "s"}`, lead: true },
+          { label: "Hits landed", value: formatNumber(stats.totalHits) },
+          { label: "Damage dealt", value: formatNumber(stats.totalDamage) },
+          { label: "Taps / swings", value: formatNumber(stats.totalTaps) },
+        ]}
+      />
+      {noHitData && (
+        <p className="mt-2 rounded-lg bg-[var(--warn-soft)] px-4 py-2 text-xs font-semibold text-[var(--warn-ink)]">
+          Some battles arrived with 0 hits/damage (recorded before hits were reported).
+        </p>
+      )}
+      <div className="mt-6 grid gap-6 xl:grid-cols-12">
+        <Card className="overflow-hidden xl:col-span-5">
           <CardHeader title="By level" subtitle="Average score per difficulty" />
           <LevelBars rows={levels} />
         </Card>
-
-        <Card className="overflow-hidden xl:col-span-4">
-          <CardHeader title="Combat totals" subtitle="Across battles in this range" />
-          <ul className="divide-y divide-[var(--border)]">
-            {[
-              { icon: "bolt", label: "Hits landed", value: stats.totalHits },
-              { icon: "flame", label: "Damage dealt", value: stats.totalDamage },
-              { icon: "hand", label: "Taps / swings", value: stats.totalTaps },
-              { icon: "score", label: "Points earned", value: stats.totalScore },
-            ].map((row) => (
-              <li key={row.label} className="flex items-center gap-3 px-5 py-3">
-                <Icon name={row.icon} className="h-4 w-4 text-[var(--muted)]" />
-                <span className="flex-1 text-sm font-semibold text-[var(--ink-secondary)]">{row.label}</span>
-                <span className="text-base font-extrabold tabular-nums text-[var(--ink)]">{formatNumber(row.value)}</span>
-              </li>
-            ))}
-          </ul>
-          {noHitData && (
-            <p className="border-t border-[var(--border)] bg-[var(--warn-soft)] px-5 py-2.5 text-xs font-semibold text-[var(--warn-ink)]">
-              Some battles arrived with 0 hits/damage (recorded before hits were reported).
-            </p>
-          )}
-        </Card>
-
-        <Card className="overflow-hidden lg:col-span-2 xl:col-span-4">
+        <Card className="overflow-hidden xl:col-span-7">
           <CardHeader title="Personal records" subtitle="Click a record to open that battle" />
           <ul className="divide-y divide-[var(--border)]">
-            <RecordRow icon="trophy" label="Highest score" session={recs.highScore} value={formatNumber(recs.highScore?.score)} onOpen={openSession} />
-            <RecordRow icon="timer" label="Fastest victory" session={recs.fastestWin} value={formatDuration(recs.fastestWin?.durationSec)} onOpen={openSession} />
-            <RecordRow icon="bolt" label="Most hits" session={recs.mostHits} value={formatNumber(recs.mostHits?.hitCount)} onOpen={openSession} />
-            <RecordRow icon="flame" label="Most damage" session={recs.mostDamage} value={formatNumber(recs.mostDamage?.damageDealt)} onOpen={openSession} />
+            <RecordRow lead label="Highest score" session={recs.highScore} value={formatNumber(recs.highScore?.score)} onOpen={openSession} />
+            <RecordRow label="Fastest victory" session={recs.fastestWin} value={formatDuration(recs.fastestWin?.durationSec)} onOpen={openSession} />
+            <RecordRow label="Most hits" session={recs.mostHits} value={formatNumber(recs.mostHits?.hitCount)} onOpen={openSession} />
+            <RecordRow label="Most damage" session={recs.mostDamage} value={formatNumber(recs.mostDamage?.damageDealt)} onOpen={openSession} />
           </ul>
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-12">
+      {/* 05 */}
+      <SectionRule
+        index="05"
+        title="Recent"
+        className="mt-12"
+        aside={
+          <Link to="/dashboard/sessions" className={link}>
+            All sessions
+          </Link>
+        }
+      />
+      <div className="mt-4 grid gap-6 xl:grid-cols-12">
         <Card className="overflow-hidden xl:col-span-8">
-          <CardHeader
-            title="Recent battles"
-            subtitle="Newest first"
-            actions={
-              <Link to="/dashboard/sessions" className={link}>
-                View all
-              </Link>
-            }
-          />
+          <CardHeader title="Recent battles" subtitle="Newest first" />
           {sessions.length ? (
             <div className="p-4 sm:p-5">
               <SessionList rows={sessions.slice(0, 5)} onSelect={(s) => openSession(s.id)} />

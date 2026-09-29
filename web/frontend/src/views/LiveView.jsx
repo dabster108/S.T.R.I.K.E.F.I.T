@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useFeed, useLiveIds, useLiveReady } from "../live/LiveProvider.jsx";
-import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
+import { Card, PageHeader, SectionRule } from "../components/ui/Card.jsx";
 import { SegmentedControl } from "../components/ui/Controls.jsx";
 import { EmptyState } from "../components/ui/Feedback.jsx";
 import { LiveSkeleton } from "../components/ui/Skeletons.jsx";
@@ -54,43 +54,54 @@ export default function LiveView() {
         }
       />
 
-      {ids.length ? (
-        <div className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {ids.map((id) => (
-            <LiveArenaCard key={id} id={id} />
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <EmptyState
-            icon="headset"
-            title="Nobody is playing right now"
-            description="When a fight starts in the headset it appears here instantly, with both health bars moving as it happens."
+      {/* fights on the left, the feed pinned beside them so both stay in view */}
+      <div className="grid gap-8 xl:grid-cols-12 xl:items-start xl:gap-6">
+        <section aria-labelledby="arena-title" className="xl:col-span-7">
+          <SectionRule
+            index="01"
+            id="arena-title"
+            title="In the arena"
+            aside={<span className="readout text-xs font-bold text-[var(--muted)]">{ids.length} live</span>}
           />
-        </Card>
-      )}
+          <div className="mt-4">
+            {ids.length ? (
+              <div className={`stagger grid gap-4 ${ids.length > 1 ? "md:grid-cols-2" : ""}`}>
+                {ids.map((id) => (
+                  <LiveArenaCard key={id} id={id} />
+                ))}
+              </div>
+            ) : (
+              <Card className="border-dashed">
+                <EmptyState
+                  icon="headset"
+                  title="Nobody is playing right now"
+                  description="When a fight starts in the headset it appears here instantly, with both health bars moving as it happens."
+                />
+              </Card>
+            )}
+          </div>
+        </section>
 
-      <Card className="overflow-hidden">
-        <CardHeader
-          title="Event feed"
-          subtitle={`${shown.length} event${shown.length === 1 ? "" : "s"} shown · newest first`}
-          actions={
-            <>
+        <section aria-labelledby="feed-title" className="xl:sticky xl:top-20 xl:col-span-5">
+          <SectionRule index="02" id="feed-title" title="Event feed" aside={<span className="readout text-xs font-bold text-[var(--muted)]">{shown.length} shown</span>} />
+          <Card className="mt-4 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
               <SegmentedControl label="Event type" options={FILTERS} value={filter} onChange={setFilter} />
               <Button icon={paused ? "play" : "pause"} onClick={() => setPaused((p) => !p)} aria-pressed={paused}>
                 {paused ? `Resume${queued > 0 ? ` (${queued} new)` : ""}` : "Pause"}
               </Button>
-            </>
-          }
-        />
-        {shown.length ? (
-          <div className="scrollbar-thin max-h-[60vh] overflow-y-auto">
-            <EventList events={shown.slice(0, 150)} />
-          </div>
-        ) : (
-          <EmptyState icon="live" title="No events yet" description="Recent events load from the server, then new ones stream in as they happen." />
-        )}
-      </Card>
+            </div>
+            {shown.length ? (
+              <div className="scrollbar-thin max-h-[60vh] overflow-y-auto xl:max-h-[calc(100vh-12rem)]">
+                <EventList events={shown.slice(0, 150)} dense />
+              </div>
+            ) : (
+              <EmptyState icon="live" title="No events yet" description="Recent events load from the server, then new ones stream in as they happen." />
+            )}
+            <p className="border-t border-[var(--border)] px-4 py-2 text-xs font-medium text-[var(--muted)]">Newest first</p>
+          </Card>
+        </section>
+      </div>
     </div>
   );
 }

@@ -294,6 +294,38 @@ function Mockup() {
   );
 }
 
+// The numbers the whole game hangs on, read from lib/game.js (which mirrors the Unity values).
+const L1 = LEVELS.Easy.swing;
+const SPECS = [
+  { value: L1.min.toFixed(1), unit: "m/s", label: "Slowest swing that registers a hit" },
+  { value: L1.tiers.full.toFixed(1), unit: "m/s", label: "Full power on Level 1" },
+  { value: `${L1.maxMul}×`, unit: "", label: "Damage multiplier at the speed cap" },
+  { value: String(L1.cap), unit: "m/s", label: "Speed cap, where damage stops growing" },
+];
+
+function SpecStrip() {
+  return (
+    <div className="fade-up relative border-t border-[var(--border)] bg-white/60 backdrop-blur-sm" style={{ "--d": "620ms" }}>
+      <dl className="mx-auto grid max-w-6xl grid-cols-2 px-4 sm:px-6 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+        {SPECS.map((s, i) => (
+          <div key={s.label} className={`border-[var(--border)] py-5 pr-4 ${i ? "lg:pl-6" : ""} ${i % 2 ? "border-l pl-4" : ""} ${i === 2 ? "lg:border-l" : ""} ${i > 1 ? "border-t lg:border-t-0" : ""}`}>
+            <dt className="t-kicker">{s.label}</dt>
+            <dd className="readout mt-2 flex items-baseline gap-1 text-[var(--ink)]">
+              <span className="text-2xl font-extrabold tracking-tight">{s.value}</span>
+              {s.unit && <span className="text-sm font-bold text-[var(--muted)]">{s.unit}</span>}
+            </dd>
+          </div>
+        ))}
+        <p className="hidden items-center border-l border-[var(--border)] pl-6 text-xs font-semibold leading-relaxed text-[var(--muted)] lg:flex">
+          Measured at the
+          <br />
+          moment of impact
+        </p>
+      </dl>
+    </div>
+  );
+}
+
 export default function Hero({ status }) {
   const bg = useParallax(0.25);
   const art = useParallax(-0.06);
@@ -315,13 +347,14 @@ export default function Hero({ status }) {
         />
       </div>
 
-      <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 pb-20 pt-12 sm:px-6 lg:grid-cols-[1.08fr_1fr] lg:pb-28 lg:pt-20">
-        <div>
-          <p className="fade-up inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-bold text-[var(--accent-strong)] ring-1 ring-inset ring-[var(--accent-ring)] backdrop-blur">
-            <Icon name="headset" className="h-3.5 w-3.5" strokeWidth={2.2} />
-            VR fitness research prototype · Meta Quest 2
+      <div className="relative mx-auto grid max-w-6xl gap-16 px-4 pb-24 pt-12 sm:px-6 lg:grid-cols-12 lg:gap-8 lg:pb-28 lg:pt-20">
+        <div className="lg:col-span-7">
+          <p className="fade-up flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="t-kicker text-[var(--accent-strong)]">VR fitness research prototype</span>
+            <span className="h-px w-10 bg-[var(--accent-ring)]" aria-hidden />
+            <span className="t-kicker">Meta Quest 2</span>
           </p>
-          <h1 id="hero-title" className="t-display mt-5 text-[var(--ink)]">
+          <h1 id="hero-title" className="t-display mt-6 text-[var(--ink)]">
             {LINES.map((line, li) => (
               <span key={li} className="block">
                 {line.map((word) => {
@@ -337,7 +370,7 @@ export default function Hero({ status }) {
               </span>
             ))}
           </h1>
-          <p className="fade-up mt-6 max-w-xl text-lg font-medium leading-relaxed text-[var(--ink-secondary)] sm:text-xl" style={{ "--d": "380ms" }}>
+          <p className="fade-up measure-tight mt-7 text-lg font-medium leading-relaxed text-[var(--ink-secondary)] sm:text-xl" style={{ "--d": "380ms" }}>
             STRIKEFIT is a VR combat game where damage comes from how fast you actually swing. Flick your wrist and nothing happens; put your body into it
             and the monster feels it.
           </p>
@@ -358,12 +391,15 @@ export default function Hero({ status }) {
           </div>
         </div>
 
-        <div ref={art} className="mx-auto w-full max-w-md">
+        {/* offset below the headline and pushed past the container edge on wide screens */}
+        <div ref={art} className="mx-auto w-full max-w-md lg:col-span-5 lg:mx-0 lg:mt-14 lg:max-w-none lg:-mr-6 xl:-mr-20">
           <div className="fade-up" style={{ "--d": "300ms" }}>
             <Mockup />
           </div>
         </div>
       </div>
+
+      <SpecStrip />
     </section>
   );
 }

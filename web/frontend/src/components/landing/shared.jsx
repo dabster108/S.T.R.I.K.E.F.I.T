@@ -16,14 +16,44 @@ export function Reveal({ as: Tag = "div", className = "", delay = 0, from, child
   );
 }
 
-export function SectionHead({ id, eyebrow, title, children, center = false }) {
+// "01 ── The problem": the section number and kicker that open every landing section.
+export function Kicker({ index, children, className = "" }) {
   return (
-    <Reveal className={`max-w-2xl ${center ? "mx-auto text-center" : ""}`}>
-      <p className="t-eyebrow">{eyebrow}</p>
-      <h2 id={id} className="t-h2 mt-3 text-[var(--ink)]">
+    <p className={`flex items-center gap-3 ${className}`}>
+      {index && (
+        <>
+          <span className="t-index">{index}</span>
+          <span className="h-px w-8 bg-[var(--accent-ring)]" aria-hidden />
+        </>
+      )}
+      <span className="t-eyebrow">{children}</span>
+    </p>
+  );
+}
+
+// layout "stack": kicker, title, lede in one narrow column.
+// layout "split": title on the left seven columns, lede bottom-aligned on the right five.
+export function SectionHead({ id, index, eyebrow, title, children, layout = "stack", className = "" }) {
+  if (layout === "split") {
+    return (
+      <Reveal className={`grid gap-6 lg:grid-cols-12 lg:items-end lg:gap-10 ${className}`}>
+        <div className="lg:col-span-7">
+          <Kicker index={index}>{eyebrow}</Kicker>
+          <h2 id={id} className="t-h2 mt-5 text-[var(--ink)]">
+            {title}
+          </h2>
+        </div>
+        {children && <p className="measure text-lg font-medium leading-relaxed text-[var(--ink-secondary)] lg:col-span-5 lg:pb-1.5">{children}</p>}
+      </Reveal>
+    );
+  }
+  return (
+    <Reveal className={`max-w-2xl ${className}`}>
+      <Kicker index={index}>{eyebrow}</Kicker>
+      <h2 id={id} className="t-h2 mt-5 text-[var(--ink)]">
         {title}
       </h2>
-      {children && <p className="mt-4 text-lg font-medium leading-relaxed text-[var(--ink-secondary)]">{children}</p>}
+      {children && <p className="measure mt-5 text-lg font-medium leading-relaxed text-[var(--ink-secondary)]">{children}</p>}
     </Reveal>
   );
 }

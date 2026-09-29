@@ -78,6 +78,8 @@ export const api = {
   live: (player) => request(`/api/live${qs({ player })}`),
   players: () => request("/api/players").then((d) => d.players || []),
   player: (name) => request(`/api/players/${enc(name)}`),
+  // Returns the renamed player's profile (same shape as player()).
+  renamePlayer: (name, newName) => request(`/api/players/${enc(name)}`, { method: "PATCH", body: { newName }, timeoutMs: 20000 }),
   overview: () => request(`/api/overview${qs({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`),
   publicStats: () => request("/api/public-stats"),
   // Landing page: short timeouts, no wake-up signalling, callers swallow failures.

@@ -420,7 +420,7 @@ function originAllowed(origin) {
   if (!origin || DEV_ORIGIN.test(origin)) return true;
   return ALLOWED_ORIGINS.some((o) => (typeof o === "string" ? o === origin : o.test(origin)));
 }
-const corsOptions = { origin: (origin, cb) => cb(null, originAllowed(origin)), methods: ["GET", "POST", "DELETE"] };
+const corsOptions = { origin: (origin, cb) => cb(null, originAllowed(origin)), methods: ["GET", "POST", "PATCH", "DELETE"] };
 
 const app = express();
 const server = http.createServer(app);
@@ -515,6 +515,55 @@ app.get("/api/players/:name", route(async (req, res) => {
   const profile = await analytics.playerProfile(String(req.params.name));
   if (!profile) return res.status(404).json({ ok: false, error: "Player not found" });
   res.json(profile);
+}));
+
+const MAX_PLAYER_NAME = 40;
+
+// Renames a player everywhere the name is stored: sessions.player_name and
+// events.player_name, in one transaction. Players are derived from sessions, so
+// renaming onto an existing name would silently merge two people's histories
+// with no way to split them again; that is refused with 409 instead. A player
+// in a live fight is refused too: the headset keeps posting under the old name.
+// Event payloads and messages are left as recorded (they are historical logs).
+app.patch("/api/players/:name", route(async (req, res) => {
+  const oldName = String(req.params.name);
+  const raw = req.body && req.body.newName;
+  const newName = typeof raw === "string" ? raw.trim() : "";
+  if (!newName) return res.status(400).json({ ok: false, error: "New name is required" });
+  if (newName.length > MAX_PLAYER_NAME) return res.status(400).json({ ok: false, error: `New name must be ${MAX_PLAYER_NAME} characters or fewer` });
+  if (/[\u0000-\u001f\u007f]/.test(newName)) return res.status(400).json({ ok: false, error: "New name can't contain control characters" });
+  if (newName === oldName) return res.status(400).json({ ok: false, error: "That is already this player's name" });
+
+  const result = await withTransaction(async (client) => {
+    // Locks this player's sessions so a live update can't interleave with the rename.
+    const own = await client.query("SELECT id, status FROM sessions WHERE player_name = $1 FOR UPDATE", [oldName]);
+    if (!own.rowCount) return { status: 404, error: "Player not found" };
+    if (own.rows.some((r) => r.status === "live")) {
+      return { status: 409, error: `${oldName} is in a live fight right now. Rename after it finishes.` };
+    }
+    const taken = await client.query("SELECT 1 FROM sessions WHERE player_name = $1 LIMIT 1", [newName]);
+    if (taken.rowCount) {
+      return { status: 409, error: `A player named "${newName}" already exists. Pick another name; merging two players isn't supported.` };
+    }
+    const sessions = await client.query("UPDATE sessions SET player_name = $2 WHERE player_name = $1", [oldName, newName]);
+    const events = await client.query("UPDATE events SET player_name = $2 WHERE player_name = $1", [oldName, newName]);
+    return { sessions: sessions.rowCount, events: events.rowCount };
+  });
+  if (result.error) return res.status(result.status).json({ ok: false, error: result.error });
+
+  console.log(`[player] renamed "${oldName}" -> "${newName}" (${result.sessions} session rows, ${result.events} event rows)`);
+  const change = { oldName, newName, sessions: result.sessions, events: result.events };
+  // Sent to every client (no player scope), including ones watching the old name.
+  stream.broadcast("player_renamed", change);
+  io.emit("player_renamed", change);
+  io.emit("stats", computeStats(await allSessions()));
+
+  res.set({
+    "X-Renamed-Sessions": String(result.sessions),
+    "X-Renamed-Events": String(result.events),
+    "Access-Control-Expose-Headers": "X-Renamed-Sessions, X-Renamed-Events",
+  });
+  res.json(await analytics.playerProfile(newName));
 }));
 
 app.get("/api/events", route(async (req, res) => {
@@ -757,6 +806,7 @@ ready.then(() => server.listen(PORT, "0.0.0.0", () => {
   console.log("  GET    /api/overview | /api/public-stats | /api/analytics | /api/export/{sessions,events}.csv");
   console.log("  GET    /api/stream[?player]  (Server-Sent Events)");
   console.log("  POST   /api/sessions | /api/events (single or batch)");
+  console.log("  PATCH  /api/players/:name  { newName }");
   console.log("  DELETE /api/sessions | /api/sessions/:id");
   if (fs.existsSync(FRONTEND_DIST)) console.log(`  Dashboard: http://localhost:${PORT}/`);
 }));

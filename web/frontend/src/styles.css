@@ -123,6 +123,69 @@
   }
 }
 
+/* Editorial composition helpers. In the components layer so any Tailwind
+   utility (text colour, size) on the same element overrides them. Same Inter
+   weights and palette tokens as the type scale above. */
+@layer components {
+
+  /* reading measure: body copy never runs the full width of a wide column */
+  .measure {
+    max-width: 62ch;
+  }
+  .measure-tight {
+    max-width: 46ch;
+  }
+  /* section numbers (01, 02…) used as a design element */
+  .t-index {
+    font-size: 0.8125rem;
+    font-weight: var(--fw-heading);
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    line-height: 1;
+  }
+  /* small uppercase label that sits above a figure or on a rule */
+  .t-kicker {
+    font-size: 0.6875rem;
+    font-weight: var(--fw-title);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    line-height: 1.2;
+  }
+  /* callout figures, set well above the stat size */
+  .t-figure {
+    font-size: clamp(3.25rem, 2rem + 4.6vw, 6rem);
+    font-weight: var(--fw-heading);
+    letter-spacing: -0.05em;
+    line-height: 0.88;
+    font-variant-numeric: tabular-nums;
+  }
+  .t-figure-md {
+    font-size: clamp(2.25rem, 1.7rem + 2vw, 3.4rem);
+    font-weight: var(--fw-heading);
+    letter-spacing: -0.04em;
+    line-height: 0.92;
+    font-variant-numeric: tabular-nums;
+  }
+  /* a pull quote: larger than h3, lighter than h2 */
+  .t-quote {
+    font-size: clamp(1.5rem, 1.1rem + 1.7vw, 2.35rem);
+    font-weight: var(--fw-title);
+    letter-spacing: -0.025em;
+    line-height: 1.18;
+  }
+  /* bleed a block from its centred container to the right edge of the viewport */
+  .bleed-right {
+    margin-right: calc(50% - 50vw);
+  }
+  /* tabular readout lines ("v ≥ 5.0 m/s → full power") */
+  .readout {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.005em;
+  }
+}
+
 /* ======================================================================= motion
    Everything below animates transform and opacity only, so it stays on the
    compositor. prefers-reduced-motion turns all of it off at the bottom. */

@@ -5,14 +5,15 @@ import { levelName } from "../lib/game.js";
 import { formatDuration, formatNumber, formatPercent, formatRelative, formatShortDate } from "../lib/format.js";
 import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useFeed, useLiveForPlayer, useLiveMessages } from "../live/LiveProvider.jsx";
-import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
+import { Card, CardHeader, PageHeader, SectionRule } from "../components/ui/Card.jsx";
 import { SegmentedControl, Select } from "../components/ui/Controls.jsx";
 import { EmptyState } from "../components/ui/Feedback.jsx";
 import { PlayerSkeleton } from "../components/ui/Skeletons.jsx";
 import { LevelBadge, OutcomeBadge } from "../components/ui/Badge.jsx";
 import { buttonClass } from "../components/ui/Button.jsx";
 import Icon from "../components/ui/Icon.jsx";
-import StatTile from "../components/ui/StatTile.jsx";
+import { FigureStrip } from "../components/ui/StatTile.jsx";
+import PlayerName from "../components/players/PlayerName.jsx";
 import { SessionList } from "../components/sessions/SessionCards.jsx";
 import EventList from "../components/sessions/EventList.jsx";
 import { LiveArenaCard } from "../components/live/LiveFight.jsx";
@@ -31,7 +32,6 @@ const OUTCOMES = [
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const speed = (v) => (isNum(v) ? `${v.toFixed(1)} m/s` : "—");
 const share = (r) => (isNum(r) ? formatPercent(r * 100) : "—");
-const pct = (v) => `${Math.round(v * 10) / 10}%`;
 
 function Avatar({ name }) {
   return (
@@ -130,10 +130,18 @@ export default function PlayerView() {
   const { name: raw } = useParams();
   const name = decodeURIComponent(raw || "");
   const navigate = useNavigate();
-  const { data: p, error, reload } = useApi(() => api.player(name), [name]);
+  const { data: p, error, reload, set: setProfile } = useApi(() => api.player(name), [name]);
   const players = useApi(() => api.players(), []);
   const refresh = useThrottledCallback(reload, 3000);
   useLiveMessages((type, payload) => {
+    if (type === "player_renamed") {
+      players.reload();
+      // This player was renamed (here or in another tab): move to the new URL in place.
+      if (payload.oldName === name) {
+        navigate(`/dashboard/player/${encodeURIComponent(payload.newName)}`, { replace: true, state: { renamedFrom: payload.oldName } });
+      }
+      return;
+    }
     const who = payload?.session?.playerName;
     if (who === name && ["session_started", "session_finished", "session_deleted"].includes(type)) refresh();
   });
@@ -194,22 +202,32 @@ export default function PlayerView() {
   const latestIsBest = finished.length > 1 && best && finished[0]?.id === best.id && Number(best.score) > 0;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Player"
-        title={name}
-        leading={<Avatar name={name} />}
-        description={p ? `First played ${formatRelative(p.firstPlayedAt)} · last played ${formatRelative(p.lastPlayedAt)}` : undefined}
-        actions={
-          <Link to={`/dashboard/compare?a=${encodeURIComponent(name)}`} className={buttonClass("secondary", "sm")}>
-            <Icon name="compare" className="h-3.5 w-3.5" />
-            Compare with…
-          </Link>
-        }
-      />
+    <div>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
+          <Avatar name={name} />
+          <div className="min-w-0 flex-1">
+            <p className="t-eyebrow">Player</p>
+            <div className="mt-1 max-w-xl">
+              <PlayerName name={name} size="title" onRenamed={(profile) => setProfile(profile)}>
+                <h1 className="t-h1 truncate text-[var(--ink)]">{name}</h1>
+              </PlayerName>
+            </div>
+            {p && (
+              <p className="mt-1.5 text-sm font-medium text-[var(--muted)]">
+                First played {formatRelative(p.firstPlayedAt)} · last played {formatRelative(p.lastPlayedAt)}
+              </p>
+            )}
+          </div>
+        </div>
+        <Link to={`/dashboard/compare?a=${encodeURIComponent(name)}`} className={buttonClass("secondary", "sm")}>
+          <Icon name="compare" className="h-3.5 w-3.5" />
+          Compare with…
+        </Link>
+      </header>
 
       {p && (rankIndex >= 0 || streak.best >= 2 || latestIsBest || best) && (
-        <div className="stagger -mt-2 flex flex-wrap gap-2">
+        <div className="stagger mt-4 flex flex-wrap gap-2">
           {rankIndex >= 0 && roster.length > 1 && (
             <Highlight icon={rankIndex === 0 ? "crown" : "medal"} tone={rankIndex < 3 ? "gold" : "accent"}>
               Rank #{rankIndex + 1} of {roster.length} by best score
@@ -235,39 +253,35 @@ export default function PlayerView() {
       )}
 
       {error && !p ? (
-        <Card>
+        <Card className="mt-6">
           <EmptyState icon="players" title="This profile will appear here" description="It loads as soon as the server answers." />
         </Card>
       ) : (
         <>
-          <LivePanel name={name} latest={p.sessions.find((s) => s.status !== "live")} />
-
-          <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatTile label="Sessions" count={t.sessions} icon="sessions" tone="blue" hint={`${formatDuration(t.totalDurationSec)} in fights`} />
-            <StatTile label="Wins / losses" value={`${t.wins} / ${t.losses}`} icon="check" tone="green" hint={t.winRate === null ? "No decided fights yet" : `${formatPercent(t.winRate)} win rate`} />
-            <StatTile label="Best score" count={t.bestScore} icon="trophy" tone="indigo" hint={`${formatNumber(t.totalXp)} XP earned`} />
-            <StatTile label="Total damage" count={t.totalDamage} icon="flame" tone="rose" hint="HP taken off monsters" />
-            <StatTile label="Swings counted" count={t.totalSwings} icon="bolt" tone="amber" hint={t.swingSamples ? `avg ${speed(t.avgSwingSpeed)} · peak ${speed(t.peakSwingSpeed)}` : "fast enough to register"} />
-            <StatTile
-              label="Full-power swings"
-              count={isNum(t.fullPowerRatio) ? t.fullPowerRatio * 100 : undefined}
-              value={share(t.fullPowerRatio)}
-              format={pct}
-              icon="gauge"
-              tone="blue"
-              hint={t.swingSamples ? `of ${formatNumber(t.swingSamples)} measured hits` : "No speed data yet"}
-            />
-            <StatTile label="Win rate" count={isNum(t.winRate) ? t.winRate : undefined} value="—" format={pct} icon="target" tone="green" hint="of fights won or lost" />
-            <StatTile label="Levels played" count={levelsAll.length} icon="layers" tone="slate" hint={levelsAll.map(levelName).join(" · ") || "—"} />
+          <div className="mt-6">
+            <LivePanel name={name} latest={p.sessions.find((s) => s.status !== "live")} />
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Card className="overflow-hidden">
+          <SectionRule index="01" title="Results" className="mt-10" />
+          <FigureStrip
+            className="mt-4"
+            items={[
+              { label: "Best score", value: formatNumber(t.bestScore), sub: `${formatNumber(t.totalXp)} XP earned in total`, lead: true },
+              { label: "Sessions", value: formatNumber(t.sessions), sub: `${formatDuration(t.totalDurationSec)} in fights` },
+              { label: "Wins / losses", value: `${t.wins} / ${t.losses}`, sub: t.winRate === null ? "No decided fights yet" : `${formatPercent(t.winRate)} win rate` },
+              { label: "Total damage", value: formatNumber(t.totalDamage), sub: "HP taken off monsters" },
+              { label: "Levels played", value: formatNumber(levelsAll.length), sub: levelsAll.map(levelName).join(" · ") || "—" },
+            ]}
+          />
+
+          <SectionRule index="02" title="Effort over time" className="mt-12" />
+          <div className="mt-4 grid gap-6 xl:grid-cols-12">
+            <Card className="overflow-hidden xl:col-span-8">
               <CardHeader title="Damage over time" subtitle="Total damage in each fight, in the order played" />
               <div className="px-3 pb-4 pt-4 sm:px-5">
                 {series.length ? (
                   <>
-                    <LineChart caption="Damage per session" series={damageSeries} xFormat={(x) => (Number.isInteger(x) ? `#${x}` : "")} yFormat={(v) => formatNumber(v)} />
+                    <LineChart caption="Damage per session" height={260} series={damageSeries} xFormat={(x) => (Number.isInteger(x) ? `#${x}` : "")} yFormat={(v) => formatNumber(v)} />
                     <Legend items={damageSeries} shape="line" />
                   </>
                 ) : (
@@ -276,18 +290,42 @@ export default function PlayerView() {
               </div>
             </Card>
 
-            <Card className="overflow-hidden">
-              <CardHeader title="Swing speed distribution" subtitle="Counted hits sorted into the game's swing tiers" />
-              <div className="px-5 py-5">
-                {t.swingSamples ? (
-                  <TierBar counts={p.tiers} />
-                ) : (
-                  <EmptyState icon="gauge" title="No swing-speed data yet" description="Speeds are recorded from the live-telemetry build of the game onward; older sessions only kept totals." />
-                )}
-              </div>
+            {/* effort: the full-power share leads, speeds as a readout, tiers underneath */}
+            <Card className="flex flex-col overflow-hidden xl:col-span-4">
+              <CardHeader title="Swing effort" subtitle="Counted hits sorted into the game's swing tiers" />
+              {t.swingSamples ? (
+                <div className="flex flex-1 flex-col p-5">
+                  <p className="t-kicker">Full-power swings</p>
+                  <p className="t-figure-md mt-2 text-[var(--ink)]">{share(t.fullPowerRatio)}</p>
+                  <p className="mt-1.5 text-xs font-semibold text-[var(--muted)]">of {formatNumber(t.swingSamples)} measured hits</p>
+                  <dl className="readout mt-5 grid grid-cols-3 divide-x divide-[var(--border)] border-y border-[var(--border)] py-3 text-center">
+                    {[
+                      ["Avg", speed(t.avgSwingSpeed)],
+                      ["Peak", speed(t.peakSwingSpeed)],
+                      ["Counted", formatNumber(t.totalSwings)],
+                    ].map(([k, v]) => (
+                      <div key={k}>
+                        <dt className="text-[0.6875rem] font-semibold text-[var(--muted)]">{k}</dt>
+                        <dd className="text-sm font-extrabold text-[var(--ink)]">{v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <div className="mt-5">
+                    <TierBar counts={p.tiers} columns={2} />
+                  </div>
+                </div>
+              ) : (
+                <EmptyState
+                  icon="gauge"
+                  title="No swing-speed data yet"
+                  description={`${formatNumber(t.totalSwings)} swings counted. Speeds are recorded from the live-telemetry build onward; older sessions only kept totals.`}
+                />
+              )}
             </Card>
+          </div>
 
-            <Card className="overflow-hidden">
+          <div className="mt-6 grid gap-6 xl:grid-cols-12">
+            <Card className="overflow-hidden xl:col-span-5">
               <CardHeader title="XP per session" subtitle="Experience earned in each fight" />
               <div className="px-3 pb-4 pt-4 sm:px-5">
                 {withXp.length ? (
@@ -307,7 +345,7 @@ export default function PlayerView() {
               </div>
             </Card>
 
-            <Card className="overflow-hidden">
+            <Card className="overflow-hidden xl:col-span-7">
               <CardHeader title="Level 1 vs Level 2" subtitle="Same player, both playable levels. Each row has its own scale." />
               <div className="px-5 py-4">
                 {l1 && l2 ? (
@@ -334,7 +372,8 @@ export default function PlayerView() {
             </Card>
           </div>
 
-          <Card className="overflow-hidden">
+          <SectionRule index="03" title="History" className="mt-12" />
+          <Card className="mt-4 overflow-hidden">
             <CardHeader
               title="Session history"
               subtitle={`${history.length} session${history.length === 1 ? "" : "s"}`}

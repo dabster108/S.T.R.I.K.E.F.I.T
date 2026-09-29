@@ -22,7 +22,13 @@ export function useApi(fetcher, deps = []) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, deps);
 
-  return { ...state, reload: load };
+  // Replaces the data in place (e.g. with a PATCH response) and drops any request in flight.
+  const set = useCallback((data) => {
+    ++seq.current;
+    setState({ data, error: null, loading: false });
+  }, []);
+
+  return { ...state, reload: load, set };
 }
 
 // Calls fn at most once per `ms` while events keep arriving (trailing call guaranteed).

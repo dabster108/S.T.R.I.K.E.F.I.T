@@ -5,7 +5,7 @@ import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
 import { Pagination, SearchInput, SegmentedControl, Select } from "../components/ui/Controls.jsx";
 import { EmptyState } from "../components/ui/Feedback.jsx";
 import Button from "../components/ui/Button.jsx";
-import StatTile from "../components/ui/StatTile.jsx";
+import { FigureStrip } from "../components/ui/StatTile.jsx";
 import { SessionList, SessionTimeline } from "../components/sessions/SessionCards.jsx";
 
 const PAGE_SIZE = 20;
@@ -82,12 +82,14 @@ export default function SessionsView({ sessions, range, onRange, openSession }) 
         }
       />
 
-      <div className="stagger grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatTile label="Matching battles" count={summary.sessions} icon="sessions" tone="blue" />
-        <StatTile label="Win rate" count={summary.winRate} format={(v) => `${Math.round(v)}%`} icon="check" tone="green" />
-        <StatTile label="Average score" count={summary.avgScore} icon="gauge" tone="indigo" />
-        <StatTile label="Best score" count={summary.bestScore} icon="trophy" tone="amber" />
-      </div>
+      <FigureStrip
+        items={[
+          { label: "Matching battles", value: formatNumber(summary.sessions), sub: `${summary.victories} won · ${summary.defeats} lost`, lead: true },
+          { label: "Win rate", value: `${Math.round(summary.winRate)}%` },
+          { label: "Average score", value: formatNumber(summary.avgScore) },
+          { label: "Best score", value: formatNumber(summary.bestScore) },
+        ]}
+      />
 
       <Card className="overflow-hidden">
         <CardHeader

@@ -6,7 +6,7 @@
 //
 // Every message is a named SSE event whose data is { type, payload, at }.
 // Types: hello, heartbeat, session_started, session_updated, session_finished,
-// event_created, session_deleted.
+// event_created, session_deleted, player_renamed ({ oldName, newName, sessions, events }).
 
 const HEARTBEAT_MS = 15_000;
 const RETRY_MS = 3_000;
