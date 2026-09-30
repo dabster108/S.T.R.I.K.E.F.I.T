@@ -151,6 +151,9 @@ public class MonsterAnimator : MonoBehaviour
         }
         ResetAllTriggers();
         bool ok = HasTrigger(trigger) && TrySetTrigger(trigger);
+        // A table attack whose trigger is missing would still deal damage with no animation: always report it.
+        if (!ok)
+            Debug.LogWarning($"[MonsterAnimator] Attack trigger '{trigger}' is not a trigger of '{animator.runtimeAnimatorController.name}'; this attack plays no animation.");
         if (verboseAttackLogs)
             Debug.Log($"[MonsterAnimator] PlayAttackTrigger {trigger} ok={ok}");
         return ok;

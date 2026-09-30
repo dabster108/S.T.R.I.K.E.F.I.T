@@ -1,6 +1,159 @@
 # Project Progress — Fitness Monster Battle
 
-Last updated: **2026-09-30 — Level 1 full-body hits, exertion breathing, body block, 3 new Level 2 attacks (live Unity MCP + Play-mode traces)**
+Last updated: **2026-09-30 (second pass) — Level 1 lag diagnosis (Unity Profiler via MCP) + Level 1 monster expanded from 3 to 6 attacks**
+
+---
+
+## 2026-09-30 (second pass) — Level 1 lag diagnosis + 6-attack table
+
+Everything below was read from the live `Level1_Easy` scene, the spawned `Monster_Easy_HipHop(Clone)` and the Unity Profiler (`ProfilerDriver` frame data read through MCP). **All timings are from the editor on the Mac, not from the Quest.** The editor runs throttled in the background, so the numbers are CPU milliseconds per frame (main thread, `PlayerLoop`), not frame rates. Game time was stepped at 1/72 s.
+
+### P1. Level 1 lag
+
+**Reference points.** Level 1 APKs were built at 12:17 (before the hit-volume / breathing / `OnTriggerStay` changes) and at 13:04 (after). Both are non-development IL2CPP Release builds. Render pipeline asset, quality, physics and XR settings did not change between them (git diff).
+
+**Profiler, Level 1 fight (avg ms per frame).**
+| Case | PlayerLoop | Physics | Scripts (Update) | Canvas rebuild | GC / frame |
+|---|---|---|---|---|---|
+| Hands idle, monster attacking | 2.92 (p95 3.89) | 0.25 | 0.28 | 0.04 | 0.7 KB |
+| Both hammers swinging through the monster | 3.12–3.22 | 0.36 | 0.35 | 0.20 | 1.3 KB |
+| Same, 13 `HitVol_*` colliders switched off | 3.07 | 0.32 | 0.34 | 0.19 | 1.2 KB |
+| Same, colliders back on | 3.05 | 0.36 | 0.36 | 0.19 | 1.2 KB |
+
+**Suspects checked.**
+| Suspect | Found | Verdict |
+|---|---|---|
+| Attack-tier debug logs | `MonsterAI.verboseAttackLogs`, `MonsterAnimator.verboseAttackLogs`, `SessionReporter.verboseLogging` all **false** on the runtime objects; none of those logs appeared | not firing |
+| Other logs | `CombatUIController.ShowDamageNumber` logged `Damage: x at (pos)` on **every hit dealt and every hit taken** (no `damageNumberPrefab` is assigned in either level). `MonsterController` logged `[Monster] Blocked!` on every defended hit. 66 + 13 log lines in ~45 s of fighting | **firing on every hit** |
+| Breathing (`PlayerExertionAudio`) | runs in `Update`, 0.011–0.013 ms per frame, 1 B GC; clip is Decompress On Load, one reused looping source, not spatialized | not the cause |
+| New colliders | 13 primitive capsules (no mesh colliders), no Rigidbody on the monster. On vs off: physics +0.05 ms, frame time unchanged | not the cause |
+| `OnTriggerStay` retry | 3.6–3.8 calls per frame while swinging, 0.03 ms per frame | not the cause |
+| Audio | 6 AudioSources in play, all reused, none created or destroyed per hit, no unintended loops | clean |
+| Duplicates | 1 enabled camera, 1 AudioListener, 1 BattleManager, 1 SessionReporter, 1 EventSystem, 0 monsters before Start, 1 after; same after a Retry reload | clean |
+| Environment | 1 `Environment_LiteDungeon` root, 51 pieces (25 floor, 20 wall, 2 torch, 2 column, chest, barrel), 0 pieces sharing a pose | clean |
+
+**What the Profiler did show: the cost is on the frames where a hit lands.**
+| | Frame with a landed hit | Other frames |
+|---|---|---|
+| PlayerLoop | 4.85 ms | 3.09 ms |
+| Trigger callback (`HitDetection`) | 1.08 ms, of which 0.85 ms is `Debug.Log` + stack trace | 0.03 ms |
+| Canvas rebuild | 0.42 ms | 0.18 ms |
+| Garbage | 9.7 KB | 0.7 KB |
+
+Worst frames in the captures: a garbage collection (34–46 ms in the editor, where the heap is much larger than on Quest), a one-off font atlas rebuild when new digits first appear (6.5 ms), then hit frames (5–7 ms).
+The stamina bar was pushed to the HUD on every frame while stamina regenerates (each landed hit spends 8, regen is 12/s), and the timer text was rewritten every frame; every push rebuilds the whole `CombatCanvas`. With hands idle the canvas cost is 0.04 ms, in a fight 0.18–0.20 ms.
+
+**Conclusion.** No steady per-frame slowdown reproduces in the editor: the three additions from the first pass cost under 0.1 ms per frame together. The measurable cost is per landed hit, and the hit-volume fix makes far more swings land than before. Whether this is what is felt on the headset is **not proven**; Quest GPU load and thermal state cannot be measured from the editor.
+
+**Fix (only the measured hit-path costs).**
+- `CombatUIController`: the per-hit `Damage:` log is off unless the new `verboseDamageLogs` is ticked; the stamina bar is redrawn only when it moved by `staminaUiStep` (2%) or reached empty/full; the timer label is rewritten only when the displayed second changes.
+- `MonsterController`: the `[Monster] Blocked!` log only when `MonsterAI.verboseAttackLogs` is on.
+
+**Before / after (same Play session, only the log switch changed; canvas number against the first capture).**
+| | Before | After |
+|---|---|---|
+| Extra cost of a hit frame | +2.03 ms | +0.71 ms |
+| `HitDetection` callback on a hit frame | 1.26 ms | 0.37 ms |
+| Garbage on a hit frame | 11.7 KB | 4.8 KB |
+| Canvas rebuild on non-hit frames | 0.18 ms | 0.05 ms |
+| Console lines per fight | one per hit | 0 (154 hits, 0 log lines) |
+
+**Not changed, for information.** Each hammer mesh is 37,672 triangles (75,344 for the pair, 70% of all scene mesh triangles; drawn again in the shadow pass). The monster sword is 44 separate MeshRenderers. Both predate the regression. `Level1_Easy` is currently **disabled** in Build Settings (only `Level2_Medium` is enabled).
+
+**To measure on the headset.** Install *OVR Metrics Tool* from the Meta store, enable its persistent overlay (Meta Quest Developer Hub ▸ device ▸ Performance overlay also works), play a Level 1 fight and read: FPS (72 expected), stale frames, CPU and GPU utilisation, App GPU time. With a cable: `adb logcat -s VrApi` prints the same every second (`FPS=`, `Stale=`, `CPU%=`, `GPU%=`, `App=` ms). CPU% near 100 with stale frames on hit = script/physics; GPU% near 100 all the time = rendering.
+
+### P2. Level 1 monster — 6 attacks (was 3)
+
+**Clips under `Assets/Animations/` and who uses them.**
+| Clip | Rig | Level 1 | Level 2 |
+|---|---|---|---|
+| Great Sword Slash | Humanoid | Slash | Diagonal Slash |
+| Standing Melee Attack Horizontal | Humanoid | **Side Sweep (new)** | Horizontal Sweep |
+| Sword And Shield Attack (L1) | Humanoid (was Generic) | **Overhead Strike (new)** | — |
+| Sword And Shield Slash (L1) | Humanoid (was Generic) | **Cut and Chop (new)** | — |
+| Great Sword High Spin Attack (`mixamo.com`) | Humanoid | Spin Slash | — |
+| Great Sword High Spin Attack (`GreatSwordSpin_RotationBaked`) | Humanoid | — | Whirlwind Spin |
+| Mutant Jump Attack (`MutantJump_HeightBaked`, new clip on the same FBX) | Humanoid | **Leaping Slam (signature)** | — |
+| Mutant Jump Attack (`mixamo.com`) | Humanoid | only the old `Monster_Easy.controller` | — |
+| Monster_SwordAttack (3 swings) | Humanoid | — | Backhand Cut, Overhead Chop, Lunging Cleave |
+| Standing Melee Combo Attack Ver. 3 / Ver. 1 | Humanoid | — | Twin Strike / Reaping Combo |
+| Standing Melee Attack Downward | Humanoid | — | Executioner Slam |
+| Standing Melee Run Jump Attack | Humanoid | — | Leaping Cleave |
+| Great Sword Impact / Monster_HitReaction / Monster_SwordIdle / Two Handed Sword Death | Humanoid | Defend / Hit / Idle / Death | same |
+| Great Sword Idle, Hit Reaction, One Hand Sword Combo | Generic | unused | unused |
+| `Player_Future/` Sword And Shield Attack, Sword And Shield Slash | Generic | unused (originals) | unused |
+
+All Humanoid clips retarget to both monsters. The two sword-and-shield clips were unreferenced duplicates in `Animations/Player_Future/` (`SwordShield_*.fbx`, byte-identical to the two files still there). They were moved to `Animations/Monster/Level1/`, reimported as Humanoid and given *Bake Into Pose (Y)*, because without it the feet sank 0.34–0.39 m into the floor and floated 0.4–0.5 m above it. With it the feet are on the floor whenever the monster is grounded (lowest foot −0.03 / 0.00 m), and the clips' own jumps show: **Overhead Strike is a hopping strike (feet up to 1.4 m off the floor, still descending at the hit frame)** and Cut and Chop has a 0.5 m hop on the chop.
+
+**Attack table (`Monster_Easy_HipHop.prefab` ▸ `MonsterAI.attackTable`).** Base damage 8 × 1.1 sword = 8.8. Cooldown 3.2 s start to start.
+| Attack | Clip · state speed | Category | Trigger / state | Telegraph (trigger → hit) | Damage | Weight full → 0 HP | Rules |
+|---|---|---|---|---|---|---|---|
+| Slash | Great Sword Slash · 0.94 | Standard | `Atk_Slash` | 0.90 s | ×1.0 = 8.8 | 30 → 20 | |
+| Side Sweep | Standing Melee Attack Horizontal · 1.0 | Standard | `Atk_SideSweep` | 0.985 s | ×1.0 = 8.8 | 22 → 15 | |
+| Overhead Strike | Sword And Shield Attack · 1.0 | Standard | `Atk_OverheadStrike` | 1.15 s | ×1.1 = 9.7 | 18 → 13 | Level 1 only |
+| Cut and Chop | Sword And Shield Slash · 0.7 | Combo (2 hits) | `Atk_CutAndChop` | 0.89 s, then +1.06 s | ×0.6 = 5.3 ×2 | 8 → 16 | 6 s cooldown; Level 1 only |
+| Spin Slash | Great Sword High Spin · 0.87 | Heavy | `Atk_SpinSlash` | 1.28 s | ×1.2 = 10.6 | 12 → 20 | 5 s cooldown |
+| Leaping Slam | Mutant Jump (height baked) · 1.0 | Special | `Atk_LeapSlam` | 1.60 s | ×1.5 = 13.2 | 8 → 16 | 9 s cooldown; forced once when HP first drops to 40%; Level 1 only |
+
+Selection rules are the Level 2 ones (`ChooseFromTable`): weighted, no immediate repeat, a Heavy/Special forced after 4 lighter attacks, cooldown × 0.94 at 0 HP (3.2 → 3.0 s; Level 2 is × 0.85).
+Leaping Slam is the signature move: with the jump height baked into the pose the monster really leaves the ground (feet 2.4 m up at the apex, lands in a crouch and drives the sword into the floor). The old version threw the height away and hovered. Level 1 therefore has two airborne attacks (Overhead Strike 1.4 m, Leaping Slam 2.4 m); Level 2 has none, its leap is not height-baked.
+
+**Selection, 3 000 picks per HP step through the real `ChooseFromTable`.**
+| Monster HP | Standard | Combo | Heavy | Special | Immediate repeats |
+|---|---|---|---|---|---|
+| 100% | 66% | 7% | 16% | 11% | 0 |
+| 60% | 59% | 11% | 17% | 13% | 0 |
+| 35% | 57% | 13% | 18% | 13% | 0 |
+| 15% | 53% | 14% | 18% | 14% | 0 |
+Old set for comparison: Slash 67 / Heavy 17 / Special 17% above 50% HP, 53 / 27 / 20% to 25%, 50 / 25 / 25% below.
+
+**Animator — new `Animations/Monster/Level1/Monster_L1_Sword.controller`** (the old `Animations/Monster_Easy.controller` is untouched and unused, as a rollback). 10 states, 31 transitions.
+- Each attack has its own trigger and is entered from `Idle` or from `Hit` (so a flinch cannot delay a swing), no exit time, 0.10 s blend.
+- Each attack returns to `Idle` on the `Idle` trigger (`EndAttack`), with an exit-time fallback at 0.98.
+- `Hit` and `Defend` are entered from `Idle` (`Defend` also from `Hit`) and return on the `Idle` trigger or by exit time.
+- **Any State → Death only.** The old controller had Any State → every attack, → Hit and → Idle.
+- The 17 blends that end in `Idle` (and `Idle → Hit`) can be taken over by the next trigger, so a new attack or defend starts on the same frame instead of after the blend.
+
+**Verified in Play mode.**
+- Forced run of all 6 (`DebugForceAttack`, 1/72 s steps): each went `Idle → own state → Idle`, animation began the frame after the trigger, every hit landed with the measured damage. Sword tip at the damage frame (monster space, metres right / up / forward): Slash (−0.36, −0.17, 1.44), Side Sweep (0.98, 1.33, 1.91), Overhead Strike (−0.14, 1.97, 2.12), Cut and Chop (0.32, −0.11, 1.40) then (−0.21, 1.07, 1.88), Spin Slash (−0.40, 1.91, 1.67), Leaping Slam (0.09, 0.87, 1.64).
+- Natural fights with the AI choosing, hammers hitting the whole time, HP stepped 100% → 55% → 30%: 23 + 14 attacks, every one reached its own state (0 mismatches), all 6 seen, 10 + 7 attacks started out of a flinch, 0 attack animations cut while the attack was active, first attack after crossing 40% HP was Leaping Slam, guard pose held 1.4–1.6 s on every defend. After the blend change: animation start delay 0.00 s on all 14, 0 frames defending without the guard pose.
+- Flinch then defend 0.1 s later: `Hit → Defend`, guard held for the full window. Flinch then attack 0.1 s later: `Hit → Atk_Slash` on the next frame.
+- Death during an attack: `Atk_CutAndChop → Death`, stays in Death, colliders off, Victory panel shown.
+
+**Level 1 vs Level 2 now** (supersedes the "Distinct attacks 3" row further down).
+| | Level 1 | Level 2 |
+|---|---|---|
+| Distinct attacks | 6 (+ defend) | 10 (+ defend) |
+| Telegraph | 0.89–1.60 s | 0.57–1.48 s |
+| Damage per hit | 5.3–13.2 | 12.6–33.6 |
+| Cooldown | 3.2 → 3.0 s | 2.2 → 1.87 s |
+| Standard share, full → low HP | 66% → 53% | 60% → 42% |
+| Dodging | lands whenever in range (unchanged) | needs range + swing arc |
+
+### Code / asset changes (second pass)
+| File | Change |
+|---|---|
+| `UI/CombatUIController.cs` | `verboseDamageLogs` (off), `staminaUiStep`, stamina and timer only redrawn on a visible change |
+| `Monster/MonsterController.cs` | `Blocked!` log behind `verboseAttackLogs`; the flinch's delayed return-to-Idle no longer fires during a defend (it dropped the guard pose while the 70% reduction was still on; both levels) |
+| `Monster/MonsterAnimator.cs` | warning when a table attack names a trigger the controller does not have |
+| `Animations/Monster/Level1/Monster_L1_Sword.controller` | **New** |
+| `Animations/Monster/Level1/Sword And Shield Attack (L1).fbx`, `Sword And Shield Slash (L1).fbx` | moved from `Player_Future/SwordShield_*.fbx`, Humanoid, Y baked |
+| `Animations/Monster/Mutant Jump Attack.fbx` (import settings) | extra clip `MutantJump_HeightBaked`; `mixamo.com` unchanged |
+| `Prefabs/Monsters/Monster_Easy_HipHop.prefab` | new controller, 6-row attack table, `lowHpCooldownScale` 0.94 |
+| `Scenes/Level1_Easy.unity` | two new `CombatUIController` default fields serialized (no behaviour change) |
+
+### Open items found in this pass (not changed)
+- **Level 2: a flinch delays or drops attack animations.** `Monster_L2_Axe.controller` enters attacks only from `Idle`, and `Hit` has no way out before its exit time (0.93 s). With a body hit every 1.3 s: 8 attacks, animation started 0.10–0.97 s after the trigger, and one Horizontal Sweep dealt its damage without ever reaching its state. The Level 1 controller's two changes (`Hit → attack` transitions, interruptible blends into Idle) fix this.
+- Level 1 Spin Slash still uses the original clip, where the body does not turn and the first of its two swings crosses the player at about 0.5 s without damage; the hit is the second swing.
+- The static root capsule of the monster stays on the ground while it is airborne in Leaping Slam.
+- Swing damage still grows with every landed hit (`damagePerTapBonus` 0.35 × hits so far). By the formula a hit is worth about 90 after 154 hits; in the second trace the monster went from 150 HP to dead between two frames at that point.
+
+### Headset checks
+1. Enable `Level1_Easy` in Build Settings and move it to the top before building.
+2. Fight for a minute with the OVR Metrics overlay on: FPS and stale frames while hitting the monster steadily, compared with standing still.
+3. Watch for all six attacks; each should start the moment the red flash starts and hit when the blade reaches you. Leaping Slam: the monster should jump clear of the floor and land in front of you. Overhead Strike also hops. Judge whether either jump is too much for the Easy level (lower `weightFullHp` / `weightLowHp` on that row to make it rarer).
+4. Cut and Chop: two hits, low cut then overhead chop, about a second apart.
+5. Hit the monster while it winds up: the swing must not be cancelled. Hit it as it raises its guard: the guard pose must stay up.
 
 ---
 

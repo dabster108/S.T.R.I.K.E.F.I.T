@@ -61,7 +61,17 @@ public class CombatUIController : MonoBehaviour
     [Header("Legacy fallback")]
     public Transform damageNumberParent;
 
+    [Header("HUD refresh")]
+    [Tooltip("Stamina bar is redrawn only when it moved by this fraction of max (every change rebuilds the whole canvas).")]
+    [Range(0.005f, 0.1f)] public float staminaUiStep = 0.02f;
+
+    [Header("Debug")]
+    [Tooltip("When true and no damageNumberPrefab is assigned, every hit is written to the Console. Keep OFF for builds.")]
+    public bool verboseDamageLogs = false;
+
     private float displayedDamageTotal;
+    private float shownStamina = -1f;
+    private int shownTimerSeconds = -1;
 
     void Awake()
     {
@@ -97,11 +107,16 @@ public class CombatUIController : MonoBehaviour
 
     public void UpdateStamina(float current, float max)
     {
-        if (staminaSlider != null)
-        {
-            staminaSlider.maxValue = max;
-            staminaSlider.value = current;
-        }
+        if (staminaSlider == null) return;
+
+        // Regeneration calls this every frame. Empty / full are always shown; in between only visible steps are.
+        bool atEdge = current <= 0f || current >= max;
+        if (!atEdge && staminaSlider.maxValue == max && Mathf.Abs(current - shownStamina) < max * staminaUiStep)
+            return;
+
+        shownStamina = current;
+        staminaSlider.maxValue = max;
+        staminaSlider.value = current;
     }
 
     public void UpdateScore(int score)
@@ -117,8 +132,13 @@ public class CombatUIController : MonoBehaviour
 
     public void UpdateTimer(float secondsRemaining)
     {
-        if (timerText != null)
-            timerText.text = $"Time {Mathf.CeilToInt(secondsRemaining)}s";
+        if (timerText == null) return;
+
+        // Called every frame by RoundManager; the label only changes once a second.
+        int seconds = Mathf.CeilToInt(secondsRemaining);
+        if (seconds == shownTimerSeconds) return;
+        shownTimerSeconds = seconds;
+        timerText.text = $"Time {seconds}s";
     }
 
     /// <param name="countAsDealt">False for damage the player TAKES, so the "Dmg" HUD counter only tracks damage dealt.</param>
@@ -149,7 +169,7 @@ public class CombatUIController : MonoBehaviour
             }
             StartCoroutine(FloatAndDie(go.transform));
         }
-        else
+        else if (verboseDamageLogs)
         {
             Debug.Log($"Damage: {amount:0.0} at {worldPos}");
         }

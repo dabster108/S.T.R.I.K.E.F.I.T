@@ -881,7 +881,7 @@ PrefabInstance:
     - target: {fileID: 5866666021909216657, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
       propertyPath: m_Controller
       value: 
-      objectReference: {fileID: 9100000, guid: 39d7e25ac0966484aa17160f310d86f8, type: 2}
+      objectReference: {fileID: 9100000, guid: 0094301fd90d440028ae357500839de8, type: 2}
     - target: {fileID: 5866666021909216657, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
       propertyPath: m_ApplyRootMotion
       value: 0
@@ -1120,10 +1120,150 @@ MonoBehaviour:
   specialHitDelay: 1.5
   specialRecoverDelay: 1
   specialDamageMultiplier: 1.5
-  attackTable: []
+  attackTable:
+  - name: Slash
+    category: 0
+    animatorTrigger: Atk_Slash
+    animatorState: Atk_Slash
+    windUp: 0.9
+    followUpHits: []
+    recover: 0.6
+    damageMultiplier: 1
+    hitArc: 60
+    followUpArcs: []
+    weightFullHp: 30
+    weightLowHp: 20
+    maxHpFraction: 1
+    requiresIdleFor: 0
+    cooldown: 0
+    telegraphColor: {r: 1, g: 0.2, b: 0.2, a: 1}
+    windUpClip: {fileID: 8300000, guid: dd2135b44acba4afcaead797bb815061, type: 3}
+    windUpVolume: 0.9
+    swingClip: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+    swingVolume: 1
+    impactClip: {fileID: 0}
+    impactVolume: 1
+    fireVfx: 0
+  - name: Side Sweep
+    category: 0
+    animatorTrigger: Atk_SideSweep
+    animatorState: Atk_SideSweep
+    windUp: 0.985
+    followUpHits: []
+    recover: 0.75
+    damageMultiplier: 1
+    hitArc: 80
+    followUpArcs: []
+    weightFullHp: 22
+    weightLowHp: 15
+    maxHpFraction: 1
+    requiresIdleFor: 0
+    cooldown: 0
+    telegraphColor: {r: 1, g: 0.2, b: 0.2, a: 1}
+    windUpClip: {fileID: 8300000, guid: dd2135b44acba4afcaead797bb815061, type: 3}
+    windUpVolume: 0.9
+    swingClip: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+    swingVolume: 1
+    impactClip: {fileID: 0}
+    impactVolume: 1
+    fireVfx: 0
+  - name: Overhead Strike
+    category: 0
+    animatorTrigger: Atk_OverheadStrike
+    animatorState: Atk_OverheadStrike
+    windUp: 1.15
+    followUpHits: []
+    recover: 0.8
+    damageMultiplier: 1.1
+    hitArc: 45
+    followUpArcs: []
+    weightFullHp: 18
+    weightLowHp: 13
+    maxHpFraction: 1
+    requiresIdleFor: 0
+    cooldown: 0
+    telegraphColor: {r: 1, g: 0.2, b: 0.2, a: 1}
+    windUpClip: {fileID: 8300000, guid: dd2135b44acba4afcaead797bb815061, type: 3}
+    windUpVolume: 0.9
+    swingClip: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+    swingVolume: 1
+    impactClip: {fileID: 0}
+    impactVolume: 1
+    fireVfx: 0
+  - name: Cut and Chop
+    category: 4
+    animatorTrigger: Atk_CutAndChop
+    animatorState: Atk_CutAndChop
+    windUp: 0.89
+    followUpHits:
+    - 1.06
+    recover: 0.7
+    damageMultiplier: 0.6
+    hitArc: 60
+    followUpArcs:
+    - 45
+    weightFullHp: 8
+    weightLowHp: 16
+    maxHpFraction: 1
+    requiresIdleFor: 0
+    cooldown: 6
+    telegraphColor: {r: 1, g: 0.5, b: 0.15, a: 1}
+    windUpClip: {fileID: 8300000, guid: dd2135b44acba4afcaead797bb815061, type: 3}
+    windUpVolume: 0.9
+    swingClip: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+    swingVolume: 1
+    impactClip: {fileID: 0}
+    impactVolume: 1
+    fireVfx: 0
+  - name: Spin Slash
+    category: 1
+    animatorTrigger: Atk_SpinSlash
+    animatorState: Atk_SpinSlash
+    windUp: 1.28
+    followUpHits: []
+    recover: 0.7
+    damageMultiplier: 1.2
+    hitArc: 90
+    followUpArcs: []
+    weightFullHp: 12
+    weightLowHp: 20
+    maxHpFraction: 1
+    requiresIdleFor: 0
+    cooldown: 5
+    telegraphColor: {r: 1, g: 0.1, b: 0.1, a: 1}
+    windUpClip: {fileID: 8300000, guid: dd2135b44acba4afcaead797bb815061, type: 3}
+    windUpVolume: 0.9
+    swingClip: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+    swingVolume: 1
+    impactClip: {fileID: 0}
+    impactVolume: 1
+    fireVfx: 0
+  - name: Leaping Slam
+    category: 3
+    animatorTrigger: Atk_LeapSlam
+    animatorState: Atk_LeapSlam
+    windUp: 1.6
+    followUpHits: []
+    recover: 1.2
+    damageMultiplier: 1.5
+    hitArc: 50
+    followUpArcs: []
+    weightFullHp: 8
+    weightLowHp: 16
+    maxHpFraction: 1
+    requiresIdleFor: 0
+    cooldown: 9
+    telegraphColor: {r: 1, g: 0.08, b: 0.02, a: 1}
+    windUpClip: {fileID: 8300000, guid: dd2135b44acba4afcaead797bb815061, type: 3}
+    windUpVolume: 0.9
+    swingClip: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+    swingVolume: 1
+    impactClip: {fileID: 0}
+    impactVolume: 1
+    fireVfx: 0
   heavyPityCycles: 4
   desperationHpFraction: 0.4
-  lowHpCooldownScale: 0.85
+  lowHpCooldownScale: 0.94
   swingSfxLead: 0.12
   weaponFireVfx: {fileID: 0}
   impactBurstVfx: {fileID: 0}

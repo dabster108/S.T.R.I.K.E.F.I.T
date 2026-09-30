@@ -1055,6 +1055,8 @@ MonoBehaviour:
   damageNumberLifetime: 1
   damageNumberRiseSpeed: 1.2
   damageNumberParent: {fileID: 0}
+  staminaUiStep: 0.02
+  verboseDamageLogs: 0
 --- !u!114 &214438329
 MonoBehaviour:
   m_ObjectHideFlags: 0

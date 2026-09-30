@@ -228,7 +228,8 @@ public class MonsterController : MonoBehaviour
             // Damage reduction while defending (MonsterAI.defendDamageMultiplier, default 0.3 = 70% reduction)
             amount *= ai.defendDamageMultiplier;
             ai.NotifyDefendedHit(hitPoint);
-            Debug.Log($"[Monster] Blocked! Reduced damage to {amount:0.#}");
+            if (ai.verboseAttackLogs)
+                Debug.Log($"[Monster] Blocked! Reduced damage to {amount:0.#}");
         }
 
         health.TakeDamage(amount, hitPoint);
@@ -247,7 +248,9 @@ public class MonsterController : MonoBehaviour
 
     void ReturnToIdleIfAlive()
     {
-        if (isAlive && !isAttacking)
+        // A defend that began during the flinch owns the Animator: sending Idle now would drop the guard pose
+        // while the damage reduction is still active.
+        if (isAlive && !isAttacking && !(ai != null && ai.IsDefending))
             SetAnimState(MonsterAnimState.Idle);
     }
 

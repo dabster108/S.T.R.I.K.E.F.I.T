@@ -9,7 +9,7 @@ Players fight monsters with VR weapons powered by real fitness movement.
 
 | Level | Scene | Environment | Player weapons | Monster weapon | Monster |
 |---|---|---|---|---|---|
-| 1 Easy | `Level1_Easy` ✅ built | Lite Dungeon Pack (Gridness) | Dual hammers | Sword | Hip Hop prefab (Warrok mesh) |
+| 1 Easy | `Level1_Easy` ✅ built | Lite Dungeon Pack (Gridness) | Dual hammers | Sword (6-attack table + defend) | Hip Hop prefab (Warrok mesh) |
 | 2 Medium | `Level2_Medium` ✅ built | Lite Dungeon Pack, night sky | Dual swords | Two-handed axe (10-attack table + defend) | Vampire A Lusth |
 | 3 Hard | `Level3_Hard` shell | Old Sea Port | Flexible | Hammer | TBD |
 
@@ -58,6 +58,8 @@ Assets/Scripts/
 | Hip Hop | `Assets/Models/Monsters/Hip Hop Dancing.fbx` |
 | Warrok | `Assets/Models/Monsters/Two Handed Sword Death.fbx` |
 | Vampire (L2) | `Assets/Models/Monsters/Level2/` (+ extracted `Textures/`) |
+| L1 monster animator + L1-only clips | `Assets/Animations/Monster/Level1/` (`Monster_L1_Sword.controller`) |
+| L2 monster animator + L2 clips | `Assets/Animations/Monster/Level2/` (`Monster_L2_Axe.controller`) |
 | L2 swords / axe | `Assets/Models/Weapons/Player/L2_PlayerSword_Split.asset`, `Assets/Models/Weapons/Monster/L2_MonsterAxe_Split.asset` |
 | L2 audio / VFX | `Assets/Audio/SFX/Level2/`, `Assets/VFX/Level2/` |
 | Lite Dungeon | `Assets/Gridness Studios/Elementary Dungeon Pack Lite/` (do not move) |
