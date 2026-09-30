@@ -209,13 +209,32 @@ export const AnalyticsSkeleton = () =>
     </>
   );
 
+// Same grid as the Compare page: two diff cards, the "who leads" strip, then the chart rows.
 export const CompareSkeleton = () =>
   wrap(
     "Loading comparison",
-    <div className="grid gap-6 xl:grid-cols-2">
-      <ChartBox h="h-72" />
-      <ChartBox h="h-72" />
-    </div>
+    <>
+      <div className="grid gap-6 xl:grid-cols-12">
+        <ChartBox className="xl:col-span-7" h="h-72" />
+        <ChartBox className="xl:col-span-5" h="h-72" />
+      </div>
+      <Box className="space-y-4 p-5">
+        <Skeleton className="h-3.5 w-28" />
+        <div className="flex items-end justify-between">
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-20" />
+        </div>
+        <Skeleton className="h-3 w-full rounded-full" />
+      </Box>
+      <div className="grid gap-6 xl:grid-cols-12">
+        <ChartBox className="xl:col-span-8" h="h-64" />
+        <ChartBox className="xl:col-span-4" h="h-64" />
+      </div>
+      <div className="grid gap-6 xl:grid-cols-12">
+        <ChartBox className="xl:col-span-5" />
+        <ChartBox className="xl:col-span-7" />
+      </div>
+    </>
   );
 
 export const SessionDetailSkeleton = () =>

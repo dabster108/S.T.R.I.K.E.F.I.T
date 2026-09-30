@@ -1,24 +1,30 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api.js";
+import { isNum, levelSide, localDay, playerSide } from "../lib/compare.js";
 import { formatDuration, formatNumber, formatPercent } from "../lib/format.js";
 import { useApi } from "../hooks/useApi.js";
 import { useLiveMessages } from "../live/LiveProvider.jsx";
-import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
+import { Card, CardHeader, PageHeader, SectionRule } from "../components/ui/Card.jsx";
 import { SegmentedControl, Select } from "../components/ui/Controls.jsx";
 import { EmptyState } from "../components/ui/Feedback.jsx";
 import { CompareSkeleton } from "../components/ui/Skeletons.jsx";
 import Icon from "../components/ui/Icon.jsx";
+import { SIDE_A, SIDE_B } from "../components/compare/shared.jsx";
+import LeadStrip from "../components/compare/LeadStrip.jsx";
+import TrendCard from "../components/compare/TrendCard.jsx";
+import { OutcomeCompareCard, TierCompareCard } from "../components/compare/ShareBars.jsx";
+import LevelBreakdown from "../components/compare/LevelBreakdown.jsx";
+import RoundEffort from "../components/compare/RoundEffort.jsx";
+import ActivityCard from "../components/compare/ActivityCard.jsx";
+import BestsCard from "../components/compare/BestsCard.jsx";
 
-const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const speed = (v) => `${v.toFixed(1)} m/s`;
 const pct = (r) => (isNum(r) ? r * 100 : null);
 const MODES = [
   { id: "players", label: "Two players" },
   { id: "levels", label: "Level 1 vs Level 2" },
 ];
-const SIDE_A = { color: "var(--level-1)", soft: "bg-[var(--accent-soft)]", ring: "ring-[var(--accent-ring)]", text: "text-[var(--accent-strong)]" };
-const SIDE_B = { color: "var(--level-2)", soft: "bg-amber-50", ring: "ring-amber-200", text: "text-amber-800" };
 
 // Effort (how hard they swing) and engagement (how much they play) from one profile.
 function metrics(p) {
@@ -27,12 +33,13 @@ function metrics(p) {
   const hits = done.reduce((a, s) => a + (s.hitCount || 0), 0);
   return {
     sessions: p.totals.sessions,
-    days: new Set(p.sessions.map((s) => String(s.startedAt).slice(0, 10))).size,
+    days: new Set(p.sessions.map((s) => localDay(s.startedAt))).size,
     secs,
     winRate: p.totals.winRate,
     avgScore: done.length ? done.reduce((a, s) => a + s.score, 0) / done.length : null,
-    avgDamage: done.length ? done.reduce((a, s) => a + s.damageDealt, 0) / done.length : null,
-    hitsPerMin: secs ? (hits / secs) * 60 : null,
+    // Early builds reported neither hits nor damage: with no hit on record these are unknown, not zero.
+    avgDamage: done.length && hits ? done.reduce((a, s) => a + s.damageDealt, 0) / done.length : null,
+    hitsPerMin: secs && hits ? (hits / secs) * 60 : null,
     avgSpeed: p.totals.avgSwingSpeed,
     full: pct(p.totals.fullPowerRatio),
     samples: p.totals.swingSamples,
@@ -168,13 +175,47 @@ function Split({ a, b }) {
 
 const facts = (m) => (m ? [["Sessions", formatNumber(m.sessions)], ["Win rate", isNum(m.winRate) ? formatPercent(m.winRate) : "—"], ["Avg swing", isNum(m.avgSpeed) && m.samples ? speed(m.avgSpeed) : "—"]] : null);
 
+// A numbered block of panels, like the sections on the Analytics and Player pages.
+function Section({ index, title, children }) {
+  return (
+    <section className="space-y-4">
+      <SectionRule index={index} title={title} />
+      {children}
+    </section>
+  );
+}
+
 function PlayersCompare({ a, b, setParam, names }) {
   const pa = useApi(() => (a ? api.player(a) : Promise.resolve(null)), [a]);
   const pb = useApi(() => (b ? api.player(b) : Promise.resolve(null)), [b]);
   const opts = [{ id: "", label: "Choose a player" }, ...names.map((n) => ({ id: n, label: n }))];
-  const ma = pa.data && metrics(pa.data);
-  const mb = pb.data && metrics(pb.data);
+  // useApi keeps the previous response while the next one loads; after switching players that
+  // is someone else's profile, so only a profile for the name in the URL counts.
+  const da = pa.data?.playerName === a ? pa.data : null;
+  const db = pb.data?.playerName === b ? pb.data : null;
+  const ma = useMemo(() => da && metrics(da), [da]);
+  const mb = useMemo(() => db && metrics(db), [db]);
+  const sa = useMemo(() => da && playerSide(da), [da]);
+  const sb = useMemo(() => db && playerSide(db), [db]);
   const ready = a && b && a !== b;
+  const failed = [
+    [pa, a],
+    [pb, b],
+  ].find(([r]) => !r.loading && r.error);
+
+  const effort = ma && mb && [
+    { label: "Avg swing speed", a: ma.samples ? ma.avgSpeed : null, b: mb.samples ? mb.avgSpeed : null, fmt: speed, hint: `${formatNumber(ma.samples)} vs ${formatNumber(mb.samples)} measured hits` },
+    { label: "Full-power swings", a: ma.full, b: mb.full, fmt: formatPercent },
+    { label: "Hits per minute", a: ma.hitsPerMin, b: mb.hitsPerMin, fmt: (v) => v.toFixed(1) },
+    { label: "Avg damage", a: ma.avgDamage, b: mb.avgDamage, fmt: formatNumber, hint: "per session" },
+  ];
+  const engagement = ma && mb && [
+    { label: "Sessions", a: ma.sessions, b: mb.sessions, fmt: formatNumber },
+    { label: "Days played", a: ma.days, b: mb.days, fmt: formatNumber },
+    { label: "Time in fights", a: ma.secs, b: mb.secs, fmt: formatDuration },
+    { label: "Win rate", a: ma.winRate, b: mb.winRate, fmt: formatPercent },
+    { label: "Avg score", a: ma.avgScore, b: mb.avgScore, fmt: formatNumber },
+  ];
 
   return (
     <>
@@ -186,44 +227,43 @@ function PlayersCompare({ a, b, setParam, names }) {
         <Card>
           <EmptyState icon="compare" title={a && a === b ? "Pick two different players" : "Pick two players"} description="Each row is scaled on its own, so different units never share an axis." />
         </Card>
-      ) : pa.error || pb.error ? (
+      ) : failed ? (
         <Card>
-          <EmptyState icon="players" title="One of these profiles isn't available" description="It loads as soon as the server answers, or pick another player." />
+          {failed[0].error.status === 404 ? (
+            <EmptyState icon="players" title={`No sessions for ${failed[1]} yet`} description="Names must match exactly, including spaces and capitals. Pick another player above." />
+          ) : (
+            <EmptyState icon="players" title="One of these profiles isn't available" description="It loads as soon as the server answers, or pick another player." />
+          )}
         </Card>
       ) : !ma || !mb ? (
-        <div className="grid gap-6 xl:grid-cols-12" aria-busy="true">
-          <div className="skeleton h-80 w-full rounded-2xl xl:col-span-7" />
-          <div className="skeleton h-80 w-full rounded-2xl xl:col-span-5" />
-        </div>
+        <CompareSkeleton />
       ) : (
-        <div key={`${a}|${b}`} className="grid gap-6 xl:grid-cols-12">
-          <DiffCard
-            className="xl:col-span-7"
-            title="Effort"
-            subtitle="How hard they swing when they play"
-            a={a}
-            b={b}
-            rows={[
-              { label: "Avg swing speed", a: ma.samples ? ma.avgSpeed : null, b: mb.samples ? mb.avgSpeed : null, fmt: speed, hint: `${formatNumber(ma.samples)} vs ${formatNumber(mb.samples)} measured hits` },
-              { label: "Full-power swings", a: ma.full, b: mb.full, fmt: formatPercent },
-              { label: "Hits per minute", a: ma.hitsPerMin, b: mb.hitsPerMin, fmt: (v) => v.toFixed(1) },
-              { label: "Avg damage", a: ma.avgDamage, b: mb.avgDamage, fmt: formatNumber, hint: "per session" },
-            ]}
-          />
-          <DiffCard
-            className="xl:col-span-5"
-            title="Engagement and results"
-            subtitle="How much they play, and how it goes"
-            a={a}
-            b={b}
-            rows={[
-              { label: "Sessions", a: ma.sessions, b: mb.sessions, fmt: formatNumber },
-              { label: "Days played", a: ma.days, b: mb.days, fmt: formatNumber },
-              { label: "Time in fights", a: ma.secs, b: mb.secs, fmt: formatDuration },
-              { label: "Win rate", a: ma.winRate, b: mb.winRate, fmt: formatPercent },
-              { label: "Avg score", a: ma.avgScore, b: mb.avgScore, fmt: formatNumber },
-            ]}
-          />
+        <div key={`${a}|${b}`} className="space-y-10">
+          <Section index="01" title="Head to head">
+            <div className="grid gap-6 xl:grid-cols-12">
+              <DiffCard className="xl:col-span-7" title="Effort" subtitle="How hard they swing when they play" a={a} b={b} rows={effort} />
+              <DiffCard className="xl:col-span-5" title="Engagement and results" subtitle="How much they play, and how it goes" a={a} b={b} rows={engagement} />
+            </div>
+            <LeadStrip rows={[...effort, ...engagement]} a={a} b={b} />
+          </Section>
+          <Section index="02" title="Fight by fight">
+            <div className="grid gap-6 xl:grid-cols-12">
+              <TrendCard className="xl:col-span-8" a={sa} b={sb} levelFilter />
+              <OutcomeCompareCard className="xl:col-span-4" a={sa} b={sb} />
+            </div>
+          </Section>
+          <Section index="03" title="Swing power and levels">
+            <div className="grid gap-6 xl:grid-cols-12">
+              <TierCompareCard className="xl:col-span-5" a={sa} b={sb} />
+              <LevelBreakdown className="xl:col-span-7" a={sa} b={sb} />
+            </div>
+          </Section>
+          <Section index="04" title="Consistency and records">
+            <div className="grid gap-6 xl:grid-cols-12">
+              <ActivityCard className="xl:col-span-7" a={sa} b={sb} />
+              <BestsCard className="xl:col-span-5" a={sa} b={sb} />
+            </div>
+          </Section>
         </div>
       )}
     </>
@@ -232,20 +272,38 @@ function PlayersCompare({ a, b, setParam, names }) {
 
 function LevelsCompare() {
   const { data, error } = useApi(() => api.analytics(), []);
+  // Per-fight figures (scores, outcomes, dates) are not in the analytics aggregates.
+  const sessions = useApi(() => api.sessions(), []);
+  const sa = useMemo(() => data && levelSide("Easy", "Level 1", sessions.data, data), [data, sessions.data]);
+  const sb = useMemo(() => data && levelSide("Medium", "Level 2", sessions.data, data), [data, sessions.data]);
   if (error && !data)
     return (
       <Card>
         <EmptyState icon="layers" title="Level data will appear here" description="It loads as soon as the server answers." />
       </Card>
     );
-  if (!data) return <CompareSkeleton />;
+  if (!data || (!sessions.data && !sessions.error)) return <CompareSkeleton />;
   const by = Object.fromEntries(data.levelComparison.map((l) => [l.level, l]));
   const [l1, l2] = [by.Easy, by.Medium];
   const lf = (l) => (l?.sessions ? [["Finished", formatNumber(l.sessions)], ["Win rate", isNum(l.winRate) ? formatPercent(l.winRate) : "—"], ["Avg swing", isNum(l.avgSwingSpeed) ? speed(l.avgSwingSpeed) : "—"]] : null);
+  const both = l1?.sessions && l2?.sessions;
+  const effort = both && [
+    { label: "Avg swing speed", a: l1.avgSwingSpeed, b: l2.avgSwingSpeed, fmt: speed, hint: `${formatNumber(l1.swingSamples)} vs ${formatNumber(l2.swingSamples)} measured hits` },
+    { label: "Full-power swings", a: pct(l1.fullPowerRatio), b: pct(l2.fullPowerRatio), fmt: formatPercent },
+    { label: "Hits per minute", a: l1.hitsPerMinute, b: l2.hitsPerMinute, fmt: (v) => v.toFixed(1) },
+    { label: "Damage per hit", a: l1.damagePerHit, b: l2.damagePerHit, fmt: (v) => v.toFixed(1) },
+  ];
+  const engagement = both && [
+    { label: "Finished sessions", a: l1.sessions, b: l2.sessions, fmt: formatNumber },
+    { label: "Avg length", a: l1.avgSessionSec, b: l2.avgSessionSec, fmt: formatDuration },
+    { label: "Win rate", a: l1.winRate, b: l2.winRate, fmt: formatPercent },
+    { label: "Avg score", a: l1.avgScore, b: l2.avgScore, fmt: formatNumber },
+  ];
+  const phases = (level) => data.effortOverSession.find((e) => e.level === level)?.phases;
   return (
     <>
       <Split a={{ initials: "L1", kicker: "Level 1", label: "Easy", facts: lf(l1) }} b={{ initials: "L2", kicker: "Level 2", label: "Medium", facts: lf(l2) }} />
-      {!l1?.sessions || !l2?.sessions ? (
+      {!both ? (
         <Card>
           <EmptyState
             icon="compare"
@@ -254,33 +312,40 @@ function LevelsCompare() {
           />
         </Card>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-12">
-          <DiffCard
-            className="xl:col-span-7"
-            title="Effort"
-            subtitle="How hard people swing on each level"
-            a="Level 1"
-            b="Level 2"
-            rows={[
-              { label: "Avg swing speed", a: l1.avgSwingSpeed, b: l2.avgSwingSpeed, fmt: speed, hint: `${formatNumber(l1.swingSamples)} vs ${formatNumber(l2.swingSamples)} measured hits` },
-              { label: "Full-power swings", a: pct(l1.fullPowerRatio), b: pct(l2.fullPowerRatio), fmt: formatPercent },
-              { label: "Hits per minute", a: l1.hitsPerMinute, b: l2.hitsPerMinute, fmt: (v) => v.toFixed(1) },
-              { label: "Damage per hit", a: l1.damagePerHit, b: l2.damagePerHit, fmt: (v) => v.toFixed(1) },
-            ]}
-          />
-          <DiffCard
-            className="xl:col-span-5"
-            title="Engagement and results"
-            subtitle="How long fights last, and how they end"
-            a="Level 1"
-            b="Level 2"
-            rows={[
-              { label: "Finished sessions", a: l1.sessions, b: l2.sessions, fmt: formatNumber },
-              { label: "Avg length", a: l1.avgSessionSec, b: l2.avgSessionSec, fmt: formatDuration },
-              { label: "Win rate", a: l1.winRate, b: l2.winRate, fmt: formatPercent },
-              { label: "Avg score", a: l1.avgScore, b: l2.avgScore, fmt: formatNumber },
-            ]}
-          />
+        <div className="space-y-10">
+          <Section index="01" title="Head to head">
+            <div className="grid gap-6 xl:grid-cols-12">
+              <DiffCard className="xl:col-span-7" title="Effort" subtitle="How hard people swing on each level" a="Level 1" b="Level 2" rows={effort} />
+              <DiffCard className="xl:col-span-5" title="Engagement and results" subtitle="How long fights last, and how they end" a="Level 1" b="Level 2" rows={engagement} />
+            </div>
+            <LeadStrip rows={[...effort, ...engagement]} a="Level 1" b="Level 2" />
+          </Section>
+          {sessions.data ? (
+            <Section index="02" title="Fight by fight">
+              <div className="grid gap-6 xl:grid-cols-12">
+                <TrendCard className="xl:col-span-8" a={sa} b={sb} metrics={["score", "damage", "hits", "length"]} />
+                <OutcomeCompareCard className="xl:col-span-4" a={sa} b={sb} />
+              </div>
+            </Section>
+          ) : (
+            <Card>
+              <EmptyState icon="history" title="Fight history will appear here" description="Scores, outcomes and dates of each fight load as soon as the server answers." />
+            </Card>
+          )}
+          <Section index={sessions.data ? "03" : "02"} title="Swing power">
+            <div className="grid gap-6 xl:grid-cols-12">
+              <TierCompareCard className="xl:col-span-5" a={sa} b={sb} />
+              <RoundEffort className="xl:col-span-7" a={{ label: "Level 1", phases: phases("Easy") }} b={{ label: "Level 2", phases: phases("Medium") }} />
+            </div>
+          </Section>
+          {sessions.data && (
+            <Section index="04" title="Consistency and records">
+              <div className="grid gap-6 xl:grid-cols-12">
+                <ActivityCard className="xl:col-span-7" a={sa} b={sb} />
+                <BestsCard className="xl:col-span-5" title="Level records" a={sa} b={sb} records={["score", "damage", "hits", "peak", "longest", "fastestWin"]} />
+              </div>
+            </Section>
+          )}
         </div>
       )}
     </>
@@ -318,7 +383,7 @@ export default function CompareView() {
       <PageHeader
         eyebrow="Research"
         title="Compare"
-        description="Two players, or the two playable levels, side by side on effort (how hard people swing) and engagement (how much they play)."
+        description="Two players, or the two playable levels, side by side: effort (how hard people swing), engagement (how much they play), and how their fights go over time."
         actions={<SegmentedControl label="Compare" options={MODES} value={mode} onChange={(v) => setParam("mode", v)} />}
       />
       {mode === "levels" ? <LevelsCompare /> : <PlayersCompare a={params.get("a") || ""} b={params.get("b") || ""} setParam={setParam} names={names} />}

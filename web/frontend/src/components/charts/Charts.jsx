@@ -38,7 +38,8 @@ export function Legend({ items, shape = "rect" }) {
   );
 }
 
-function Tooltip({ tip, width }) {
+// tip: { x, y, title, rows: [{ label, color, value, note }] } in the container's own pixels.
+export function Tooltip({ tip, width }) {
   if (!tip) return null;
   return (
     <div
@@ -48,11 +49,14 @@ function Tooltip({ tip, width }) {
     >
       {tip.title && <p className="mb-1 font-semibold text-[var(--muted)]">{tip.title}</p>}
       {tip.rows.map((r) => (
-        <p key={r.label} className="flex items-center gap-2">
-          <span className="h-0.5 w-3 rounded-full" style={{ background: r.color }} aria-hidden />
-          <span className="font-bold tabular-nums text-[var(--ink)]">{r.value}</span>
-          <span className="truncate text-[var(--ink-secondary)]">{r.label}</span>
-        </p>
+        <div key={r.label}>
+          <p className="flex items-center gap-2">
+            <span className="h-0.5 w-3 shrink-0 rounded-full" style={{ background: r.color }} aria-hidden />
+            <span className="font-bold tabular-nums text-[var(--ink)]">{r.value}</span>
+            <span className="truncate text-[var(--ink-secondary)]">{r.label}</span>
+          </p>
+          {r.note && <p className="truncate pl-5 text-[var(--muted)]">{r.note}</p>}
+        </div>
       ))}
     </div>
   );
@@ -82,8 +86,12 @@ function SrTable({ caption, head, rows }) {
   );
 }
 
-/** series: [{ key, label, color, points: [{ x, y }] }] with numeric x. */
-export function LineChart({ series, height = 220, xFormat = fmtDefault, yFormat = fmtDefault, xTicks: xTicksProp, yDomain, caption = "Line chart", markers = "auto", step = false }) {
+/**
+ * series: [{ key, label, color, points: [{ x, y, note }] }] with numeric x. A point's `note` is a second
+ * tooltip line. `exact` lists only the points at the hovered x ("—" for a series without one) instead of
+ * each series' nearest point, for series that share an x scale but not a length.
+ */
+export function LineChart({ series, height = 220, xFormat = fmtDefault, yFormat = fmtDefault, xTicks: xTicksProp, yDomain, caption = "Line chart", markers = "auto", step = false, exact = false }) {
   const [ref, width] = useElementWidth();
   const [tip, setTip] = useState(null);
   const pad = { t: 14, r: 16, b: 28, l: 44 };
@@ -113,9 +121,11 @@ export function LineChart({ series, height = 220, xFormat = fmtDefault, yFormat 
       if (!s.points.length) continue;
       const p = s.points.reduce((a, b) => (Math.abs(b.x - x) < Math.abs(a.x - x) ? b : a));
       if (nearest === null || Math.abs(p.x - x) < Math.abs(nearest - x)) nearest = p.x;
-      rows.push({ label: s.label, color: s.color, value: yFormat(p.y), p });
+      rows.push({ label: s.label, color: s.color, value: yFormat(p.y), note: p.note, p });
     }
-    if (nearest !== null) setTip({ x: sx(nearest), y: pad.t, title: xFormat(nearest), rows });
+    if (nearest === null) return;
+    const shown = exact ? rows.map((r) => (r.p.x === nearest ? r : { label: r.label, color: r.color, value: "—", p: null })) : rows;
+    setTip({ x: sx(nearest), y: pad.t, title: xFormat(nearest), rows: shown });
   };
 
   return (
@@ -175,7 +185,7 @@ export function LineChart({ series, height = 220, xFormat = fmtDefault, yFormat 
                     />
                   );
                 })}
-              {!showMarkers && tip?.rows.filter((r) => r.label === s.label).map((r) => (
+              {!showMarkers && tip?.rows.filter((r) => r.label === s.label && r.p).map((r) => (
                 <circle key="hot" cx={sx(r.p.x)} cy={sy(r.p.y)} r="5" fill="var(--surface)" stroke={s.color} strokeWidth="2.5" />
               ))}
             </g>
