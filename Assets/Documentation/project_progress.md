@@ -1,6 +1,99 @@
 # Project Progress — Fitness Monster Battle
 
-Last updated: **2026-09-27 — Level 2 final pre-demo check (live Unity MCP + Play-mode physics traces)**
+Last updated: **2026-09-30 — Level 1 full-body hits, exertion breathing, body block, 3 new Level 2 attacks (live Unity MCP + Play-mode traces)**
+
+---
+
+## 2026-09-30 — L1 hit coverage, breathing, block vs parry, new L2 attacks
+
+Everything below was inspected on the runtime objects (spawned prefab clones) and exercised in Play mode at 1/72 s steps: weapons moved through the monster with real trigger contacts, attacks forced through `MonsterAI.DebugForceAttack`, Animator state + axe-head position sampled every frame. **Swing feel, loudness and readability still need the headset.**
+
+### A4. Level 1 — hammer hits not registering (FIXED)
+**Found (runtime `Monster_Easy_HipHop(Clone)`):** 2 colliders only — root `CapsuleCollider` c (0,1,0) r 0.42 h 2.0 (non-trigger, tag `Monster`, static, does not follow the animation) and `MonsterSword` trigger box (tag `MonsterWeapon`). The Warrok mesh is 1.4 m wide and leans 1.0 m forward: only **34% of its vertices were inside the capsule**; head 4 cm, forearms 31–41 cm, hands 41–47 cm outside it. So a hammer visibly connecting with the head, arms or hands touched nothing.
+Not the cause: hammer colliders (trigger box 0.27 × 0.19 × 0.24 m on the head, both hands, kinematic Rigidbody — unchanged since the earlier fix), tags (`HitDetection` checks `MonsterWeapon` for clash, otherwise any collider under a `MonsterController`), layers (everything Default, collision matrix has no ignored pairs), cooldown (0.35 s per hammer).
+Second cause, in `HitDetection`: a contact was evaluated **once, on `OnTriggerEnter`**. If that moment was rejected (below 1.2 m/s, or inside the 0.35 s cooldown that a sword clash or the other body part had just started) the hit was lost until the hammer left the monster and came back.
+**Fix:**
+- `Monster_Easy_HipHop.prefab`: 13 bone-following `HitVol_*` capsules (non-trigger, Untagged), fitted to the skinned mesh per body part by the new `Assets/Editor/MonsterHitVolumeBuilder.cs` (menu *Tools ▸ Monster ▸ Rebuild Body Hit Volumes*): Hips r 0.31, Chest r 0.41, Head r 0.14, upper arms r 0.20 / 0.27, forearms+hands r 0.13 / 0.16, thighs r 0.17, shins r 0.10, feet r 0.11 / 0.13. Root capsule kept. Sword collider untouched.
+- `HitDetection`: `OnTriggerStay` retries a rejected contact while the weapon is still inside the monster; one landed hit per swing (re-arms when the hand slows below the gate), clash still only on entry. A swing that clashed cannot score through the retry path, so a parry stays a parry. Applies to both levels.
+**Verified:** 98.5% of mesh vertices are now within 8 cm of a body collider (hammer head is 19–27 cm). Real contacts at 3.5 m/s, both hammers: chest, head, L forearm, R upper arm, L hand, L thigh, R shin, L foot, belly, R thigh, L upper arm — **11/11 dealt damage (21–29)**. Sword blade → `Clash`, 0 damage. Entering the chest at 0.6 m/s → 0 damage (too slow), then swinging at 3.5 m/s without leaving → hit 26.8.
+
+### A1. Player heavy breathing — `Player/PlayerExertionAudio.cs` on `OVRCameraRig` (Level 1 + Level 2)
+Clip `Audio/SFX/Player/ribhavagrawal-heavy-breathing-294195.mp3` (8.15 s, mono) on a dedicated looping 2D `AudioSource` (child `PlayerBreathingAudio`).
+Logic: every swing attempt counts, hit or miss (hand speed from `PlayerCombat` ≥ `swingTriggerSpeed`, re-armed below `swingRearmSpeed`, each hand separately). Swings are kept for `exertionWindow` seconds. Breathing starts when `swingsToStart` are inside the window and continues while at least `swingsToSustain` are. While exerting, `sustainedSeconds` grows and volume goes `startVolume → maxVolume` over `rampSeconds`. No swing for `restSeconds` → volume fades to 0 and `sustainedSeconds` drops by `recoveryRate`/s. Battle not active (pre-battle, victory, defeat) → everything reset and faded out in `battleEndFadeSeconds`.
+| Inspector value | Now |
+|---|---|
+| startVolume / maxVolume | 0.10 / 0.30 (clip peak 0.98 → 0.29 at the cap; hit SFX play at 0.8–1.0, music 0.03–0.08) |
+| swingTriggerSpeed / swingRearmSpeed | 2.0 / 1.2 m/s |
+| exertionWindow | 12 s |
+| swingsToStart / swingsToSustain | 8 / 5 |
+| rampSeconds | 25 s |
+| restSeconds / recoveryRate | 3 s / 2.5 |
+| fadeInSeconds / fadeDownSeconds / battleEndFadeSeconds | 2 / 4 / 0.3 s |
+**Verified (L2, sword swung at 1.2 swings/s):** silent until the 8th swing (≈7 s) → 0.12 at 9 s → 0.20 at 19 s → cap 0.30 at 33 s and held. Stop swinging: held 3 s, then 0.30 → 0 in 4 s, source stopped. Resume: back on at the 8th swing. Victory: 0.265 → 0 in 0.28 s and stays 0.
+
+### A2. Level 2 — normal hit vs body block vs parry
+| Case | Found | Now (measured, 3.5 m/s) |
+|---|---|---|
+| Body, monster not defending | full damage, sword-slice sound, flinch | unchanged: `Hit`, 15.7 dmg, flinch |
+| Body, monster defending | damage ×0.3, monster's block clang + white flash, **but the normal sword-slice hit sound also played on top** | `Blocked`, 15.7 → 4.7 (×0.30), **no slice sound**: only the block clang (`L2_Defend_Block`) + white flash on the blue defend tint, no flinch |
+| Monster weapon (axe head / haft), defending or not | 0 damage, `swords-collide` | unchanged: `Clash`, 0 dmg |
+`HitDetection.blockedHitSound` (optional, empty) lets a weapon play its own blocked sound instead. `HitDetection.LastResult` (`TooSlow / Clash / Blocked / Hit`) exposes the outcome for checks.
+
+### A3. Level 2 attacks — 10 in the table (was 7)
+Clips under `Animations/Monster/` and their use:
+| Clip | Rig | Used by |
+|---|---|---|
+| Standing Melee Attack Horizontal | Humanoid | L2 Horizontal Sweep |
+| Great Sword Slash | Humanoid | L2 Diagonal Slash, L1 Attack |
+| Monster_SwordAttack (= One Hand Sword Combo, 3 swings) | Humanoid | L2 Backhand Cut (swing 1), **Overhead Chop (swing 2)**, **Lunging Cleave (swing 3)** |
+| Standing Melee Combo Attack Ver. 3 | Humanoid | L2 Twin Strike |
+| Standing Melee Combo Attack Ver. 1 | Humanoid | **L2 Reaping Combo** (was unused by the L2 controller) |
+| Great Sword High Spin Attack | Humanoid | L2 Whirlwind Spin, L1 AttackHeavy |
+| Standing Melee Attack Downward | Humanoid | L2 Executioner Slam |
+| Standing Melee Run Jump Attack | Humanoid | L2 Leaping Cleave |
+| Mutant Jump Attack | Humanoid | L1 AttackSpecial only (jump slam, same idea as Leaping Cleave — not added) |
+| Great Sword Impact / Monster_HitReaction / Monster_SwordIdle / Two Handed Sword Death | Humanoid | Defend / Hit / Idle / Death |
+| Great Sword Idle, Hit Reaction, One Hand Sword Combo | Generic | unused duplicates |
+
+**Spin.** The only spin clip is Great Sword High Spin, already in the table as Whirlwind Spin. Found: the Animator has root motion off and the clip's turn was root motion, so **the body never turned** (hips yaw stayed within −11…39°) and the damage frame was 0.07 s early. Fixed with a second clip on the same FBX, `GreatSwordSpin_RotationBaked` (root rotation baked into the pose; the original `mixamo.com` clip is untouched, so Level 1 looks the same): the body now turns a full 360°, damage frame moved 0.97 → 1.04 s (axe 1.31 m in front). Weight 7→18 changed to **4→30**: measured share 9% at full HP → 18% at 15% HP. A second, different spin needs a new clip.
+
+**New attacks.**
+| Attack | Category | Clip / state | Speed · entry | Wind-up → hits | Dmg ×16.8 | Arc | Weight full→0 HP | Rules |
+|---|---|---|---|---|---|---|---|---|
+| Reaping Combo | Combo (2 hits) | Combo Ver. 1 (`MeleeComboV1_RotationBaked`) / `Atk_ReapCombo` | 1.15 · 1.03 s | 0.835 s, then +0.83 s | 0.8 = 13.4 ×2 | 80° then 45° | 8→16 | 5 s cooldown |
+| Lunging Cleave | Standard | Monster_SwordAttack swing 3 / `Atk_LungeCleave` | 1.0 · 2.40 s | 0.63 s | 1.1 = 18.5 | 35° | 11→6 | |
+| Overhead Chop | Standard | Monster_SwordAttack swing 2 / `Atk_OverheadChop` | 0.95 · 1.45 s | 0.61 s | 1.0 = 16.8 | 40° | 9→5 | |
+Reaping Combo is a spinning low sweep (body turns ~230° through the hit) followed by a rising cut; each hit checks range, its own arc and the player's block separately (`AttackDefinition.followUpArcs` is new). Hit timing: axe-head position sampled per frame in Play mode, damage frame placed where the head is furthest forward — measured at the damage frames: 1.27 m / 0.98 m (Reaping), 1.24 m (Lunge), 0.90 m (Chop).
+Other weights: Sweep 24→14, Diagonal 20→11, Backhand 14→8 (standard total still 78→44), Executioner Slam 7→14. Twin Strike, Leaping Cleave unchanged.
+
+**Animator (`Monster_L2_Axe.controller`), checked for all 10:** each attack has its own trigger and an `Idle → state` transition (no exit time), `state → Idle` on the `Idle` trigger plus an exit-time fallback; **Any State → Death only**. Forced run of all 10: every one went `Idle → own state → Idle` and landed its hits (2/2 for both combos). Natural 75 s fight with the AI choosing (HP stepped 100% → 55% → 30%): 28 attacks, each reached its own state (0 mismatches), 8 of the 10 attacks seen, 13 defends, longest time away from Idle 2.2 s (nothing stuck).
+**Selection (3 000 picks per HP step, real `ChooseFromTable`):**
+| Monster HP | Standard | Combo | Heavy + slam + special | Whirlwind | Reaping Combo |
+|---|---|---|---|---|---|
+| 100% | 60% | 16% | 24% | 9% | 6% |
+| 60% | 52% | 19% | 29% | 17% | 8% |
+| 35% | 46% | 20% | 34% | 15% | 9% |
+| 15% | 42% | 21% | 37% | 18% | 10% |
+0 immediate repeats; first pick after crossing 40% HP is still Leaping Cleave.
+
+### Code / asset changes
+| File | Change |
+|---|---|
+| `Combat/HitDetection.cs` | `OnTriggerStay` retry, one hit per swing, body-block feedback, `blockedHitSound`, `LastResult` / `LastDamage` |
+| `Monster/MonsterAI.cs` | `AttackDefinition.followUpArcs` |
+| `Player/PlayerExertionAudio.cs` | **New** |
+| `Editor/MonsterHitVolumeBuilder.cs` | **New** (editor only) |
+| `Prefabs/Monsters/Monster_Easy_HipHop.prefab` | 13 `HitVol_*` capsules |
+| `Prefabs/Monsters/Monster_Medium_VampireLust.prefab` | attack table 7 → 10, weights, Whirlwind wind-up |
+| `Animations/Monster/Level2/Monster_L2_Axe.controller` | 3 states + triggers, Whirlwind uses the rotation-baked clip |
+| `Great Sword High Spin Attack.fbx`, `Standing Melee Combo Attack Ver. 1.fbx` (import settings) | extra `*_RotationBaked` clip each |
+| `Scenes/Level1_Easy`, `Scenes/Level2_Medium` | `PlayerExertionAudio` + `PlayerBreathingAudio` on `OVRCameraRig` |
+
+### Headset checks
+1. Level 1: hit the monster on the chest, an arm and a leg (and the head) — each should take HP off. Hit its sword — clash, no damage.
+2. Either level: swing steadily for ~10 s — breathing comes in quietly, gets heavier over the next ~25 s, fades within ~7 s of stopping, cuts at victory/defeat. Tune `maxVolume` on `OVRCameraRig ▸ PlayerExertionAudio` if it is too loud/quiet against the hit sounds.
+3. Level 2: hit the body normally (slice, full damage), hit it while it is tinted blue (clang only, small damage), hit the axe (clash, 0).
+4. Level 2: watch for Reaping Combo (spinning sweep + rising cut), Lunging Cleave, Overhead Chop, and the Whirlwind now turning a full circle. Judge whether the spin/turns read well and whether the wind-ups give enough time.
 
 ---
 

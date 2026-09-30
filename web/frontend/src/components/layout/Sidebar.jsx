@@ -104,9 +104,16 @@ function FooterLinks({ connection, collapsed = false, onNavigate }) {
     }`;
   const icon = (on) => `h-[18px] w-[18px] ${on ? "" : "text-[var(--muted)] group-hover:text-[var(--ink-secondary)]"}`;
   const onConnection = pathname.startsWith("/dashboard/connection");
+  const onGuide = pathname.startsWith("/dashboard/guide");
   const dot = connection ? DOT[connection] || DOT.offline : null;
   return (
     <div className="space-y-1 border-t border-[var(--border)] pt-3">
+      <Tooltip label="User guide" side="right" disabled={!collapsed} className="flex w-full">
+        <Link to="/dashboard/guide" onClick={() => onNavigate?.()} aria-label={collapsed ? "User guide" : undefined} aria-current={onGuide ? "page" : undefined} className={item(onGuide)}>
+          <Icon name="book" className={icon(onGuide)} />
+          {!collapsed && <span className="flex-1">User guide</span>}
+        </Link>
+      </Tooltip>
       <Tooltip label="Connection" side="right" disabled={!collapsed} className="flex w-full">
         <Link to="/dashboard/connection" onClick={() => onNavigate?.()} aria-label={collapsed ? "Connection" : undefined} className={item(onConnection)}>
           <span className="relative">

@@ -32,6 +32,7 @@ const CompareView = lazy(() => import("./views/CompareView.jsx"));
 const AnalyticsView = lazy(() => import("./views/AnalyticsView.jsx"));
 const ExportView = lazy(() => import("./views/ExportView.jsx"));
 const SettingsView = lazy(() => import("./views/SettingsView.jsx"));
+const GuideView = lazy(() => import("./views/GuideView.jsx"));
 
 const RANGE_KEY = "vrfitness.range";
 const SIDEBAR_KEY = "strikefit.sidebar";
@@ -47,6 +48,7 @@ const TITLES = {
   analytics: "Analytics",
   export: "Export",
   connection: "Connection",
+  guide: "User guide",
 };
 const SKELETONS = {
   "": OverviewSkeleton,
@@ -178,6 +180,7 @@ function Dashboard() {
                   <Route path="compare" element={<CompareView />} />
                   <Route path="analytics" element={<AnalyticsView />} />
                   <Route path="export" element={<ExportView />} />
+                  <Route path="guide" element={<GuideView />} />
                   <Route
                     path="connection"
                     element={<SettingsView connection={t.connection} health={t.health} checkHealth={t.checkHealth} pingRoundTrip={t.pingRoundTrip} refresh={t.refresh} toast={push} />}

@@ -42,6 +42,11 @@ public class HitDetection : MonoBehaviour
     public float heavySwingSpeedThreshold = 4.8f;
     [Tooltip("Played when hammer hits the monster's weapon (parry/clash).")]
     public AudioClip clashSound;
+    [Tooltip("Body block: played INSTEAD of hitSound when the hit lands on the body of a defending monster. " +
+             "Empty = only the monster's own block clang (MonsterAI.defendBlockClip) is heard; if the monster " +
+             "has none either, the normal hit sound is used.")]
+    public AudioClip blockedHitSound;
+    [Range(0f, 1f)] public float blockedHitVolume = 0.8f;
     public VRSoundButton soundButtonFallback;
 
     [Header("Who can deal hits")]
@@ -53,9 +58,17 @@ public class HitDetection : MonoBehaviour
              "Left = offhand (uses CurrentOffhandSwingSpeed).")]
     public Hand hand = Hand.Right;
 
+    /// <summary>What the last monster contact resolved to (verification / debug).</summary>
+    public enum ContactResult { None, TooSlow, Clash, Blocked, Hit }
+    public ContactResult LastResult { get; private set; }
+    /// <summary>Damage passed to the monster by the last Hit / Blocked contact (before the monster's own defend reduction).</summary>
+    public float LastDamage { get; private set; }
+
     private float lastHitTime = -999f;
     private Vector3 lastPosition;
     private Vector3 velocity;
+    // One landed hit per swing while the weapon stays inside the monster: re-armed when the swing ends.
+    private bool stayArmed = true;
 
     void Reset()
     {
@@ -82,6 +95,9 @@ public class HitDetection : MonoBehaviour
         // Estimate swing velocity from transform motion (works for kinematic held hammers)
         velocity = (transform.position - lastPosition) / Mathf.Max(Time.deltaTime, 0.0001f);
         lastPosition = transform.position;
+
+        if (!stayArmed && ImpactSpeed() < MinSwingSpeed())
+            stayArmed = true;
     }
 
     void OnTriggerEnter(Collider other)
@@ -89,19 +105,29 @@ public class HitDetection : MonoBehaviour
         TryHit(other);
     }
 
+    // A contact rejected on entry (too slow, or inside the cooldown after a clash / the other body part) used to be
+    // lost for good, because Enter fires once. While the weapon is still inside the monster it is retried here.
+    void OnTriggerStay(Collider other)
+    {
+        TryHit(other, null, true);
+    }
+
     void OnCollisionEnter(Collision collision)
     {
         TryHit(collision.collider, collision.contacts.Length > 0 ? collision.contacts[0].point : transform.position);
     }
 
-    void TryHit(Collider other, Vector3? explicitPoint = null)
+    void TryHit(Collider other, Vector3? explicitPoint = null, bool fromStay = false)
     {
         if (Time.time - lastHitTime < hitCooldown) return;
 
         // --- Clash / Parry check ---
         if (other.CompareTag("MonsterWeapon"))
         {
+            if (fromStay) return; // a clash is the moment of contact only; resting on the weapon is not a parry
             lastHitTime = Time.time;
+            stayArmed = false; // a parried swing cannot go on to score on the body it is still passing through
+            LastResult = ContactResult.Clash;
             WeaponClashed?.Invoke(this, ImpactSpeed());
             if (audioSource != null && clashSound != null)
             {
@@ -124,19 +150,22 @@ public class HitDetection : MonoBehaviour
         MonsterController monster = other.GetComponentInParent<MonsterController>();
         if (monster == null) return;
         if (!monster.isAlive) return;
+        if (fromStay && !stayArmed) return;
 
         // --- Swing speed at moment of impact ---
         float speed = ImpactSpeed();
 
         // --- Min velocity gate: anti-spam ---
-        float minVel = minSwingSpeed;
-        if (PlayerCombat.Instance != null)
-            minVel = Mathf.Max(minVel, PlayerCombat.Instance.minSwingVelocity);
+        float minVel = MinSwingSpeed();
 
         if (speed < minVel)
         {
             // Too slow — ignore. This is the core anti-cheese rule.
-            SwingTooSlow?.Invoke(this, speed, minVel);
+            if (!fromStay)
+            {
+                LastResult = ContactResult.TooSlow;
+                SwingTooSlow?.Invoke(this, speed, minVel);
+            }
             return;
         }
 
@@ -170,11 +199,17 @@ public class HitDetection : MonoBehaviour
         }
 
         lastHitTime = Time.time;
+        stayArmed = false;
 
         var monsterAi = monster.GetComponent<MonsterAI>();
         bool monsterDefending = monsterAi != null && monsterAi.IsDefending;
+        LastResult = monsterDefending ? ContactResult.Blocked : ContactResult.Hit;
+        LastDamage = damage;
         monster.OnTakeDamage(damage, hitPoint);
-        PlayFeedback(hitPoint, speed);
+        if (monsterDefending)
+            PlayBlockedFeedback(hitPoint, speed, monsterAi);
+        else
+            PlayFeedback(hitPoint, speed);
 
         // --- XP: reward good form (full swing > tap) ---
         if (XPManager.Instance != null)
@@ -188,6 +223,14 @@ public class HitDetection : MonoBehaviour
 
         if (BattleManager.Instance != null)
             BattleManager.Instance.RegisterSuccessfulHit(damage);
+    }
+
+    float MinSwingSpeed()
+    {
+        float minVel = minSwingSpeed;
+        if (PlayerCombat.Instance != null)
+            minVel = Mathf.Max(minVel, PlayerCombat.Instance.minSwingVelocity);
+        return minVel;
     }
 
     /// <summary>Weapon speed right now: the faster of this collider's motion and its hand's tracked speed.</summary>
@@ -234,6 +277,23 @@ public class HitDetection : MonoBehaviour
         }
         else if (soundButtonFallback != null)
             soundButtonFallback.PlayClickSound();
+    }
+
+    /// <summary>
+    /// Body block (monster defending): no flesh-hit sound. Either this weapon's blockedHitSound or the monster's
+    /// own block clang is heard, so a block sounds different from a normal hit and from a weapon clash.
+    /// </summary>
+    void PlayBlockedFeedback(Vector3 hitPoint, float swingSpeed, MonsterAI monsterAi)
+    {
+        if (audioSource != null && blockedHitSound != null)
+        {
+            audioSource.PlayOneShot(blockedHitSound, blockedHitVolume);
+            return;
+        }
+
+        bool monsterPlaysBlockCue = monsterAi != null && monsterAi.defendBlockClip != null && monsterAi.sfxAudioSource != null;
+        if (!monsterPlaysBlockCue)
+            PlayFeedback(hitPoint, swingSpeed); // no block cue anywhere: keep the hit audible
     }
 
     public Vector3 CurrentVelocity => velocity;

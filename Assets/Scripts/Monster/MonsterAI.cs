@@ -48,6 +48,8 @@ public class MonsterAI : MonoBehaviour
         public float damageMultiplier = 1f;
         [Tooltip("Half-angle (deg) of the swing arc. A player outside it at the hit frame dodges.")]
         public float hitArc = 45f;
+        [Tooltip("Optional half-angle per follow-up hit (same order as followUpHits). Missing entries use hitArc.")]
+        public float[] followUpArcs = new float[0];
         [Tooltip("Selection weight at full monster HP.")]
         public float weightFullHp = 10f;
         [Tooltip("Selection weight at 0 monster HP (lerped by damage taken).")]
@@ -582,7 +584,8 @@ public class MonsterAI : MonoBehaviour
                 sfxAudioSource.PlayOneShot(a.impactClip, a.impactVolume);
             if (a.fireVfx) PlayImpactBurst();
 
-            if (IsTargetInSwing(a))
+            float arc = (i > 0 && a.followUpArcs != null && i - 1 < a.followUpArcs.Length) ? a.followUpArcs[i - 1] : a.hitArc;
+            if (IsTargetInSwing(arc))
             {
                 controller.PerformAttackHit(a.damageMultiplier); // routes through PlayerHealth
                 LastHitLanded = true;
@@ -602,14 +605,14 @@ public class MonsterAI : MonoBehaviour
     }
 
     /// <summary>Hit frame check: in range (small tolerance) AND inside the attack's swing arc.</summary>
-    bool IsTargetInSwing(AttackDefinition a)
+    bool IsTargetInSwing(float hitArc)
     {
         if (playerTarget == null) return false;
         if (DistanceToTarget() > controller.attackRange * 1.15f) return false;
         Vector3 to = playerTarget.position - transform.position;
         to.y = 0f;
         if (to.sqrMagnitude < 0.0001f) return true;
-        return Vector3.Angle(transform.forward, to) <= a.hitArc;
+        return Vector3.Angle(transform.forward, to) <= hitArc;
     }
 
     void SetWeaponFire(bool on)

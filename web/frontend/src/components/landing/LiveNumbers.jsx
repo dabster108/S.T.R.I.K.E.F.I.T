@@ -43,7 +43,7 @@ export default function LiveNumbers() {
     <section id="numbers" aria-labelledby="numbers-title" className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
       <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
         <div className="lg:col-span-4 lg:pt-2">
-          <SectionHead id="numbers-title" index="05" eyebrow="Live numbers" title="Recorded so far">
+          <SectionHead id="numbers-title" index="06" eyebrow="Live numbers" title="Recorded so far">
             Straight from the game: every finished session a headset has reported.
           </SectionHead>
           {state === "ok" && (

@@ -8007,8 +8007,9 @@ MonoBehaviour:
     recover: 0.45
     damageMultiplier: 1
     hitArc: 70
-    weightFullHp: 30
-    weightLowHp: 18
+    followUpArcs: []
+    weightFullHp: 24
+    weightLowHp: 14
     maxHpFraction: 1
     requiresIdleFor: 0
     cooldown: 0
@@ -8029,8 +8030,9 @@ MonoBehaviour:
     recover: 0.4
     damageMultiplier: 1
     hitArc: 45
-    weightFullHp: 26
-    weightLowHp: 14
+    followUpArcs: []
+    weightFullHp: 20
+    weightLowHp: 11
     maxHpFraction: 1
     requiresIdleFor: 0
     cooldown: 0
@@ -8051,8 +8053,9 @@ MonoBehaviour:
     recover: 0.4
     damageMultiplier: 0.9
     hitArc: 45
-    weightFullHp: 22
-    weightLowHp: 12
+    followUpArcs: []
+    weightFullHp: 14
+    weightLowHp: 8
     maxHpFraction: 1
     requiresIdleFor: 0
     cooldown: 0
@@ -8074,6 +8077,7 @@ MonoBehaviour:
     recover: 0.45
     damageMultiplier: 0.75
     hitArc: 50
+    followUpArcs: []
     weightFullHp: 12
     weightLowHp: 16
     maxHpFraction: 1
@@ -8091,13 +8095,14 @@ MonoBehaviour:
     category: 1
     animatorTrigger: Atk_Whirlwind
     animatorState: Atk_Whirlwind
-    windUp: 0.97
+    windUp: 1.04
     followUpHits: []
-    recover: 0.55
+    recover: 0.5
     damageMultiplier: 1.4
     hitArc: 180
-    weightFullHp: 7
-    weightLowHp: 18
+    followUpArcs: []
+    weightFullHp: 4
+    weightLowHp: 30
     maxHpFraction: 1
     requiresIdleFor: 0
     cooldown: 4
@@ -8118,7 +8123,8 @@ MonoBehaviour:
     recover: 0.6
     damageMultiplier: 1.75
     hitArc: 35
-    weightFullHp: 5
+    followUpArcs: []
+    weightFullHp: 7
     weightLowHp: 14
     maxHpFraction: 1
     requiresIdleFor: 0.9
@@ -8140,6 +8146,7 @@ MonoBehaviour:
     recover: 0.7
     damageMultiplier: 2
     hitArc: 40
+    followUpArcs: []
     weightFullHp: 10
     weightLowHp: 16
     maxHpFraction: 0.4
@@ -8153,6 +8160,77 @@ MonoBehaviour:
     impactClip: {fileID: 8300000, guid: cbc48bf379b364886a0212fa155974bc, type: 3}
     impactVolume: 1
     fireVfx: 1
+  - name: Reaping Combo
+    category: 4
+    animatorTrigger: Atk_ReapCombo
+    animatorState: Atk_ReapCombo
+    windUp: 0.835
+    followUpHits:
+    - 0.83
+    recover: 0.55
+    damageMultiplier: 0.8
+    hitArc: 80
+    followUpArcs:
+    - 45
+    weightFullHp: 8
+    weightLowHp: 16
+    maxHpFraction: 1
+    requiresIdleFor: 0
+    cooldown: 5
+    telegraphColor: {r: 1, g: 0.5, b: 0.15, a: 1}
+    windUpClip: {fileID: 8300000, guid: dd2135b44acba4afcaead797bb815061, type: 3}
+    windUpVolume: 0.45
+    swingClip: {fileID: 8300000, guid: b2beb03a2025a4401af6fae578c1a1d5, type: 3}
+    swingVolume: 0.9
+    impactClip: {fileID: 0}
+    impactVolume: 1
+    fireVfx: 0
+  - name: Lunging Cleave
+    category: 0
+    animatorTrigger: Atk_LungeCleave
+    animatorState: Atk_LungeCleave
+    windUp: 0.63
+    followUpHits: []
+    recover: 0.5
+    damageMultiplier: 1.1
+    hitArc: 35
+    followUpArcs: []
+    weightFullHp: 11
+    weightLowHp: 6
+    maxHpFraction: 1
+    requiresIdleFor: 0
+    cooldown: 0
+    telegraphColor: {r: 1, g: 0.3, b: 0.3, a: 1}
+    windUpClip: {fileID: 8300000, guid: dd2135b44acba4afcaead797bb815061, type: 3}
+    windUpVolume: 0.45
+    swingClip: {fileID: 8300000, guid: b2beb03a2025a4401af6fae578c1a1d5, type: 3}
+    swingVolume: 0.9
+    impactClip: {fileID: 0}
+    impactVolume: 1
+    fireVfx: 0
+  - name: Overhead Chop
+    category: 0
+    animatorTrigger: Atk_OverheadChop
+    animatorState: Atk_OverheadChop
+    windUp: 0.61
+    followUpHits: []
+    recover: 0.4
+    damageMultiplier: 1
+    hitArc: 40
+    followUpArcs: []
+    weightFullHp: 9
+    weightLowHp: 5
+    maxHpFraction: 1
+    requiresIdleFor: 0
+    cooldown: 0
+    telegraphColor: {r: 1, g: 0.3, b: 0.3, a: 1}
+    windUpClip: {fileID: 8300000, guid: dd2135b44acba4afcaead797bb815061, type: 3}
+    windUpVolume: 0.45
+    swingClip: {fileID: 8300000, guid: b2beb03a2025a4401af6fae578c1a1d5, type: 3}
+    swingVolume: 0.9
+    impactClip: {fileID: 0}
+    impactVolume: 1
+    fireVfx: 0
   heavyPityCycles: 4
   desperationHpFraction: 0.4
   lowHpCooldownScale: 0.85

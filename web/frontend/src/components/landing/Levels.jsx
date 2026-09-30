@@ -88,7 +88,7 @@ export default function Levels() {
     <section id="levels" aria-labelledby="levels-title" className="mx-auto max-w-6xl px-4 pb-28 pt-24 sm:px-6 lg:pb-36 lg:pt-32">
       {/* heading sits on the right; the cards below start from the left */}
       <Reveal className="lg:ml-[41.666%]">
-        <Kicker index="03">Levels</Kicker>
+        <Kicker index="04">Levels</Kicker>
         <h2 id="levels-title" className="t-h2 mt-5 max-w-xl text-[var(--ink)]">
           Three arenas, each a step up
         </h2>

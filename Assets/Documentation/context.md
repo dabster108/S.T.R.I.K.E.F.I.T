@@ -1,6 +1,6 @@
 # Fitness Monster Battle (VR) — Project Context
 
-Last updated: **2026-09-27 (Level 2 rebuild — see project_progress.md)**
+Last updated: **2026-09-30 (see project_progress.md)**
 
 ## Overview
 
@@ -9,8 +9,8 @@ Players fight monsters with VR weapons powered by real fitness movement.
 
 | Level | Scene | Environment | Player weapons | Monster weapon | Monster |
 |---|---|---|---|---|---|
-| 1 Easy | `Level1_Easy` ✅ built | Lite Dungeon Pack (Gridness) | Hammer | None | Hip Hop Mixamo |
-| 2 Medium | `Level2_Medium` ✅ built | Lite Dungeon Pack, night sky | Dual swords | Two-handed axe (7-attack table + defend) | Vampire A Lusth |
+| 1 Easy | `Level1_Easy` ✅ built | Lite Dungeon Pack (Gridness) | Dual hammers | Sword | Hip Hop prefab (Warrok mesh) |
+| 2 Medium | `Level2_Medium` ✅ built | Lite Dungeon Pack, night sky | Dual swords | Two-handed axe (10-attack table + defend) | Vampire A Lusth |
 | 3 Hard | `Level3_Hard` shell | Old Sea Port | Flexible | Hammer | TBD |
 
 ## What MCP built (2026-09-21)
@@ -42,7 +42,7 @@ MainMenu → Level1_Easy → Level2_Medium → Level3_Hard → Results
 Assets/Scripts/
   Combat/     WeaponType, HitDetection, BattleManager
   Monster/    MonsterController, MonsterHealth, MonsterAI, MonsterAnimator
-  Player/     PlayerCombat, PlayerHealth
+  Player/     PlayerCombat, PlayerHealth, PlayerExertionAudio (heavy breathing)
   UI/         CombatUIController
   Manager/    LevelManager, GameStateManager, RoundManager
   Legacy/     CubeTapCounter, LaserHandGrabber, LaserPointer, VRSoundButton

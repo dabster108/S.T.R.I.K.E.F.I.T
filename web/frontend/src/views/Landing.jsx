@@ -5,6 +5,7 @@ import Hero from "../components/landing/Hero.jsx";
 import TechMarquee from "../components/landing/TechMarquee.jsx";
 import Problem from "../components/landing/Problem.jsx";
 import HowItWorks from "../components/landing/HowItWorks.jsx";
+import GameplayShowcase from "../components/landing/GameplayShowcase.jsx";
 import Levels from "../components/landing/Levels.jsx";
 import Combat from "../components/landing/Combat.jsx";
 import LiveNumbers from "../components/landing/LiveNumbers.jsx";
@@ -34,6 +35,7 @@ export default function Landing() {
         <TechMarquee />
         <Problem />
         <HowItWorks />
+        <GameplayShowcase />
         <Levels />
         <Combat />
         <LiveNumbers />

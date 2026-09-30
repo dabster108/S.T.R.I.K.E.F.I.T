@@ -1,130 +1,14 @@
-import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { LEVELS, TIER_LABEL, simulateHit } from "../../lib/game.js";
-import { useInView, useMagnetic, useParallax, useReducedMotion } from "../../hooks/motion.js";
+import { LEVELS } from "../../lib/game.js";
+import { useMagnetic, useParallax } from "../../hooks/motion.js";
 import { buttonClass } from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
+import DashboardDemo from "./DashboardDemo.jsx";
 
 const LINES = [
   ["Swing", "harder."],
   ["Hit", "harder."],
 ];
-
-// Example hits computed with the game's own formula (Level 1), used by the illustration only.
-const ex = (v) => simulateHit(v, "Easy").damage.toFixed(1);
-const FEED = [
-  { icon: "bolt", tone: "text-[var(--tier-full)] bg-blue-50", text: `Full-power hit · 6.2 m/s`, value: `−${ex(6.2)}` },
-  { icon: "timer", tone: "text-rose-600 bg-rose-50", text: "Monster wind-up · heavy, 1.25 s", value: "" },
-  { icon: "shieldCheck", tone: "text-[var(--accent)] bg-blue-50", text: "Stepped out of reach · dodged", value: "" },
-  { icon: "bolt", tone: "text-[var(--tier-medium)] bg-blue-50", text: `Medium hit · 3.4 m/s`, value: `−${ex(3.4)}` },
-  { icon: "swords", tone: "text-gray-700 bg-gray-100", text: "Weapon clash · parried", value: "0" },
-  { icon: "hand", tone: "text-[var(--tier-tap)] bg-blue-50", text: `Tap · 1.3 m/s`, value: `−${ex(1.3)}` },
-];
-
-// Sample swings for the illustration; tiers and damage come from the Level 1 formula.
-const SWINGS = [3.4, 1.3, 6.2, 2.2, 5.4];
-const SPEED_MAX = LEVELS.Easy.swing.cap;
-const RAMP_MS = 700;
-const HOLD_MS = 1800;
-
-// Replays SWINGS on a loop: speed climbs 0 -> v, then the hit lands. Paused off screen.
-function useSwingCycle(active) {
-  const reduced = useReducedMotion();
-  const [state, setState] = useState({ n: 0, speed: 6.2, landed: true });
-  const n = useRef(0);
-  useEffect(() => {
-    if (reduced || !active) return undefined;
-    let raf;
-    let timer;
-    const swing = () => {
-      n.current += 1;
-      const target = SWINGS[n.current % SWINGS.length];
-      const t0 = performance.now();
-      const tick = (now) => {
-        const p = Math.min(1, (now - t0) / RAMP_MS);
-        setState({ n: n.current, speed: target * (1 - Math.pow(1 - p, 3)), landed: p === 1 });
-        if (p < 1) raf = requestAnimationFrame(tick);
-        else timer = setTimeout(swing, HOLD_MS);
-      };
-      raf = requestAnimationFrame(tick);
-    };
-    timer = setTimeout(swing, 900);
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(timer);
-    };
-  }, [reduced, active]);
-  const hit = simulateHit(state.speed, "Easy");
-  return { ...state, tier: hit.tier, damage: hit.damage };
-}
-
-const GAUGE_START = 135;
-const GAUGE_SWEEP = 270;
-const angleFor = (v) => GAUGE_START + (GAUGE_SWEEP * Math.min(v, SPEED_MAX)) / SPEED_MAX;
-function arc(from, to, r = 25) {
-  const pt = (v) => {
-    const a = (angleFor(v) * Math.PI) / 180;
-    return `${(32 + r * Math.cos(a)).toFixed(2)} ${(32 + r * Math.sin(a)).toFixed(2)}`;
-  };
-  const large = angleFor(to) - angleFor(from) > 180 ? 1 : 0;
-  return `M ${pt(from)} A ${r} ${r} 0 ${large} 1 ${pt(to)}`;
-}
-const { min, tiers } = LEVELS.Easy.swing;
-const SEGMENTS = [
-  { tier: "none", from: 0, to: min, color: "var(--border-strong)" },
-  { tier: "tap", from: min, to: tiers.light, color: "var(--tier-tap)" },
-  { tier: "light", from: tiers.light, to: tiers.medium, color: "var(--tier-light)" },
-  { tier: "medium", from: tiers.medium, to: tiers.full, color: "var(--tier-medium)" },
-  { tier: "full", from: tiers.full, to: SPEED_MAX, color: "var(--tier-full)" },
-];
-
-function Gauge({ speed, tier }) {
-  const color = SEGMENTS.find((s) => s.tier === tier)?.color;
-  return (
-    <svg viewBox="0 0 64 64" className="h-[4.5rem] w-[4.5rem] shrink-0" aria-hidden>
-      {SEGMENTS.map((s) => (
-        <path key={s.tier} d={arc(s.from + 0.08, s.to - 0.08)} fill="none" stroke={s.color} strokeWidth="5" strokeLinecap="round" opacity="0.22" />
-      ))}
-      {speed > 0.05 && <path d={arc(0, speed)} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round" />}
-      <g style={{ transform: `rotate(${angleFor(speed)}deg)`, transformOrigin: "32px 32px" }}>
-        <line x1="32" y1="32" x2="50" y2="32" stroke="var(--ink)" strokeWidth="2.5" strokeLinecap="round" />
-      </g>
-      <circle cx="32" cy="32" r="4" fill="var(--ink)" />
-      <circle cx="32" cy="32" r="1.5" fill="white" />
-    </svg>
-  );
-}
-
-function SpeedReadout({ cycle }) {
-  const { speed, tier, damage, landed, n } = cycle;
-  return (
-    <div className="flex items-center gap-3.5 rounded-2xl bg-white/85 py-3 pl-3 pr-5 shadow-[0_28px_50px_-22px_rgb(30_58_138/0.5),0_10px_20px_-12px_rgb(16_24_40/0.18)] backdrop-blur-xl">
-      <Gauge speed={speed} tier={tier} />
-      <div className="min-w-[8.5rem]">
-        <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[var(--muted)]">Swing speed</p>
-        <p className="mt-1 flex items-baseline gap-1 leading-none text-[var(--ink)]">
-          <span className="text-[1.9rem] font-extrabold tabular-nums tracking-tight">{speed.toFixed(1)}</span>
-          <span className="text-sm font-bold">m/s</span>
-        </p>
-        <p className="mt-1.5 flex h-4 items-center gap-1.5 overflow-hidden text-xs font-extrabold text-[var(--ink)]">
-          <span key={tier} className="tier-swap">
-            {TIER_LABEL[tier]}
-          </span>
-          {damage > 0 && (
-            <>
-              <span className="text-[var(--muted)]" aria-hidden>
-                ·
-              </span>
-              <span key={landed ? `hit-${n}` : "ramp"} className={`tabular-nums ${landed ? "tier-swap" : ""}`}>
-                {damage.toFixed(1)} dmg
-              </span>
-            </>
-          )}
-        </p>
-      </div>
-    </div>
-  );
-}
 
 function Magnetic({ children }) {
   const ref = useMagnetic(0.22);
@@ -181,116 +65,6 @@ function SwingFx() {
         <circle cx="152" cy="120" r="4" fill="var(--accent)" />
       </g>
     </svg>
-  );
-}
-
-function MockBar({ label, tone, className, pop }) {
-  const color = tone === "monster" ? "var(--hp-monster)" : "var(--hp-player)";
-  const trail = tone === "monster" ? "var(--hp-monster-trail)" : "var(--hp-player-trail)";
-  return (
-    <div>
-      <div className="relative mb-1.5 flex items-center justify-between text-[0.72rem] font-semibold">
-        <span className="text-[var(--ink-secondary)]">{label}</span>
-        {pop}
-        <span className="text-[var(--muted)]">HP</span>
-      </div>
-      <div className="relative h-2.5 overflow-hidden rounded-full bg-gray-100">
-        <div className={`mock-hp ${className} absolute inset-0 rounded-full`} style={{ background: trail, animationDelay: "0.25s" }} />
-        <div className={`mock-hp ${className} absolute inset-0 rounded-full`} style={{ background: color }} />
-      </div>
-    </div>
-  );
-}
-
-function LiveTag() {
-  return (
-    <span className="live-tag inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] py-1 pl-2 pr-2.5 text-[0.68rem] font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_6px_14px_-6px_rgb(37_99_235/0.7)]">
-      <span className="eq flex h-2.5 items-end gap-[2px]" aria-hidden>
-        <i />
-        <i />
-        <i />
-      </span>
-      Live
-    </span>
-  );
-}
-
-function Mockup() {
-  const rows = [...FEED, ...FEED.slice(0, 3)];
-  const [ref, inView] = useInView({ rootMargin: "0px", once: false });
-  const cycle = useSwingCycle(inView);
-  const landedTier = cycle.landed ? cycle.tier : null;
-  return (
-    <div ref={ref} className="relative">
-      <SwingFx />
-      <div className="float-y">
-        <div className="relative rounded-2xl border border-[var(--border)] bg-white/95 p-4 shadow-[0_30px_60px_-25px_rgb(30_58_138/0.35),0_12px_24px_-12px_rgb(16_24_40/0.12)] backdrop-blur sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
-                <Icon name="live" className="h-4 w-4" />
-              </span>
-              <span className="text-sm font-bold text-[var(--ink)]">Live Arena</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="hidden items-center gap-1 text-[0.68rem] font-bold text-[var(--muted)] min-[400px]:inline-flex">
-                <Icon name="dashboard" className="h-3.5 w-3.5" strokeWidth={2.2} />
-                Dashboard preview
-              </span>
-              <LiveTag />
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">P1</span>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-[var(--ink)]">Player 1</p>
-              <p className="text-xs font-semibold text-[var(--muted)]">Level 1 · dual hammers</p>
-            </div>
-            {landedTier && (
-              <span key={`${landedTier}-${cycle.n}`} className="tier-swap ml-auto rounded-lg bg-blue-50 px-2 py-1 text-xs font-extrabold text-[var(--tier-full)]">
-                {TIER_LABEL[landedTier]}
-              </span>
-            )}
-          </div>
-
-          <div className="relative mt-4 space-y-3">
-            <MockBar label="Player" tone="player" className="mock-hp-b" />
-            <MockBar
-              label="Monster"
-              tone="monster"
-              className=""
-              pop={
-                cycle.landed &&
-                cycle.damage > 0 && (
-                  <span key={cycle.n} className="hit-pop absolute right-7 -top-1 rounded-md bg-rose-600 px-1.5 py-0.5 text-xs font-extrabold tabular-nums text-white shadow">
-                    −{cycle.damage.toFixed(1)}
-                  </span>
-                )
-              }
-            />
-          </div>
-
-          <div className="mt-4 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-muted)]" style={{ height: "7.5rem" }}>
-            <ul className="mock-feed">
-              {rows.map((r, i) => (
-                <li key={i} className="flex h-10 items-center gap-2.5 border-b border-[var(--border)] px-3 text-xs" aria-hidden={i >= FEED.length || undefined}>
-                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${r.tone}`}>
-                    <Icon name={r.icon} className="h-3.5 w-3.5" strokeWidth={2.4} />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate font-semibold text-[var(--ink-secondary)]">{r.text}</span>
-                  {r.value && <span className="font-extrabold tabular-nums text-[var(--ink)]">{r.value}</span>}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <div className="float-y absolute -bottom-16 left-3 sm:-left-8 lg:-bottom-20 lg:-left-14" style={{ animationDelay: "-3s" }}>
-        <SpeedReadout cycle={cycle} />
-      </div>
-    </div>
   );
 }
 
@@ -393,8 +167,9 @@ export default function Hero({ status }) {
 
         {/* offset below the headline and pushed past the container edge on wide screens */}
         <div ref={art} className="mx-auto w-full max-w-md lg:col-span-5 lg:mx-0 lg:mt-14 lg:max-w-none lg:-mr-6 xl:-mr-20">
-          <div className="fade-up" style={{ "--d": "300ms" }}>
-            <Mockup />
+          <div className="fade-up relative" style={{ "--d": "300ms" }}>
+            <SwingFx />
+            <DashboardDemo />
           </div>
         </div>
       </div>

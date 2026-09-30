@@ -1114,6 +1114,7 @@ GameObject:
   - component: {fileID: 138619581}
   - component: {fileID: 138619580}
   - component: {fileID: 138619587}
+  - component: {fileID: 138619588}
   m_Layer: 0
   m_Name: OVRCameraRig
   m_TagString: Player
@@ -1432,6 +1433,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 301931788}
+  - {fileID: 471546209}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &138619587
@@ -1448,6 +1450,37 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EditorHandPoseFallback
   rightHandOffset: {x: 0.22, y: -0.42, z: 0.38}
   rightHandEuler: {x: 15, y: 8, z: 0}
+--- !u!114 &138619588
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 138619579}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7b72d0b33c224e9ab26de6b13f85f97, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerExertionAudio
+  breathingSource: {fileID: 471546210}
+  breathingClip: {fileID: 8300000, guid: fe5a33db966f24040aa58e3dd6f173bc, type: 3}
+  startVolume: 0.1
+  maxVolume: 0.3
+  swingTriggerSpeed: 2
+  swingRearmSpeed: 1.2
+  exertionWindow: 12
+  swingsToStart: 8
+  swingsToSustain: 5
+  rampSeconds: 25
+  restSeconds: 3
+  recoveryRate: 2.5
+  fadeInSeconds: 2
+  fadeDownSeconds: 4
+  battleEndFadeSeconds: 0.3
+  swingsInWindow: 0
+  sustainedSeconds: 0
+  currentVolume: 0
+  breathing: 0
 --- !u!1 &139624148
 GameObject:
   m_ObjectHideFlags: 0
@@ -2636,6 +2669,135 @@ LineRenderer:
   m_UseWorldSpace: 1
   m_Loop: 0
   m_ApplyActiveColorSpace: 1
+--- !u!1 &471546208
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 471546209}
+  - component: {fileID: 471546210}
+  m_Layer: 0
+  m_Name: PlayerBreathingAudio
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &471546209
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 471546208}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 138619586}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!82 &471546210
+AudioSource:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 471546208}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: 0}
+  m_audioClip: {fileID: 0}
+  m_Resource: {fileID: 8300000, guid: fe5a33db966f24040aa58e3dd6f173bc, type: 3}
+  m_PlayOnAwake: 0
+  m_Volume: 0
+  m_Pitch: 1
+  Loop: 1
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 100
+  DopplerLevel: 0
+  MinDistance: 1
+  MaxDistance: 500
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &484991956
 GameObject:
   m_ObjectHideFlags: 0
@@ -13673,6 +13835,8 @@ MonoBehaviour:
   heavyHitSound: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
   heavySwingSpeedThreshold: 4.6
   clashSound: {fileID: 8300000, guid: 2768d79e117a246478c12b6c5cd5c0bd, type: 3}
+  blockedHitSound: {fileID: 0}
+  blockedHitVolume: 0.8
   soundButtonFallback: {fileID: 0}
   hammerTag: Hammer
   playerHandTag: PlayerHand
@@ -14061,6 +14225,8 @@ MonoBehaviour:
   heavyHitSound: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
   heavySwingSpeedThreshold: 4.6
   clashSound: {fileID: 8300000, guid: 2768d79e117a246478c12b6c5cd5c0bd, type: 3}
+  blockedHitSound: {fileID: 0}
+  blockedHitVolume: 0.8
   soundButtonFallback: {fileID: 0}
   hammerTag: Hammer
   playerHandTag: PlayerHand

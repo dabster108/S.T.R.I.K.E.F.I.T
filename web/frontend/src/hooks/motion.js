@@ -76,6 +76,24 @@ export function useInView({ rootMargin = "0px 0px -10% 0px", once = true } = {})
   return [setEl, inView];
 }
 
+// [ref, onScreen]: true only while the element is actually in the viewport. Unlike
+// useInView, content already scrolled past doesn't count; used to pause loops.
+export function useOnScreen(rootMargin = "0px") {
+  const [el, setEl] = useState(null);
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (!el) return undefined;
+    if (typeof IntersectionObserver === "undefined") {
+      setOn(true);
+      return undefined;
+    }
+    const io = new IntersectionObserver(([it]) => setOn(it.isIntersecting), { rootMargin });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [el, rootMargin]);
+  return [setEl, on];
+}
+
 // Animates 0 -> target once `start` is true. Reduced motion: jumps straight to target.
 export function useCountUp(target, start = true, duration = 1400) {
   const reduced = useReducedMotion();

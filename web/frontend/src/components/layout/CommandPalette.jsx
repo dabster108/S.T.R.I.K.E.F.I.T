@@ -8,6 +8,7 @@ import { NAV } from "./Sidebar.jsx";
 const PAGES = [
   ...NAV.map((n) => ({ kind: "page", id: n.to, label: n.label, icon: n.icon, to: n.to })),
   { kind: "page", id: "/dashboard/connection", label: "Connection and Unity setup", icon: "server", to: "/dashboard/connection", keywords: "settings health api" },
+  { kind: "page", id: "/dashboard/guide", label: "User guide", icon: "book", to: "/dashboard/guide", keywords: "help manual docs how" },
   { kind: "page", id: "/", label: "Landing page", icon: "external", to: "/", keywords: "home public" },
 ];
 
