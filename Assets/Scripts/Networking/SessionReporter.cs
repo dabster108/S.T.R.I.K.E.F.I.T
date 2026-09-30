@@ -21,9 +21,15 @@ public class SessionReporter : MonoBehaviour
     public static SessionReporter Instance;
 
     [Header("Backend")]
-    [Tooltip("Base URL only, no trailing slash. Must be https on Quest (plain http is blocked). " +
-             "For a backend on this Mac use http://localhost:4000 in the Editor only.")]
+    [Tooltip("Base URL only, no trailing slash. The single backend URL for every request in every level. " +
+             "Must be https on Quest (plain http is blocked).")]
     public string baseUrl = "https://s-t-r-i-k-e-f-i-t.onrender.com";
+    [Tooltip("GET /api/health once when the scene loads, so a sleeping Render instance is awake by the time " +
+             "the player presses Start.")]
+    public bool wakeBackendOnLoad = true;
+    [Tooltip("Timeout for the wake-up ping only. A Render cold start takes 30-60 s; the ping runs in the " +
+             "background and never blocks gameplay, so it can wait that long.")]
+    public int wakeTimeoutSeconds = 60;
     [Tooltip("Name shown on the dashboard. Each player's history is grouped by this exact name. " +
              "Default only: PlayerNamePicker sets it in-game before the Start button appears.")]
     public string playerName = DefaultPlayerName;
@@ -39,7 +45,8 @@ public class SessionReporter : MonoBehaviour
     [Tooltip("Events kept while offline or slow; the oldest are dropped beyond this.")]
     public int maxBufferedEvents = 256;
     public int maxEventsPerRequest = 50;
-    public int requestTimeoutSeconds = 8;
+    [Tooltip("Seconds before a POST is abandoned. Requests are async, so this never stalls gameplay.")]
+    public int requestTimeoutSeconds = 5;
     [Tooltip("Log every request result to the Console (off in builds).")]
     public bool verboseLogging = false;
 
@@ -52,8 +59,10 @@ public class SessionReporter : MonoBehaviour
     public int bufferedEvents;
     public int droppedRequests;
 
-    string SessionsUrl => baseUrl.TrimEnd('/') + "/api/sessions";
-    string EventsUrl => baseUrl.TrimEnd('/') + "/api/events";
+    string SessionsUrl => ApiUrl("/api/sessions");
+    string EventsUrl => ApiUrl("/api/events");
+    string HealthUrl => ApiUrl("/api/health");
+    string ApiUrl(string path) => baseUrl.Trim().TrimEnd('/') + path;
 
     struct PendingRequest
     {
@@ -95,6 +104,51 @@ public class SessionReporter : MonoBehaviour
         if (!baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             Debug.LogWarning($"[SessionReporter] baseUrl '{baseUrl}' is not https; Quest may block it.");
 #endif
+    }
+
+    void Start()
+    {
+        if (wakeBackendOnLoad) WakeBackend();
+    }
+
+    // Render's free tier sleeps when idle; this starts the cold boot while the player is still on the
+    // start screen. Result is logged only; nothing waits on it.
+    void WakeBackend()
+    {
+        UnityWebRequest req;
+        UnityWebRequestAsyncOperation op;
+        try
+        {
+            req = UnityWebRequest.Get(HealthUrl);
+            req.timeout = Mathf.Max(1, wakeTimeoutSeconds);
+            op = req.SendWebRequest();
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[SessionReporter] Wake-up ping not sent ({e.Message}). Backend: {baseUrl}");
+            return;
+        }
+
+        float sentAt = Time.realtimeSinceStartup;
+        string url = HealthUrl;
+        op.completed += _ =>
+        {
+            float secs = Time.realtimeSinceStartup - sentAt;
+            if (req.result == UnityWebRequest.Result.Success)
+                Debug.Log($"[SessionReporter] Backend awake: GET {url} → {req.responseCode} in {secs:0.0}s");
+            else
+                Debug.LogWarning($"[SessionReporter] Wake-up ping failed after {secs:0.0}s ({req.error}); gameplay continues offline-safe.");
+            req.Dispose();
+        };
+    }
+
+    /// <summary>
+    /// Queues a JSON POST to baseUrl + path (e.g. "/api/sessions"). Same timeout, error handling and
+    /// one-request-at-a-time pacing as the battle telemetry; failures are logged and dropped.
+    /// </summary>
+    public void PostJson(string path, string json, string label)
+    {
+        requests.Enqueue(new PendingRequest { url = ApiUrl(path), json = json, label = label });
     }
 
     /// <summary>
@@ -391,7 +445,8 @@ public class SessionReporter : MonoBehaviour
 
     void Send(PendingRequest r, bool fireAndForget)
     {
-        UnityWebRequest req;
+        UnityWebRequest req = null;
+        UnityWebRequestAsyncOperation op;
         try
         {
             req = new UnityWebRequest(r.url, UnityWebRequest.kHttpVerbPOST)
@@ -401,10 +456,13 @@ public class SessionReporter : MonoBehaviour
                 timeout = Mathf.Max(1, requestTimeoutSeconds),
             };
             req.SetRequestHeader("Content-Type", "application/json");
+            op = req.SendWebRequest();
         }
         catch (Exception e)
         {
             // A malformed baseUrl throws here; never let it reach gameplay.
+            req?.Dispose();
+            droppedRequests++;
             LogFailure(r.label, e.Message);
             return;
         }
@@ -412,7 +470,6 @@ public class SessionReporter : MonoBehaviour
         if (!fireAndForget) requestInFlight = true;
         string label = r.label;
         bool verbose = verboseLogging;
-        var op = req.SendWebRequest();
         // The callback outlives this component if the scene unloads mid-request.
         op.completed += _ =>
         {
@@ -547,7 +604,7 @@ public class SessionReporter : MonoBehaviour
         return Math.Round(v, 3).ToString("0.###", CultureInfo.InvariantCulture);
     }
 
-    static string Escape(string s)
+    public static string Escape(string s)
     {
         if (string.IsNullOrEmpty(s)) return "";
         var o = new StringBuilder(s.Length + 8);

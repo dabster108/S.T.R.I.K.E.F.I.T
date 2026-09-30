@@ -1,8 +1,6 @@
 using System;
 using System.Collections;
-using System.Text;
 using UnityEngine;
-using UnityEngine.Networking;
 #if UNITY_EDITOR
 using UnityEngine.InputSystem;
 #endif
@@ -170,14 +168,15 @@ public class RoundManager : MonoBehaviour
 
         // No SessionReporter = no backend configured in this scene; nothing to send.
         if (SessionReporter.Instance != null)
-            StartCoroutine(SendResultToBackend(currentTapCount));
+            SendResultToBackend(currentTapCount);
     }
 
-    private IEnumerator SendResultToBackend(int taps)
+    // Legacy fitness-only payload (non-battle cube-tap mode). Sent through SessionReporter so it uses the
+    // same baseUrl, timeout and failure handling as battle telemetry.
+    private void SendResultToBackend(int taps)
     {
-        // Legacy fitness-only payload (non-battle). Keep for cube-tap mode.
         string json =
-            "{\"playerName\":\"" + Escape(SessionReporter.Instance.playerName) +
+            "{\"playerName\":\"" + SessionReporter.Escape(SessionReporter.Instance.playerName) +
             "\",\"tapCount\":" + taps +
             ",\"score\":" + (taps * 5) +
             ",\"pointsEarned\":" + (taps * 5) +
@@ -185,25 +184,7 @@ public class RoundManager : MonoBehaviour
             "\"level\":\"Fitness\"," +
             "\"hitCount\":" + taps +
             ",\"damageDealt\":0,\"source\":\"unity-round\"}";
-        byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
-
-        string url = SessionReporter.Instance.baseUrl.TrimEnd('/') + "/api/sessions";
-        UnityWebRequest request = new UnityWebRequest(url, "POST");
-        request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-        request.downloadHandler = new DownloadHandlerBuffer();
-        request.SetRequestHeader("Content-Type", "application/json");
-
-        yield return request.SendWebRequest();
-
-        if (request.result != UnityWebRequest.Result.Success)
-            Debug.LogWarning("Failed to send tap result: " + request.error);
-        else
-            Debug.Log("Tap result sent successfully: " + taps + " taps");
-    }
-
-    private string Escape(string s)
-    {
-        return s.Replace("\"", "\\\"");
+        SessionReporter.Instance.PostJson("/api/sessions", json, $"tap result ({taps} taps)");
     }
 
 #if UNITY_EDITOR
