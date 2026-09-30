@@ -1,6 +1,33 @@
 # Project Progress — Fitness Monster Battle
 
-Last updated: **2026-09-30 (second pass) — Level 1 lag diagnosis (Unity Profiler via MCP) + Level 1 monster expanded from 3 to 6 attacks**
+Last updated: **2026-09-30 (third pass) — flinch no longer delays or drops attack animations in Level 2 (same controller fix as Level 1; now applies to both levels)**
+
+---
+
+## 2026-09-30 (third pass) — Level 2: flinch vs attack / guard animations (FIXED, both levels now)
+
+**Cause.** `Monster_L2_Axe.controller` entered every attack and Defend only from `Idle`, and `Hit` had a single way out, its exit time (0.93 s). A trigger set while the monster was flinching, or during a blend back to Idle, waited; if the attack finished first, its end-of-attack `Idle` call reset the trigger and the animation never played.
+
+**What is shared and what is per level.**
+| Change | Where | Level 1 | Level 2 |
+|---|---|---|---|
+| Flinch's delayed return-to-Idle no longer fires during a defend | `Monster/MonsterController.cs` (shared) | applied in the second pass | applied in the second pass (same code) |
+| Attacks and Defend can start out of `Hit`; blends into `Idle` (and `Idle → Hit`) can be taken over by the next trigger | Animator controller (one per level) | `Monster_L1_Sword.controller`, second pass | **`Monster_L2_Axe.controller`, this pass** |
+
+**Applied to `Monster_L2_Axe.controller`.** 11 new transitions `Hit → <state>` copied from the matching `Idle → <state>` ones (same trigger, blend and entry offset): the 10 attacks (Executioner Slam through `Atk_ExecSlam_Raise`) and Defend. 26 blends set to *Interruption Source: Next State* (every transition into `Idle`, plus `Idle → Hit`). Nothing else changed: clips, speeds, offsets, the flinch length and **Any State → Death only** are as before. 15 states, 49 transitions.
+
+**Verified in Play mode, same scenario that exposed it** (natural fight, AI choosing, a 3-damage body hit every 1.3 s, 45 s, 1/30 s steps), recorded per frame before and after the change.
+| | Before | After |
+|---|---|---|
+| Attacks completed | 16 | 16 |
+| Attack animation started late (more than 2 frames after the trigger) | 10 (0.17–0.87 s) | 0 (all on the trigger frame) |
+| Damage resolved with no attack animation playing | 2 (Diagonal Slash while still in `Hit`, Horizontal Sweep while still in `Idle`) | 0 |
+| Defends where the guard pose was late or missing while the 70% reduction was on | 7 of 8 (0.17–1.0 s, one for the whole window) | 0 of 8 |
+| Attack animations cut while the attack was active | 0 | 0 |
+
+Worst case, all 10 attacks forced 0.1 s after a body hit (1/72 s steps): every one went `Hit → own state` on the next frame and landed its damage (Sweep 16.8, Diagonal 16.8, Backhand 15.1, Twin Strike 12.6 ×2, Whirlwind 23.5, Executioner Slam 29.4 through Raise → Strike, Leaping Cleave 33.6, Reaping Combo 13.4 ×2, Lunging Cleave 18.5, Overhead Chop 16.8). Console: 0 errors.
+
+**Headset check (Level 2).** Keep hitting the vampire's body while it attacks: every attack should still show its swing, starting with the red flash, and the blue guard pose should come up the moment the tint does.
 
 ---
 
@@ -143,7 +170,7 @@ Old set for comparison: Slash 67 / Heavy 17 / Special 17% above 50% HP, 53 / 27 
 | `Scenes/Level1_Easy.unity` | two new `CombatUIController` default fields serialized (no behaviour change) |
 
 ### Open items found in this pass (not changed)
-- **Level 2: a flinch delays or drops attack animations.** `Monster_L2_Axe.controller` enters attacks only from `Idle`, and `Hit` has no way out before its exit time (0.93 s). With a body hit every 1.3 s: 8 attacks, animation started 0.10–0.97 s after the trigger, and one Horizontal Sweep dealt its damage without ever reaching its state. The Level 1 controller's two changes (`Hit → attack` transitions, interruptible blends into Idle) fix this.
+- **Level 2: a flinch delays or drops attack animations.** `Monster_L2_Axe.controller` enters attacks only from `Idle`, and `Hit` has no way out before its exit time (0.93 s). With a body hit every 1.3 s: 8 attacks, animation started 0.10–0.97 s after the trigger, and one Horizontal Sweep dealt its damage without ever reaching its state. The Level 1 controller's two changes (`Hit → attack` transitions, interruptible blends into Idle) fix this. **✅ Fixed in the third pass (section above).**
 - Level 1 Spin Slash still uses the original clip, where the body does not turn and the first of its two swings crosses the player at about 0.5 s without damage; the hit is the second swing.
 - The static root capsule of the monster stays on the ground while it is airborne in Leaping Slam.
 - Swing damage still grows with every landed hit (`damagePerTapBonus` 0.35 × hits so far). By the formula a hit is worth about 90 after 154 hits; in the second trace the monster went from 150 HP to dead between two frames at that point.

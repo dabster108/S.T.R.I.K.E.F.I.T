@@ -2,12 +2,16 @@
 // Purpose: Streams a battle to the STRIKEFIT backend (web/backend) while it is being played:
 //          live session at battle start, batched combat events + 1 s HP snapshots during the
 //          fight, final stats at the end. One component, used unchanged by every level.
+//          Also the pre-battle player requests for PlayerNamePicker: player list, rename, and the
+//          current name of a past session.
 // Dependencies: BattleManager, HitDetection, MonsterAI, PlayerHealth, XPManager, RoundManager,
-//               LevelManager, PlayerCombat (all optional at runtime).
+//               LevelManager, PlayerCombat (all optional at runtime), PlayerNameStore.
 // Attach to: BattleSystems (same GameObject as BattleManager). BattleManager adds one if missing.
 //
 // Networking never touches gameplay: events go into a bounded buffer, at most one request is in
 // flight, requests are sent every flushInterval seconds, and any failure drops that batch silently.
+// The player requests are sent straight away (nothing else is in flight before a battle), each with
+// its own timeout, and always answer through a callback, also on failure.
 
 using System;
 using System.Collections.Generic;
@@ -47,6 +51,11 @@ public class SessionReporter : MonoBehaviour
     public int maxEventsPerRequest = 50;
     [Tooltip("Seconds before a POST is abandoned. Requests are async, so this never stalls gameplay.")]
     public int requestTimeoutSeconds = 5;
+    [Tooltip("Seconds before the player-list request for the name panel is abandoned. The panel shows the " +
+             "locally remembered names meanwhile, so this never delays a fight.")]
+    public int playerListTimeoutSeconds = 3;
+    [Tooltip("Seconds before a rename request is abandoned (the name panel waits for the answer).")]
+    public int renameTimeoutSeconds = 8;
     [Tooltip("Log every request result to the Console (off in builds).")]
     public bool verboseLogging = false;
 
@@ -95,7 +104,7 @@ public class SessionReporter : MonoBehaviour
 
     const float WeakSwingRepeatWindow = 0.35f;
     public const string DefaultPlayerName = "Player 1";
-    const int MaxPlayerNameLength = 40; // backend limit (PATCH /api/players/:name)
+    public const int MaxPlayerNameLength = 40; // backend limit (PATCH /api/players/:name)
 
     void Awake()
     {
@@ -203,12 +212,205 @@ public class SessionReporter : MonoBehaviour
         if (Instance == this) Instance = null;
     }
 
+    // ─────────────────────────── Players (pre-battle, used by PlayerNamePicker) ───────────────────────────
+
+    public enum RenameStatus
+    {
+        Renamed,      // 200: the player's sessions now carry the new name
+        NotOnServer,  // 404 "Player not found": no sessions under the old name, nothing to move
+        Conflict,     // 409: the new name is taken, or the player is in a live fight
+        Rejected,     // any other answer from the server (invalid name, no rename route, 5xx)
+        Unreachable,  // no answer: offline, timeout, malformed baseUrl
+        InBattle,     // refused locally: a battle is being reported
+    }
+
+    public struct RenameResult
+    {
+        public RenameStatus status;
+        public long httpStatus;
+        /// <summary>The server's own error text when it sent one, else the transport error.</summary>
+        public string message;
+    }
+
+    [Serializable] class PlayerRow { public string playerName; public string lastPlayedAt; }
+    [Serializable] class PlayersResponse { public List<PlayerRow> players; }
+    [Serializable] class SessionRow { public string playerName; }
+    [Serializable] class SessionResponse { public SessionRow session; }
+    [Serializable] class ErrorResponse { public string error; }
+
+    /// <summary>
+    /// GET /api/players. Calls back with the player names, most recently played first, or with
+    /// ok = false (and an empty list) when the backend did not answer within playerListTimeoutSeconds.
+    /// </summary>
+    public void FetchPlayerNames(Action<bool, List<string>> done)
+    {
+        SendNow(UnityWebRequest.kHttpVerbGET, ApiUrl("/api/players"), null, playerListTimeoutSeconds, "player list",
+            (answered, code, body, error) =>
+            {
+                var names = new List<string>();
+                if (!answered || code != 200) { done(false, names); return; }
+                try
+                {
+                    var parsed = JsonUtility.FromJson<PlayersResponse>(body);
+                    if (parsed == null || parsed.players == null) { done(false, names); return; }
+                    parsed.players.Sort((a, b) => PlayedAt(b).CompareTo(PlayedAt(a)));
+                    foreach (var p in parsed.players)
+                        if (!string.IsNullOrWhiteSpace(p.playerName) && !names.Contains(p.playerName))
+                            names.Add(p.playerName);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[SessionReporter] player list: unreadable answer ({e.Message}). Backend: {baseUrl}");
+                    names.Clear();
+                    done(false, names);
+                    return;
+                }
+                done(true, names);
+            });
+    }
+
+    /// <summary>
+    /// GET /api/sessions/:id. Calls back with found = true and the name that session is stored under now
+    /// (it follows dashboard renames), found = false when the backend has no such session (404), and
+    /// answered = false when the backend could not be asked.
+    /// </summary>
+    public void FetchSessionPlayerName(string sessionId, Action<bool, bool, string> done)
+    {
+        SendNow(UnityWebRequest.kHttpVerbGET, ApiUrl("/api/sessions/" + Uri.EscapeDataString(sessionId ?? "")), null,
+            playerListTimeoutSeconds, "session lookup",
+            (answered, code, body, error) =>
+            {
+                if (!answered || (code != 200 && code != 404)) { done(false, false, null); return; }
+                if (code == 404) { done(true, false, null); return; }
+                string name = null;
+                try
+                {
+                    var parsed = JsonUtility.FromJson<SessionResponse>(body);
+                    if (parsed != null && parsed.session != null) name = parsed.session.playerName;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[SessionReporter] session lookup: unreadable answer ({e.Message}). Backend: {baseUrl}");
+                }
+                if (string.IsNullOrWhiteSpace(name)) done(false, false, null);
+                else done(true, true, name);
+            });
+    }
+
+    /// <summary>
+    /// PATCH /api/players/:oldName { newName }: moves the player's whole history to the new name on the
+    /// backend. Does not change playerName here; the caller does that from the result. Refused during a
+    /// battle (same rule as SetPlayerName), so a fight is never split across two names.
+    /// </summary>
+    public void RenamePlayer(string oldName, string newName, Action<RenameResult> done)
+    {
+        if (sessionOpen)
+        {
+            Debug.LogWarning($"[SessionReporter] Rename '{oldName}' -> '{newName}' refused during a battle.");
+            done(new RenameResult { status = RenameStatus.InBattle, message = "A battle is running" });
+            return;
+        }
+
+        // EscapeDataString, not UnityWebRequest.EscapeURL: a '+' in a URL path is a literal plus, not a space.
+        string url = ApiUrl("/api/players/" + Uri.EscapeDataString(oldName ?? ""));
+        string json = "{\"newName\":\"" + Escape(newName) + "\"}";
+        SendNow("PATCH", url, json, renameTimeoutSeconds, "rename",
+            (answered, code, body, error) =>
+            {
+                var result = new RenameResult { httpStatus = code, message = error };
+                if (!answered)
+                {
+                    result.status = RenameStatus.Unreachable;
+                    done(result);
+                    return;
+                }
+
+                string serverError = null;
+                try
+                {
+                    var parsed = JsonUtility.FromJson<ErrorResponse>(body);
+                    if (parsed != null) serverError = parsed.error;
+                }
+                catch (Exception) { /* not JSON (proxy page): the status code still decides */ }
+                if (!string.IsNullOrEmpty(serverError)) result.message = serverError;
+
+                if (code >= 200 && code < 300) result.status = RenameStatus.Renamed;
+                else if (code == 409) result.status = RenameStatus.Conflict;
+                // Only the rename route's own 404 means "no such player"; an unknown route is a failure.
+                else if (code == 404 && serverError == "Player not found") result.status = RenameStatus.NotOnServer;
+                else result.status = RenameStatus.Rejected;
+                done(result);
+            });
+    }
+
+    static DateTime PlayedAt(PlayerRow p)
+    {
+        DateTime t;
+        return p != null && DateTime.TryParse(p.lastPlayedAt, CultureInfo.InvariantCulture,
+            DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out t) ? t : DateTime.MinValue;
+    }
+
+    // One request, sent immediately, with a timeout. `done` is always called exactly once, unless this
+    // component was destroyed meanwhile: answered = the server replied (any status code, body included).
+    void SendNow(string method, string url, string json, int timeoutSeconds, string label,
+        Action<bool, long, string, string> done)
+    {
+        UnityWebRequest req = null;
+        UnityWebRequestAsyncOperation op;
+        try
+        {
+            req = new UnityWebRequest(url, method)
+            {
+                downloadHandler = new DownloadHandlerBuffer(),
+                timeout = Mathf.Max(1, timeoutSeconds),
+            };
+            if (json != null)
+            {
+                req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
+                req.SetRequestHeader("Content-Type", "application/json");
+            }
+            op = req.SendWebRequest();
+        }
+        catch (Exception e)
+        {
+            // A malformed baseUrl throws here; never let it reach gameplay.
+            req?.Dispose();
+            Debug.LogWarning($"[SessionReporter] {label} not sent ({e.Message}). Backend: {baseUrl}");
+            done(false, 0, "", e.Message);
+            return;
+        }
+
+        bool verbose = verboseLogging;
+        op.completed += _ =>
+        {
+            // ProtocolError = the server answered with 4xx/5xx; the caller decides what that means.
+            bool answered = req.result == UnityWebRequest.Result.Success || req.result == UnityWebRequest.Result.ProtocolError;
+            long code = req.responseCode;
+            string body = req.downloadHandler != null ? req.downloadHandler.text : "";
+            string error = req.error;
+            req.Dispose();
+
+            if (this == null) return; // scene unloaded mid-request: nobody is waiting any more
+            if (!answered) Debug.LogWarning($"[SessionReporter] {label}: no answer ({error}). Backend: {baseUrl}");
+            else if (verbose) Debug.Log($"[SessionReporter] {label}: {method} {url} → {code}");
+            try
+            {
+                done(answered, code, body ?? "", error);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+        };
+    }
+
     // ─────────────────────────── Session lifecycle (called by BattleManager) ───────────────────────────
 
     public void BeginSession()
     {
         currentSessionId = Guid.NewGuid().ToString("N");
         sessionPlayerName = CleanName(playerName);
+        PlayerNameStore.RecordSession(sessionPlayerName, currentSessionId);
         sessionStartedAt = Time.realtimeSinceStartup;
         hitCount = 0;
         sessionOpen = true;
