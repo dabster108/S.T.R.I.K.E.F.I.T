@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       host: true,
       proxy: {
+        "/api/broadcast/ws": { target: backend, ws: true },
         "/api": backend,
         "/socket.io": { target: backend, ws: true },
       },

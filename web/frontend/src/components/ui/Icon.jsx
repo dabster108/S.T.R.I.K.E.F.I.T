@@ -40,6 +40,7 @@ import {
   Layers,
   List,
   LoaderCircle,
+  Maximize,
   Medal,
   Menu,
   Monitor,
@@ -145,6 +146,7 @@ const ICONS = {
   monitor: Monitor,
   external: ExternalLink,
   pencil: PencilLine,
+  maximize: Maximize,
 };
 
 // Lucide dropped brand marks, so GitHub keeps its own outline path in the same style.

@@ -834,6 +834,8 @@ MonoBehaviour:
   maxBufferedEvents: 256
   maxEventsPerRequest: 50
   requestTimeoutSeconds: 5
+  playerListTimeoutSeconds: 3
+  renameTimeoutSeconds: 8
   verboseLogging: 0
   currentSessionId: 
   sessionPlayerName: 
@@ -902,6 +904,8 @@ MonoBehaviour:
   damageNumberLifetime: 1
   damageNumberRiseSpeed: 1.2
   damageNumberParent: {fileID: 0}
+  staminaUiStep: 0.02
+  verboseDamageLogs: 0
 --- !u!114 &121459570
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2070,6 +2074,84 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 291503151}
   m_Mesh: {fileID: 4406048967734706137, guid: edcc86a903182d0429c0d7b2c727fec0, type: 3}
+--- !u!1 &295877334
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 295877337}
+  - component: {fileID: 295877336}
+  - component: {fileID: 295877335}
+  m_Layer: 0
+  m_Name: BroadcastSystems
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &295877335
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 295877334}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 594f53276908f49a1afac609bea70ea4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::McpBroadcastController
+  viewerPageUrl: https://strikefit.vercel.app/broadcast
+--- !u!114 &295877336
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 295877334}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b2dd92c33d6474d7489738adefce3544, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WebRtcStreamer
+  signalingUrl: wss://s-t-r-i-k-e-f-i-t.onrender.com/api/broadcast/ws
+  room: strikefit
+  streamerKey: 
+  connectOnStart: 1
+  sourceCamera: {fileID: 0}
+  width: 1280
+  height: 720
+  frameRate: 30
+  maxBitrateKbps: 3500
+  fieldOfView: 80
+  maxViewers: 2
+  stunUrls:
+  - stun:stun.l.google.com:19302
+  - stun:stun1.l.google.com:19302
+  - stun:stun2.l.google.com:19302
+  signalingState: Disconnected
+  viewerCount: 0
+  liveViewerCount: 0
+  capturing: 0
+  lastError: 
+--- !u!4 &295877337
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 295877334}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &301931787
 GameObject:
   m_ObjectHideFlags: 0
@@ -21213,3 +21295,4 @@ SceneRoots:
   - {fileID: 1935399501}
   - {fileID: 1713730726}
   - {fileID: 2034946684}
+  - {fileID: 295877337}

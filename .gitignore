@@ -93,6 +93,10 @@ crashlytics-build.properties
 # Temporary auto-generated IDE files
 InitTestScene*.unity*
 
+# Unity crash-recovery scene backups
+/[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta
+
 # Optional local env / secrets
 .env
 .env.*
