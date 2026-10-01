@@ -26,9 +26,10 @@ public class WebRtcStreamer : MonoBehaviour
     [Header("Signaling")]
     [Tooltip("WebSocket URL of the relay, no query string. Must be wss:// on Quest.")]
     public string signalingUrl = "wss://s-t-r-i-k-e-f-i-t.onrender.com/api/broadcast/ws";
-    [Tooltip("Used instead of signalingUrl when connectOnStart runs in the Unity Editor (local backend: " +
-             "cd web/backend && npm start). Empty = use signalingUrl in the Editor too.")]
-    public string editorSignalingUrl = "ws://localhost:4000/api/broadcast/ws";
+    [Tooltip("Used instead of signalingUrl when connectOnStart runs in the Unity Editor. Empty = the Editor " +
+             "uses signalingUrl (the Render backend), same as the Quest build.")]
+    // For a local backend (cd web/backend && npm start) set this to: ws://localhost:4000/api/broadcast/ws
+    public string editorSignalingUrl = "";
     [Tooltip("Room name; the web page joins the same room (/broadcast?room=<name>, default strikefit).")]
     public string room = "strikefit";
     [Tooltip("Only needed when the backend sets BROADCAST_KEY.")]
