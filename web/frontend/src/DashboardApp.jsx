@@ -23,6 +23,7 @@ import {
 
 const DashboardView = lazy(() => import("./views/DashboardView.jsx"));
 const LiveView = lazy(() => import("./views/LiveView.jsx"));
+const DashboardBroadcastView = lazy(() => import("./views/BroadcastView.jsx").then((m) => ({ default: m.DashboardBroadcastView })));
 const SessionsView = lazy(() => import("./views/SessionsView.jsx"));
 const SessionDetailView = lazy(() => import("./views/SessionDetailView.jsx"));
 const LeaderboardView = lazy(() => import("./views/LeaderboardView.jsx"));
@@ -169,6 +170,7 @@ function Dashboard() {
                 <Routes>
                   <Route index element={overview} />
                   <Route path="live" element={<LiveView />} />
+                  <Route path="broadcast" element={<DashboardBroadcastView />} />
                   <Route path="players" element={<PlayersView sessions={t.sessions} />} />
                   <Route path="player/:name" element={<PlayerView />} />
                   <Route path="sessions" element={<SessionsView sessions={filtered} range={range} onRange={setRange} openSession={openSession} />} />

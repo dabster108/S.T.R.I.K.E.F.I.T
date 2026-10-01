@@ -6,6 +6,7 @@ import Tooltip from "../ui/Tooltip.jsx";
 export const NAV = [
   { to: "/dashboard", label: "Overview", icon: "dashboard", end: true },
   { to: "/dashboard/live", label: "Live Arena", icon: "live" },
+  { to: "/dashboard/broadcast", label: "Broadcast", icon: "monitor" },
   { to: "/dashboard/players", label: "Players", icon: "players" },
   { to: "/dashboard/sessions", label: "Sessions", icon: "sessions" },
   { to: "/dashboard/leaderboard", label: "Leaderboard", icon: "trophy" },

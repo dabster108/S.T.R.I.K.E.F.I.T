@@ -6,6 +6,7 @@ import { OverviewSkeleton } from "./components/ui/Skeletons.jsx";
 // The dashboard (charts, live stream, every inner page) is its own chunk, so the
 // public landing page never downloads it.
 const DashboardApp = lazy(() => import("./DashboardApp.jsx"));
+const BroadcastView = lazy(() => import("./views/BroadcastView.jsx"));
 
 function DashboardFallback() {
   return (
@@ -26,6 +27,14 @@ export default function App() {
         element={
           <Suspense fallback={<DashboardFallback />}>
             <DashboardApp />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/broadcast"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <BroadcastView />
           </Suspense>
         }
       />

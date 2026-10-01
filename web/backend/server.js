@@ -9,6 +9,7 @@ const { v4: uuidv4 } = require("uuid");
 const { query, withTransaction } = require("./db");
 const { SESSION_API_FIELDS, SESSION_API_SELECT, EVENT_SELECT, fromRow } = require("./columns");
 const stream = require("./stream");
+const broadcast = require("./broadcast");
 const analytics = require("./analytics");
 
 const PORT = Number(process.env.PORT) || 4000;
@@ -425,6 +426,7 @@ const corsOptions = { origin: (origin, cb) => cb(null, originAllowed(origin)), m
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: corsOptions });
+broadcast.attach(server);
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
@@ -467,6 +469,9 @@ app.get("/api/health", route(async (_req, res) => {
 
 // Real-time feed for the dashboard (Server-Sent Events). ?player=NAME scopes it.
 app.get("/api/stream", stream.open);
+
+// Headset livestream: who is online per room (the WebRTC signaling itself is WS /api/broadcast/ws).
+app.get("/api/broadcast/status", (_req, res) => res.json({ ok: true, rooms: broadcast.status() }));
 
 app.get("/api/sessions", route(async (req, res) => {
   const { player, level, outcome, status } = req.query;
@@ -805,6 +810,7 @@ ready.then(() => server.listen(PORT, "0.0.0.0", () => {
   console.log("  GET    /api/events[?limit&type&sessionId&player] | /api/live[?player]");
   console.log("  GET    /api/overview | /api/public-stats | /api/analytics | /api/export/{sessions,events}.csv");
   console.log("  GET    /api/stream[?player]  (Server-Sent Events)");
+  console.log(`  WS     ${broadcast.PATH}?role=streamer|viewer[&room]  (WebRTC signaling) | GET /api/broadcast/status`);
   console.log("  POST   /api/sessions | /api/events (single or batch)");
   console.log("  PATCH  /api/players/:name  { newName }");
   console.log("  DELETE /api/sessions | /api/sessions/:id");
