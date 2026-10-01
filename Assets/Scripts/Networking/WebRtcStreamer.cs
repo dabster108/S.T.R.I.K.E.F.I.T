@@ -150,6 +150,11 @@ public class WebRtcStreamer : MonoBehaviour
             Debug.LogWarning($"[WebRtcStreamer] '{signalingUrl}' is not wss://; Quest may block it.");
 #endif
         lastError = "";
+        // The relay answers a missing/wrong key with 401, which ClientWebSocket only reports as
+        // "Unable to connect to the remote server", so say it plainly here.
+        if (string.IsNullOrEmpty(streamerKey))
+            Debug.LogWarning("[WebRtcStreamer] Streamer Key is empty. If the backend sets BROADCAST_KEY, the relay " +
+                             "refuses this connection (shown below as 'Unable to connect to the remote server').");
         signaling = new SignalingClient(full);
         signaling.StateChanged += OnSignalingState;
         signaling.MessageReceived += OnSignal;

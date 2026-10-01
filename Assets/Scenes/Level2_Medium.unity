@@ -2120,7 +2120,7 @@ MonoBehaviour:
   signalingUrl: wss://s-t-r-i-k-e-f-i-t.onrender.com/api/broadcast/ws
   editorSignalingUrl: 
   room: strikefit
-  streamerKey: 
+  streamerKey: 5f6859d132f03864c654c3f1b0a641cb
   connectOnStart: 1
   sourceCamera: {fileID: 0}
   width: 1280
