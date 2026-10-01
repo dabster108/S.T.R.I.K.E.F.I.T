@@ -2118,6 +2118,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WebRtcStreamer
   signalingUrl: wss://s-t-r-i-k-e-f-i-t.onrender.com/api/broadcast/ws
+  editorSignalingUrl: 
   room: strikefit
   streamerKey: 
   connectOnStart: 1
