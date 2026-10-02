@@ -1,6 +1,440 @@
 # Project Progress — Fitness Monster Battle
 
-Last updated: **2026-10-02 — Level 3 boss is now the Mixamo character Ch25 ("Twin-Axe Brute") with one axe in each hand and an 11-attack table; replaces the Armored Executioner**
+Last updated: **2026-10-02 (third pass) — Level 3 VERIFIED end to end in Play mode (grab → entrance → combat → reactive defend → victory / defeat); 5 issues found and fixed; reactive defend added**
+
+---
+
+## 2026-10-02 (fourth pass) — Level 3: flaming axes + coiling blue serpent aura
+
+**Found (live, MCP):** the earlier session had already added `MonsterAxeFlames` (flame + spark emitter on each `BladeEdge`, a child of the axe, so a child of the RightHand/LeftHand bone) and `MonsterSerpentAura` (3 orbs with `TrailRenderer`s). This pass tuned and verified them. Body emission is unchanged (Simple Lit, `_EMISSION`, masks `Ch25_100x_Emission`). **One source of truth for enrage:** `MonsterAI.enraged`, written only by `BossPhaseController.EnterEnrage` (`IsEnraged` just reads it). `MonsterGlow`, `ArenaMoodController`, `MonsterAxeFlames`, `MonsterSerpentAura` all read it; no second phase check exists.
+
+**Built / changed**
+- `MonsterAxeFlames`: levels re-tuned to 15-30 particles per axe (idle ~10, Standard ~15, Heavy/Unblockable ~24, enraged ~30). Enrage shifts the flame colour over 1 s (core blue-white 0.82/0.90/1.0, then white-yellow, then orange; calm is yellow-orange-red) and raises rate x1.25 and size x1.15. Particle life shortens with blade speed (down to x0.5 at 8 m/s) so fast swings leave a short flicker. Level is chosen per attack from `CurrentAttack` (Heavy/Special/IdleSlam/unblockable = heavy; thrown axe in flight = heavy). Sparks burst on `MonsterController.OnMonsterAttackDamage`, the same hit event as the hit sounds.
+- `MonsterSerpentAura`: 3 orbs, one shared helix that follows the live skeleton (feet, hips, chest, neck, head), radius from skeleton width plus margin. Margins widened (hip 0.22, chest 0.18, neck 0.20, head 0.22, top 0.22) after a clipping measurement. Appears only when `MonsterEntrance.Complete`. Enraged: climb 3.2 s to 1.9 s, 2.5 to 3 turns, radius x0.88, width 0.05 to 0.065, brightness 1.0 to 1.7. Blue/white-hot trail texture, additive.
+- Builder: velocity-over-lifetime curves made all-constant (mixed modes spammed "Particle Velocity curves must all be in the same mode" every frame).
+
+**Verified in Play mode (real Start path, forced attacks, 1/72 s)**
+| Check | Result |
+|---|---|
+| Parenting | `Monster/RiseOffset/Hips/.../RightHand/MonsterAxe_R/BladeEdge/AxeFlame` (and `_L` / LeftHand); sparks under the same BladeEdge; emitter offset 0.088 m from the bone-parented blade, particles world-space (short life) |
+| Entrance | flames off, aura orbs disabled until entrance complete (6.93 s), then both fade/ignite together; 0 overlap with summoning circle |
+| Attack scaling | Alternating Chops, Crossing Swing: `standard`, rate 48; Cleave, Whirlwind, Leap: `heavy`, rate 80; Earthsplitter Slam: `heavy (unblockable)`, rate 80; back to idle after |
+| Particles alive | Standard ~11-12 mean / 17 max per axe; Heavy ~19 mean / 26 max; enraged Heavy 30 per axe (60 both) |
+| Sparks | one burst per landed hit: bursts == damage events in every attack |
+| Enrage | HP to 400/1500: `ai.enraged` and `BossPhaseController.IsEnraged` true together, aura climb 3.2 to 1.9 s, flame gradient to blue-white core, glow to orange: all keyed off the same flag |
+| Aura clipping vs tight hit volumes | before margin fix 21 % of orb samples inside a body capsule (61 % at the head); after: 10 % at idle, 6 % Heavy, 12 % slam, 8 % Brute Rush; remainder is the swinging arms crossing the coil |
+| Console | 0 errors; only warnings are the Meta ISDK telemetry notice and SessionReporter drops (test backend redirect) |
+
+**Performance (editor, Play mode; not Quest numbers):** VFX on vs off = about +5 draw calls (117.4 to 122.7 idle enraged; 123.8 in an enraged Heavy swing). Added objects: 2 flame + 2 spark particle systems, 3 trail renderers. No GC from these scripts beyond a small Gradient rebuild when the enrage blend steps (20 steps). **Concern:** none measured; the scene's ~120 draw calls and 260 k triangles come from the arena and boss, not this VFX. If Quest is tight, drop the aura to 2 orbs or `trailTime` 0.5 to 0.35 first. Only the headset can confirm frame time.
+
+**Not done:** no eye-view render of the new VFX this pass (checked by numbers and positions). Review the look on the headset: flame size at arm's length, the aura brightness against the dock lighting.
+
+**Ready for headset test? YES** (performance acceptable in the Play-mode test as far as the editor can tell; frame time is unmeasured on device).
+
+---
+
+## 2026-10-02 (third pass) — Level 3 end-to-end verification in Play mode (+ reactive defend)
+
+**Method.** Every claim below was watched happening in Play mode on `Level3_Hard` through Unity MCP. Nothing was taken from earlier notes or from reading the code.
+- **Setup:** 1/72 s steps; backend at 127.0.0.1:9; the real Start path (name picker → weapon gate → Start).
+- **Player:** the "player" was the real weapon object (`PlayerCombat.weaponTransform`), moved physically each frame at 4.3–6.5 m/s. Every hit, block, clash and parry therefore went through the real `HitDetection` trigger path.
+- **Monster:** in the fights, the AI chose every attack itself; nothing was forced.
+
+### Final status
+
+| Step | Status |
+|---|---|
+| 1. Weapons at scene start + grab → both hands | **VERIFIED WORKING IN PLAY MODE** (2 fixes) |
+| 2. Entrance (circle → rise → roar → combat) | **VERIFIED WORKING IN PLAY MODE** (1 fix) |
+| 3. Attack variety + HP escalation + unblockable | **VERIFIED WORKING IN PLAY MODE** |
+| 4. Defend reactivity | **VERIFIED WORKING IN PLAY MODE** (new feature) |
+| 5. Victory / defeat round trip, console | **VERIFIED WORKING IN PLAY MODE** (see console notes) |
+
+### Step 1 — Scene start and weapon grab
+
+**What happened (Play mode):**
+- **Start of the scene:** 0 monsters, no rune circle visible, battle inactive. Start was **refused while unarmed**: `StartBattle` returned with the battle inactive and 0 monsters.
+- **Weapon placement**, rendered from the head at (0, 1.6, 0):
+  - two maces leaning head-up on the cargo crate (left);
+  - two flails draped over the barrel with the balls on the planks (right);
+  - two katanas driven into the planks (behind);
+  - each pair with its label and a gold rune ring.
+  - Their bounds touch only their intended crate, barrel and planks; nothing floats.
+- **Reach:** I moved the rig so that the real resting hand pose landed on a grab point ("walking up"). The right hand on a Flail grab point gave `HandInReach = true` and the highlight ring lit.
+- **Equip chain (what the grip calls):** `WeaponPickup.Equip` → `PlayerCombat.EquipWeaponSet`. Reaching **one** pair equipped **both hands**:
+  - **Flail:** `PlayerFlail_Right` under RightHandAnchor (HitDetection hand = Right) and `PlayerFlail_Left` under LeftHandAnchor (hand = Left) both active; `weaponTransform` / `offhandWeaponTransform` set; swing gate 1.2 → 1.6 m/s; LevelManager weapons = Flail/Flail.
+  - **Props:** the Flail's staged props were hidden.
+  - **Start:** the Start button appeared once armed.
+- **Swap:** the left hand on a Katana grab point → Katana in both hands (gate 1.3). The Flail pair went back to its spot with its props visible again.
+- **Locked in battle:** after Start, `Equip(Katana)` returns **false** and the Mace stays.
+
+**Issues found:**
+1. **No idle motion at all.** All six staged weapons moved 0.0000 m, and the rings were static. No bob or glow script existed.
+2. **Swap prompt went stale.** After a Flail → Katana swap, the prompt still said "WAR FLAIL READY".
+3. **Two stray equips with no input.** These were observed on the first two Play entries. The only code paths to equip are grip-with-a-hand-in-reach or the editor keys 1/2/3. With a stack-trace log armed, the stray equip did not recur in 6 later sessions. Most likely this was keyboard input reaching the Game view; the editor keys exist only in the editor.
+
+**Fixes:**
+- **Idle glow:** `WeaponPickup` gained an idle glow. The pair's ground ring pulses (phase-offset per pair) and turns slowly, and it switches off when the pair is held or the battle starts. Bobbing was deliberately **not** used, because the weapons rest on crates and in planks and would float. Verified: pulse 0.48–1.00 with the yaw advancing; the held pair's ring is off.
+  - Wiring: `Level3SceneBuilder.StagePair` and `Level3EngagementBuilder` (the open scene was re-applied).
+- **Prompt:** `WeaponSelectionStage` refreshes the prompt on a swap too. Verified: "WAR FLAIL READY" → "KATANA READY".
+
+**Headset:**
+- Walk to a pair: its ring brightens as your hand gets in reach. Squeeze grip: **both** hands get that weapon.
+- Swap to another pair: the first goes back on its crate or barrel.
+- After Start, the pairs can't be picked up.
+- Readability check: the dark flails on the dark barrel.
+
+### Step 2 — Entrance (observed timing, seconds from Start)
+
+| t (s) | Observed |
+|---|---|
+| 0.00 | Monster spawned 2.90 m under the floor. AI **off**, **0/18** colliders on. The circle starts fading in |
+| 1.47 | Circle at full alpha; `Rise` trigger |
+| 1.47 → 4.50 | Rise. Height followed the clip: clip 0.18 → 20 % of the depth, 0.50 → 76 %, 0.82 → 98 %. It reached the floor at **clip 0.995**, so it never outpaced the clip (eased: fast lunge, heavy settle) |
+| 4.53 | **Roar animation transition and roar audio onset on the same frame** (audio measured from the source's output) |
+| 4.53 → 5.73 | Circle fades out (now starts when fully risen) |
+| 6.93 | **Entrance complete**: AI on, colliders 18/18 on, phase logic starts. The first attack follows immediately |
+
+During the entrance:
+- **0 attack-damage events.**
+- **A live mace sweep through the rising body** at 4.2 s registered **no contact** (monster HP −0).
+- **No combat can start early:** AI and colliders are off until 6.93 s. The Start button is what *begins* this sequence; it can't be pressed again.
+
+**Issue / fix:** the circle stayed lit through the whole roar and only faded at 6.93 s. `MonsterEntrance` now starts the fade the moment the monster is fully risen. Verified: alpha 0 with the renderer off at 6.93 s.
+
+**Headset:** after Start, the circle glows, the brute rises through it, the circle fades as he roars, and only then does he attack. Your swings pass through him during the rise.
+
+### Step 3 — Sustained fight
+
+A full fight to the kill, 83 s: the AI choosing every attack, and the player swinging every 1.6 s at 4.3 m/s.
+
+| Tier | Attacks | Standard | Combo | Heavy | Unblockable slam | Ranged |
+|---|---|---|---|---|---|---|
+| Phase 1 (> 66 %) | 13 | 10 (77 %) | 1 | 2 (15 %) | 0 | 0 |
+| Phase 2 (33–66 %) | 12 | 6 (50 %) | 1 | 4 (33 %) | 1 (8 %) | 0 |
+| Enraged (≤ 33 %) | 9 | 4 (44 %) | 1 | 2 (22 %) | 2 (22 %) | 0 |
+
+- **Escalation is real in the logged data:** heavy and unblockable attacks grow as HP drops.
+- **Variety:** 10 different attacks were used, with **no back-to-back repeat**.
+- **Ranged attacks** show up when the player is out of reach; a second fight opened with a Brute Rush from 3.19 m.
+- **Animator:** **34/34 attacks reached their own distinct state**, with **0 transitions through Any State** (`GetAnimatorTransitionInfo(0).anyState` checked every frame).
+
+**Unblockable slam (physical test):**
+- Swinging the mace into the boss's axe during the slam wind-up produced a real `Clash`, but **no parry**. The **full 45** landed, flagged `LastHitWasUnblockable`.
+- By contrast, the same clash during a Crossing Double Swing **parried** it: 22.5 → **7.9** (×0.35).
+- The red danger ring and the warning sound play at the start of the slam wind-up; the slam's tint is purple.
+- Level 3 has no shield, and `ModifyIncomingDamage` only blocks with a shield. So the parry is the only damage reduction the slam needs to ignore, and it does.
+
+**Headset:**
+- Parry a normal swing by hitting his axe during the wind-up: a clang and small damage.
+- Try the same on the purple slam with the red ring: it still hits for full damage. Only stepping out of the ring works.
+
+### Step 4 — Defend: now reactive
+
+**What happened before:** the guard was purely timed. A baseline fight showed a guard every **~6.3 s like clockwork**, which is learnable and ignorable.
+
+**Built (`MonsterAI`):**
+- **Reactive guard:** each frame, a player weapon moving **≥ 2.5 m/s** (or its hit gate), **within 1.25 m of the chest** (Spine2) and **moving toward it** gets **one roll per swing**. On success the brute guards right before the blow lands, for 0.8 s.
+- **When it can fire:** only while the brute is free, never during its own attacks. Its swings stay the guaranteed punish window. At most one reactive guard every 3 s.
+- **Timed guard:** it remains as a fallback but is slower and no longer predictable: every **8 s ±30 %**, and a reactive guard resets it, so the two never stack.
+
+| Phase | Reactive chance |
+|---|---|
+| Phase 1 | **40 %** |
+| Phase 2 | **50 %** (it "reads" you better as the fight goes on) |
+| Enraged | **30 %** |
+
+**Direction chosen: lower when enraged.** The enraged brute trades defence for aggression. Its tempo (×1.3) and its slams (23 % of picks) are the escalation already. Defending more on top would stack two difficulty axes and make the finale feel stalled.
+
+**Fairness, measured:**
+- **Normal rhythm** (swing every 1.6 s, 83 s): 10 guards (3 reactive, 7 timed). **6 of 45 contacts body-blocked (13 %)**, below the old timed-only baseline (15 %).
+- **Worst case** (the player pokes *only* while the boss is idle, every 0.6 s): 5 reactive guards from 9 rolls. **48 % clean hits, 27 % body-blocked (still 30 % damage), 24 % clanged off the guarding axes.**
+  - The boss is clearly responsive without becoming a wall. The fight rewards hitting during and right after its swings.
+  - **Flag:** if idle pokes feel stonewalled on the headset, lower `reactiveDefendChancePhase2` to 0.40 first.
+
+**3-way hit distinction with the reactive layer on top** (physical sweeps):
+
+| Case | Outcome |
+|---|---|
+| Reactive guard forced on, swing at the chest | Guard up **0.11 s before contact**, then `Blocked`, 14.9 damage instead of 50.5 (×0.3), block clang |
+| Reactive off, same swing | `Hit` 50.5 |
+| Swing into the axe during a normal wind-up | `Clash`, parried (player takes 7.9 instead of 22.5) |
+| Swing into the axe during the slam wind-up | `Clash`, not parried, full 45 |
+
+During attacks, the reactive guard did not fire (0 rolls), as designed.
+
+**Headset:**
+- Swing at him while he stands idle: about every other time he snaps the crossed axes up just before you connect (clang).
+- Swing while he is attacking or recovering: it always lands.
+- Enraged: he guards less and attacks more.
+
+### Step 5 — Round trip and console
+
+- **Victory:** in three full fights the AI was killed by real hits. Each time: slow-motion finale, Victory panel, timeScale back to 1, `L3_Victory_Sting`.
+- **Defeat:** the player was left at 60 HP and killed by a real boss attack 8.3 s later. The **Defeat panel showed 0.6 s after death** with `L3_Defeat_Sting`; the low-HP vignette and heartbeat switched off.
+- **Exit:** every Play exit was clean, with 0 errors on stop.
+
+**Console:**
+- **Game code: 0 errors across every session** I didn't break myself.
+- **The one remaining warning** is from the Meta ISDK package (telemetry library absent in the editor).
+- **Two editor-level items to know about** (neither is Level 3 code):
+  - **MRUK errors:** "MRUK Shared: Global context has already been created!" / "Failed to create global context" appeared after I edited a script *during* Play mode. That mid-Play recompile dropped MRUK's exit hook, so its native context was never released.
+    - Fixed by calling MRUK's own `ReleaseSharedLibrary` from edit mode. Every later Play entry was clean.
+    - Rule: don't edit scripts while playing (or restart Unity if it happens).
+  - **Import-worker crash:** "The AssetImportWorkerHW0 has crashed" (once in this editor session). Unity's background import process loaded the **WebRTC** native plugin (`unity::webrtc::DummyAudioDevice`, used by the broadcasting system), and that thread crashed while the worker shut down.
+    - This is an editor/package issue, not game code, and doesn't run in builds.
+    - If it keeps appearing, update `com.unity.webrtc` or stop its native plugin from loading in the editor.
+
+### Code / asset changes (this pass)
+| File | Change |
+|---|---|
+| `Monster/MonsterAI.cs` | Reactive guard (`CheckReactiveDefend`, per-phase chances, range / speed / cooldown, `DefendIsReactive`, counters), `defendCooldownJitter`. Levels 1/2: chance 0 and jitter 0, so behaviour is unchanged. |
+| `Editor/Level3DualAxeBuilder.Monster.cs` | L3 values: reactive 0.40 / 0.50 / 0.30, range 1.25 m, speed 2.5 m/s, cooldown 3 s, duration 0.8 s, target Spine2; timed guard 8 s ±30 %. Prefab rebuilt; hit frames unchanged. |
+| `Monster/MonsterEntrance.cs` | Circle fades out once fully risen (at the roar). |
+| `Combat/WeaponPickup.cs` | Idle ring glow (pulse + turn), off when held / in battle. |
+| `Combat/WeaponSelectionStage.cs` | Prompt refreshes on swaps. |
+| `Editor/Level3SceneBuilder.cs`, `Editor/Level3EngagementBuilder.cs` | Wire `markerRing` (scene re-applied and saved). |
+| `Materials/Level3/M_L3_ReachHighlight.mat` | Re-serialized by URP's own material validation (transparent: shadow/depth passes off). No visual change. |
+
+### Ready for headset test? **YES**
+Every step above was watched working in Play mode, and the scene is saved and clean. What only the headset can judge:
+- whether the reactive guard feels fair at your real swing speeds;
+- the flail's readability on the barrel;
+- the ring glow at Quest brightness.
+
+---
+
+## 2026-10-02 (second pass) — Level 3: boss colour, glow, ranged attacks, arena escalation
+
+Method: everything below was read from the live project through Unity MCP or traced in Play mode on `Level3_Hard` (real Start path: name picked, Mace pair equipped, Start; 1/72 s steps; backend at 127.0.0.1:9). Visual claims come from renders taken from the player's eye (`CenterEyeAnchor`) in the real scene lighting. **0 console errors** at the end (one pre-existing Meta ISDK telemetry warning).
+
+### Part 1 — Monster colour: root cause and fix
+
+**What was found (MCP):**
+- **Textures:** the import was not missing anything. All 8 Mixamo "nonPBR" textures were extracted and assigned: Diffuse, Specular, Glossiness and Normal for each of the two sets (1001/1002).
+  - `M_L3_Ch25_1001/1002` were URP **Lit**, specular workflow: Base Map = Diffuse, `_SpecGlossMap` = `Ch25_100x_SpecGloss.png` (Specular RGB + Gloss A, packed by the builder), Normal on.
+  - No fallback grey or magenta material was involved.
+- **The specular map** is a flat grey 0.22 (sRGB 56/255 = **0.04 linear**, the textbook skin/dielectric value). The packed map was imported **linear** (`sRGB` off), so URP Lit used **F0 = 0.22**, 5.5× too reflective. Specular-workflow energy conservation then also dimmed the albedo by 22 %.
+- **The diffuse** is a very dark maroon/purple (skin around 0.25 sRGB ≈ 0.05 linear). URP Lit adds PBR environment reflections from the scene's teal "SkyEerie" skybox (reflection mode = Skybox). On an albedo this dark, the reflection outshines the diffuse.
+- **Render evidence** (same pose and camera, real arena lighting):
+  - Lit as built: a flat **grey-blue stone statue**, with no maroon at all.
+  - Lit with F0 corrected to 0.04: still dark blue-grey.
+  - Lit with corrected F0 **and** sky reflections off: maroon appears.
+  - **Simple Lit**: maroon-brown skin with visible skin detail.
+
+**Root cause:** a PBR shader reading non-PBR data:
+- a mis-scaled specular map (F0 0.22);
+- plus PBR sky reflections, which a Blinn-Phong texture set has no real roughness/metal data to modulate.
+
+The texture wasn't missing; the shading model was wrong for the data.
+
+**Fix:** option (b), **URP Simple Lit** for `M_L3_Ch25_1001`, `M_L3_Ch25_1002` and `M_L3_Ch25_WeakPoint`.
+- **Inputs:** Base Map = Diffuse, `_SpecGlossMap` = the packed spec/gloss (Blinn-Phong highlight level as authored, gloss from alpha), Normal map on, emission (Part 2).
+- **Why Simple Lit over Lit + flat defaults:**
+  - Mixamo nonPBR maps *are* a Blinn-Phong set (diffuse / specular level / glossiness / normal), which is exactly Simple Lit's model.
+  - It has no sky-reflection term to wash out the dark albedo.
+  - It is cheaper on Quest than Lit, which matters for a 44 k-tri skinned boss.
+  - Lit with reflections off needed the same compromises and looked flatter.
+- **Builder:** `Level3DualAxeBuilder.MakeSimpleLit`; `MakeLit` was removed.
+
+**Verified:** material dump (shader `Universal Render Pipeline/Simple Lit`, keywords `_SPECGLOSSMAP _SPECULAR_COLOR _NORMALMAP _EMISSION`, maps as above) and eye-view renders. The skin reads dark maroon with highlights at rest.
+
+Two related findings, both fixed:
+- **Light wash:** the chest point light (the old enrage aura, now the glow light) at even 0.47 washed the whole body red, because it sat 0.4 m from the skin. It now sits 0.8 m out at 0.12 at rest (1.8 at the hottest), so the resting colour stays true.
+- **Telegraph tint:** the existing telegraph tint (multiplying `_BaseColor` red during wind-ups) barely shows on skin this dark. Part 2's wind-up glow surge now carries that read.
+
+### Part 2 — Glow (emission)
+**Areas (2), chosen on the mesh in bind pose and rasterised into UV space** (`Level3DualAxeBuilder.BuildEmissionMasks` → `Textures/Ch25/Ch25_100x_Emission.png`, 2048 px):
+1. **The face.** Both eyeballs glow fully. Their UV discs on set 1002 were confirmed on the mesh at (±0.032, 1.67, 0.139) m, facing forward. The eyelid skin on set 1001 glows at 45 %, and the **mouth interior** at 60 %, weighted by darkness, so the throat burns and the lighter teeth barely do.
+2. **Skin cracks over the shoulders, collarbones and upper back.** These are the hide's own dark crack and pebble lines, found by a band-pass (7 px blur minus 13 px blur) on the diffuse. Edges are kept only inside UV islands, so seams don't light up. They fade out toward the arms and belly.
+   - The arms stay dark, so the **green right-forearm weak point stays the only "hit here" colour**.
+   - Red means threat, green means target.
+
+The **axes were not given emission.** They are untextured flat-colour meshes with no runes or edges to mask, and they already ignite (fire VFX) on heavy attacks and in flight.
+
+**Colours:** deep red `(0.85, 0.07, 0.03)` at rest, the slam danger ring's hue. Green stays reserved for the weak point, the summoning circle's colour. Escalation (`MonsterGlow`):
+
+| Stage | Colour | Intensity |
+|---|---|---|
+| Full HP | deep red | ×1.0 |
+| Phase 2 (≤ 66 %) | brighter red-orange (1, 0.16, 0.04) | ×1.2 |
+| Enraged (≤ 33 %) | hot orange (1, 0.42, 0.08) | ×1.55 |
+| Final (≤ 15 %, enraged) | near white-hot (1, 0.78, 0.45) | ×1.9 |
+
+**Pulse:**
+- **Breathing:** the glow is phase-locked to the idle clip while idling, so it rises with the in-breath. The period is 3.2 s, or 1.2 s enraged, matching `L3_Idle` / `L3_IdleEnraged`. The pulse depth is 35 % (45 % enraged).
+- **Wind-up surge:** every wind-up ramps the glow to ×1.9 on the hit frame, tinted 45 % toward the attack's telegraph colour (purple on the unblockable slam).
+- **Death:** the glow dies out over 2.5 s.
+
+**Verified live:**
+- **Glow values:** calm `(0.85,0.07,0.03)` ×0.66–1.00 breathing; wind-up ×1.56–1.90; phase 2 `(1,0.16,0.04)`; enraged `(1,0.42,0.08)`; final `(1,0.78,0.45)` ×1.9 (light 2.99); dead ×0.00.
+- **Renders:** glowing eyes and maw, and smouldering shoulder cracks.
+
+**Do you need to supply a mask?** No. The generated mask uses the texture's own crack detail and gives a targeted result, not a flat-colour glow. Painting your own is optional:
+- **Format:** two PNGs, **2048×2048, grayscale**, in the **same UV layout as `Ch25_1001_Diffuse.png` / `Ch25_1002_Diffuse.png`**. White = glow, black = none, soft edges.
+- **What to mask:** the eyeballs (set 1002), the mouth interior (set 1002), and whatever skin markings you want (cracks, veins, the spine knobs on set 1001).
+- **Where:** save them as `Textures/Ch25/Ch25_1001_Emission_Painted.png` / `Ch25_1002_Emission_Painted.png`. The builder uses them instead of the generated masks.
+
+### Part 3 — New attacks (11 → 14)
+**What was found:**
+- **Imported Mixamo clips not used by L3:**
+  - `Great Sword Impact` (0.67 s, in place: a reaction, not an attack);
+  - `Monster_SwordIdle` / `Great Sword Idle` (idles);
+  - `Sword And Shield Attack (L1)` (a 3 m leap; a third leap would duplicate Leaping Double Cleave and the slam);
+  - `Hip Hop Dancing`;
+  - the duplicate `One Hand Sword Combo` / `Player_Future` copies.
+- **No throw or run clip exists.** The new attacks were therefore built from mocap already in the project, using the same muscle-space composer as the existing 11 (`HumanoidClipBaker`):
+  - The **overhead one-handed chop** (`Standing Melee Attack Downward`) has the arc of an overhand throw. It is released on the blade's speed peak.
+  - **`Standing Melee Run Jump Attack`** contains real run steps: 0–0.8 s, about 2 m of root travel.
+
+**Ranged attacks are a new category.** Rows with `rangedKind` are chosen **only while the player is out of melee reach** (`MonsterAI.ChooseRanged`, between `minRange` and `maxRange` of the headset). They are never chosen in melee, and melee rows are never chosen at range.
+
+| # | Attack | Built from | Category | Wind-up (enraged) | Damage | Reach / rules | Weight full → 0 HP / enraged |
+|---|---|---|---|---|---|---|---|
+| 1–11 | *unchanged* (Alternating Chops … Earthsplitter Slam; see the first 2026-10-02 section) | | | | | hit frames re-measured: identical | |
+| 12 | **Hurled Axe** | Standing Melee Attack Downward, right arm as an overhand throw; the left axe stays gripped | Standard, **RANGED 2.4–6.5 m** | release 0.792 (0.609) | 29.3 | Axe flies at 10 m/s, spinning 2.6 rev/s, at where the upper chest was at release (no lead) | 10 → 8 / 5 (5 s cd) |
+| 13 | **Twin Hurl** | same, plus the mirrored left throw 0.40 s later | Combo, **RANGED 2.4–6.5 m**, HP ≤ 50 % | 0.792 + 0.400 (0.609 + 0.308) | 22.5 × 2 | Second axe aimed at where you are when it is released | 0 → 9 / 10 (6 s cd) |
+| 14 | **Brute Rush** | Run Jump Attack's run steps (axes cocked: Crossing Double Swing's wound pose), then the crossing double sweep | Heavy, **GAP-CLOSER 2.6–5.5 m** | 1.125 (0.865) | 33.8 | Runs during 0.18–0.98 s (re-aimed every frame), stops at the 1.45 m stand-off, sweep arc 70° | 8 → 10 / 10 (4 s cd) |
+
+**Thrown axe** (`MonsterAxeThrow`):
+- **Flight:** the axe burns (its own fire VFX) and trails, with a 3D whirr (`L3_AxeThrow_Spin`), so you can see and hear it coming.
+- **Hit test:** it hits if its head passes within 0.32 m of the line from the eyes down 0.9 m.
+- **Counters:** dodge it by stepping or ducking, or **bat it away**. A weapon clash at swing speed deflects it.
+- **Return:** hit, miss or deflected, it flies back and lands in the same fist on the clip's catch frame (`L3_AxeCatch`).
+- **One-handed fighting was not built.** The boss pauses in a reach-out "recall" pose until both axes are back. It never fights one-handed: that needs one-handed clip variants of every melee attack, which don't exist.
+
+**HP-tiered placement:** the ranged rows form their own pool, weighted with the same HP lerp and enrage overrides. 4,000 picks through the real `ChooseRanged`:
+
+| HP / state | 4 m | 6 m (beyond rush) |
+|---|---|---|
+| 100 % | Hurled Axe 55.5 %, Brute Rush 44.5 % | Hurled Axe 100 % |
+| 60 % | Axe 50.1 %, Rush 49.9 % | — |
+| 40 % | Rush 39.8 %, Axe 37.2 %, **Twin Hurl 23.0 %** | — |
+| Enraged | Rush 40.0 %, **Twin Hurl 40.0 %**, Axe 20.0 % | Twin Hurl 66.8 %, Axe 33.2 % |
+
+At 2.5 m only throws qualify (the rush needs 2.6 m); at 1.45 m nothing ranged is ever picked.
+
+The melee pool is unchanged, with 0 ranged rows in 16,000 picks:
+
+| HP | Standard | Combo | Heavy | Special |
+|---|---|---|---|---|
+| 100 % | 75.3 % | 15.2 % | 8.5 % | 1.0 % |
+| 60 % | 64.7 % | 17.1 % | 16.4 % | 1.9 % |
+| 35 % | 57.3 % | 18.1 % | 22.0 % | 2.7 % |
+| Enraged | 33.9 % | 17.5 % | 25.3 % | 23.4 % |
+
+These match the previous table within sampling noise.
+
+**Animator (`Monster_L3_TwinAxe.controller`): 22 states, 154 transitions; Any State → Death only.** Audited transition by transition:
+- **Entry:** each new state has its own trigger parameter, entered only from Idle / IdleEnraged / Hit / Defend / Roar on that trigger (0.08 s blend).
+- **Exit:** to Idle (`Idle` & !Enraged) or IdleEnraged (`Idle` & Enraged), plus exit-time fallbacks at 0.98, all interruptible by the destination.
+- **No new Any State transitions.**
+
+**Verified in Play mode:**
+
+*Forced runs: all 14 attacks, from Idle and 0.1 s into a flinch, in phase 1 **and** enraged (56 runs).* Every run:
+- entered its state on frame 1;
+- landed damage on the measured frame (within one 1/72 s frame);
+- returned to the right idle.
+
+Per-attack results:
+- **Throws:** contact 0.25–0.31 s after release; caught at clip 1.72 s (catch frame 1.85 s; enraged 1.40 against 1.42) with a 0.07–0.15 m final snap. Twin catches at 2.13 s (enraged 1.69).
+- **Rush:** ran 2.39–2.51 m and stopped at exactly 1.44 m.
+
+*Throw counters:*
+- **Sidestep:** stepping 0.8 m right at release made it **Missed**, with 0 damage.
+- **Bat it away:** sweeping the mace across its path at ~7 m/s produced a real physics `Clash` through `HitDetection`. The throw was **Deflected**, with 0 damage, and returned.
+
+*Natural fights (AI choosing; the player steps back 2.8 m every 9 s):*
+- **Phase 1** (8 retreats): every retreat drew a Hurled Axe and/or a Brute Rush, then melee resumed. **0 late state entries.**
+- **Enraged** (6 retreats): Hurled Axe / Twin Hurl, then Rush; slams frequent. **0 late state entries.**
+- **Fight start:** the first action after the entrance was a Brute Rush from 3.19 m.
+
+### Part 4 — Engagement beyond stats
+
+| Idea | Status | What / verified |
+|---|---|---|
+| 1. Reactive arena lighting | **Implemented** | See below |
+| 2. Weak-point hit-stop | **Implemented** (none existed in the project) | See below |
+| 3. Low-HP tension | **Implemented** | See below |
+| 4. Distinct victory moment | **Implemented** | See below |
+
+**1. Reactive arena lighting** (`ArenaMoodController` on `BattleSystems/ArenaMood`). It drives the moonlight, trilight ambient, fog and all 8 lamp lights, blending over 2.5 s of real time.
+
+| Mood | Moon | Fog | Lamps |
+|---|---|---|---|
+| Storm (pre-fight, phase 1) | 0.36, colder | 0.055, denser | wind flicker |
+| Phase 2 | 0.38, warmer | — | — |
+| Enraged | **blood-orange (1, 0.42, 0.26) 0.62** | red-brown | ×1.4, hard flicker |
+| Final | **(1, 0.62, 0.38) 0.80** | — | ×1.6 |
+| Victory: **storm clears** | cool and bright, 0.60 | 0.03 | steady |
+
+- **Verified:** the mood names and values were read at each stage. The ambient SH probe actually updates in URP (coefficient 0.010 → 0.012 → 0.027 → 0.034).
+- **Authored lighting** is restored on destroy.
+
+**2. Weak-point hit-stop.** A weak-point hit triggers:
+- `MonsterAI.HitStop(0.09 s)`: Animator speed 0 **and** the AI attack clock (`AiTime`) frozen together, so damage stays on the visible impact;
+- a 0.12 s controller buzz on the hand that struck;
+- a white-hot body-glow flash.
+
+Nothing else is slowed: no `Time.timeScale`, so head and hand tracking and the swing-speed maths are untouched.
+
+- **Verified physically:** the mace swept into the right forearm dealt 92.9 damage (weak ×1.75). The monster froze for 6 frames (0.083 s).
+- **Sync kept:** the next damage frame moved 0.089 s later in real time and landed on the **same clip time (0.542 s) as an un-frozen run**.
+
+**3. Low-HP tension** (`PlayerLowHealthFeedback` on `OVRCameraRig`). Below 35 % player HP, at full strength by 10 %:
+- **Vignette:** a head-locked blood-red quad under `CenterEyeAnchor`, 0.3 m ahead, with a clear centre. Its alpha is up to 0.6, pulsing with each heartbeat; the renderer is off otherwise, so no fill cost.
+- **Heartbeat:** a lub-dub (`L3_Heartbeat`) at 72 → 128 bpm.
+- **Breathing:** `PlayerExertionAudio` gets a breathing floor, so you pant even when resting.
+- **Verified:** at 15 % HP, intensity 0.80, vignette on with alpha 0.32–0.41, 13 beats in 6 s, and breathing at 0.18 volume and playing while idle. Everything turns off at the battle's end.
+
+**4. Distinct victory moment** (`BossFinale` + `BattleManager.victoryPanelDelay`). On the killing blow:
+- **Slow motion:** `Time.timeScale` drops to 0.25 for 1.3 s real time, then eases back over 0.6 s. Physics steps are scaled with it.
+- **Sound:** a deep final-blow boom (`L3_FinalBlow`).
+- **The world:** the glow dies like embers and the storm clears. The Victory panel and `L3_Victory_Sting` follow after **3.2 s real time**.
+- **Verified:** lowest timeScale 0.25, back to 1.00 at 1.9 s real, `fixedDeltaTime` restored to 0.02, mood "cleared", glow ×0.00.
+  - The panel showed at 4.03 s real because my blocking render call froze editor frames for about 1 s. The wait is `WaitForSecondsRealtime(3.2)`.
+- **Levels 1 and 2:** keep 0.75 s (now real time; identical at timeScale 1).
+
+**Flagged, not implemented:**
+- **Lightning flashes for the storm:** skipped on purpose. Sudden full-field brightness spikes are a VR comfort and photosensitivity risk; the storm is done with fog, dimming and lamp gusts instead.
+- **A deliberate retreat-then-throw pattern** (the boss backing off to use its ranged attacks): there is no walk-back clip. Today ranged attacks happen when *you* back off, and at the fight start.
+- **One-handed melee while an axe is away:** needs one-handed variants of every clip.
+- **Pitch-down audio in the slow motion, and hit-stop on non-weak hits:** left out to keep the weak-point stop distinct.
+
+### Level 2 regression
+After the shared-script changes, `Level2_Medium` was run with a natural battle for 30 s. It had its 10-row table and 0 ranged rows, victory delay 0.75, and no glow component. Normal attacks landed at L2 damage values (16.8 base) with 0 console errors. The Level 1/2 scene files are unmodified.
+
+### Code / asset changes
+| File | Change |
+|---|---|
+| `Editor/Level3DualAxeBuilder.cs` | Simple Lit materials, `BuildEmissionMasks` (mesh-region × crack band-pass, UV rasteriser, seam padding), painted-mask override. `MakeLit` removed. |
+| `Editor/Level3DualAxeBuilder.Monster.cs` | Clips `Atk_AxeThrow`, `Atk_TwinHurl`, `Atk_Rush`; 3 states/triggers; ranged table rows; prefab wiring for `MonsterGlow`, `MonsterAxeThrow` (trails, spin sources), `BossFinale`, weak-point hit-stop/haptics. The glow light (ex-enrage aura) was moved to 0.8 m and BossPhaseController no longer drives it. |
+| `Editor/Level3EngagementBuilder.cs` | **New**, idempotent: ArenaMood, low-HP vignette (texture + material) + heartbeat source, victory delay. Menu *Tools > Level 3 > Apply Engagement FX*; also called by `Level3SceneBuilder.Build`. |
+| `Monster/MonsterAI.cs` | `RangedKind` rows + `ChooseRanged` (melee pool excludes them), rush travel, throw hand-off, `AiTime` + `HitStop`. L1/L2: no ranged rows, so `AiTime == Time.time` and behaviour is unchanged. |
+| `Monster/MonsterGlow.cs`, `Monster/MonsterAxeThrow.cs`, `Monster/BossFinale.cs`, `VFX/ArenaMoodController.cs`, `Player/PlayerLowHealthFeedback.cs` | **New** |
+| `Monster/MonsterWeakPoint.cs` | Optional hit-stop, haptics and glow flash (off by default); `NotifyHit(HitDetection)`. |
+| `Combat/HitDetection.cs` | Passes itself to `NotifyHit` (the hand, for haptics). |
+| `Combat/BattleManager.cs` | `victoryPanelDelay` (default 0.75, real time). |
+| `Player/PlayerExertionAudio.cs` | `ExternalFloorVolume` (default 0). |
+| Assets | `Ch25_100x_Emission.png`, `M_L3_AxeTrail`, `M_L3_LowHpVignette` + `T_L3_LowHpVignette`, synthesized `L3_AxeThrow_Spin` (seamless loop), `L3_AxeCatch`, `L3_Heartbeat`, `L3_FinalBlow`. |
+| `Scenes/Level3_Hard.unity` | Additions only: `BattleSystems/ArenaMood`, `CenterEyeAnchor/LowHpVignette`, `OVRCameraRig/PlayerHeartbeatAudio` + `PlayerLowHealthFeedback`, `victoryPanelDelay` 3.2. |
+
+### Headset checks
+1. **The brute's skin** should look dark maroon/purple, not grey-blue. Eyes and mouth glow red, and the shoulder cracks smoulder and breathe.
+2. **Each wind-up:** the glow surges (purple-tinted on the slam).
+3. **Step back about 3 m:** a burning, whirring axe comes at your chest.
+   - Sidestep it, or swing into it to bat it away (clang).
+   - It returns to his fist.
+   - Then he rushes you and sweeps.
+4. **Hit the green forearm:** a short freeze, a white flash and a controller buzz.
+5. **Below a third of his HP:** the moon turns blood-orange, the fog red, the lamps roar, and the glow goes orange, then white-hot at the end.
+6. **Your HP under about a third:** red edges pulse with a heartbeat, and you keep panting at rest.
+7. **The kill:** slow motion, a boom, the storm clears, then Victory about 3 s later.
+8. **Comfort:** watch the vignette (0.3 m head-locked quad) and the slow motion. Tune `maxAlpha` / `slowTimeScale` if either feels off.
+
+### Ready for headset test? **YES**
+Every item above was verified in the editor. Feel, axe-throw readability at Quest resolution, and vignette comfort need the headset.
 
 ---
 
@@ -16,7 +450,7 @@ Method: every item below was read from the live project through Unity MCP or tra
 | Source | `Ch25_nonPBR.fbx` (project root) copied to `Assets/Models/Monsters/Level3/Ch25_nonPBR.fbx`. The root copy was left in place. |
 | Rig | **Humanoid, avatar created from this model, valid.** 52 human bones mapped (full body + all 30 finger bones); only LeftEye / RightEye / Jaw unmapped (Mixamo rigs have none). 0 import warnings (no T-pose or mapping errors). Hands: `mixamorig:RightHand` / `mixamorig:LeftHand`. |
 | Mesh | 1 SkinnedMeshRenderer, 44,278 tris, 2 submeshes, 52 skinned bones, 1.91 m. Built at **scale 1.25 → 2.39 m**. |
-| Materials | 8 embedded 2048 px textures extracted to `Models/Monsters/Level3/Textures/Ch25/`. URP Lit, **specular workflow** (`M_L3_Ch25_1001/1002`): Specular RGB + Glossiness packed into `Ch25_100x_SpecGloss.png`. Normal maps are on and rendered correctly on the skinned mesh in the editor (the L2 Metal magenta issue did not reproduce); confirm on Quest. |
+| Materials | ⚠️ *Superseded by the second pass: URP Lit made the skin grey-blue (F0 0.22 + sky reflections); now URP Simple Lit.* 8 embedded 2048 px textures extracted to `Models/Monsters/Level3/Textures/Ch25/`. URP Lit, **specular workflow** (`M_L3_Ch25_1001/1002`): Specular RGB + Glossiness packed into `Ch25_100x_SpecGloss.png`. Normal maps are on and rendered correctly on the skinned mesh in the editor (the L2 Metal magenta issue did not reproduce); confirm on Quest. |
 
 ### 2. Two axes, one per hand
 Source: `Axe_deci` from `free-mace-katana-axe-weapon-pack-sketch-mesh/source/3Blades_1.fbx` (imported as `Models/Weapons/Player/Level3/Katana/MaceKatanaAxe_Pack.fbx`). It is a long-bladed bearded axe: haft with a pommel disc, blade on two struts. It was decimated 49,495 → 3,326 tris and baked into grip space (`Models/Weapons/Monster/L3_MonsterAxe_Split.asset`: blade steel / iron fittings / wood haft). The same mesh is used for both hands.

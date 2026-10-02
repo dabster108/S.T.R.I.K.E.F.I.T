@@ -26,6 +26,14 @@ public class MonsterAI : MonoBehaviour
         Combo = 4
     }
 
+    /// <summary>Attack-table rows used when the player is OUT of melee reach (Level 3).</summary>
+    public enum RangedKind
+    {
+        None = 0,   // melee row: chosen inside attackRange
+        Rush = 1,   // runs at the player during travelWindow, strikes on arrival
+        Throw = 2   // each hit frame releases an axe (MonsterAxeThrow); the axes fly back to the hands
+    }
+
     /// <summary>
     /// One row of the Level 2+ attack table. Timings are real seconds and must match the Animator state
     /// speed/offset of <see cref="animatorState"/> so the damage frame lands on the visible impact.
@@ -85,6 +93,20 @@ public class MonsterAI : MonoBehaviour
         [Tooltip("Distinct warning sound at the start of the wind-up, so the player hears THIS one must be dodged.")]
         public AudioClip warningClip;
         [Range(0f, 1f)] public float warningVolume = 1f;
+
+        [Header("Ranged / gap-closer (optional)")]
+        [Tooltip("None = melee row. Rush / Throw rows are chosen only while the player is between minRange and maxRange " +
+                 "(horizontal metres), i.e. out of melee reach, and never from inside it.")]
+        public RangedKind rangedKind = RangedKind.None;
+        public float minRange = 0f;
+        public float maxRange = 0f;
+        [Tooltip("Rush: seconds after the trigger (authored, divided by tempo) during which the monster runs at the " +
+                 "player; it arrives at stopDistance as the window closes.")]
+        public Vector2 travelWindow;
+        [Tooltip("Throw: axe released on each hit frame (0 = right hand, 1 = left hand).")]
+        public int[] throwAxes = new int[0];
+        [Tooltip("Throw: seconds after the trigger (authored) by which the thrown axes are caught again.")]
+        public float catchTime = 2f;
 
         [System.NonSerialized] public float lastUsedTime = -999f;
     }
@@ -162,6 +184,12 @@ public class MonsterAI : MonoBehaviour
     public bool allowParry = false;
     [Range(0f, 1f)] public float parryDamageMultiplier = 0.35f;
 
+    [Header("Ranged attacks (optional, Level 3)")]
+    [Tooltip("Flies the thrown axes of Throw rows.")]
+    public MonsterAxeThrow axeThrow;
+    [Tooltip("Rush rows never move the monster faster than this (m/s).")]
+    public float maxRushSpeed = 6f;
+
     [Header("Enrage (set by BossPhaseController)")]
     [Tooltip("While true, attack-table rows with enragedWeight >= 0 use it instead of the HP-lerped weight.")]
     public bool enraged = false;
@@ -199,8 +227,39 @@ public class MonsterAI : MonoBehaviour
     [Tooltip("Block clang when a hit lands during the defend window.")]
     public AudioClip defendBlockClip;
     [Range(0f, 1f)] public float defendBlockVolume = 0.9f;
+    [Tooltip("Random spread on defendCooldown (0.3 = 70-130 %), so the timed guard cannot be learned. 0 = fixed (Levels 1-2).")]
+    [Range(0f, 0.9f)] public float defendCooldownJitter = 0f;
+
+    [Header("Reactive defend (optional, Level 3)")]
+    [Tooltip("Chance to raise the guard when a player weapon comes in fast and close while the monster is free (rolled " +
+             "once per swing). 0 = off (Levels 1-2: timed guard only).")]
+    [Range(0f, 1f)] public float reactiveDefendChance = 0f;
+    [Tooltip("Chance in phase 2 (HP at or below reactivePhase2HpFraction).")]
+    [Range(0f, 1f)] public float reactiveDefendChancePhase2 = 0f;
+    [Tooltip("Chance while enraged.")]
+    [Range(0f, 1f)] public float reactiveDefendChanceEnraged = 0f;
+    [Range(0f, 1f)] public float reactivePhase2HpFraction = 0.66f;
+    [Tooltip("Weapon speed (m/s) that counts as an incoming swing (the weapon's hit gate is used if higher).")]
+    public float reactiveSwingSpeed = 2.5f;
+    [Tooltip("The swing must be this close (m) to the guard target and moving toward it: the guard starts ~0.15-0.25 s before contact at real swing speeds.")]
+    public float reactiveRange = 1.25f;
+    [Tooltip("Guard target (the chest); monster root + 1.3 m if empty.")]
+    public Transform reactiveTarget;
+    [Tooltip("Shortest time between two reactive guards.")]
+    public float reactiveCooldown = 3f;
+    public float reactiveDefendDuration = 0.8f;
+
     private float nextDefendTime = 0f;
+    private float nextReactiveTime = 0f;
+    private readonly bool[] reactiveArmed = { true, true };
+    private readonly HitDetection[] reactiveHd = new HitDetection[2];
+    private readonly Transform[] reactiveHdOwner = new Transform[2];
     public bool IsDefending { get; private set; }
+    /// <summary>True while the current guard was raised in reaction to a swing (not the timer).</summary>
+    public bool DefendIsReactive { get; private set; }
+    /// <summary>Swings that were close and fast enough to roll for a reactive guard (verification).</summary>
+    public int ReactiveRolls { get; private set; }
+    public int ReactiveDefends { get; private set; }
 
     [Header("Telegraph VFX (optional)")]
     [Tooltip("Optional renderer that flashes red during wind-up so the player sees the attack coming.")]
@@ -251,6 +310,18 @@ public class MonsterAI : MonoBehaviour
     /// <summary>Damage multiplier passed to the player by the last resolved hit (after a parry, before block).</summary>
     public float LastHitDamageMultiplier { get; private set; }
     private bool inWindUp;
+    private bool? hasRangedRows;
+
+    // Hit-stop: the AI clock (every attack timing) stops together with the Animator, so damage frames stay on the
+    // visible impact after a freeze. Without a hit-stop AiTime == Time.time (Levels 1-2 unchanged).
+    private float freezeStart = -1f;
+    private float frozenTotal;
+    /// <summary>Attack clock: Time.time minus every hit-stop so far.</summary>
+    public float AiTime => Time.time - frozenTotal - (freezeStart >= 0f ? Time.time - freezeStart : 0f);
+    public bool InHitStop => freezeStart >= 0f;
+    public int HitStopCount { get; private set; }
+    /// <summary>Metres covered by the last Rush (verification).</summary>
+    public float LastRushDistance { get; private set; }
 
     void OnEnable()
     {
@@ -276,6 +347,7 @@ public class MonsterAI : MonoBehaviour
     void Awake()
     {
         controller = GetComponent<MonsterController>();
+        if (axeThrow == null) axeThrow = GetComponent<MonsterAxeThrow>();
         mpb = new MaterialPropertyBlock();
         if (sfxAudioSource == null)
             sfxAudioSource = GetComponent<AudioSource>();
@@ -329,7 +401,9 @@ public class MonsterAI : MonoBehaviour
 
     void Update()
     {
-        if (controller == null || !controller.isAlive || busy) return;
+        if (controller == null || !controller.isAlive) return;
+        CheckReactiveDefend();
+        if (busy) return;
         if (Time.time < nextThinkTime) return;
         nextThinkTime = Time.time + thinkInterval;
 
@@ -343,6 +417,17 @@ public class MonsterAI : MonoBehaviour
 
         if (facePlayer)
             FaceTarget();
+
+        if (dist > controller.attackRange && UsesAttackTable && HasRangedRows && controller.CanAttack())
+        {
+            UpdateTableCooldown();
+            var ranged = ChooseRanged(dist);
+            if (ranged != null)
+            {
+                StartCoroutine(TableAttackRoutine(ranged));
+                return;
+            }
+        }
 
         if (dist <= controller.attackRange)
         {
@@ -457,14 +542,63 @@ public class MonsterAI : MonoBehaviour
         return chosen;
     }
 
+    float CurrentReactiveChance()
+    {
+        if (enraged) return reactiveDefendChanceEnraged;
+        return HpFraction() <= reactivePhase2HpFraction ? reactiveDefendChancePhase2 : reactiveDefendChance;
+    }
+
+    /// <summary>
+    /// Reactive guard: a player weapon moving fast toward the chest from close range gets one roll per swing; on success
+    /// the monster guards right before the blow lands. Only while it is free (not attacking / guarding), so its own
+    /// attacks stay the safe punish window, and never faster than reactiveCooldown.
+    /// </summary>
+    void CheckReactiveDefend()
+    {
+        if (!canDefend || (reactiveDefendChance <= 0f && reactiveDefendChancePhase2 <= 0f && reactiveDefendChanceEnraged <= 0f)) return;
+        var pc = PlayerCombat.Instance;
+        if (pc == null || (BattleManager.Instance != null && !BattleManager.Instance.IsBattleActive)) return;
+        Vector3 target = reactiveTarget != null ? reactiveTarget.position : transform.position + Vector3.up * 1.3f;
+        for (int h = 0; h < 2; h++)
+        {
+            Transform w = h == 0 ? pc.weaponTransform : pc.offhandWeaponTransform;
+            if (w == null || !w.gameObject.activeInHierarchy) { reactiveArmed[h] = true; continue; }
+            if (reactiveHdOwner[h] != w) { reactiveHdOwner[h] = w; reactiveHd[h] = w.GetComponentInChildren<HitDetection>(); }
+            Vector3 vel = reactiveHd[h] != null ? reactiveHd[h].CurrentVelocity : Vector3.zero;
+            float speed = Mathf.Max(vel.magnitude, h == 0 ? pc.CurrentSwingSpeed : pc.CurrentOffhandSwingSpeed);
+            float gate = Mathf.Max(reactiveSwingSpeed, pc.minSwingVelocity);
+            if (speed < gate * 0.5f) { reactiveArmed[h] = true; continue; } // swing over: the next one may roll
+            if (!reactiveArmed[h] || speed < gate) continue;
+            Vector3 to = target - w.position;
+            if (to.magnitude > reactiveRange || Vector3.Dot(vel, to) <= 0f) continue;
+            reactiveArmed[h] = false; // one roll per swing
+            if (busy || IsDefending || controller.isAttacking || Time.time < nextReactiveTime) continue;
+            ReactiveRolls++;
+            if (Random.value < CurrentReactiveChance())
+            {
+                ReactiveDefends++;
+                nextReactiveTime = Time.time + reactiveCooldown;
+                StartCoroutine(DefendRoutine(true));
+                return;
+            }
+        }
+    }
+
     IEnumerator DefendRoutine()
+    {
+        return DefendRoutine(false);
+    }
+
+    IEnumerator DefendRoutine(bool reactive)
     {
         busy = true;
         IsDefending = true;
-        nextDefendTime = Time.time + defendCooldown;
+        DefendIsReactive = reactive;
+        // A reactive guard also resets the timed one, so the two never stack into a wall of blocks.
+        nextDefendTime = Time.time + defendCooldown * (1f + Random.Range(-defendCooldownJitter, defendCooldownJitter));
         DefendStarted?.Invoke(this);
         if (verboseAttackLogs)
-            Debug.Log("[MonsterAI] Enter Defend");
+            Debug.Log(reactive ? "[MonsterAI] Enter Defend (reactive)" : "[MonsterAI] Enter Defend");
 
         var anim = GetComponent<MonsterAnimator>();
         if (anim != null) anim.PlayDefend();
@@ -474,9 +608,10 @@ public class MonsterAI : MonoBehaviour
         if (defendTintEnabled)
             SetBodyTint(defendTintColor);
 
-        yield return new WaitForSeconds(defendDuration);
+        yield return new WaitForSeconds(reactive ? reactiveDefendDuration : defendDuration);
 
         IsDefending = false;
+        DefendIsReactive = false;
         busy = false;
         idleSince = Time.time;
         if (defendTintEnabled)
@@ -573,6 +708,7 @@ public class MonsterAI : MonoBehaviour
     bool IsEligible(AttackDefinition a, float hp, float stillFor, bool ignoreCooldown)
     {
         if (a == null || string.IsNullOrEmpty(a.animatorTrigger)) return false;
+        if (a.rangedKind != RangedKind.None) return false; // ranged rows: ChooseRanged only
         if (hp > a.maxHpFraction) return false;
         if (!ignoreCooldown && Time.time - a.lastUsedTime < a.cooldown) return false;
         if (a.requiresIdleFor > 0f && stillFor < a.requiresIdleFor) return false;
@@ -632,6 +768,118 @@ public class MonsterAI : MonoBehaviour
         return chosen;
     }
 
+    bool HasRangedRows
+    {
+        get
+        {
+            if (!hasRangedRows.HasValue)
+                hasRangedRows = attackTable != null && attackTable.Exists(a => a != null && a.rangedKind != RangedKind.None);
+            return hasRangedRows.Value;
+        }
+    }
+
+    /// <summary>Weighted pick among the ranged rows whose range band holds the player (same HP / enrage weights).</summary>
+    public AttackDefinition ChooseRanged(float dist)
+    {
+        float hp = HpFraction();
+        var pool = new System.Collections.Generic.List<AttackDefinition>();
+        foreach (var a in attackTable)
+        {
+            if (a == null || a.rangedKind == RangedKind.None || string.IsNullOrEmpty(a.animatorTrigger)) continue;
+            if (dist < a.minRange || dist > a.maxRange) continue;
+            if (hp > a.maxHpFraction || Time.time - a.lastUsedTime < a.cooldown) continue;
+            pool.Add(a);
+        }
+        if (pool.Count > 1) pool.Remove(lastTableAttack);
+        float hurt = 1f - hp, total = 0f;
+        foreach (var a in pool) total += SelectionWeight(a, hurt);
+        if (total <= 0f) return null;
+        float r = Random.value * total;
+        foreach (var a in pool)
+        {
+            r -= SelectionWeight(a, hurt);
+            if (r <= 0f)
+            {
+                if (verboseAttackLogs) Debug.Log($"[MonsterAI] Ranged pick '{a.name}' at {dist:0.00} m hp={hp:0.00}");
+                return a;
+            }
+        }
+        return pool[pool.Count - 1];
+    }
+
+    /// <summary>
+    /// Freeze the monster (Animator speed 0 and the AI attack clock) for a few frames: the hit-stop that confirms a
+    /// weak-point hit. Real time; nothing else in the scene is slowed (the headset and the player's hands never are).
+    /// </summary>
+    public void HitStop(float seconds)
+    {
+        if (seconds <= 0f || freezeStart >= 0f || controller == null || !controller.isAlive) return;
+        StartCoroutine(HitStopRoutine(seconds));
+    }
+
+    IEnumerator HitStopRoutine(float seconds)
+    {
+        freezeStart = Time.time;
+        HitStopCount++;
+        var anim = GetComponent<MonsterAnimator>();
+        Animator a = anim != null ? anim.animator : null;
+        float speed = a != null ? a.speed : 1f;
+        if (a != null) a.speed = 0f;
+        yield return new WaitForSecondsRealtime(seconds);
+        if (a != null && a.speed == 0f) a.speed = speed; // an enrage switch during the freeze keeps its own tempo
+        frozenTotal += Time.time - freezeStart;
+        freezeStart = -1f;
+    }
+
+    /// <summary>MonsterAxeThrow: a thrown axe reached the player.</summary>
+    public void NotifyThrowHit(float multiplier)
+    {
+        LastHitLanded = true;
+        LastHitDamageMultiplier = multiplier;
+    }
+
+    IEnumerator RushTravel(AttackDefinition a, float start, float tempo)
+    {
+        float t0 = start + a.travelWindow.x / tempo, t1 = start + a.travelWindow.y / tempo;
+        LastRushDistance = 0f;
+        // Anticipation: square up to the player.
+        while (AiTime < t0)
+        {
+            if (controller == null || !controller.isAlive || CurrentAttack != a) yield break;
+            TurnToTarget(12f);
+            yield return null;
+        }
+        float last = AiTime;
+        while (AiTime < t1)
+        {
+            if (controller == null || !controller.isAlive || CurrentAttack != a || playerTarget == null) yield break;
+            float now = AiTime, dt = now - last;
+            last = now;
+            if (dt > 0f)
+            {
+                TurnToTarget(10f);
+                Vector3 d = playerTarget.position - transform.position; d.y = 0f;
+                float remaining = d.magnitude - stopDistance;
+                if (remaining > 0.005f)
+                {
+                    // Cover what is left by the end of the window (re-aimed every frame: the player can still sidestep).
+                    float step = Mathf.Min(remaining * Mathf.Clamp01(dt / Mathf.Max(dt, t1 - now + dt)), maxRushSpeed * dt);
+                    transform.position += d.normalized * step;
+                    LastRushDistance += step;
+                }
+            }
+            yield return null;
+        }
+    }
+
+    void TurnToTarget(float rate)
+    {
+        if (playerTarget == null) return;
+        Vector3 dir = playerTarget.position - transform.position; dir.y = 0f;
+        if (dir.sqrMagnitude < 0.001f) return;
+        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), 1f - Mathf.Exp(-rate * Time.deltaTime));
+    }
+
     /// <summary>Debug / verification: run a specific table attack immediately (ignores selection rules).</summary>
     public bool DebugForceAttack(int index)
     {
@@ -675,20 +923,31 @@ public class MonsterAI : MonoBehaviour
             dangerZone.Show(ImpactPoint(a), a.dodgeRadius, windUp);
         inWindUp = true;
 
-        float start = Time.time;
+        float start = AiTime;
+        if (a.rangedKind == RangedKind.Rush) StartCoroutine(RushTravel(a, start, tempo));
+        bool throws = a.rangedKind == RangedKind.Throw && axeThrow != null;
         int hits = 1 + (a.followUpHits != null ? a.followUpHits.Length : 0);
         for (int i = 0; i < hits; i++)
         {
             float hitAt = windUp + (i == 0 ? 0f : a.followUpHits[i - 1] / tempo);
 
             float whooshAt = start + Mathf.Max(0f, hitAt - swingSfxLead);
-            while (Time.time < whooshAt) yield return null;
+            while (AiTime < whooshAt) yield return null;
             if (a.swingClip != null && sfxAudioSource != null)
                 sfxAudioSource.PlayOneShot(a.swingClip, a.swingVolume);
 
-            while (Time.time < start + hitAt) yield return null;
+            while (AiTime < start + hitAt) yield return null;
             inWindUp = false;
             if (controller == null || !controller.isAlive) break;
+
+            if (throws)
+            {
+                // Release frame: the axe flies; MonsterAxeThrow resolves hit / dodge / deflect and brings it back.
+                int axe = a.throwAxes != null && i < a.throwAxes.Length ? a.throwAxes[i] : 0;
+                float tmul = a.damageMultiplier * (CurrentAttackParried ? parryDamageMultiplier : 1f);
+                axeThrow.Launch(axe, this, tmul, start + a.catchTime / tempo);
+                continue;
+            }
 
             if (a.impactClip != null && sfxAudioSource != null)
                 sfxAudioSource.PlayOneShot(a.impactClip, a.impactVolume);
@@ -714,11 +973,20 @@ public class MonsterAI : MonoBehaviour
             }
         }
         inWindUp = false;
+        if (throws)
+        {
+            // Hold the catch pose until both axes are back (they are timed to land in the hand at catchTime).
+            float giveUp = start + a.catchTime / tempo + 1.5f;
+            while ((axeThrow.AnyInFlight || AiTime < start + a.catchTime / tempo) && AiTime < giveUp && controller != null && controller.isAlive)
+                yield return null;
+            axeThrow.RecallAll();
+        }
         if (a.fireVfx) SetWeaponFire(false);
         if (controller != null && controller.isAlive)
             AttackResolved?.Invoke(this, a.name, LastHitLanded);
 
-        yield return new WaitForSeconds(a.recover / tempo);
+        float recoverEnd = AiTime + a.recover / tempo;
+        while (AiTime < recoverEnd) yield return null;
         CurrentAttack = null;
 
         if (controller != null && controller.isAlive)

@@ -232,7 +232,7 @@ public class HitDetection : MonoBehaviour
         LastDamage = damage;
         LastWasWeakPoint = weakPoint != null;
         monster.OnTakeDamage(damage, hitPoint);
-        if (weakPoint != null) weakPoint.NotifyHit();
+        if (weakPoint != null) weakPoint.NotifyHit(this);
         if (monsterDefending)
             PlayBlockedFeedback(hitPoint, speed, monsterAi);
         else if (weakPoint != null && weakPoint.hitClip != null && audioSource != null)

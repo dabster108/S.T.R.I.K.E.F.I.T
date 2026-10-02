@@ -61,6 +61,8 @@ public static partial class Level3DualAxeBuilder
                                            // otherwise hit = blade-edge speed peak (the Level 2 convention)
         public float[] hits;               // measured
         public float length;
+        public float catchTime;            // throws: thrown axes back in the hand (clip seconds)
+        public Vector2 travel;             // rush: run window (clip seconds)
     }
 
     public static readonly List<AttackClip> AttackClips = new List<AttackClip>();
@@ -236,6 +238,35 @@ public static partial class Level3DualAxeBuilder
         var slamClip = Attack("Atk_GroundSlam", FromToIdle(idleHold, slam), log, new Vector2(1.10f, 1.45f));
         slamClip.groundContact = true;
 
+        // --- Ranged attacks (chosen only when the player is out of melee reach) ---
+        // 12. Hurled Axe: the overhead chop (Standing Melee Attack Downward) as an overhand throw with the right axe,
+        //     released on the blade's speed peak; the arm then stays reached out until the axe flies back into the fist.
+        //     The left axe is held in its idle grip throughout.
+        var thrR = D.Retime(new Vector2(0f, 0f), new Vector2(0.42f, 0.43f), new Vector2(0.64f, 0.62f), new Vector2(0.80f, 0.85f),
+                            new Vector2(0.98f, 1.00f), new Vector2(1.90f, 1.00f), new Vector2(2.25f, 1.30f));
+        var thr = thrR.Override(idleHold.Hold(0f, thrR.length), HumanoidTrack.LeftArm);
+        var thrClip = Attack("Atk_AxeThrow", FromToIdle(idleHold, thr, 0.18f, 0.45f), log, new Vector2(0.55f, 0.95f));
+        thrClip.catchTime = 1.85f;
+
+        // 13. Twin Hurl (combo, phase 2+): right throw, then the mirrored left throw 0.40 s later; both arms reach out
+        //     for the catch.
+        var twin = HumanoidTrack.DualWield(thrR, thrR.Mirror(), 0.40f, t => Smooth(0.70f, 1.15f, t));
+        var twinClip = Attack("Atk_TwinHurl", FromToIdle(idleHold, twin, 0.18f, 0.45f), log, new Vector2(0.55f, 0.95f), new Vector2(0.95f, 1.35f));
+        twinClip.catchTime = 2.20f;
+
+        // 14. Brute Rush (heavy gap-closer): brace with both axes cocked back (the Crossing Double Swing's wound pose),
+        //     sprint (Standing Melee Run Jump Attack's run steps; the root moves for real in MonsterAI), then the crossing
+        //     double sweep on arrival.
+        var crossRaw = HumanoidTrack.DualWield(H, H.Mirror(), 0f, t => 0.5f);
+        var run = RJ.Retime(new Vector2(0f, 0f), new Vector2(0.85f, 0.80f));
+        var cocked = crossRaw.Hold(0.70f, run.length);
+        var runArmed = run.Override(cocked, p => HumanoidTrack.LeftArm(p) || HumanoidTrack.RightArm(p));
+        var brace = runArmed.Hold(0f, 0.30f);
+        var strike = crossRaw.Retime(new Vector2(0f, 0.70f), new Vector2(0.25f, 0.983f), new Vector2(1.55f, 2.40f));
+        var rush = brace.Concat(runArmed, 0.12f).Concat(strike, 0.15f);
+        var rushClip = Attack("Atk_Rush", FromToIdle(idleHold, rush, 0.18f, 0.45f), log, new Vector2(0.95f, 1.40f));
+        rushClip.travel = new Vector2(0.18f, 0.98f);
+
         AssetDatabase.SaveAssets();
         return log.ToString();
     }
@@ -274,7 +305,7 @@ public static partial class Level3DualAxeBuilder
     static AnimationClip Clip(string name) => AssetDatabase.LoadAssetAtPath<AnimationClip>($"{AnimDir}/{name}.anim");
 
     // ======================================================================= controller
-    public static readonly string[] AttackStates = { "Atk_AltChops", "Atk_CrossSwing", "Atk_TwinHack", "Atk_ReapFlurry", "Atk_TwinWhirl", "Atk_TwinCleave", "Atk_LeapCleave", "Atk_GroundSlam", "Atk_RendStrike", "Atk_SpinReap", "Atk_BackChop" };
+    public static readonly string[] AttackStates = { "Atk_AltChops", "Atk_CrossSwing", "Atk_TwinHack", "Atk_ReapFlurry", "Atk_TwinWhirl", "Atk_TwinCleave", "Atk_LeapCleave", "Atk_GroundSlam", "Atk_RendStrike", "Atk_SpinReap", "Atk_BackChop", "Atk_AxeThrow", "Atk_TwinHurl", "Atk_Rush" };
 
     public static string BuildController()
     {
@@ -470,13 +501,14 @@ public static partial class Level3DualAxeBuilder
         // Axes, one per hand, each with its own clash colliders and fire emitter.
         var axeR = AttachAxe(Bone(root, "RightHand"), true);
         var axeL = AttachAxe(Bone(root, "LeftHand"), false);
-        var fireR = AddAxeFire(axeR); var fireL = AddAxeFire(axeL);
+        // Burning axes: a small Shuriken flame + spark emitter on each blade (MonsterAxeFlames drives them).
+        var flameR = AddAxeFlame(axeR, out var sparksR); var flameL = AddAxeFlame(axeL, out var sparksL);
 
         // Chest: weapon-fire light (both axes are in front of it) and the enrage aura + body embers.
         var chest = Bone(root, "Spine2");
         var fireLightT = Child(chest, "WeaponFireLight", new Vector3(0f, 0.05f, 0.45f));
         var fireLight = fireLightT.gameObject.AddComponent<Light>(); fireLight.type = LightType.Point; fireLight.color = new Color(1f, 0.45f, 0.12f); fireLight.range = 3.5f; fireLight.intensity = 0f; fireLight.shadows = LightShadows.None;
-        var auraT = Child(chest, "EnrageAura", new Vector3(0f, 0f, 0.4f));
+        var auraT = Child(chest, "EnrageAura", new Vector3(0f, 0f, 0.8f)); // MonsterGlow's light: far enough out to spill on the dock, not flood the skin
         var aura = auraT.gameObject.AddComponent<Light>(); aura.type = LightType.Point; aura.color = new Color(1f, 0.15f, 0.08f); aura.range = 4f; aura.intensity = 0f; aura.shadows = LightShadows.None;
         var embers = Level3Builder.Particles(chest, "EnrageEmbers", new Vector3(0f, -0.1f, 0f), L3Mat("M_L3_Ember"), new Color(1f, 0.3f, 0.1f), 45f, 1.2f, 0.05f, 0.6f, 0.9f, ParticleSystemShapeType.Box, new Vector3(0.55f, 0.7f, 0.35f));
 
@@ -525,8 +557,14 @@ public static partial class Level3DualAxeBuilder
         ai.heavyPityCycles = 4; ai.desperationHpFraction = 0.5f; ai.lowHpCooldownScale = 0.85f; ai.swingSfxLead = 0.12f;
         ai.allowParry = true; ai.parryDamageMultiplier = 0.35f;
         ai.dangerZone = dzi; ai.impactBurstVfx = burst;
-        ai.weaponFireVfx = fireR; ai.extraWeaponFireVfx = new[] { fireL }; ai.weaponFireLight = fireLight; ai.weaponFireLightIntensity = 2.5f;
-        ai.canDefend = true; ai.defendCooldown = 5.0f; ai.defendDuration = 1.0f; ai.defendDamageMultiplier = 0.3f;
+        ai.weaponFireVfx = null; ai.extraWeaponFireVfx = new ParticleSystem[0]; ai.weaponFireLight = fireLight; ai.weaponFireLightIntensity = 2.5f; // the flames are MonsterAxeFlames'; fire rows still light the dock
+        ai.canDefend = true; ai.defendCooldown = 8.0f; ai.defendDuration = 1.0f; ai.defendDamageMultiplier = 0.3f; // timed guard every ~8 s (5.6-10.4 with jitter): most guards are now reactive
+        // Reactive guard (rolled per incoming swing while the brute is free) + a jittered timed guard. Phase 2 reads you a
+        // little better; enraged it trades defence for aggression (its offence is already the escalation).
+        ai.defendCooldownJitter = 0.3f;
+        ai.reactiveDefendChance = 0.40f; ai.reactiveDefendChancePhase2 = 0.50f; ai.reactiveDefendChanceEnraged = 0.30f;
+        ai.reactiveSwingSpeed = 2.5f; ai.reactiveRange = 1.25f; ai.reactiveCooldown = 3f; ai.reactiveDefendDuration = 0.8f;
+        ai.reactiveTarget = chest;
         ai.defendTintEnabled = true; ai.defendTintColor = new Color(0.45f, 0.65f, 1f);
         ai.defendBraceClip = ClipAt("Assets/Audio/SFX/Level2/L2_Defend_Brace.wav"); ai.defendBlockClip = ClipAt("Assets/Audio/SFX/Level2/L2_Defend_Block.wav");
 
@@ -535,8 +573,42 @@ public static partial class Level3DualAxeBuilder
         entrance.riseStateClip = "L3_Rise"; entrance.roarStateClip = "L3_Roar";
         entrance.audioSource = sfx; entrance.summonClip = Sfx("L3_Summon_Circle"); entrance.riseClip = Sfx("L3_Rise_Grind"); entrance.roarClip = Sfx("L3_Roar_Entrance");
 
+        // Body glow (emission mask): breathing pulse, wind-up surge, escalation to white-hot; owns the chest light
+        // (the old enrage aura), so BossPhaseController no longer drives it.
+        var glow = root.AddComponent<MonsterGlow>();
+        glow.bodyRenderer = smr; glow.materialIndices = new[] { 0, 1 }; glow.animator = animator; glow.glowLight = aura;
+        glow.calmColor = BodyGlow;
+        glow.glowLightCalm = 0.12f; glow.glowLightEnraged = 1.8f; // at rest the skin keeps its own maroon; enraged it burns red
+        wp.hitStopSeconds = 0.09f; wp.hapticAmplitude = 0.8f; wp.hapticSeconds = 0.12f; wp.bodyGlow = glow;
+
+        // Thrown axes: burning, trailing, whirring in 3D, caught back on the clip's catch frame.
+        var thrower = root.AddComponent<MonsterAxeThrow>();
+        thrower.axes = new[] { axeR.transform, axeL.transform };
+        thrower.axeFire = new ParticleSystem[2]; // a thrown axe keeps its own flame (MonsterAxeFlames roars it in flight)
+        thrower.trails = new[] { AddAxeTrail(axeR), AddAxeTrail(axeL) };
+        thrower.spinSources = new[] { AddSpinSource(axeR), AddSpinSource(axeL) };
+        thrower.catchClip = Sfx("L3_AxeCatch"); thrower.catchSource = sfx;
+        ai.axeThrow = thrower;
+
+        var flames = root.AddComponent<MonsterAxeFlames>();
+        flames.flames = new[] { flameR, flameL }; flames.sparks = new[] { sparksR, sparksL };
+
+        // Serpent of light: 3 orbs with short blue trails coiling feet -> head around the live skeleton.
+        var auraRoot = Child(root.transform, "SerpentAura", Vector3.zero);
+        var serpent = root.AddComponent<MonsterSerpentAura>();
+        var orbs = new TrailRenderer[3];
+        for (int i = 0; i < orbs.Length; i++) orbs[i] = AddAuraOrb(auraRoot, i);
+        serpent.orbs = orbs;
+        serpent.leftFoot = Bone(root, "LeftFoot"); serpent.rightFoot = Bone(root, "RightFoot"); serpent.hips = Bone(root, "Hips");
+        serpent.leftUpLeg = Bone(root, "LeftUpLeg"); serpent.rightUpLeg = Bone(root, "RightUpLeg"); serpent.chest = chest;
+        serpent.leftArm = Bone(root, "LeftArm"); serpent.rightArm = Bone(root, "RightArm"); serpent.neck = Bone(root, "Neck"); serpent.head = Bone(root, "Head");
+
+        // Final-boss kill: slow motion + final-blow boom (BattleManager.victoryPanelDelay holds the panel).
+        var finale = root.AddComponent<BossFinale>();
+        finale.audioSource = voice; finale.finalBlowClip = Sfx("L3_FinalBlow");
+
         var phases = root.AddComponent<BossPhaseController>();
-        phases.enrageAura = aura; phases.enrageEmbers = embers;
+        phases.enrageAura = null; phases.enrageEmbers = embers;
         phases.enrageRoarClip = Sfx("L3_Roar_Enrage"); phases.phaseChangeClip = Sfx("L3_PhaseChange_Growl");
         phases.enrageRoarSeconds = 1.8f;
 
@@ -549,20 +621,162 @@ public static partial class Level3DualAxeBuilder
         return log.ToString();
     }
 
-    /// <summary>Copy of Level 2's proven axe fire emitter (particles + additive material) on the blade edge.</summary>
-    static ParticleSystem AddAxeFire(GameObject axe)
+    static TrailRenderer AddAxeTrail(GameObject axe)
     {
-        var l2 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Monsters/Monster_Medium_VampireLust.prefab");
-        Transform src = null;
-        foreach (var t in l2.GetComponentsInChildren<Transform>(true)) if (t.name == "AxeFireVFX") src = t;
         var edge = axe.transform.Find("BladeEdge");
-        var fire = (GameObject)Object.Instantiate(src.gameObject, edge, false);
-        fire.name = "AxeFireVFX";
-        fire.transform.localPosition = Vector3.zero; fire.transform.localRotation = Quaternion.identity;
-        var ps = fire.GetComponent<ParticleSystem>();
+        var tr = edge.gameObject.AddComponent<TrailRenderer>();
+        tr.sharedMaterial = TrailMat();
+        tr.time = 0.22f; tr.minVertexDistance = 0.04f;
+        tr.widthCurve = new AnimationCurve(new Keyframe(0f, 0.22f), new Keyframe(1f, 0f));
+        var g = new Gradient();
+        g.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.55f, 0.2f), 0f), new GradientColorKey(new Color(0.85f, 0.07f, 0.03f), 1f) },
+                  new[] { new GradientAlphaKey(0.9f, 0f), new GradientAlphaKey(0f, 1f) });
+        tr.colorGradient = g;
+        tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; tr.receiveShadows = false;
+        tr.emitting = false;
+        return tr;
+    }
+
+    static Material TrailMat()
+    {
+        string path = $"{MatDir}/M_L3_AxeTrail.mat";
+        var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (m != null) return m;
+        // Same setup as the summoning circle: URP Particles/Unlit, transparent additive, vertex colour from the trail.
+        m = new Material(L3Mat("M_L3_RuneCircle")) { name = "M_L3_AxeTrail" };
+        m.SetTexture("_BaseMap", null);
+        m.SetColor("_BaseColor", Color.white);
+        AssetDatabase.CreateAsset(m, path);
+        return m;
+    }
+
+    static AudioSource AddSpinSource(GameObject axe)
+    {
+        var src = axe.AddComponent<AudioSource>();
+        src.clip = Sfx("L3_AxeThrow_Spin"); src.loop = true; src.playOnAwake = false; src.volume = 0.9f;
+        src.spatialBlend = 1f; src.minDistance = 1f; src.maxDistance = 20f; src.rolloffMode = AudioRolloffMode.Logarithmic; src.dopplerLevel = 0.6f;
+        return src;
+    }
+
+    /// <summary>
+    /// Quest-budget flame on the blade (Shuriken, additive soft glow, world-space particles with a short life so a
+    /// swing leaves only a brief flicker): ~10 particles alive per axe at rest, ~15 Standard, ~24 Heavy (~30 enraged). Plus a spark
+    /// emitter (rate 0) that MonsterAxeFlames bursts when an attack lands.
+    /// </summary>
+    static ParticleSystem AddAxeFlame(GameObject axe, out ParticleSystem sparks)
+    {
+        var edge = axe.transform.Find("BladeEdge");
+        var go = new GameObject("AxeFlame");
+        go.transform.SetParent(edge, false);
+        go.transform.localPosition = new Vector3(0f, 0f, -0.07f); // middle of the blade (edge 0.08..0.28 out, BladeEdge at 0.26)
+        var ps = go.AddComponent<ParticleSystem>();
         ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-        var main = ps.main; main.playOnAwake = false;
+        var main = ps.main;
+        main.duration = 1f; main.loop = true; main.playOnAwake = false;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.26f, 0.34f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.12f, 0.2f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.08f);
+        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+        main.startColor = Color.white;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.scalingMode = ParticleSystemScalingMode.Shape; // sizes in metres; only the emitter box follows the 1.25 model scale
+        main.maxParticles = 40;
+        main.gravityModifier = -0.08f;
+        var em = ps.emission; em.rateOverTime = 20f;
+        var sh = ps.shape; sh.shapeType = ParticleSystemShapeType.Box; sh.scale = new Vector3(0.04f, 0.62f, 0.14f); // along the blade
+        var vel = ps.velocityOverLifetime; vel.enabled = true; vel.space = ParticleSystemSimulationSpace.World;
+        vel.x = new ParticleSystem.MinMaxCurve(0f); vel.y = new ParticleSystem.MinMaxCurve(0.475f); vel.z = new ParticleSystem.MinMaxCurve(0f); // all three constants (mixed curve modes warn every frame)
+        var noise = ps.noise; noise.enabled = true; noise.strength = 0.35f; noise.frequency = 1.6f; noise.scrollSpeed = 0.8f;
+        noise.quality = ParticleSystemNoiseQuality.Low; noise.octaveCount = 1;
+        var col = ps.colorOverLifetime; col.enabled = true;
+        var g = new Gradient();
+        g.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.88f, 0.5f), 0f), new GradientColorKey(new Color(1f, 0.55f, 0.12f), 0.25f),
+                          new GradientColorKey(new Color(1f, 0.22f, 0.04f), 0.6f), new GradientColorKey(new Color(0.55f, 0.04f, 0.02f), 1f) },
+                  new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(0.95f, 0.12f), new GradientAlphaKey(0.7f, 0.6f), new GradientAlphaKey(0f, 1f) });
+        col.color = g;
+        var sz = ps.sizeOverLifetime; sz.enabled = true;
+        sz.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.6f), new Keyframe(0.3f, 1f), new Keyframe(1f, 0.25f)));
+        var r = go.GetComponent<ParticleSystemRenderer>();
+        r.sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/VFX/Level2/M_L2_FireAdditive.mat");
+        r.renderMode = ParticleSystemRenderMode.Billboard; r.sortMode = ParticleSystemSortMode.None;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false; r.maxParticleSize = 0.5f;
+
+        // Sparks: burst outward from the blade, fall, stretched by speed.
+        var sgo = new GameObject("AxeSparks");
+        sgo.transform.SetParent(edge, false);
+        sparks = sgo.AddComponent<ParticleSystem>();
+        sparks.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var sm = sparks.main;
+        sm.loop = false; sm.playOnAwake = false; sm.duration = 1f;
+        sm.startLifetime = new ParticleSystem.MinMaxCurve(0.3f, 0.55f);
+        sm.startSpeed = new ParticleSystem.MinMaxCurve(1.6f, 3.4f);
+        sm.startSize = new ParticleSystem.MinMaxCurve(0.012f, 0.03f);
+        sm.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.85f, 0.4f), new Color(1f, 0.45f, 0.1f));
+        sm.simulationSpace = ParticleSystemSimulationSpace.World; sm.scalingMode = ParticleSystemScalingMode.Shape;
+        sm.maxParticles = 40; sm.gravityModifier = 0.8f;
+        var se = sparks.emission; se.rateOverTime = 0f;
+        var ssh = sparks.shape; ssh.shapeType = ParticleSystemShapeType.Sphere; ssh.radius = 0.06f;
+        var scol = sparks.colorOverLifetime; scol.enabled = true;
+        var sg = new Gradient();
+        sg.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(new Color(1f, 0.3f, 0.05f), 1f) },
+                   new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
+        scol.color = sg;
+        var sr = sgo.GetComponent<ParticleSystemRenderer>();
+        sr.sharedMaterial = L3Mat("M_L3_Ember");
+        sr.renderMode = ParticleSystemRenderMode.Stretch; sr.velocityScale = 0.035f; sr.lengthScale = 1f;
+        sr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; sr.receiveShadows = false;
         return ps;
+    }
+
+    const string AuraTexPath = "Assets/VFX/Level3/T_L3_AuraTrail.png";
+
+    /// <summary>Electric-blue trail: texture across the trail width = white-hot core with blue falloff (additive).</summary>
+    static Material AuraMat()
+    {
+        const int W = 16, H = 64; // u along the trail, v across it
+        var tex = new Texture2D(W, H, TextureFormat.RGBA32, false);
+        var px = new Color32[W * H];
+        for (int y = 0; y < H; y++)
+        {
+            float v = (y + 0.5f) / H - 0.5f;
+            float core = Mathf.Exp(-(v / 0.10f) * (v / 0.10f));
+            float glow = Mathf.Exp(-(v / 0.30f) * (v / 0.30f));
+            var c = Color.Lerp(new Color(0.15f, 0.45f, 1f), Color.white, core) * glow;
+            for (int x = 0; x < W; x++) px[y * W + x] = new Color32((byte)(c.r * 255), (byte)(c.g * 255), (byte)(c.b * 255), (byte)(glow * 255));
+        }
+        tex.SetPixels32(px); tex.Apply();
+        System.IO.File.WriteAllBytes(AuraTexPath, tex.EncodeToPNG());
+        Object.DestroyImmediate(tex);
+        AssetDatabase.ImportAsset(AuraTexPath);
+        var ti = (TextureImporter)AssetImporter.GetAtPath(AuraTexPath);
+        ti.wrapMode = TextureWrapMode.Clamp; ti.mipmapEnabled = false; ti.alphaIsTransparency = true; ti.SaveAndReimport();
+
+        string path = $"{MatDir}/M_L3_AuraTrail.mat";
+        var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (m == null) { m = new Material(L3Mat("M_L3_RuneCircle")) { name = "M_L3_AuraTrail" }; AssetDatabase.CreateAsset(m, path); }
+        m.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(AuraTexPath)); // additive, like the rune circle
+        m.SetColor("_BaseColor", Color.white);
+        EditorUtility.SetDirty(m);
+        return m;
+    }
+
+    static TrailRenderer AddAuraOrb(Transform parent, int i)
+    {
+        var go = new GameObject("AuraOrb_" + i);
+        go.transform.SetParent(parent, false);
+        var tr = go.AddComponent<TrailRenderer>();
+        tr.sharedMaterial = AuraMat();
+        tr.time = 0.5f; tr.minVertexDistance = 0.035f; tr.numCapVertices = 0; tr.numCornerVertices = 0;
+        tr.alignment = LineAlignment.View; tr.textureMode = LineTextureMode.Stretch;
+        tr.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(0.25f, 0.8f), new Keyframe(1f, 0f));
+        var g = new Gradient();
+        g.SetKeys(new[] { new GradientColorKey(new Color(0.85f, 0.95f, 1f), 0f), new GradientColorKey(new Color(0.25f, 0.55f, 1f), 0.3f), new GradientColorKey(new Color(0.05f, 0.15f, 1f), 1f) },
+                  new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.85f, 0.3f), new GradientAlphaKey(0f, 1f) });
+        tr.colorGradient = g;
+        tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; tr.receiveShadows = false;
+        tr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off; tr.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+        tr.emitting = false;
+        return tr;
     }
 
     // ======================================================================= measured attack table
@@ -662,6 +876,10 @@ public static partial class Level3DualAxeBuilder
             Row("Rending Double Strike", MonsterAI.AttackCategory.Combo, "Atk_RendStrike", 0.8f, 55f, 10f, 14f, 12f, 3f, std, standardCue, single),
             Row("Spinning Reap", MonsterAI.AttackCategory.Standard, "Atk_SpinReap", 1.0f, 90f, 14f, 10f, 8f, 0f, std, standardCue, dbl),
             Row("Backhand Double Chop", MonsterAI.AttackCategory.Standard, "Atk_BackChop", 0.85f, 50f, 16f, 10f, 8f, 0f, std, standardCue, single),
+            // Ranged rows: only while the player is out of melee reach (MonsterAI.ChooseRanged), weighted among themselves.
+            Row("Hurled Axe", MonsterAI.AttackCategory.Standard, "Atk_AxeThrow", 1.3f, 0f, 10f, 8f, 5f, 5f, std, standardCue, single),
+            Row("Twin Hurl", MonsterAI.AttackCategory.Combo, "Atk_TwinHurl", 1.0f, 0f, 0f, 9f, 10f, 6f, std, standardCue, single),
+            Row("Brute Rush", MonsterAI.AttackCategory.Heavy, "Atk_Rush", 1.5f, 70f, 8f, 10f, 10f, 4f, big, heavyCue, dbl),
         };
         table[0].followUpArcs = new[] { 55f };
         table[3].followUpArcs = new[] { 60f, 70f };
@@ -673,6 +891,22 @@ public static partial class Level3DualAxeBuilder
         slam.unblockable = true; slam.fireVfx = true; slam.dodgeRadius = 1.5f; // shockwave: ~0.65 m back or ~1.4 m sideways from the 1.45 m stand-off
         slam.warningClip = Sfx("L3_Slam_Warning"); slam.warningVolume = 1f;
         slam.impactClip = Sfx("L3_Slam_Impact"); slam.impactVolume = 1f;
+
+        var hurl = table[11];
+        hurl.rangedKind = MonsterAI.RangedKind.Throw; hurl.minRange = 2.4f; hurl.maxRange = 6.5f;
+        hurl.throwAxes = new[] { 0 }; hurl.catchTime = Spec("Atk_AxeThrow").catchTime;
+        var twin = table[12];
+        twin.rangedKind = MonsterAI.RangedKind.Throw; twin.minRange = 2.4f; twin.maxRange = 6.5f; twin.maxHpFraction = 0.5f;
+        twin.throwAxes = new[] { 0, 1 }; twin.catchTime = Spec("Atk_TwinHurl").catchTime;
+        foreach (var t in new[] { hurl, twin })
+        {
+            // Hit frames are releases; the monster is free once the catch pose has eased back to idle.
+            t.recover = Mathf.Max(0.3f, Spec(t.animatorState).length - t.catchTime - 0.1f) ;
+            t.followUpArcs = new float[0];
+        }
+        var rush = table[13];
+        rush.rangedKind = MonsterAI.RangedKind.Rush; rush.minRange = 2.6f; rush.maxRange = 5.5f;
+        rush.travelWindow = Spec("Atk_Rush").travel;
         return table;
     }
 

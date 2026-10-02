@@ -35,6 +35,7 @@ public static class Level3SceneBuilder
         BuildEnvironment(log);
         BuildWeaponStaging(log);
         ConfigureRendering(log);
+        log.Append(Level3EngagementBuilder.ApplyToOpenScene(false));
 
         EditorSceneManager.MarkSceneDirty(l3);
         EditorSceneManager.SaveScene(l3);
@@ -300,6 +301,7 @@ public static class Level3SceneBuilder
         pick.weaponType = type; pick.displayName = title; pick.description = desc;
         pick.grabPoints = grabs.ToArray(); pick.grabRadius = 0.35f;
         pick.stagedProps = props.gameObject; pick.reachHighlight = bright; pick.label = null;
+        pick.markerRing = dim.GetComponent<Renderer>(); pick.markerColor = new Color(1f, 0.75f, 0.3f, 0.35f);
         pick.audioSource = src; pick.pickupClip = clip;
         bright.SetActive(false);
     }

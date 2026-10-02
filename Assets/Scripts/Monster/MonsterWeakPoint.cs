@@ -3,7 +3,8 @@
 //          its own sound (distinct from a normal hit) so the player knows they found the right spot. Optional pulsing
 //          emission on the weak-point material makes it readable.
 // Dependencies: HitDetection (reads damageMultiplier / plays hitClip), MonsterController (parent)
-// Attach to: the weak-point collider GameObject (child of the monster). Level 3: Executioner left forearm.
+// Attach to: the weak-point collider GameObject (child of the monster). Level 3: Twin-Axe Brute right forearm
+//            (with a hit-stop: monster + attack clock freeze, controller buzz, body glow flash).
 
 using UnityEngine;
 
@@ -24,6 +25,16 @@ public class MonsterWeakPoint : MonoBehaviour
     [Range(0f, 1f)] public float pulseMin = 0.35f;
     [Tooltip("Brief bright flash when struck.")]
     public float hitFlashSeconds = 0.15f;
+
+    [Header("Hit-stop (optional, Level 3)")]
+    [Tooltip("Seconds the monster freezes (Animator + attack clock) when this spot is struck. 0 = off.")]
+    public float hitStopSeconds = 0f;
+    [Tooltip("Controller buzz on the hand that struck (0 = off).")]
+    [Range(0f, 1f)] public float hapticAmplitude = 0f;
+    public float hapticSeconds = 0.12f;
+    [Tooltip("Optional: the body glow flashes this colour for the freeze.")]
+    public MonsterGlow bodyGlow;
+    public Color bodyFlashColor = new Color(1f, 0.95f, 0.85f);
 
     public int HitCount { get; private set; }
 
@@ -48,7 +59,28 @@ public class MonsterWeakPoint : MonoBehaviour
     /// <summary>Called by HitDetection when a player hit lands here.</summary>
     public void NotifyHit()
     {
+        NotifyHit(null);
+    }
+
+    /// <summary>Called by HitDetection when a player hit lands here (source = the weapon that struck).</summary>
+    public void NotifyHit(HitDetection source)
+    {
         HitCount++;
-        flashUntil = Time.time + hitFlashSeconds;
+        flashUntil = Time.time + Mathf.Max(hitFlashSeconds, hitStopSeconds);
+        if (hitStopSeconds > 0f)
+        {
+            var ai = GetComponentInParent<MonsterAI>();
+            if (ai != null) ai.HitStop(hitStopSeconds);
+            if (bodyGlow != null) bodyGlow.Flash(bodyFlashColor, hitStopSeconds);
+        }
+        if (hapticAmplitude > 0f && source != null)
+            StartCoroutine(Buzz(source.hand == Hand.Left ? OVRInput.Controller.LTouch : OVRInput.Controller.RTouch));
+    }
+
+    System.Collections.IEnumerator Buzz(OVRInput.Controller c)
+    {
+        OVRInput.SetControllerVibration(1f, hapticAmplitude, c);
+        yield return new WaitForSecondsRealtime(hapticSeconds);
+        OVRInput.SetControllerVibration(0f, 0f, c);
     }
 }

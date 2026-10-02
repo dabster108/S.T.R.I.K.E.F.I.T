@@ -36,9 +36,15 @@ public class BossPhaseController : MonoBehaviour
 
     [Header("Runtime (read-only)")]
     [SerializeField] private int phase;
-    [SerializeField] private bool enraged;
+    [Tooltip("Latch: the enrage sequence (roar) has started. The enraged STATE itself is MonsterAI.enraged.")]
+    [SerializeField] private bool enrageStarted;
     public int Phase => phase;
-    public bool IsEnraged => enraged;
+    /// <summary>
+    /// The single source of truth for "is the monster enraged": MonsterAI.enraged, which only EnterEnrage writes (at
+    /// the end of the enrage roar). Attack weights, tempo, MonsterGlow, ArenaMoodController, MonsterAxeFlames and
+    /// MonsterSerpentAura all read that same bool.
+    /// </summary>
+    public bool IsEnraged => ai != null && ai.enraged;
 
     private MonsterHealth health;
     private MonsterAI ai;
@@ -93,14 +99,14 @@ public class BossPhaseController : MonoBehaviour
 
         phase = p;
         if (CombatUIController.Instance != null) CombatUIController.Instance.SetMonsterPhaseLabel(NameFor(phase));
-        if (phase >= phaseThresholds.Length && !enraged) StartCoroutine(EnterEnrage());
+        if (phase >= phaseThresholds.Length && !enrageStarted) StartCoroutine(EnterEnrage());
         else if (phaseChangeClip != null && ai != null && ai.sfxAudioSource != null)
             ai.sfxAudioSource.PlayOneShot(phaseChangeClip, phaseChangeVolume);
     }
 
     IEnumerator EnterEnrage()
     {
-        enraged = true;
+        enrageStarted = true;
         // Let the current swing finish, then hold the AI for the roar.
         while (ai != null && ai.CurrentAttack != null) yield return null;
         if (controller == null || !controller.isAlive) yield break;
@@ -142,7 +148,7 @@ public class BossPhaseController : MonoBehaviour
     void Update()
     {
         // Aura flicker while enraged (cheap, one light).
-        if (enraged && enrageAura != null && controller != null && controller.isAlive)
+        if (IsEnraged && enrageAura != null && controller != null && controller.isAlive)
             enrageAura.intensity = enrageAuraIntensity * (0.8f + 0.2f * Mathf.PerlinNoise(Time.time * 4f, 0.3f));
         if (controller != null && !controller.isAlive)
         {

@@ -1,6 +1,6 @@
 # Fitness Monster Battle (VR) — Project Context
 
-Last updated: **2026-10-02 (see project_progress.md)**
+Last updated: **2026-10-02, fourth pass (axe flames + serpent aura) (see project_progress.md)**
 
 ## Overview
 
@@ -11,7 +11,7 @@ Players fight monsters with VR weapons powered by real fitness movement.
 |---|---|---|---|---|---|
 | 1 Easy | `Level1_Easy` ✅ built | Lite Dungeon Pack (Gridness) | Dual hammers | Sword (6-attack table + defend) | Hip Hop prefab (Warrok mesh) |
 | 2 Medium | `Level2_Medium` ✅ built | Lite Dungeon Pack, night sky | Dual swords | Two-handed axe (10-attack table + defend) | Vampire A Lusth |
-| 3 Hard | `Level3_Hard` ✅ built | Old Sea Port dock arena | Mace / War Flail / Katana pair, grabbed in the arena | Two axes, one per hand (11-attack table incl. unblockable slam + defend) | Twin-Axe Brute (Mixamo Ch25, Humanoid) |
+| 3 Hard | `Level3_Hard` ✅ built | Old Sea Port dock arena (lighting escalates with the fight) | Mace / War Flail / Katana pair, grabbed in the arena | Two axes, one per hand (14-attack table: 11 melee incl. unblockable slam, + ranged Hurled Axe / Twin Hurl / Brute Rush; defend) | Twin-Axe Brute (Mixamo Ch25, Humanoid, URP Simple Lit + emissive glow) |
 
 ## What MCP built (2026-09-21)
 
@@ -41,8 +41,10 @@ MainMenu → Level1_Easy → Level2_Medium → Level3_Hard → Results
 ```
 Assets/Scripts/
   Combat/     WeaponType, HitDetection, BattleManager
-  Monster/    MonsterController, MonsterHealth, MonsterAI, MonsterAnimator
-  Player/     PlayerCombat, PlayerHealth, PlayerExertionAudio (heavy breathing)
+  Monster/    MonsterController, MonsterHealth, MonsterAI, MonsterAnimator, BossPhaseController, MonsterEntrance,
+              MonsterWeakPoint, MonsterGlow (L3 emission), MonsterAxeThrow (L3 thrown axes), BossFinale (L3 slow-mo kill)
+  Player/     PlayerCombat, PlayerHealth, PlayerExertionAudio (heavy breathing), PlayerLowHealthFeedback (L3 vignette + heartbeat)
+  VFX/        GroundRuneVFX, DangerZoneIndicator, ArenaMoodController (L3 fight-driven lighting)
   UI/         CombatUIController
   Manager/    LevelManager, GameStateManager, RoundManager
   Legacy/     CubeTapCounter, LaserHandGrabber, LaserPointer, VRSoundButton
@@ -62,11 +64,11 @@ Assets/Scripts/
 | L2 monster animator + L2 clips | `Assets/Animations/Monster/Level2/` (`Monster_L2_Axe.controller`) |
 | L2 swords / axe | `Assets/Models/Weapons/Player/L2_PlayerSword_Split.asset`, `Assets/Models/Weapons/Monster/L2_MonsterAxe_Split.asset` |
 | L2 audio / VFX | `Assets/Audio/SFX/Level2/`, `Assets/VFX/Level2/` |
-| L3 boss model (Ch25) + textures | `Assets/Models/Monsters/Level3/Ch25_nonPBR.fbx`, `Textures/Ch25/`, weak-point mesh `Ch25_WeakPointSplit.asset` |
+| L3 boss model (Ch25) + textures | `Assets/Models/Monsters/Level3/Ch25_nonPBR.fbx`, `Textures/Ch25/` (incl. generated `Ch25_100x_Emission.png`; optional `_Emission_Painted.png` override), weak-point mesh `Ch25_WeakPointSplit.asset` |
 | L3 boss prefab / animator + clips | `Assets/Prefabs/Monsters/Monster_Hard_TwinAxeBrute.prefab`, `Assets/Animations/Monster/Level3/` (`Monster_L3_TwinAxe.controller`, `L3_*`, `Atk_*`) |
 | L3 boss axe | `Assets/Models/Weapons/Monster/L3_MonsterAxe_Split.asset` (from `free-mace-katana-axe-weapon-pack`) |
 | L3 player weapons / audio / VFX | `Assets/Models/Weapons/Player/Level3/`, `Assets/Prefabs/Weapons/Level3/`, `Assets/Audio/SFX/Level3/`, `Assets/VFX/Level3/` |
-| L3 builders | `Editor/Level3DualAxeBuilder*.cs` (boss), `Editor/HumanoidClipBaker.cs`, `Editor/Level3Builder.cs`, `Editor/Level3SceneBuilder.cs` |
+| L3 builders | `Editor/Level3DualAxeBuilder*.cs` (boss), `Editor/HumanoidClipBaker.cs`, `Editor/Level3Builder.cs`, `Editor/Level3SceneBuilder.cs`, `Editor/Level3EngagementBuilder.cs` (arena mood, low-HP FX, victory hold) |
 | Lite Dungeon | `Assets/Gridness Studios/Elementary Dungeon Pack Lite/` (do not move) |
 | Old Sea Port | `Assets/Old Sea Port/` (do not move) |
 | HotelRoom | `Assets/HotelRoom-Mavi3D/` (unused) |

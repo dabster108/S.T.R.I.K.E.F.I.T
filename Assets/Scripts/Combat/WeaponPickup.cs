@@ -30,6 +30,13 @@ public class WeaponPickup : MonoBehaviour
     public GameObject stagedProps;
     [Tooltip("Glow shown while a hand is in reach.")]
     public GameObject reachHighlight;
+    [Tooltip("Idle glow: the pair's ground ring pulses and turns slowly while the pair waits to be picked up (the props " +
+             "rest on crates / in the planks, so they do not bob).")]
+    public Renderer markerRing;
+    public Color markerColor = new Color(1f, 0.75f, 0.3f, 0.35f);
+    public float markerPulseSpeed = 0.8f;
+    [Range(0f, 1f)] public float markerPulseMin = 0.45f;
+    public float markerSpinSpeed = 12f;
     public TMPro.TMP_Text label;
 
     [Header("Feedback")]
@@ -41,6 +48,9 @@ public class WeaponPickup : MonoBehaviour
     public bool HandInReach { get; private set; }
 
     private OVRCameraRig rig;
+    private MaterialPropertyBlock markerMpb;
+    /// <summary>Current idle-glow brightness of the ground ring (verification).</summary>
+    public float MarkerPulse { get; private set; }
 
     void OnEnable() { if (!All.Contains(this)) All.Add(this); }
     void OnDisable() { All.Remove(this); }
@@ -55,6 +65,7 @@ public class WeaponPickup : MonoBehaviour
     void Update()
     {
         bool locked = BattleManager.Instance != null && BattleManager.Instance.IsBattleActive;
+        UpdateMarker(!locked && !IsHeld);
         if (locked || IsHeld || PlayerCombat.Instance == null)
         {
             SetReach(false);
@@ -80,6 +91,21 @@ public class WeaponPickup : MonoBehaviour
                 Equip();
         }
 #endif
+    }
+
+    void UpdateMarker(bool waiting)
+    {
+        if (markerRing == null) return;
+        if (markerRing.enabled != waiting) markerRing.enabled = waiting;
+        if (!waiting) return;
+        if (markerMpb == null) markerMpb = new MaterialPropertyBlock();
+        // Phase offset per pair so the three rings do not pulse in lockstep.
+        MarkerPulse = Mathf.Lerp(markerPulseMin, 1f, 0.5f + 0.5f * Mathf.Sin((Time.time * markerPulseSpeed + (int)weaponType * 0.37f) * Mathf.PI * 2f));
+        Color c = markerColor; c.a = Mathf.Clamp01(markerColor.a * (0.6f + 1.4f * MarkerPulse));
+        markerRing.GetPropertyBlock(markerMpb);
+        markerMpb.SetColor("_BaseColor", c);
+        markerRing.SetPropertyBlock(markerMpb);
+        markerRing.transform.Rotate(0f, markerSpinSpeed * Time.deltaTime, 0f, Space.World);
     }
 
     bool InReach(Transform hand)

@@ -25,6 +25,7 @@ public class WeaponSelectionStage : MonoBehaviour
 
     private GameObject startButton;
     private bool lastArmed;
+    private WeaponType lastWeapon = WeaponType.None;
 
     void Awake()
     {
@@ -50,9 +51,12 @@ public class WeaponSelectionStage : MonoBehaviour
         // Runs after PlayerNamePicker re-shows Start in Update, so an unarmed player never sees it.
         if (!armed && startButton != null && startButton.activeSelf) startButton.SetActive(false);
 
-        if (armed != lastArmed)
+        // Refresh on arm / disarm AND on a swap between pairs (the prompt names the pair in hand).
+        WeaponType weapon = PlayerCombat.Instance != null ? PlayerCombat.Instance.primaryWeapon : WeaponType.None;
+        if (armed != lastArmed || weapon != lastWeapon)
         {
             lastArmed = armed;
+            lastWeapon = weapon;
             if (armed && startButton != null && !PlayerNamePicker.BlocksStart && !OutcomeShown())
                 startButton.SetActive(true);
             if (prompt != null)

@@ -60,6 +60,9 @@ public class PlayerExertionAudio : MonoBehaviour
     public float SustainedSeconds => sustainedSeconds;
     public float CurrentVolume => currentVolume;
     public bool IsBreathing => breathing;
+    /// <summary>Minimum breathing volume during a battle, whatever the effort (PlayerLowHealthFeedback: hurt and panting).
+    /// 0 = off (Levels 1-2).</summary>
+    public float ExternalFloorVolume { get; set; }
 
     private readonly Queue<float> swingTimes = new Queue<float>();
     private readonly bool[] handArmed = { true, true };
@@ -127,6 +130,7 @@ public class PlayerExertionAudio : MonoBehaviour
         float target = exerting
             ? Mathf.Lerp(startVolume, maxVolume, Mathf.Clamp01(sustainedSeconds / Mathf.Max(0.01f, rampSeconds)))
             : 0f;
+        target = Mathf.Max(target, ExternalFloorVolume);
         ApplyVolume(target, target > currentVolume ? fadeInSeconds : fadeDownSeconds);
     }
 

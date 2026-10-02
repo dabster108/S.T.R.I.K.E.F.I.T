@@ -2,7 +2,7 @@
 // Purpose: Staged boss entrance (Level 3). When the monster spawns: a summoning circle glows on the ground at the
 //          spawn point, the monster rises from below the floor through it (Y driven by a coroutine over exactly the
 //          Rise clip's length, eased like a heavy body standing up), then roars (animation + sound together) and holds
-//          a beat; the circle fades out. Until the sequence finishes the monster cannot attack, be damaged or start
+//          a beat; the circle fades out as the roar starts (fully risen). Until the sequence finishes the monster cannot attack, be damaged or start
 //          its phase logic, so the moment lands before the fight begins.
 // Dependencies: MonsterAI, MonsterController, MonsterAnimator, GroundRuneVFX, BossPhaseController (optional)
 // Attach to: monster root. riseOffset = child between the root and the animated body.
@@ -107,13 +107,13 @@ public class MonsterEntrance : MonoBehaviour
         }
         if (riseOffset != null) riseOffset.localPosition = Vector3.zero;
 
-        // --- Roar: animation and sound start on the same frame, then a held beat ---
+        // --- Roar: animation and sound start on the same frame, then a held beat. The circle has done its job once
+        //     the monster is fully risen: it fades out during the roar. ---
         if (anim != null) anim.PlayNamedTrigger(roarTrigger);
         if (roarClip != null && audioSource != null) audioSource.PlayOneShot(roarClip, roarVolume);
+        if (summoningCircle != null) summoningCircle.Hide(circleFadeOut);
         float roarLen = ClipLength(roarStateClip, roarHoldSeconds);
         yield return new WaitForSeconds(Mathf.Max(roarHoldSeconds, roarLen));
-
-        if (summoningCircle != null) summoningCircle.Hide(circleFadeOut);
 
         foreach (var c in colliders) if (c != null) c.enabled = true;
         if (ai != null) ai.enabled = true;

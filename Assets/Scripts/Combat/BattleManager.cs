@@ -24,6 +24,10 @@ public class BattleManager : MonoBehaviour
     [Tooltip("If true, round timer ending while monster lives = victory by survival score.")]
     public bool timerExpireMeansSurvivalWin = true;
 
+    [Header("Outcome")]
+    [Tooltip("Real seconds between the killing blow and the Victory panel (Level 3 holds it for the slow-motion finale).")]
+    public float victoryPanelDelay = 0.75f;
+
     [Header("Score")]
     public int scorePerDamagePoint = 1;
     public int victoryBonus = 500;
@@ -328,7 +332,8 @@ public class BattleManager : MonoBehaviour
         if (LevelManager.Instance != null)
             LevelManager.Instance.UnlockNextLevel();
 
-        yield return new WaitForSeconds(0.75f);
+        // Real time: a slow-motion finale (BossFinale) must not stretch the hold.
+        yield return new WaitForSecondsRealtime(victoryPanelDelay);
 
         if (CombatUIController.Instance != null)
             CombatUIController.Instance.ShowVictory(CurrentScore, TotalDamageDealt);
