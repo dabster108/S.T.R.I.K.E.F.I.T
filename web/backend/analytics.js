@@ -6,6 +6,7 @@
 
 const { query } = require("./db");
 const { SESSION_API_SELECT, EVENT_SELECT, fromRow } = require("./columns");
+const fitness = require("./fitness");
 
 const LEVEL_ORDER = ["Easy", "Medium", "Hard"];
 const TIERS = ["tap", "light", "medium", "full"];
@@ -83,6 +84,7 @@ async function levelHitStats(filters = {}) {
 const emptyHitStats = { swingSamples: 0, avgSwingSpeed: null, peakSwingSpeed: null, fullPowerRatio: null };
 
 async function overview({ tz } = {}) {
+  const engagementRows = (await query(`SELECT player_name AS player, started_at AS "startedAt" FROM sessions`)).rows;
   const totals = (await query(`
     SELECT count(*)::int AS sessions,
            count(*) FILTER (WHERE status = 'live')::int AS live,
@@ -129,6 +131,8 @@ async function overview({ tz } = {}) {
     avgSessionSec: round(num(totals.avg_duration), 1),
     timeZone: zone,
     sessionsPerDay: perDay,
+    // Added: site-wide engagement (last 30 days, active players, return rate).
+    engagement: fitness.siteEngagement(engagementRows, tz),
     byLevel: levels
       .map((l) => ({
         level: l.level,
@@ -191,6 +195,23 @@ async function playerProfile(name) {
   const speedBySession = new Map(perSession.rows.map((r) => [r.session_id, r]));
   const o = overall.rows[0];
 
+  // Fitness outcomes: one summary per non-live session, built from that session's hit events.
+  const hitParams2 = [];
+  const hitRows = (await query(`WITH ${hitsCte({ player: name }, hitParams2)} SELECT session_id, tier, speed, t FROM hits`, hitParams2)).rows;
+  const hitsBySession = new Map();
+  for (const h of hitRows) {
+    if (!hitsBySession.has(h.session_id)) hitsBySession.set(h.session_id, []);
+    hitsBySession.get(h.session_id).push({ tier: h.tier, speed: num(h.speed), t: num(h.t) });
+  }
+  const summaries = sessions.filter((s) => s.status !== "live").map((s) => fitness.sessionSummary(s, hitsBySession.get(s.id) || []));
+  const summaryById = new Map(summaries.map((s) => [s.id, s]));
+  const allTiers = fitness.tierBreakdown(hitRows.map((h) => h.tier));
+  const estimated = summaries.filter((s) => s.estimatedCalories !== null);
+  const sumOf = (key) => (estimated.length ? estimated.reduce((a, s) => a + s[key], 0) : null);
+  const kcalTotal = sumOf("estimatedCalories");
+  const walkTotal = sumOf("estimatedWalkingMinutes");
+  const jogTotal = sumOf("estimatedJoggingMinutes");
+
   const finished = sessions.filter((s) => s.status !== "live");
   const wins = sessions.filter((s) => s.outcome === "victory").length;
   const losses = sessions.filter((s) => s.outcome === "defeat").length;
@@ -238,6 +259,10 @@ async function playerProfile(name) {
       avgSwingSpeed: sp ? round(num(sp.avg_speed)) : null,
       peakSwingSpeed: sp ? round(num(sp.peak_speed)) : null,
       fullSwings: sp ? sp.full : null,
+      // Added: estimates (see fitness.js); null for live sessions.
+      estimatedCalories: summaryById.get(s.id)?.estimatedCalories ?? null,
+      estimatedWalkingMinutes: summaryById.get(s.id)?.estimatedWalkingMinutes ?? null,
+      estimatedJoggingMinutes: summaryById.get(s.id)?.estimatedJoggingMinutes ?? null,
     };
   });
 
@@ -273,7 +298,63 @@ async function playerProfile(name) {
     live: sessions.find((s) => s.status === "live") || null,
     firstPlayedAt: series[0]?.startedAt ?? null,
     lastPlayedAt: sessions[0].endedAt,
+
+    // Added for the fitness-outcome features.
+    swingIntensity: allTiers, // measured: tier counts, percentages and average tier weight across every session
+    exertionTrend: fitness.averageExertionTrend(summaries.map((s) => s.trend)), // null until 2+ sessions have enough swings
+    intensityByLevel: fitness.intensityByLevel([...levels].sort((a, b) => levelSort({ level: a }, { level: b })), summaries),
+    personalBests: fitness.personalBests(summaries),
+    progress: fitness.progress(summaries),
+    fitnessEstimate: {
+      estimatedCalories: round(kcalTotal, 1),
+      estimatedWalkingMinutes: round(walkTotal, 1),
+      estimatedJoggingMinutes: round(jogTotal, 1),
+      sessionsEstimated: estimated.length,
+      note: "Sum of per-session estimates (sessions with no recorded swings are left out); an estimate, not a measurement.",
+    },
   };
+}
+
+// Fitness block for GET /api/sessions/:id, built from the events already loaded for that route.
+function sessionFitness(session, events) {
+  const hits = events
+    .filter((e) => e.type === "hit" && e.payload && typeof e.payload === "object")
+    .map((e) => ({ tier: String(e.payload.tier || "").toLowerCase(), speed: num(e.payload.swingSpeed), t: num(e.payload.t) }))
+    .filter((h) => h.speed !== null);
+  const s = fitness.sessionSummary(session, hits);
+  return {
+    swingIntensity: s.tiers,
+    exertionTrend: s.trend,
+    estimatedCalories: s.estimatedCalories,
+    estimatedWalkingMinutes: s.estimatedWalkingMinutes,
+    estimatedJoggingMinutes: s.estimatedJoggingMinutes,
+    estimate: s.estimate,
+  };
+}
+
+// One player's engagement over time (sessions grouped by day and week, streaks, recency).
+async function playerEngagement(name, { tz } = {}) {
+  const { rows } = await query(`SELECT started_at AS "startedAt" FROM sessions WHERE player_name = $1`, [name]);
+  if (!rows.length) return null;
+  return fitness.playerEngagement(name, rows.map((r) => r.startedAt), tz);
+}
+
+// Session summaries (tiers, no estimates needed) for every session matching the filters.
+async function siteIntensityByLevel(filters, levels) {
+  const sParams = [];
+  const sWhere = sessionWhere(filters, sParams);
+  sWhere.push("s.status = 'finished'");
+  const sessions = (await query(`SELECT s.id, s.level, s.status, s.started_at AS "startedAt", s.score, s.duration_sec AS "durationSec" FROM sessions s WHERE ${sWhere.join(" AND ")}`, sParams)).rows;
+  const hParams = [];
+  const hits = (await query(`WITH ${hitsCte(filters, hParams)} SELECT session_id, tier, speed, t FROM hits`, hParams)).rows;
+  const bySession = new Map();
+  for (const h of hits) {
+    if (!bySession.has(h.session_id)) bySession.set(h.session_id, []);
+    bySession.get(h.session_id).push({ tier: h.tier, speed: num(h.speed), t: num(h.t) });
+  }
+  const summaries = sessions.map((s) => fitness.sessionSummary(s, bySession.get(s.id) || []));
+  const all = [...new Set([...levels, ...sessions.map((s) => s.level)])].sort((a, b) => levelSort({ level: a }, { level: b }));
+  return fitness.intensityByLevel(all, summaries);
 }
 
 async function researchAnalytics(filters = {}) {
@@ -342,6 +423,8 @@ async function researchAnalytics(filters = {}) {
         };
       }),
     })),
+    // Added: do harder levels produce more intense swings? Pooled across all matching sessions.
+    intensityByLevel: await siteIntensityByLevel(filters, levels),
     levelComparison: levels.map((level) => {
       const r = levelRows.find((x) => x.level === level);
       const decided = r ? r.wins + r.losses : 0;
@@ -416,7 +499,9 @@ module.exports = {
   overview,
   publicStats,
   playerProfile,
+  playerEngagement,
   researchAnalytics,
+  sessionFitness,
   exportSessionsCsv,
   exportEventsCsv,
   TIERS,

@@ -503,7 +503,9 @@ app.get("/api/sessions/:id", route(async (req, res) => {
     `SELECT ${EVENT_SELECT} FROM events WHERE session_ref = $1 ORDER BY occurred_at ASC, seq ASC`,
     [session.id]
   );
-  res.json({ session, events: rows.map(fromRow), liveState });
+  const events = rows.map(fromRow);
+  // Added: swing-tier breakdown, exertion trend and calorie estimate (see fitness.js).
+  res.json({ session, events, liveState, fitness: analytics.sessionFitness(session, events) });
 }));
 
 app.get("/api/stats", route(async (_req, res) => {
@@ -520,6 +522,13 @@ app.get("/api/players/:name", route(async (req, res) => {
   const profile = await analytics.playerProfile(String(req.params.name));
   if (!profile) return res.status(404).json({ ok: false, error: "Player not found" });
   res.json(profile);
+}));
+
+// Sessions over time, streaks and recency for one player. Day boundaries follow ?tz= (IANA name), default UTC.
+app.get("/api/players/:name/engagement", route(async (req, res) => {
+  const engagement = await analytics.playerEngagement(String(req.params.name), { tz: req.query.tz });
+  if (!engagement) return res.status(404).json({ ok: false, error: "Player not found" });
+  res.json(engagement);
 }));
 
 const MAX_PLAYER_NAME = 40;

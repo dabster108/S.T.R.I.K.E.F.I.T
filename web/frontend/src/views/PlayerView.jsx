@@ -18,6 +18,8 @@ import { SessionList } from "../components/sessions/SessionCards.jsx";
 import EventList, { collapseRepeats } from "../components/sessions/EventList.jsx";
 import { LiveArenaCard, LiveChip } from "../components/live/LiveFight.jsx";
 import { BarChart, CompareBars, LEVEL_COLORS, Legend, LineChart, TierBar } from "../components/charts/Charts.jsx";
+import { CalorieEstimate, EstimateNote, ExertionChart, LevelIntensityChart, PersonalBests, SwingTierChart, VsAverage } from "../components/fitness/Fitness.jsx";
+import PlayerEngagement from "../components/fitness/Engagement.jsx";
 
 const LEVELS = [
   { id: "all", label: "All levels" },
@@ -68,7 +70,7 @@ function Highlight({ icon, children, tone = "accent" }) {
   );
 }
 
-function LivePanel({ name, latest }) {
+function LivePanel({ name, latest, estimate, progress }) {
   const live = useLiveForPlayer(name);
   const mine = useCallback((e) => e.playerName === name, [name]);
   const feed = useFeed(mine);
@@ -121,7 +123,9 @@ function LivePanel({ name, latest }) {
             <p className="text-lg font-extrabold tabular-nums text-[var(--ink)]">{v}</p>
           </div>
         ))}
+        <CalorieEstimate kcal={estimate?.estimatedCalories} walkingMinutes={estimate?.estimatedWalkingMinutes} joggingMinutes={estimate?.estimatedJoggingMinutes} />
       </div>
+      {progress && progress.latestSessionId === latest.id && <VsAverage progress={progress} />}
     </Card>
   );
 }
@@ -131,6 +135,7 @@ export default function PlayerView() {
   const name = decodeURIComponent(raw || "");
   const navigate = useNavigate();
   const { data: fetched, error: fetchError, loading, reload, set: setProfile } = useApi(() => api.player(name), [name]);
+  const engagement = useApi(() => api.playerEngagement(name), [name]);
   // useApi keeps the previous response while the next one loads; after switching players that
   // is someone else's profile (or 404), so show the skeleton instead of mixing two people.
   const p = fetched && fetched.playerName === name ? fetched : undefined;
@@ -269,7 +274,12 @@ export default function PlayerView() {
       ) : (
         <>
           <div className="mt-6">
-            <LivePanel name={name} latest={p.sessions.find((s) => s.status !== "live")} />
+            <LivePanel
+              name={name}
+              latest={p.sessions.find((s) => s.status !== "live")}
+              estimate={p.series.find((s) => s.id === p.sessions.find((x) => x.status !== "live")?.id)}
+              progress={p.progress}
+            />
           </div>
 
           <SectionRule index="01" title="Results" className="mt-10" />
@@ -382,7 +392,59 @@ export default function PlayerView() {
             </Card>
           </div>
 
-          <SectionRule index="03" title="History" className="mt-12" />
+          <SectionRule index="03" title="Fitness outcomes" className="mt-12" />
+          <div className="mt-4 space-y-6">
+            <PersonalBests bests={p.personalBests} />
+            <div className="grid gap-6 xl:grid-cols-12">
+              <Card className="overflow-hidden xl:col-span-5">
+                <CardHeader title="How hard the swings were" subtitle="Share of all this player's swings in each strength band" />
+                <div className="px-3 pb-4 pt-4 sm:px-5">
+                  <SwingTierChart breakdown={p.swingIntensity} caption="Swings by strength, all sessions" />
+                </div>
+              </Card>
+              <Card className="overflow-hidden xl:col-span-7">
+                <CardHeader title="Did harder levels mean harder swings?" subtitle="Share of swings by strength on each level this player has fought" />
+                <div className="px-3 pb-4 pt-4 sm:px-5">
+                  <LevelIntensityChart levels={p.intensityByLevel} />
+                </div>
+              </Card>
+            </div>
+            {p.exertionTrend && (
+              <Card className="overflow-hidden">
+                <CardHeader title="Typical effort over a fight" subtitle={`Average across ${p.exertionTrend.sessionsUsed} sessions with enough swings, each scaled to its own length`} />
+                <div className="px-3 pb-4 pt-4 sm:px-5">
+                  <ExertionChart trend={p.exertionTrend} caption="Typical effort over the course of a fight" />
+                </div>
+              </Card>
+            )}
+            <Card className="overflow-hidden">
+              <CardHeader title="Estimated energy use, all sessions" subtitle="An estimate, not a measurement" />
+              <div className="px-5 py-4">
+                {p.fitnessEstimate.estimatedCalories !== null ? (
+                  <CalorieEstimate kcal={p.fitnessEstimate.estimatedCalories} walkingMinutes={p.fitnessEstimate.estimatedWalkingMinutes} joggingMinutes={p.fitnessEstimate.estimatedJoggingMinutes} />
+                ) : (
+                  <p className="text-sm font-medium text-[var(--muted)]">No session with recorded swings yet, so there is nothing to estimate from.</p>
+                )}
+              </div>
+              <EstimateNote>
+                Built from fight length and swing strength with an assumed body mass and an assumed intensity range. Sessions with no recorded swings are left out ({p.fitnessEstimate.sessionsEstimated} of {p.totals.sessions} counted).
+              </EstimateNote>
+            </Card>
+          </div>
+
+          <SectionRule
+            index="04"
+            title="Engagement"
+            className="mt-12"
+            aside={
+              <Link to={`/dashboard/engagement?player=${encodeURIComponent(name)}`} className="press rounded text-xs font-semibold text-[var(--accent)] hover:underline">
+                Open Engagement page
+              </Link>
+            }
+          />
+          <div className="mt-4">{engagement.data?.playerName === name ? <PlayerEngagement data={engagement.data} /> : null}</div>
+
+          <SectionRule index="05" title="History" className="mt-12" />
           <Card className="mt-4 overflow-hidden">
             <CardHeader
               title="Session history"

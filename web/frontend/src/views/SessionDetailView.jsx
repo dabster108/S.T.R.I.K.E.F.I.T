@@ -17,6 +17,7 @@ import EventList from "../components/sessions/EventList.jsx";
 import Scrubber, { SCRUB_LEGEND } from "../components/sessions/Scrubber.jsx";
 import { HpBar, LiveChip } from "../components/live/LiveFight.jsx";
 import { BarChart, Legend, LineChart } from "../components/charts/Charts.jsx";
+import { CalorieEstimate, EstimateNote, ExertionChart, SwingTierChart } from "../components/fitness/Fitness.jsx";
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const P = (e) => (e.payload && typeof e.payload === "object" && !Array.isArray(e.payload) ? e.payload : {});
@@ -267,6 +268,34 @@ export default function SessionDetailView({ onDeleted }) {
               ))}
             </dl>
           </Card>
+
+          {data.fitness && (
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Card className="overflow-hidden">
+                <CardHeader title="How hard the swings were" subtitle="Share of this fight's swings in each strength band" />
+                <div className="px-3 pb-4 pt-4 sm:px-5">
+                  <SwingTierChart breakdown={data.fitness.swingIntensity} />
+                </div>
+              </Card>
+              <Card className="overflow-hidden">
+                <CardHeader title="Effort over the course of the fight" subtitle="Average swing strength in each fifth of the fight, start to finish (x axis is % of the fight)" />
+                <div className="px-3 pb-4 pt-4 sm:px-5">
+                  <ExertionChart trend={data.fitness.exertionTrend} />
+                </div>
+              </Card>
+              {isNum(data.fitness.estimatedCalories) && (
+                <Card className="overflow-hidden xl:col-span-2">
+                  <CardHeader title="Estimated energy use" subtitle="An estimate from fight length and swing strength, not a measurement" />
+                  <div className="px-5 py-4">
+                    <CalorieEstimate kcal={data.fitness.estimatedCalories} walkingMinutes={data.fitness.estimatedWalkingMinutes} joggingMinutes={data.fitness.estimatedJoggingMinutes} />
+                  </div>
+                  <EstimateNote>
+                    {data.fitness.estimate.note} Assumes {data.fitness.estimate.assumedBodyMassKg} kg body mass; intensity factor {data.fitness.estimate.metUsed} MET (assumed range {data.fitness.estimate.metRange[0]} to {data.fitness.estimate.metRange[1]}).
+                  </EstimateNote>
+                </Card>
+              )}
+            </div>
+          )}
 
           {!telemetry ? (
             <Card>

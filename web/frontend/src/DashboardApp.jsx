@@ -31,6 +31,7 @@ const PlayersView = lazy(() => import("./views/PlayersView.jsx"));
 const PlayerView = lazy(() => import("./views/PlayerView.jsx"));
 const CompareView = lazy(() => import("./views/CompareView.jsx"));
 const AnalyticsView = lazy(() => import("./views/AnalyticsView.jsx"));
+const EngagementView = lazy(() => import("./views/EngagementView.jsx"));
 const ExportView = lazy(() => import("./views/ExportView.jsx"));
 const SettingsView = lazy(() => import("./views/SettingsView.jsx"));
 const GuideView = lazy(() => import("./views/GuideView.jsx"));
@@ -47,6 +48,7 @@ const TITLES = {
   leaderboard: "Leaderboard",
   compare: "Compare",
   analytics: "Analytics",
+  engagement: "Engagement",
   export: "Export",
   connection: "Connection",
   guide: "User guide",
@@ -181,6 +183,7 @@ function Dashboard() {
                   <Route path="leaderboard" element={<LeaderboardView sessions={t.sessions} openSession={openSession} />} />
                   <Route path="compare" element={<CompareView />} />
                   <Route path="analytics" element={<AnalyticsView />} />
+                  <Route path="engagement" element={<EngagementView />} />
                   <Route path="export" element={<ExportView />} />
                   <Route path="guide" element={<GuideView />} />
                   <Route

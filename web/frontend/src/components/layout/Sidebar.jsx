@@ -12,6 +12,7 @@ export const NAV = [
   { to: "/dashboard/leaderboard", label: "Leaderboard", icon: "trophy" },
   { to: "/dashboard/compare", label: "Compare", icon: "compare" },
   { to: "/dashboard/analytics", label: "Analytics", icon: "analytics" },
+  { to: "/dashboard/engagement", label: "Engagement", icon: "calendar" },
   { to: "/dashboard/export", label: "Export", icon: "download" },
 ];
 

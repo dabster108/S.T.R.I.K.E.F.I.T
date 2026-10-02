@@ -1865,3 +1865,21 @@ Assets/Animations/
   Player/
     (future)
 ```
+
+
+---
+
+## Dashboard: fitness-outcome features (2026-10-02)
+
+All five features are additive (no existing API field, colour or font changed). Calculation logic lives in `web/backend/fitness.js`; routes/queries in `analytics.js` and `server.js`. Verified against the live Neon data (5 players, 26 sessions) via a local server and headless-Chrome screenshots.
+
+**Prerequisite built here:** the previous-session calorie estimate was not present anywhere in the repo, so it was created as part of Feature 4.
+
+1. **Engagement tracking** — `GET /api/players/:name/engagement` (sessions by day/week, days since last session, current + longest streak, first/last session). Streak unit = consecutive calendar days (day boundaries follow `?tz=`, default UTC); the current streak stays alive until a full day passes with no session. `GET /api/overview` gains `engagement` (30-day sessions-per-day, active players over rolling 7/30 days, return rate = players with >1 session / all players). Sessions = every recorded session incl. abandoned, matching the rest of the dashboard.
+2. **Swing intensity + exertion trend** — `GET /api/sessions/:id` gains `fitness` (tier counts + percentages, 5 equal time-bucket exertion trend with rose/level/dropped label, needs 10+ swings). `GET /api/players/:name` gains `swingIntensity`, `exertionTrend` (average of per-session curves; null until 2+ sessions have enough swings), `intensityByLevel`. `GET /api/analytics` gains site-wide `intensityByLevel`. Tier weight: tap 1, light 2, medium 3, full 4.
+3. **Personal bests / progress** — player profile gains `personalBests` (fastest swing, highest full-swing %, highest estimated kcal, longest session, highest score; each with session id + date) and `progress` (latest session vs average of earlier ones; null with <2 sessions). Full-swing % record needs 10+ tiered swings in the session.
+4. **Workout equivalents** — `estimatedCalories`, `estimatedWalkingMinutes`, `estimatedJoggingMinutes` on session `fitness`, on player `series[]`, and a player total (`fitnessEstimate`). Sessions with no recorded swings get null, not a made-up figure.
+   Constants (`fitness.js`): body mass 70 kg (ASSUMPTION); MET range 3.0 (all taps) to 6.0 (all full power), linear in average tier weight (ASSUMPTION, no source: replace with a cited value before relying on it); brisk walking 4.3 MET (Compendium of Physical Activities, Ainsworth et al. 2011, code 17190); jogging 7.0 MET (same, code 12020). Verify the code numbers against the Compendium before citing.
+5. **Engagement page** — `/dashboard/engagement`, sidebar entry directly after Analytics (it is analysis of player behaviour, next to Players/Compare/Analytics research pages). Site-wide section on top, player selector below; honest empty states for single-day / single-session players and a single-player site.
+
+**Data caveats for the thesis:** Level 3 (Hard) has 6 sessions but zero swing events, so the Level 1/2/3 comparison has no Level 3 data yet. Level 1 vs 2 swing samples are small (23 and 165 swings). One recorded swing speed (14.0 m/s) exceeds the game's 8 m/s cap and should be checked.
