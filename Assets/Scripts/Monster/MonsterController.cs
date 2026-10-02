@@ -188,6 +188,12 @@ public class MonsterController : MonoBehaviour
 
     public void PerformAttackHit(float damageMultiplier)
     {
+        PerformAttackHit(damageMultiplier, false);
+    }
+
+    /// <param name="unblockable">Dodge-only attack: PlayerHealth skips every block reduction.</param>
+    public void PerformAttackHit(float damageMultiplier, bool unblockable)
+    {
         if (!isAlive) return;
 
         float dmg = attackDamage;
@@ -197,6 +203,8 @@ public class MonsterController : MonoBehaviour
             WeaponType.Hammer => 1.2f,
             WeaponType.Sword => 1.1f,
             WeaponType.Shield => 0.7f,
+            WeaponType.Flail => 1.25f,
+            WeaponType.DualAxe => 1.25f, // Level 3 boss: two axes
             _ => 1.0f // None / claws
         };
         dmg *= Mathf.Max(0.1f, damageMultiplier);
@@ -206,7 +214,7 @@ public class MonsterController : MonoBehaviour
         // Route through PlayerHealth — which checks PlayerCombat.IsBlocking for shield block.
         var playerHealth = FindAnyObjectByType<PlayerHealth>();
         if (playerHealth != null)
-            playerHealth.TakeDamage(dmg);
+            playerHealth.TakeDamage(dmg, unblockable);
     }
 
     public void EndAttack()

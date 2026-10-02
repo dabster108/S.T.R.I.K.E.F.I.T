@@ -1,6 +1,178 @@
 # Project Progress — Fitness Monster Battle
 
-Last updated: **2026-09-30 (third pass) — flinch no longer delays or drops attack animations in Level 2 (same controller fix as Level 1; now applies to both levels)**
+Last updated: **2026-10-02 — Level 3 boss is now the Mixamo character Ch25 ("Twin-Axe Brute") with one axe in each hand and an 11-attack table; replaces the Armored Executioner**
+
+---
+
+## 2026-10-02 — Level 3: Hard — Twin-Axe Brute (Mixamo Ch25, two axes)
+
+Method: every item below was read from the live project through Unity MCP or traced in Play mode on `Level3_Hard` (1/72 s steps, backend pointed at 127.0.0.1:9, name gate passed, battle started through the real Start path). Clip timing was measured through the real Animator (`Play` + `Update(0)`) on the built prefab, not with `AnimationClip.SampleAnimation`: on a child Animator that call bakes root travel into the body and gave hit positions up to 6 m off.
+
+**What was there before.** The Level 3 build from 2026-10-01 (scene, weapon pickups, entrance, phases, weak point, unblockable slam) was never recorded in this file, and none of it is committed yet. Its boss, the Armored Executioner, was an unrigged Tripo mesh split into two rigid parts with procedural Generic clips. No Mixamo research for Level 3 exists in this file or in any earlier session; that session stopped before its download list.
+
+### 1. Model import + rig
+| Item | Result |
+|---|---|
+| Source | `Ch25_nonPBR.fbx` (project root) copied to `Assets/Models/Monsters/Level3/Ch25_nonPBR.fbx`. The root copy was left in place. |
+| Rig | **Humanoid, avatar created from this model, valid.** 52 human bones mapped (full body + all 30 finger bones); only LeftEye / RightEye / Jaw unmapped (Mixamo rigs have none). 0 import warnings (no T-pose or mapping errors). Hands: `mixamorig:RightHand` / `mixamorig:LeftHand`. |
+| Mesh | 1 SkinnedMeshRenderer, 44,278 tris, 2 submeshes, 52 skinned bones, 1.91 m. Built at **scale 1.25 → 2.39 m**. |
+| Materials | 8 embedded 2048 px textures extracted to `Models/Monsters/Level3/Textures/Ch25/`. URP Lit, **specular workflow** (`M_L3_Ch25_1001/1002`): Specular RGB + Glossiness packed into `Ch25_100x_SpecGloss.png`. Normal maps are on and rendered correctly on the skinned mesh in the editor (the L2 Metal magenta issue did not reproduce); confirm on Quest. |
+
+### 2. Two axes, one per hand
+Source: `Axe_deci` from `free-mace-katana-axe-weapon-pack-sketch-mesh/source/3Blades_1.fbx` (imported as `Models/Weapons/Player/Level3/Katana/MaceKatanaAxe_Pack.fbx`). It is a long-bladed bearded axe: haft with a pommel disc, blade on two struts. It was decimated 49,495 → 3,326 tris and baked into grip space (`Models/Weapons/Monster/L3_MonsterAxe_Split.asset`: blade steel / iron fittings / wood haft). The same mesh is used for both hands.
+
+Grip method (same rule as every weapon so far: correct parent, local offset, weapon axis through the grip, checked in renders). On Ch25's Mixamo fist (the sword-grip finger pose), the curled fingers wrap a 0.035 m cylinder whose axis is the knuckle line. The haft runs along that line with the head above the thumb, and the blade edge leads along wrist → knuckles, so the edge leads on every chop.
+
+| | Parent bone | Local position | Local rotation | Size | Clash colliders (both tag `MonsterWeapon`, trigger) |
+|---|---|---|---|---|---|
+| `MonsterAxe_R` | `mixamorig:RightHand` | (−0.002, 0.108, 0.036) | (274.0, 272.3, 180.0) | 0.96 m in hand space, **1.20 m** in the world | head Box c (0, 0.40, 0.15) s (0.07, 0.84, 0.30) + `HaftCollider` capsule r 0.035 h 0.98 |
+| `MonsterAxe_L` | `mixamorig:LeftHand` | (0.002, 0.106, 0.036) | (274.0, 87.7, 180.0) | same | same |
+
+Each axe also carries `BladeEdge` (hit measurement + FX anchor) and its own copy of L2's `AxeFireVFX`.
+
+### 3. Animations — how they were sourced
+**Mixamo itself could not be used**: downloading needs your Adobe login. Every L3 clip is therefore baked from Mixamo mocap already in the project. The bake works in Humanoid muscle space (`Editor/HumanoidClipBaker.cs`), so it retargets exactly like an imported clip.
+
+How dual-wield is made from one-handed mocap: the left arm plays the **mirrored** right-arm swing, using the same maths as Unity's `AnimatorState.mirror`. It is either simultaneous (body averaged, so the axes cross or slam together) or delayed (the body blends from right to left, so the chops alternate). Slow anticipation is compressed so wind-ups are shorter than Level 2's, and jumps are damped.
+
+Poses with no mocap (idle, guard, roar) are arm muscle values **fitted numerically** to axe targets on this rig. Every clip was previewed on Ch25 itself through the prefab's Animator and retargeted cleanly (no broken limbs, feet planted, fists closed on both hafts).
+
+| State | Mixamo clip it is built from (name as on Mixamo) | How |
+|---|---|---|
+| `L3_Idle` / `L3_IdleEnraged` | Standing Melee Attack Horizontal (ready stance) | Fitted pose: axes held out at the sides, blades hanging. Heavy breathing (3.2 s loop). Enraged: hunched, wider, 1.2 s breathing + tremor. |
+| `L3_Underground` / `L3_Rise` | Mutant Jump Attack (landing crouch 1.70 → 3.70 s) | Crouched with both axes in the ground, rising to full height over 3.1 s |
+| `L3_Roar` | (authored) | Arms flung wide, chest out, head back, tremor, 2.4 s |
+| `L3_Defend` | (authored) | **Both axes crossed in front of the face**, 1.0 s |
+| `L3_Hit` | Hit Reaction (`Monster_HitReaction.fbx`) | First 0.9 s, fists kept closed |
+| `L3_Death` | Two Handed Sword Death | Fists kept closed |
+| attacks | see §4 | |
+
+**Optional upgrades from Mixamo** (search terms; I could not open Mixamo to confirm, so the names marked "likely" are from memory and the rest are guesses). Download as FBX for Unity, without skin, to `Assets/Animations/Monster/Level3/`, set Rig = Humanoid, and change the source line in `Level3DualAxeBuilder.BuildClips`:
+- Rise: **"Zombie Stand Up"** (likely)
+- Roar: **"Mutant Roaring"** (likely)
+- Enraged idle: **"Mutant Breathing Idle"** (likely)
+- Guard: **"Sword And Shield Block"** (likely; then mirror it for the second axe)
+- Dual-weapon attacks: search **"dual"**. I could not verify that Mixamo has a dual-axe set. The mirrored composites above exist because of that.
+
+### 4. Attack table — 11 attacks (L2: 10)
+Base damage 18 × 1.25 (`WeaponType.DualAxe`) = **22.5**. Wind-up = the **measured** hit frame of the baked clip: blade-edge speed peak (Level 2 convention), the front-most blade frame for the spin and the backhand chops, and the blade reaching the ground for the slam. Enraged: ÷ 1.3 (AI tempo and Animator speed together).
+
+| # | Attack | Built from | Category | Wind-up (enraged) | Damage per hit | Arc | Weight full → 0 HP / enraged | Rules |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Alternating Chops | One Hand Sword Combo: right chop, then the mirrored left 0.45 s later | Standard | 0.575 + 0.350 (0.442) | 19.1 × 2 | 55° | 28 → 16 / 12 | |
+| 2 | Crossing Double Swing | Standing Melee Attack Horizontal: both axes sweep in and cross | Standard | 0.558 (0.429) | 22.5 | 75° | 26 → 15 / 12 | |
+| 3 | Twin Diagonal Hack | Great Sword Slash: both overhead, X-cut down | Standard | 0.525 (0.404) | 23.6 | 50° | 24 → 14 / 10 | |
+| 4 | Spinning Reap | Sword And Shield Slash: spin and hop, both axes sweep | Standard | 0.708 (0.545) | 22.5 | 90° | 14 → 10 / 8 | |
+| 5 | Backhand Double Chop | One Hand Sword Combo (2nd half): backswing, right then left chop | Standard | 0.525 + 0.283 (0.404) | 19.1 × 2 | 50° | 16 → 10 / 8 | |
+| 6 | Reaping Flurry | Standing Melee Combo Attack Ver. 1: left, right, both | Combo | 0.608 + 0.267 + 0.967 (0.468) | 15.8 × 3 | 60/60/70° | 10 → 16 / 14 | 4 s cd |
+| 7 | Rending Double Strike | Standing Melee Combo Attack Ver. 3: right, then the mirrored left 0.30 s later | Combo | 0.525 + 0.267 (0.404) | 18.0 × 2 | 55° | 10 → 14 / 12 | 3 s cd |
+| 8 | Twin Whirlwind | Great Sword High Spin Attack: full spin, both axes at head height | **Heavy** | 0.883 (0.679) | 33.8 | 180° | 6 → 16 / 14 | 4 s cd |
+| 9 | Twin Overhead Cleave | Standing Melee Attack Downward: both overhead, a held beat, slam | **Heavy** | 0.942 (0.724) | 40.5 | 40° | 5 → 14 / 12 | 5 s cd, axe fire |
+| 10 | Leaping Double Cleave | Standing Melee Run Jump Attack: leap, double cleave | **Heavy** | 0.792 (0.609) | 38.3 | 45° | 0 → 12 / 12 | HP ≤ 66 % only, 6 s cd, axe fire |
+| 11 | **Earthsplitter Slam** | Mutant Jump Attack: leap, both axes into the dock | **Special, UNBLOCKABLE** | 1.300 (1.000) | 45.0 | zone r 1.5 m at 0.6 m in front | 1.5 → 6 / **34** | 6 s cd, axe fire, own warning sound, red danger zone, forced once at 50 % HP |
+
+Selection, 4,000 picks through the real `ChooseFromTable`:
+
+| HP | Standard | Combo | Heavy | Special |
+|---|---|---|---|---|
+| 100 % | 77.0 % | 14.3 % | 7.6 % | 1.2 % |
+| 60 % | 63.8 % | 17.6 % | 16.5 % | 2.2 % |
+| 35 % | 58.1 % | 18.0 % | 21.3 % | 2.6 % |
+| Enraged | 33.0 % | 17.4 % | 26.1 % | **23.5 %** |
+
+**Animator (`Animations/Monster/Level3/Monster_L3_TwinAxe.controller`): 19 states, 127 transitions; Any State → Death only.** Every attack is entered on its own trigger from Idle, IdleEnraged, Hit, Defend and Roar. Every attack leaves to Idle (`Idle` & !Enraged) or IdleEnraged (`Idle` & Enraged), with exit-time fallbacks, all interruptible by the destination. Audited transition by transition; all 11 table triggers exist as parameters with real states.
+
+Bug found and fixed in this pass, in this same bug class: returns went only to Idle, then Idle → IdleEnraged (a 0.2 s blend that could not be interrupted). While enraged, 12 actions started 0.06–0.18 s late and defends showed the guard pose late. After the fix, the same 35 s enraged run had 0 late entries.
+
+**Verified in Play mode:**
+- Forced runs: all 11 attacks forced from Idle and 0.1 s into a flinch, in phase 1 **and** enraged (44 runs). Each reached its state on the frame after the trigger, landed damage on the measured clip frame (within 2 frames at 72 fps), and returned to the right idle.
+- Natural fights (AI choosing, a body hit every 1.3 s): phase 1 had 13 attacks and 5 defends; enraged had 16 attacks and 6 defends. **0 late or missing state entries.**
+
+### 5. Weak point — one arm: the right forearm
+Decision: a single weak point on the **right (lead) forearm**, not both arms:
+- It opens every swing toward the player (alternating attacks start right), so hitting it means stepping into the danger.
+- One glowing target keeps the bonus special and readable. With both arms glowing, the whole front of the guard (both forearms cross in front during Defend) would become a bonus zone.
+
+Built as `HitVol_R_LowerArm` (bone-following) + `MonsterWeakPoint` ×1.75 with its own sound. Ch25's 650 right-forearm triangles (skinned mainly to `RightForeArm`) are split into their own submesh (`Ch25_WeakPointSplit.asset`), so the skin itself pulses green (`M_L3_Ch25_WeakPoint`).
+
+Measured: left forearm 67.2 damage vs right 117.0 for the same strike (**×1.74**). `HitCount` incremented, `L3_WeakPoint_Hit` played, emission pulsing.
+
+### 6. Level 3 systems with the new boss (all traced live)
+| System | Result |
+|---|---|
+| Weapon scatter + grab | Start refused while unarmed. Mace / Flail / Katana each equip both hands, hide the previous pair and their own staged props, and switch stats (min swing 2.0 / 1.6 / 1.3 m/s, damage ×1.35 / 1.1 / 0.9). Unchanged by the swap. |
+| Entrance | Circle fades in (1.0 s) → `Rise` trigger at 1.47 s, Y −2.90 → 0 eased over the 3.1 s clip → `Roar` animation + sound on the same frame, held 2.25 s → AI and colliders on at 6.93 s, circle fades out. |
+| Phases / enrage | HP bar read live: "Enemy 1500/1500  PHASE 1" at spawn. Crossing 33 % switched `BossPhaseController` to phase 2 = Enraged. Enraged: Animator and AI tempo 1.30, IdleEnraged, red aura 2.8, chest embers, cooldown ×0.68. The 66 / 33 % break markers are created by the same `Start` call that set that label, but the marker objects themselves were not read back: the editor had been switched to Level2_Medium when that check ran. |
+| Unblockable | Slam full 45 damage with `LastHitWasUnblockable`. A parry during its wind-up is ignored (normal attacks parried: 22.5 → 7.9, 23.6 → 8.3). Stepping 2.2 m sideways during the wind-up: 0 damage. With a shield block held (check only; L3 has no shield): normal 9.0 vs unblockable 45.0. |
+| Clash / parry | All 4 axe colliders (R head, R haft, L head, L haft) return `Clash`, fire `WeaponClashed`, play `swords-collide` on the player weapon, and deal 0 damage. |
+| Defend | Crossed-axes guard every ~5 s for 1.0 s; a chest hit during it is reduced ×0.30 with the block clang. |
+| Death | Death state, all colliders off, VICTORY, `L3_Victory_Sting`, victory panel. Defeat also reached naturally (an idle player was killed while the trace polled). |
+
+### 7. Audio
+| Event | Clip |
+|---|---|
+| Standard / combo telegraph | `L3_Telegraph_Standard` |
+| Heavy telegraph | `L3_Telegraph_Heavy` |
+| Unblockable warning / impact | `L3_Slam_Warning` / `L3_Slam_Impact` |
+| One-axe hit (alternating chops, flurry, rending, backhand) | **`L3_DualAxe_Swing_Single`** (new: whoosh + steel "shing") |
+| Two-axe swing (crossing, X-hack, spin reap) | **`L3_DualAxe_Swing_Double`** (new: two whooshes 75 ms apart) |
+| Heavy | **`L3_DualAxe_Swing_Heavy`** (new: two deep whooshes 110 ms apart, sub thump, ringing metal; L2 uses one `L2_Axe_Whoosh_Heavy`) |
+| Clash / parry (either axe) | `swords-collide` on the player weapon |
+| Weak point | `L3_WeakPoint_Hit` |
+| Defend brace / block | `L2_Defend_Brace` / `L2_Defend_Block` |
+| Entrance / enrage / phase | `L3_Summon_Circle`, `L3_Rise_Grind`, `L3_Roar_Entrance`, `L3_Roar_Enrage`, `L3_PhaseChange_Growl` |
+| Death / victory / defeat | `dramatic-death-collapse` (own AudioSource), `L3_Victory_Sting` / `L3_Defeat_Sting` |
+
+The new swing clips are synthesized (numpy) in `Audio/SFX/Level3/`.
+
+### 8. Level 3 vs Level 2 (both read live)
+| | L2 Vampire | L3 Twin-Axe Brute |
+|---|---|---|
+| Monster HP | 800 | **1500** |
+| Base hit | 16.8 | **22.5** |
+| Attacks | 10 (1 weapon) | **11 (2 weapons, 4 multi-hit)** |
+| Standard wind-up | 0.59–0.63 s | **0.525–0.71 s (enraged 0.40–0.55)** |
+| Heavy wind-up | 1.04 s, idle-slam 1.475 s | **0.79–0.94 s (enraged 0.61–0.72)** |
+| Special | Leaping Cleave 1.025 s, blockable | **Unblockable slam 1.30 s (enraged 1.00), dodge only** |
+| Cooldown start-to-start | 2.2 s (×0.85 when hurt) | **1.9 s (×0.85 hurt, ×0.68 enraged)** |
+| Range (horizontal to headset) | 1.55 m | **1.45 m** (measured axe reach: blade mid-edge 1.1–1.24 m) |
+| Defend | 5.5 s cd, 1.0 s, 70 % | 5.0 s cd, 1.0 s, 70 % |
+| Player HP | 800 | 800 |
+
+### 9. Code / asset changes
+| File | Change |
+|---|---|
+| `Editor/Level3DualAxeBuilder.cs` + `.Monster.cs` | **New.** Re-runnable build of materials, axe mesh, clips, controller, prefab and measured table. Menu: *Tools > Level 3 > Build Dual-Axe Monster*. |
+| `Editor/HumanoidClipBaker.cs` | **New.** Muscle-space mirror / retime / override / concat / dual-wield composer. |
+| `Editor/Level3Builder.cs` | Monster prefab + Executioner attack table removed; *Build Prefabs* now builds this boss. `MonsterPrefabPath` → `Monster_Hard_TwinAxeBrute.prefab`. |
+| `Editor/Level3SceneBuilder.cs` | Monster weapon `DualAxe`. |
+| `Editor/MeshDecimateTool.cs` | Optional mesh name argument (existing callers unchanged). |
+| `Combat/WeaponType.cs` | `DualAxe = 7` appended (monster only). |
+| `Monster/MonsterController.cs` | `DualAxe` damage flavour ×1.25 (same as the tuned Hard value). |
+| `Monster/MonsterAI.cs` | `extraWeaponFireVfx[]`: the second axe ignites with the first (empty = L1/L2 unchanged). |
+| `Manager/LevelManager.cs` | Hard: monster weapon `DualAxe`, attack range 1.6 → **1.45**. |
+| `Scenes/Level3_Hard.unity` | `LevelManager.monsterPrefabForThisScene` → `Monster_Hard_TwinAxeBrute.prefab`, monster weapon `DualAxe`. Nothing else changed (in-memory scene diffed against disk). |
+
+**Armored Executioner assets are no longer referenced anywhere** (scene, prefabs, builders), but were **not deleted**, because they are uncommitted and could not be recovered:
+- `Prefabs/Monsters/Monster_Hard_Executioner.prefab`
+- `Models/Monsters/Level3/ArmoredExecutioner.fbx` (51 MB), `ArmoredExecutioner_Quest.asset`, `Executioner_Upper/Lower.asset`
+- `Animations/Monster/Level3/Exec_*.anim`, `Atk_ReapSweep/OverheadChop/PolearmJab/TwinReap/ReapingWhirl.anim`, `Monster_L3_Executioner.controller`
+- `Materials/Level3/M_L3_Executioner*.mat`
+- `Editor/ExecutionerAnimationBuilder.cs`, `ExecutionerMeshSplitter.cs`
+
+Note that `Atk_GroundSlam.anim` was overwritten by the new slam.
+
+### Headset checks
+1. Grab a pair → Start. The green circle appears, the brute rises through it, roars, and only then attacks.
+2. Both axes sit in the fists with the edges leading. Each attack should show its own two-axe pattern (alternating, crossing, X-cut, spin, flurry, leap, slam).
+3. Swing into either axe during a wind-up: clang + reduced hit. During the purple-flash slam, the clang does nothing; only stepping out of the red ring avoids it.
+4. Hit the glowing right forearm: a distinct sound and much bigger damage numbers.
+5. Below a third of its HP: a red tint and aura, a faster tempo, many more slams.
+6. Watch for magenta on the brute's skin (normal map on a skinned mesh, Quest/Vulkan).
+7. Check the 1.45 m stand-off feels like the blades reach you.
+
+### Ready for headset test? **YES**
+0 console errors. Every item above was verified in the editor; feel, reach, and the Quest rendering of the normal map need the headset.
 
 ---
 

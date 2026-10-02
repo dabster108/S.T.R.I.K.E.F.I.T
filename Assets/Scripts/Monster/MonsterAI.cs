@@ -54,6 +54,8 @@ public class MonsterAI : MonoBehaviour
         public float weightFullHp = 10f;
         [Tooltip("Selection weight at 0 monster HP (lerped by damage taken).")]
         public float weightLowHp = 10f;
+        [Tooltip("Selection weight while enraged (BossPhaseController). Negative = keep the HP-lerped weight.")]
+        public float enragedWeight = -1f;
         [Tooltip("Only selectable at or below this monster HP fraction (1 = always).")]
         [Range(0f, 1f)] public float maxHpFraction = 1f;
         [Tooltip("Only selectable after standing still in Idle for this many seconds (0 = any time).")]
@@ -71,6 +73,18 @@ public class MonsterAI : MonoBehaviour
         [Range(0f, 1f)] public float impactVolume = 1f;
         [Tooltip("Ignite the weapon fire VFX during the wind-up and burst on impact.")]
         public bool fireVfx;
+
+        [Header("Unblockable (dodge-only) attack")]
+        [Tooltip("Cannot be blocked or parried: PlayerHealth takes the full damage. Hits if the player's head is inside " +
+                 "dodgeRadius of the impact point at the hit frame, whatever the arc; the only defence is to move out.")]
+        public bool unblockable;
+        [Tooltip("Impact centre, metres in front of the monster.")]
+        public float impactForward = 1.3f;
+        [Tooltip("Radius (m, horizontal) of the impact zone the player has to leave.")]
+        public float dodgeRadius = 1.6f;
+        [Tooltip("Distinct warning sound at the start of the wind-up, so the player hears THIS one must be dodged.")]
+        public AudioClip warningClip;
+        [Range(0f, 1f)] public float warningVolume = 1f;
 
         [System.NonSerialized] public float lastUsedTime = -999f;
     }
@@ -138,9 +152,32 @@ public class MonsterAI : MonoBehaviour
     [Range(0.5f, 1f)] public float lowHpCooldownScale = 0.85f;
     [Tooltip("Swing whoosh plays this many seconds before each hit frame.")]
     public float swingSfxLead = 0.12f;
+    [Tooltip("Attack tempo (1 = authored). >1 shortens wind-ups, combo gaps and recovery; the Animator speed should be " +
+             "set to the same value so hit frames stay on the visible impact (BossPhaseController does both).")]
+    public float tempoScale = 1f;
+
+    [Header("Parry (optional, Level 3)")]
+    [Tooltip("A weapon clash (player weapon hits the monster weapon) during the wind-up of a normal attack parries it: " +
+             "its hits deal parryDamageMultiplier. Unblockable attacks ignore parries.")]
+    public bool allowParry = false;
+    [Range(0f, 1f)] public float parryDamageMultiplier = 0.35f;
+
+    [Header("Enrage (set by BossPhaseController)")]
+    [Tooltip("While true, attack-table rows with enragedWeight >= 0 use it instead of the HP-lerped weight.")]
+    public bool enraged = false;
+    [Tooltip("Body colour the defend / telegraph tints return to (white = untinted; enrage sets a red tint).")]
+    public Color restingTint = Color.white;
+    [Tooltip("Optional extra renderers that receive the same body tint as telegraphRenderer (split meshes).")]
+    public Renderer[] extraTintRenderers = new Renderer[0];
+
+    [Header("Danger zone (optional, unblockable attacks)")]
+    [Tooltip("Ground marker shown at the impact point during an unblockable wind-up (size = dodgeRadius).")]
+    public DangerZoneIndicator dangerZone;
 
     [Header("Weapon FX (attack table, optional)")]
     public ParticleSystem weaponFireVfx;
+    [Tooltip("More weapon fire emitters that ignite with weaponFireVfx (Level 3: the second axe).")]
+    public ParticleSystem[] extraWeaponFireVfx = new ParticleSystem[0];
     public ParticleSystem impactBurstVfx;
     [Tooltip("Where impact bursts spawn, relative to the monster (forward/up metres).")]
     public Vector2 impactBurstOffset = new Vector2(1.2f, 0.05f);
@@ -207,6 +244,34 @@ public class MonsterAI : MonoBehaviour
     public bool LastHitLanded { get; private set; }
     public int TableAttackCount { get; private set; }
     public bool UsesAttackTable => attackTable != null && attackTable.Count > 0;
+    /// <summary>Attack currently between trigger and recovery end (null otherwise).</summary>
+    public AttackDefinition CurrentAttack { get; private set; }
+    /// <summary>True if the current / last attack was parried by a weapon clash during its wind-up.</summary>
+    public bool CurrentAttackParried { get; private set; }
+    /// <summary>Damage multiplier passed to the player by the last resolved hit (after a parry, before block).</summary>
+    public float LastHitDamageMultiplier { get; private set; }
+    private bool inWindUp;
+
+    void OnEnable()
+    {
+        HitDetection.WeaponClashed += HandleWeaponClashed;
+    }
+
+    void OnDisable()
+    {
+        HitDetection.WeaponClashed -= HandleWeaponClashed;
+        if (dangerZone != null && dangerZone.IsShowing) dangerZone.Hide();
+    }
+
+    void HandleWeaponClashed(HitDetection source, float speed)
+    {
+        if (!allowParry || !inWindUp || CurrentAttack == null || CurrentAttack.unblockable) return;
+        // A parry is an active swing into the weapon, not a weapon merely held in the swing's path.
+        float gate = PlayerCombat.Instance != null ? PlayerCombat.Instance.minSwingVelocity : 1.2f;
+        if (speed < gate) return;
+        CurrentAttackParried = true;
+        if (verboseAttackLogs) Debug.Log($"[MonsterAI] '{CurrentAttack.name}' parried");
+    }
 
     void Awake()
     {
@@ -439,16 +504,49 @@ public class MonsterAI : MonoBehaviour
 
     void SetBodyTint(Color c)
     {
-        if (telegraphRenderer == null) return;
-        telegraphRenderer.GetPropertyBlock(mpb);
-        mpb.SetColor("_BaseColor", c);
-        mpb.SetColor("_Color", c);
-        telegraphRenderer.SetPropertyBlock(mpb);
+        TintRenderer(telegraphRenderer, c);
+        if (extraTintRenderers != null)
+            foreach (var r in extraTintRenderers) TintRenderer(r, c);
+    }
+
+    void TintRenderer(Renderer r, Color c)
+    {
+        if (r == null) return;
+        bool perSlot = extraTintRenderers != null && extraTintRenderers.Length > 0;
+        if (!perSlot)
+        {
+            // Levels 1-2: renderer-wide block, exactly as before (TelegraphFlash uses the same block).
+            r.GetPropertyBlock(mpb);
+            mpb.SetColor("_BaseColor", c);
+            mpb.SetColor("_Color", c);
+            r.SetPropertyBlock(mpb);
+            return;
+        }
+        // Split-mesh monsters: every material slot (the weak-point slot's emission is driven by MonsterWeakPoint).
+        for (int i = 0; i < r.sharedMaterials.Length; i++)
+        {
+            r.GetPropertyBlock(mpb, i);
+            mpb.SetColor("_BaseColor", c);
+            mpb.SetColor("_Color", c);
+            r.SetPropertyBlock(mpb, i);
+        }
     }
 
     void ClearBodyTint()
     {
-        SetBodyTint(Color.white);
+        SetBodyTint(restingTint);
+    }
+
+    /// <summary>Apply the resting tint now (enrage on/off).</summary>
+    public void ApplyRestingTint()
+    {
+        if (!IsDefending) SetBodyTint(restingTint);
+    }
+
+    float SelectionWeight(AttackDefinition a, float hurt)
+    {
+        if (enraged && a.enragedWeight >= 0f) return a.enragedWeight;
+        return Mathf.Max(0f, Mathf.Lerp(a.weightFullHp, a.weightLowHp, hurt));
     }
 
     // ───────────────────────── Attack table (Level 2+) ─────────────────────────
@@ -519,11 +617,11 @@ public class MonsterAI : MonoBehaviour
 
             float hurt = 1f - hp;
             float total = 0f;
-            foreach (var a in pool) total += Mathf.Max(0f, Mathf.Lerp(a.weightFullHp, a.weightLowHp, hurt));
+            foreach (var a in pool) total += SelectionWeight(a, hurt);
             float r = Random.value * total;
             foreach (var a in pool)
             {
-                r -= Mathf.Max(0f, Mathf.Lerp(a.weightFullHp, a.weightLowHp, hurt));
+                r -= SelectionWeight(a, hurt);
                 if (r <= 0f) { chosen = a; break; }
             }
             if (chosen == null && pool.Count > 0) chosen = pool[pool.Count - 1];
@@ -555,22 +653,33 @@ public class MonsterAI : MonoBehaviour
         a.lastUsedTime = Time.time;
         lastTableAttack = a;
         LastChosenAttack = a;
+        CurrentAttack = a;
+        CurrentAttackParried = false;
         TableAttackCount++;
         cyclesSinceHeavy = IsBigHit(a.category) ? 0 : cyclesSinceHeavy + 1;
         LastHitLanded = false;
         AttackStarted?.Invoke(this, a.name, a.category.ToString());
 
+        // Tempo (enrage): every authored time is divided by it; the Animator speed is scaled to match.
+        float tempo = Mathf.Max(0.25f, tempoScale);
+        float windUp = a.windUp / tempo;
+
         // --- Telegraph ---
+        if (a.unblockable && a.warningClip != null && sfxAudioSource != null)
+            sfxAudioSource.PlayOneShot(a.warningClip, a.warningVolume);
         if (a.windUpClip != null && sfxAudioSource != null)
             sfxAudioSource.PlayOneShot(a.windUpClip, a.windUpVolume);
-        StartCoroutine(TelegraphFlash(a.windUp, a.telegraphColor));
+        StartCoroutine(TelegraphFlash(windUp, a.telegraphColor));
         if (a.fireVfx) SetWeaponFire(true);
+        if (a.unblockable && dangerZone != null)
+            dangerZone.Show(ImpactPoint(a), a.dodgeRadius, windUp);
+        inWindUp = true;
 
         float start = Time.time;
         int hits = 1 + (a.followUpHits != null ? a.followUpHits.Length : 0);
         for (int i = 0; i < hits; i++)
         {
-            float hitAt = a.windUp + (i == 0 ? 0f : a.followUpHits[i - 1]);
+            float hitAt = windUp + (i == 0 ? 0f : a.followUpHits[i - 1] / tempo);
 
             float whooshAt = start + Mathf.Max(0f, hitAt - swingSfxLead);
             while (Time.time < whooshAt) yield return null;
@@ -578,30 +687,60 @@ public class MonsterAI : MonoBehaviour
                 sfxAudioSource.PlayOneShot(a.swingClip, a.swingVolume);
 
             while (Time.time < start + hitAt) yield return null;
+            inWindUp = false;
             if (controller == null || !controller.isAlive) break;
 
             if (a.impactClip != null && sfxAudioSource != null)
                 sfxAudioSource.PlayOneShot(a.impactClip, a.impactVolume);
-            if (a.fireVfx) PlayImpactBurst();
+            if (a.fireVfx || a.unblockable) PlayImpactBurst();
+            if (a.unblockable && dangerZone != null) dangerZone.Impact();
 
-            float arc = (i > 0 && a.followUpArcs != null && i - 1 < a.followUpArcs.Length) ? a.followUpArcs[i - 1] : a.hitArc;
-            if (IsTargetInSwing(arc))
+            bool reached;
+            if (a.unblockable)
+                reached = IsTargetInImpactZone(a); // arc and attack range do not matter: only leaving the zone does
+            else
             {
-                controller.PerformAttackHit(a.damageMultiplier); // routes through PlayerHealth
+                float arc = (i > 0 && a.followUpArcs != null && i - 1 < a.followUpArcs.Length) ? a.followUpArcs[i - 1] : a.hitArc;
+                reached = IsTargetInSwing(arc);
+            }
+
+            if (reached)
+            {
+                // Unblockable: full multiplier, block bypassed in PlayerHealth. Normal: a parry during the wind-up reduces it.
+                float mul = a.damageMultiplier * (!a.unblockable && CurrentAttackParried ? parryDamageMultiplier : 1f);
+                LastHitDamageMultiplier = mul;
+                controller.PerformAttackHit(mul, a.unblockable); // routes through PlayerHealth
                 LastHitLanded = true;
             }
         }
+        inWindUp = false;
         if (a.fireVfx) SetWeaponFire(false);
         if (controller != null && controller.isAlive)
             AttackResolved?.Invoke(this, a.name, LastHitLanded);
 
-        yield return new WaitForSeconds(a.recover);
+        yield return new WaitForSeconds(a.recover / tempo);
+        CurrentAttack = null;
 
         if (controller != null && controller.isAlive)
             controller.EndAttack();
 
         idleSince = Time.time;
         busy = false;
+    }
+
+    public Vector3 ImpactPoint(AttackDefinition a)
+    {
+        Vector3 fwd = transform.forward; fwd.y = 0f;
+        return transform.position + fwd.normalized * a.impactForward;
+    }
+
+    /// <summary>Unblockable hit test: player's head (horizontal) inside dodgeRadius of the impact point.</summary>
+    public bool IsTargetInImpactZone(AttackDefinition a)
+    {
+        if (playerTarget == null) return false;
+        Vector3 d = playerTarget.position - ImpactPoint(a);
+        d.y = 0f;
+        return d.magnitude <= a.dodgeRadius;
     }
 
     /// <summary>Hit frame check: in range (small tolerance) AND inside the attack's swing arc.</summary>
@@ -622,6 +761,13 @@ public class MonsterAI : MonoBehaviour
             if (on) weaponFireVfx.Play(true);
             else weaponFireVfx.Stop(true, ParticleSystemStopBehavior.StopEmitting);
         }
+        if (extraWeaponFireVfx != null)
+            foreach (var ps in extraWeaponFireVfx)
+            {
+                if (ps == null) continue;
+                if (on) ps.Play(true);
+                else ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            }
         if (weaponFireLight != null)
             weaponFireLight.intensity = on ? weaponFireLightIntensity : 0f;
     }
@@ -683,6 +829,14 @@ public class MonsterAI : MonoBehaviour
     IEnumerator TelegraphFlash(float duration, Color cueColor)
     {
         if (telegraphRenderer == null) yield break;
+        if (extraTintRenderers != null && extraTintRenderers.Length > 0)
+        {
+            // Split-mesh monsters: tint every part, then return to the resting tint (keeps the enrage colour).
+            SetBodyTint(cueColor);
+            yield return new WaitForSeconds(duration);
+            if (!IsDefending) SetBodyTint(restingTint);
+            yield break;
+        }
         telegraphRenderer.GetPropertyBlock(mpb);
         baseColor = mpb.GetColor("_BaseColor");
         if (baseColor == Color.clear) baseColor = Color.white;

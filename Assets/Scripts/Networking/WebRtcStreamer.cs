@@ -49,9 +49,10 @@ public class WebRtcStreamer : MonoBehaviour
     public int maxBitrateKbps = 3500;
     [Range(30f, 110f)] public float fieldOfView = 80f;
     [Tooltip("Peer connections at once. Every viewer is a separate encode on the headset.")]
-    [Range(1, 4)] public int maxViewers = 2;
+    [Range(1, 5)] public int maxViewers = 5;
 
     [Header("ICE")]
+    [Tooltip("Used only until the relay's welcome delivers its STUN/TURN list (TURN is configured on the backend).")]
     public string[] stunUrls =
     {
         "stun:stun.l.google.com:19302",
@@ -78,6 +79,7 @@ public class WebRtcStreamer : MonoBehaviour
     }
 
     readonly Dictionary<string, Viewer> viewers = new Dictionary<string, Viewer>();
+    IceServerInfo[] relayIceServers;
     SignalingClient signaling;
     Camera captureCamera;
     RenderTexture captureTexture;
@@ -198,7 +200,10 @@ public class WebRtcStreamer : MonoBehaviour
         switch (msg.type)
         {
             case "welcome":
-                Debug.Log($"[WebRtcStreamer] Signaling connected (room '{room}').");
+                relayIceServers = msg.iceServers;
+                bool hasTurn = relayIceServers != null && relayIceServers.Any(s => !string.IsNullOrEmpty(s.username));
+                Debug.Log($"[WebRtcStreamer] Signaling connected (room '{room}'). " +
+                          (hasTurn ? "TURN relay available." : "No TURN relay configured on the backend; viewers on other networks may fail to connect."));
                 break;
             case "start":
                 StartViewer(msg.from);
@@ -239,10 +244,7 @@ public class WebRtcStreamer : MonoBehaviour
             return;
         }
 
-        var config = new RTCConfiguration
-        {
-            iceServers = new[] { new RTCIceServer { urls = stunUrls } },
-        };
+        var config = new RTCConfiguration { iceServers = BuildIceServers() };
         var viewer = new Viewer { id = id, pc = new RTCPeerConnection(ref config) };
         viewers[id] = viewer;
 
@@ -282,6 +284,15 @@ public class WebRtcStreamer : MonoBehaviour
 
         UpdateCounts();
         StartCoroutine(SendOffer(viewer));
+    }
+
+    RTCIceServer[] BuildIceServers()
+    {
+        var fromRelay = relayIceServers?
+            .Where(s => s?.urls != null && s.urls.Length > 0)
+            .Select(s => new RTCIceServer { urls = s.urls, username = s.username, credential = s.credential })
+            .ToArray();
+        return fromRelay != null && fromRelay.Length > 0 ? fromRelay : new[] { new RTCIceServer { urls = stunUrls } };
     }
 
     IEnumerator SendOffer(Viewer viewer)

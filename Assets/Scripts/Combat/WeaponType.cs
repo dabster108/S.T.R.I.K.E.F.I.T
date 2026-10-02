@@ -10,5 +10,11 @@ public enum WeaponType
     None = 0,   // Bare hands / claws / unarmed
     Hammer = 1,
     Sword = 2,
-    Shield = 3
+    Shield = 3,
+    // Level 3 selectable pairs (picked up in the arena, see WeaponPickup / PlayerCombat.weaponSets)
+    Mace = 4,
+    Flail = 5,
+    Katana = 6,
+    // Level 3 boss: one axe in each hand (monster only)
+    DualAxe = 7
 }

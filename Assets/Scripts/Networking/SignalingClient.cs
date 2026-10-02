@@ -26,6 +26,15 @@ public class SignalMessage
     public string sdpMid;
     public int sdpMLineIndex;
     public string message;
+    public IceServerInfo[] iceServers; // welcome: STUN + TURN (with credentials) from the relay
+}
+
+[Serializable]
+public class IceServerInfo
+{
+    public string[] urls;
+    public string username;
+    public string credential;
 }
 
 public sealed class SignalingClient : IDisposable

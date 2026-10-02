@@ -159,6 +159,21 @@ public class MonsterAnimator : MonoBehaviour
         return ok;
     }
 
+    /// <summary>Fire one named trigger (entrance Rise / Roar, enrage roar) after clearing every other trigger.</summary>
+    public bool PlayNamedTrigger(string trigger)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return false;
+        ResetAllTriggers();
+        return HasTrigger(trigger) && TrySetTrigger(trigger);
+    }
+
+    public void SetBoolIfPresent(string name, bool value)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return;
+        foreach (var p in animator.parameters)
+            if (p.type == AnimatorControllerParameterType.Bool && p.name == name) { animator.SetBool(name, value); return; }
+    }
+
     /// <summary>Resets every trigger parameter the controller has (not only the named defaults).</summary>
     void ResetAllTriggers()
     {

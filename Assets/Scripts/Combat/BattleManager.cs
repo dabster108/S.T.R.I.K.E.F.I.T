@@ -92,6 +92,11 @@ public class BattleManager : MonoBehaviour
             Debug.Log("[BattleManager] Start ignored: pick a player name first.");
             return;
         }
+        if (WeaponSelectionStage.BlocksStart)
+        {
+            Debug.Log("[BattleManager] Start ignored: grab a weapon pair first.");
+            return;
+        }
 
         outcomeHandled = false;
         CurrentScore = 0;

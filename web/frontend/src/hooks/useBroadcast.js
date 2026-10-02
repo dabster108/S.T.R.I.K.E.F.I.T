@@ -8,7 +8,8 @@ import { API_BASE } from "../lib/api.js";
 //
 // phase: "disconnected" | "connecting" | "negotiating" | "live"
 
-const ICE_SERVERS = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"] }];
+// Fallback until the relay's `welcome` delivers its list (which adds TURN when configured).
+const DEFAULT_ICE_SERVERS = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"] }];
 const RECONNECT_MIN_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
 const NEGOTIATION_TIMEOUT_MS = 20000; // no LIVE by then -> ask the headset again
@@ -35,6 +36,7 @@ export function useBroadcast(room = "strikefit") {
     let statsTimer = null;
     let backoff = RECONNECT_MIN_MS;
     let lastBytes = null;
+    let iceServers = DEFAULT_ICE_SERVERS;
 
     const patch = (p) => !disposed && setState((s) => ({ ...s, ...p }));
     const send = (msg) => ws?.readyState === WebSocket.OPEN && ws.send(JSON.stringify(msg));
@@ -87,7 +89,7 @@ export function useBroadcast(room = "strikefit") {
     }
 
     function createPeer() {
-      const peer = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const peer = new RTCPeerConnection({ iceServers });
       peer.onicecandidate = ({ candidate }) => {
         if (candidate) send({ type: "candidate", candidate: candidate.candidate, sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex });
       };
@@ -141,6 +143,7 @@ export function useBroadcast(room = "strikefit") {
       switch (msg.type) {
         case "welcome":
           backoff = RECONNECT_MIN_MS;
+          if (Array.isArray(msg.iceServers) && msg.iceServers.length) iceServers = msg.iceServers;
           patch({ headsetOnline: msg.streamerOnline });
           if (msg.streamerOnline) requestStream();
           else patch({ phase: "connecting" });

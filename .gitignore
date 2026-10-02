@@ -122,6 +122,14 @@ web/backend/db.json.tmp
 !/[Aa]ssets/AllSkyFree/Space_AnotherPlanet.meta
 /[Aa]ssets/AllSkyFree/Space_AnotherPlanet/*Equirect*
 
+# Raw downloads / exports outside Assets (the imported copies live under Assets/)
+/Ch25_nonPBR.fbx
+/Exports/
+/armored-executioner-horned-helm-flail/
+/free-mace-katana-axe-weapon-pack-sketch-mesh/
+/mace-doom-the-dark-ages-rigged/
+/war-flail/
+
 # Web stack (Node / React)
 web/backend/node_modules/
 web/frontend/node_modules/

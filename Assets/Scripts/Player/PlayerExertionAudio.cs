@@ -22,8 +22,13 @@ public class PlayerExertionAudio : MonoBehaviour
     [Header("Swing attempts (m/s, hand speed from PlayerCombat)")]
     [Tooltip("Hand speed that counts as one swing attempt.")]
     public float swingTriggerSpeed = 2f;
-    [Tooltip("Hand must slow below this before the next attempt is counted (one count per swing).")]
+    [Tooltip("Hand slowing below this re-arms the next count (chops that stop between swings).")]
     public float swingRearmSpeed = 1.2f;
+    [Tooltip("Hand turning this far (deg) from its direction at the last count also re-arms, so fluid back-and-forth " +
+             "or circular slashing that never slows below swingRearmSpeed still counts every swing.")]
+    public float swingReversalAngle = 150f;
+    [Tooltip("Shortest time between two counts on the same hand (filters tracking jitter).")]
+    public float minSwingInterval = 0.35f;
 
     [Header("Exertion")]
     [Tooltip("Rolling window (s). Swings older than this no longer count, so exertion decays when inactive.")]
@@ -59,6 +64,12 @@ public class PlayerExertionAudio : MonoBehaviour
     private readonly Queue<float> swingTimes = new Queue<float>();
     private readonly bool[] handArmed = { true, true };
     private float lastSwingTime = -999f;
+    // Per hand: weapon motion direction (for reversal re-arm), its direction at the last count, last count time.
+    private readonly Vector3[] lastHandPos = new Vector3[2];
+    private readonly bool[] hasHandPos = new bool[2];
+    private readonly Vector3[] handVelocity = new Vector3[2];
+    private readonly Vector3[] countedDir = new Vector3[2];
+    private readonly float[] handCountTime = { -999f, -999f };
 
     void Awake()
     {
@@ -87,14 +98,18 @@ public class PlayerExertionAudio : MonoBehaviour
             sustainedSeconds = 0f;
             breathing = false;
             handArmed[0] = handArmed[1] = true;
+            hasHandPos[0] = hasHandPos[1] = false;
             ApplyVolume(0f, battleEndFadeSeconds);
             return;
         }
 
-        if (PlayerCombat.Instance != null)
+        var pc = PlayerCombat.Instance;
+        if (pc != null)
         {
-            DetectSwing(0, PlayerCombat.Instance.CurrentSwingSpeed);
-            DetectSwing(1, PlayerCombat.Instance.CurrentOffhandSwingSpeed);
+            TrackHand(0, pc.weaponTransform);
+            TrackHand(1, pc.offhandWeaponTransform);
+            DetectSwing(0, pc.CurrentSwingSpeed);
+            DetectSwing(1, pc.CurrentOffhandSwingSpeed);
         }
 
         while (swingTimes.Count > 0 && Time.time - swingTimes.Peek() > exertionWindow)
@@ -115,16 +130,36 @@ public class PlayerExertionAudio : MonoBehaviour
         ApplyVolume(target, target > currentVolume ? fadeInSeconds : fadeDownSeconds);
     }
 
+    void TrackHand(int hand, Transform weapon)
+    {
+        if (weapon == null) { hasHandPos[hand] = false; handVelocity[hand] = Vector3.zero; return; }
+        Vector3 p = weapon.position;
+        if (hasHandPos[hand])
+        {
+            Vector3 raw = (p - lastHandPos[hand]) / Mathf.Max(Time.deltaTime, 0.0001f);
+            handVelocity[hand] = Vector3.Lerp(handVelocity[hand], raw, 1f - Mathf.Exp(-Time.deltaTime / 0.05f));
+        }
+        lastHandPos[hand] = p;
+        hasHandPos[hand] = true;
+    }
+
     void DetectSwing(int hand, float speed)
     {
         if (!handArmed[hand])
         {
-            if (speed < swingRearmSpeed) handArmed[hand] = true;
-            return;
+            // Re-arm when the hand slows down (chop) or turns back / around (continuous slashing never slows enough).
+            bool slowed = speed < swingRearmSpeed;
+            bool turned = Time.time - handCountTime[hand] >= minSwingInterval &&
+                          handVelocity[hand].sqrMagnitude > 0.01f && countedDir[hand].sqrMagnitude > 0f &&
+                          Vector3.Angle(handVelocity[hand], countedDir[hand]) >= swingReversalAngle;
+            if (slowed || turned) handArmed[hand] = true;
+            else return;
         }
-        if (speed >= swingTriggerSpeed)
+        if (speed >= swingTriggerSpeed && Time.time - handCountTime[hand] >= minSwingInterval)
         {
             handArmed[hand] = false;
+            handCountTime[hand] = Time.time;
+            countedDir[hand] = handVelocity[hand];
             RegisterSwing();
         }
     }

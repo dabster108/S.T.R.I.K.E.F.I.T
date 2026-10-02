@@ -906,6 +906,8 @@ MonoBehaviour:
   damageNumberParent: {fileID: 0}
   staminaUiStep: 0.02
   verboseDamageLogs: 0
+  phaseMarkerColor: {r: 1, g: 0.92, b: 0.6, a: 0.95}
+  phaseMarkerWidth: 0.012
 --- !u!114 &121459570
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1272,6 +1274,8 @@ MonoBehaviour:
   swordObject: {fileID: 1808468822}
   offhandSwordObject: {fileID: 1771091033}
   shieldObject: {fileID: 1782254018}
+  weaponSets: []
+  showWeaponsBeforeBattle: 0
   swingController: 2
   offhandSwingController: 1
   shieldController: 1
@@ -1472,6 +1476,8 @@ MonoBehaviour:
   maxVolume: 0.3
   swingTriggerSpeed: 2
   swingRearmSpeed: 1.2
+  swingReversalAngle: 150
+  minSwingInterval: 0.35
   exertionWindow: 12
   swingsToStart: 8
   swingsToSustain: 5
@@ -2128,7 +2134,7 @@ MonoBehaviour:
   frameRate: 30
   maxBitrateKbps: 3500
   fieldOfView: 80
-  maxViewers: 2
+  maxViewers: 5
   stunUrls:
   - stun:stun.l.google.com:19302
   - stun:stun1.l.google.com:19302
@@ -13912,6 +13918,8 @@ MonoBehaviour:
   maxForceMultiplier: 2.2
   facingBonusMultiplier: 1.25
   hitCooldown: 0.28
+  momentumMaxBonus: 0
+  momentumBuildSeconds: 0.6
   hitParticles: {fileID: 0}
   audioSource: {fileID: 1771091036}
   hitSound: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
@@ -14090,6 +14098,7 @@ MonoBehaviour:
   rearmSpeed: 1.2
   fullSpeed: 6
   minInterval: 0.3
+  reversalAngle: 150
 --- !u!1 &1774086070
 GameObject:
   m_ObjectHideFlags: 0
@@ -14302,6 +14311,8 @@ MonoBehaviour:
   maxForceMultiplier: 2.2
   facingBonusMultiplier: 1.25
   hitCooldown: 0.28
+  momentumMaxBonus: 0
+  momentumBuildSeconds: 0.6
   hitParticles: {fileID: 0}
   audioSource: {fileID: 1808468825}
   hitSound: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
@@ -14480,6 +14491,7 @@ MonoBehaviour:
   rearmSpeed: 1.2
   fullSpeed: 6
   minInterval: 0.3
+  reversalAngle: 150
 --- !u!1 &1811211349
 GameObject:
   m_ObjectHideFlags: 0

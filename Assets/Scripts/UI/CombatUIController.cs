@@ -102,8 +102,53 @@ public class CombatUIController : MonoBehaviour
             monsterHealthSlider.maxValue = max;
             monsterHealthSlider.value = current;
         }
-        SetText(monsterHealthText, monsterHealthTMP, $"Enemy {Mathf.CeilToInt(current)}/{Mathf.CeilToInt(max)}");
+        lastMonsterHp = current; lastMonsterMax = max;
+        string phase = string.IsNullOrEmpty(monsterPhaseLabel) ? "" : $"  {monsterPhaseLabel}";
+        SetText(monsterHealthText, monsterHealthTMP, $"Enemy {Mathf.CeilToInt(current)}/{Mathf.CeilToInt(max)}{phase}");
     }
+
+    [Header("Boss phases (Level 3)")]
+    public Color phaseMarkerColor = new Color(1f, 0.92f, 0.6f, 0.95f);
+    [Tooltip("Marker width as a fraction of the bar width.")]
+    public float phaseMarkerWidth = 0.012f;
+    private string monsterPhaseLabel;
+    private float lastMonsterHp, lastMonsterMax = 1f;
+    private readonly System.Collections.Generic.List<GameObject> phaseMarkers = new System.Collections.Generic.List<GameObject>();
+
+    /// <summary>
+    /// Segmented boss bar: a thin vertical break on the monster HP slider at each HP fraction (e.g. 0.66 / 0.33),
+    /// the same thresholds the boss uses for its phases.
+    /// </summary>
+    public void SetMonsterPhaseMarkers(float[] fractions)
+    {
+        foreach (var m in phaseMarkers) if (m != null) Destroy(m);
+        phaseMarkers.Clear();
+        if (monsterHealthSlider == null || fractions == null) return;
+
+        var bar = monsterHealthSlider.transform as RectTransform;
+        foreach (float f in fractions)
+        {
+            var go = new GameObject($"PhaseMarker_{Mathf.RoundToInt(f * 100)}", typeof(RectTransform), typeof(Image));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(bar, false);
+            rt.anchorMin = new Vector2(Mathf.Clamp01(f) - phaseMarkerWidth * 0.5f, -0.15f);
+            rt.anchorMax = new Vector2(Mathf.Clamp01(f) + phaseMarkerWidth * 0.5f, 1.15f);
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
+            var img = go.GetComponent<Image>();
+            img.color = phaseMarkerColor;
+            img.raycastTarget = false;
+            phaseMarkers.Add(go);
+        }
+    }
+
+    /// <summary>Phase name appended to the enemy HP text ("PHASE 2", "ENRAGED").</summary>
+    public void SetMonsterPhaseLabel(string label)
+    {
+        monsterPhaseLabel = label;
+        UpdateMonsterHealth(lastMonsterHp, lastMonsterMax);
+    }
+
+    public int PhaseMarkerCount => phaseMarkers.Count;
 
     public void UpdateStamina(float current, float max)
     {

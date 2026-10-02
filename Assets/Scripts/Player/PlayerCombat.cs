@@ -8,9 +8,33 @@ using UnityEngine;
 
 public enum Hand { Right, Left }
 
+/// <summary>
+/// One selectable dual-wield pair (Level 3+): the right/left weapon objects already parented to the hand anchors
+/// (same attachment pattern as the L1 hammers / L2 swords) plus the swing stats that become active when it is equipped.
+/// Per-hit damage, cooldown and hit window live on each weapon's own HitDetection.
+/// </summary>
+[System.Serializable]
+public class WeaponSet
+{
+    public WeaponType type = WeaponType.None;
+    public GameObject rightObject;
+    public GameObject leftObject;
+    [Tooltip("Swing-speed gate (m/s) while this pair is held. Copied to PlayerCombat.minSwingVelocity on equip.")]
+    public float minSwingVelocity = 1.2f;
+    [Tooltip("Speed at which velocity damage scaling caps.")]
+    public float maxSwingVelocity = 6f;
+    [Tooltip("Damage multiplier reached at maxSwingVelocity.")]
+    public float maxVelocityDamageMultiplier = 2.5f;
+    [Tooltip("Weapon flavour multiplier applied after fitness modifiers (replaces the hammer/sword switch).")]
+    public float damageMultiplier = 1f;
+}
+
 public class PlayerCombat : MonoBehaviour
 {
     public static PlayerCombat Instance;
+
+    /// <summary>Raised when a weapon pair is equipped through EquipWeaponSet (Level 3 pickup).</summary>
+    public event System.Action<WeaponType> WeaponSetEquipped;
 
     [Header("Weapons (set per level via LevelManager / Inspector)")]
     [Tooltip("Primary attack weapon for this level.")]
@@ -34,6 +58,12 @@ public class PlayerCombat : MonoBehaviour
     [Tooltip("Second sword for dual-wield (Level 2 loadout). Null if single-weapon.")]
     public GameObject offhandSwordObject;
     public GameObject shieldObject; // disabled in Level 1 — no shield
+
+    [Header("Selectable Weapon Pairs (Level 3+; empty in Levels 1-2)")]
+    public System.Collections.Generic.List<WeaponSet> weaponSets = new System.Collections.Generic.List<WeaponSet>();
+    [Tooltip("Show the equipped pair before the battle starts (Level 3: the player picks it up in the arena). " +
+             "Off = weapons appear only once the battle is active (Levels 1-2).")]
+    public bool showWeaponsBeforeBattle = false;
 
     [Header("Controller")]
     public OVRInput.Controller swingController = OVRInput.Controller.RTouch;
@@ -125,6 +155,12 @@ public class PlayerCombat : MonoBehaviour
         if (swordObject != null) swordObject.SetActive(false);
         if (offhandSwordObject != null) offhandSwordObject.SetActive(false);
         if (shieldObject != null) shieldObject.SetActive(false);
+        foreach (var set in weaponSets)
+        {
+            if (set == null) continue;
+            if (set.rightObject != null) set.rightObject.SetActive(false);
+            if (set.leftObject != null) set.leftObject.SetActive(false);
+        }
     }
 
     void Start()
@@ -191,7 +227,47 @@ public class PlayerCombat : MonoBehaviour
     {
         primaryWeapon = primary;
         offhandWeapon = offhand;
+        ApplySetStats(FindSet(primary));
         ApplyWeaponVisuals();
+    }
+
+    public WeaponSet FindSet(WeaponType type)
+    {
+        if (type == WeaponType.None || weaponSets == null) return null;
+        foreach (var set in weaponSets)
+            if (set != null && set.type == type) return set;
+        return null;
+    }
+
+    /// <summary>True when the current primary weapon is one of the selectable pairs.</summary>
+    public bool HasWeaponSetEquipped => FindSet(primaryWeapon) != null;
+
+    /// <summary>
+    /// Level 3 pickup: equip BOTH hands with this pair, replacing whatever was held, and make its swing stats active.
+    /// Also written to LevelManager so StartBattle's loadout step keeps the choice.
+    /// </summary>
+    public bool EquipWeaponSet(WeaponType type)
+    {
+        var set = FindSet(type);
+        if (set == null) return false;
+        if (LevelManager.Instance != null)
+        {
+            LevelManager.Instance.playerPrimaryWeapon = type;
+            LevelManager.Instance.playerOffhandWeapon = type;
+        }
+        weaponTransform = null;
+        offhandWeaponTransform = null;
+        SetLoadout(type, type);
+        WeaponSetEquipped?.Invoke(type);
+        return true;
+    }
+
+    void ApplySetStats(WeaponSet set)
+    {
+        if (set == null) return;
+        minSwingVelocity = set.minSwingVelocity;
+        maxSwingVelocity = set.maxSwingVelocity;
+        maxVelocityDamageMultiplier = set.maxVelocityDamageMultiplier;
     }
 
     /// <summary>
@@ -232,6 +308,23 @@ public class PlayerCombat : MonoBehaviour
 
         // Hammers/swords stay hidden until battle starts (laser + Start UI first).
         bool battleLive = BattleManager.Instance != null && BattleManager.Instance.IsBattleActive;
+
+        // Selectable pairs (Level 3): shown as soon as one is picked up when showWeaponsBeforeBattle is on.
+        bool setsVisible = battleLive || showWeaponsBeforeBattle;
+        WeaponSet activeSet = null;
+        foreach (var set in weaponSets)
+        {
+            if (set == null) continue;
+            bool on = setsVisible && set.type == primaryWeapon;
+            if (set.rightObject != null) set.rightObject.SetActive(on);
+            if (set.leftObject != null) set.leftObject.SetActive(on && offhandWeapon == set.type);
+            if (set.type == primaryWeapon) activeSet = set;
+        }
+        if (activeSet != null)
+        {
+            if (activeSet.rightObject != null) weaponTransform = activeSet.rightObject.transform;
+            if (activeSet.leftObject != null && offhandWeapon == activeSet.type) offhandWeaponTransform = activeSet.leftObject.transform;
+        }
 
         // Primary hammer (right hand)
         if (hammerObject != null)
@@ -468,7 +561,8 @@ public class PlayerCombat : MonoBehaviour
         float speedBonus = swingSpeed * swingSpeedDamageScale;
 
         // Small weapon flavor multipliers (still Inspector-tunable via WeaponType choice)
-        float weaponMul = primaryWeapon switch
+        var set = FindSet(primaryWeapon);
+        float weaponMul = set != null ? set.damageMultiplier : primaryWeapon switch
         {
             WeaponType.Hammer => 1.15f,
             WeaponType.Sword => 1.0f,

@@ -32,6 +32,12 @@ public class HitDetection : MonoBehaviour
     [Header("Hit Rate Limit")]
     public float hitCooldown = 0.35f;
 
+    [Header("Momentum (optional, e.g. flail)")]
+    [Tooltip("Extra damage fraction for a swing that has stayed above the speed gate for momentumBuildSeconds " +
+             "(0 = off). Rewards full wind-up swings over flicks.")]
+    public float momentumMaxBonus = 0f;
+    public float momentumBuildSeconds = 0.6f;
+
     [Header("Feedback (optional)")]
     public ParticleSystem hitParticles;
     public AudioSource audioSource;
@@ -61,6 +67,8 @@ public class HitDetection : MonoBehaviour
     /// <summary>What the last monster contact resolved to (verification / debug).</summary>
     public enum ContactResult { None, TooSlow, Clash, Blocked, Hit }
     public ContactResult LastResult { get; private set; }
+    /// <summary>True if the last Hit / Blocked contact was on a MonsterWeakPoint collider.</summary>
+    public bool LastWasWeakPoint { get; private set; }
     /// <summary>Damage passed to the monster by the last Hit / Blocked contact (before the monster's own defend reduction).</summary>
     public float LastDamage { get; private set; }
 
@@ -69,6 +77,7 @@ public class HitDetection : MonoBehaviour
     private Vector3 velocity;
     // One landed hit per swing while the weapon stays inside the monster: re-armed when the swing ends.
     private bool stayArmed = true;
+    private float aboveGateSince = -1f;
 
     void Reset()
     {
@@ -96,8 +105,21 @@ public class HitDetection : MonoBehaviour
         velocity = (transform.position - lastPosition) / Mathf.Max(Time.deltaTime, 0.0001f);
         lastPosition = transform.position;
 
-        if (!stayArmed && ImpactSpeed() < MinSwingSpeed())
+        float speedNow = ImpactSpeed();
+        if (!stayArmed && speedNow < MinSwingSpeed())
             stayArmed = true;
+
+        if (momentumMaxBonus > 0f)
+        {
+            if (speedNow >= MinSwingSpeed()) { if (aboveGateSince < 0f) aboveGateSince = Time.time; }
+            else aboveGateSince = -1f;
+        }
+    }
+
+    float MomentumMultiplier()
+    {
+        if (momentumMaxBonus <= 0f || aboveGateSince < 0f) return 1f;
+        return 1f + momentumMaxBonus * Mathf.Clamp01((Time.time - aboveGateSince) / Mathf.Max(0.01f, momentumBuildSeconds));
     }
 
     void OnTriggerEnter(Collider other)
@@ -188,7 +210,10 @@ public class HitDetection : MonoBehaviour
         Vector3 hitPoint = explicitPoint ?? other.ClosestPoint(transform.position);
         float facingMul = ComputeFacingMultiplier(monster.transform, hitPoint);
 
-        float damage = baseDamage * forceMul * angleMul * facingMul;
+        var weakPoint = other.GetComponent<MonsterWeakPoint>();
+        float weakMul = weakPoint != null ? Mathf.Max(1f, weakPoint.damageMultiplier) : 1f;
+
+        float damage = baseDamage * forceMul * angleMul * facingMul * MomentumMultiplier() * weakMul;
 
         // --- Stamina + fitness modifiers ---
         if (PlayerCombat.Instance != null)
@@ -205,9 +230,17 @@ public class HitDetection : MonoBehaviour
         bool monsterDefending = monsterAi != null && monsterAi.IsDefending;
         LastResult = monsterDefending ? ContactResult.Blocked : ContactResult.Hit;
         LastDamage = damage;
+        LastWasWeakPoint = weakPoint != null;
         monster.OnTakeDamage(damage, hitPoint);
+        if (weakPoint != null) weakPoint.NotifyHit();
         if (monsterDefending)
             PlayBlockedFeedback(hitPoint, speed, monsterAi);
+        else if (weakPoint != null && weakPoint.hitClip != null && audioSource != null)
+        {
+            // Weak point: its own confirmation sound instead of the normal flesh hit.
+            if (hitParticles != null) { hitParticles.transform.position = hitPoint; hitParticles.Play(); }
+            audioSource.PlayOneShot(weakPoint.hitClip, weakPoint.hitVolume);
+        }
         else
             PlayFeedback(hitPoint, speed);
 

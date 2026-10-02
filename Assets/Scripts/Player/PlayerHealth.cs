@@ -57,16 +57,26 @@ public class PlayerHealth : MonoBehaviour
         Notify();
     }
 
+    /// <summary>True if the last TakeDamage call was an unblockable attack (verification / debug).</summary>
+    public bool LastHitWasUnblockable { get; private set; }
+
     public void TakeDamage(float amount)
+    {
+        TakeDamage(amount, false);
+    }
+
+    /// <param name="unblockable">Dodge-only attacks (Level 3 slam): skip every block reduction, take the full amount.</param>
+    public void TakeDamage(float amount, bool unblockable)
     {
         if (IsDead) return;
         if (BattleManager.Instance != null && !BattleManager.Instance.IsBattleActive)
             return;
 
-        bool wasBlocking = PlayerCombat.Instance != null && PlayerCombat.Instance.IsBlocking;
+        LastHitWasUnblockable = unblockable;
+        bool wasBlocking = !unblockable && PlayerCombat.Instance != null && PlayerCombat.Instance.IsBlocking;
 
-        // Shield block: reduce damage (functional mechanic)
-        if (PlayerCombat.Instance != null)
+        // Shield block: reduce damage (functional mechanic). Unblockable attacks bypass it entirely.
+        if (PlayerCombat.Instance != null && !unblockable)
             amount = PlayerCombat.Instance.ModifyIncomingDamage(amount);
 
         bool fullyBlocked = wasBlocking && amount <= 0.001f;

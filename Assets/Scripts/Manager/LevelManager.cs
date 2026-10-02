@@ -118,9 +118,9 @@ public class LevelManager : MonoBehaviour
                 monsterWeapon = WeaponType.Hammer;
                 break;
             case DifficultyLevel.Hard:
-                playerPrimaryWeapon = WeaponType.Hammer; // flexible — change in Inspector
+                playerPrimaryWeapon = WeaponType.None;   // L3: Mace / Flail / Katana picked up in the arena
                 playerOffhandWeapon = WeaponType.None;
-                monsterWeapon = WeaponType.Hammer;
+                monsterWeapon = WeaponType.DualAxe;
                 break;
         }
     }
@@ -194,16 +194,16 @@ public class LevelManager : MonoBehaviour
                 return new DifficultyParams
                 {
                     level = DifficultyLevel.Hard,
-                    monsterMaxHealth = 280f,
-                    monsterDamage = 22f,
-                    monsterAttackCooldown = 1.2f,
-                    monsterAttackRange = 3.0f,
-                    monsterMoveSpeed = 1.3f,
-                    aggression = 2.0f,
-                    playerMaxHealth = 100f,
-                    playerPrimaryWeapon = WeaponType.Hammer,
+                    monsterMaxHealth = 1500f,      // L2 800
+                    monsterDamage = 18f,           // ×1.25 dual axes = 22.5 base (L2 14 ×1.2 = 16.8); per-attack multipliers in the table
+                    monsterAttackCooldown = 1.9f,  // start-to-start (L2 2.2); MonsterAI shrinks it as HP drops, Enrage shrinks it further
+                    monsterAttackRange = 1.45f,    // horizontal metres to the headset (L2 1.55); measured twin-axe reach 1.1-1.24 m (blade mid-edge), ~1.4 m to the tip
+                    monsterMoveSpeed = 0.8f,
+                    aggression = 1.35f,
+                    playerMaxHealth = 800f,        // same as L2, so the extra monster damage is not offset
+                    playerPrimaryWeapon = WeaponType.None, // chosen in the arena (WeaponPickup)
                     playerOffhandWeapon = WeaponType.None,
-                    monsterWeapon = WeaponType.Hammer
+                    monsterWeapon = WeaponType.DualAxe
                 };
             default:
                 return new DifficultyParams

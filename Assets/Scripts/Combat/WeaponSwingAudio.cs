@@ -22,14 +22,18 @@ public class WeaponSwingAudio : MonoBehaviour
     [Tooltip("Speed at which the whoosh reaches full volume.")]
     public float fullSpeed = 6f;
     public float minInterval = 0.3f;
+    [Tooltip("Weapon turning this far (deg) from its direction at the last whoosh re-arms it.")]
+    public float reversalAngle = 150f;
 
     private bool armed = true;
     private float lastTime = -999f;
+    private Vector3 lastPos, dir, firedDir;
 
     void Start()
     {
         if (audioSource == null)
             audioSource = GetComponent<AudioSource>();
+        lastPos = transform.position;
     }
 
     void Update()
@@ -41,16 +45,24 @@ public class WeaponSwingAudio : MonoBehaviour
             ? PlayerCombat.Instance.CurrentOffhandSwingSpeed
             : PlayerCombat.Instance.CurrentSwingSpeed;
 
+        // Same re-arm rule as PlayerExertionAudio: slowing down OR turning back re-arms, so fluid back-and-forth
+        // slashing (which never drops below rearmSpeed) still whooshes on every swing.
+        Vector3 vel = (transform.position - lastPos) / Mathf.Max(Time.deltaTime, 0.0001f);
+        lastPos = transform.position;
+        dir = Vector3.Lerp(dir, vel, 1f - Mathf.Exp(-Time.deltaTime / 0.05f));
         if (!armed)
         {
-            if (speed < rearmSpeed) armed = true;
-            return;
+            bool turned = Time.time - lastTime >= minInterval && dir.sqrMagnitude > 0.01f && firedDir.sqrMagnitude > 0f &&
+                          Vector3.Angle(dir, firedDir) >= reversalAngle;
+            if (speed < rearmSpeed || turned) armed = true;
+            else return;
         }
 
         if (speed >= triggerSpeed && Time.time - lastTime >= minInterval)
         {
             armed = false;
             lastTime = Time.time;
+            firedDir = dir;
             var clip = swingClips[Random.Range(0, swingClips.Length)];
             float t = Mathf.InverseLerp(triggerSpeed, fullSpeed, speed);
             if (clip != null)
