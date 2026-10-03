@@ -357,6 +357,87 @@ async function siteIntensityByLevel(filters, levels) {
   return fitness.intensityByLevel(all, summaries);
 }
 
+// Site-wide calorie insights. Every figure is a sum or average of fitness.sessionSummary()
+// estimates (same per-session formula as the player pages); nothing is re-derived here.
+// Sessions with no recorded swings come back from sessionSummary with estimatedCalories null and
+// are excluded from every total and average (never counted as 0).
+const INSIGHT_DAYS = 30;
+const INSIGHT_TOP = 5;
+const INSIGHT_LEVELS = ["Easy", "Medium", "Hard"]; // always reported, so a level with no data says so
+
+async function calorieInsights({ tz } = {}) {
+  const sessions = (await query(
+    `SELECT s.id, s.player_name AS player, s.level, s.status, s.started_at AS "startedAt", s.score,
+            s.duration_sec AS "durationSec", s.hit_count AS "hitCount"
+     FROM sessions s WHERE s.status <> 'live'`
+  )).rows;
+  const hParams = [];
+  const hits = (await query(`WITH ${hitsCte({}, hParams)} SELECT session_id, tier, speed, t FROM hits`, hParams)).rows;
+  const bySession = new Map();
+  for (const h of hits) {
+    if (!bySession.has(h.session_id)) bySession.set(h.session_id, []);
+    bySession.get(h.session_id).push({ tier: h.tier, speed: num(h.speed), t: num(h.t) });
+  }
+  const rows = sessions.map((s) => ({ session: s, summary: fitness.sessionSummary(s, bySession.get(s.id) || []) }));
+  const estimated = rows.filter((r) => r.summary.estimatedCalories !== null);
+  const sumOf = (list, key) => (list.length ? list.reduce((a, r) => a + r.summary[key], 0) : null);
+
+  const zone = fitness.safeZone(tz);
+  const todayN = fitness.dayNum(fitness.dayIn(new Date(), zone));
+  const perDay = new Map();
+  for (const r of estimated) {
+    const d = new Date(r.session.startedAt);
+    if (Number.isNaN(d.getTime())) continue;
+    const day = fitness.dayIn(d, zone);
+    const cur = perDay.get(day) || { kcal: 0, sessions: 0 };
+    cur.kcal += r.summary.estimatedCalories;
+    cur.sessions++;
+    perDay.set(day, cur);
+  }
+
+  const levels = [...new Set([...INSIGHT_LEVELS, ...sessions.map((s) => s.level)])].sort((a, b) => levelSort({ level: a }, { level: b }));
+  const intensity = fitness.intensityByLevel(levels, rows.map((r) => r.summary));
+  const total = sumOf(estimated, "estimatedCalories");
+
+  return {
+    estimate: { note: estimated[0]?.summary.estimate.note || null, ...(estimated[0] ? { assumedBodyMassKg: estimated[0].summary.estimate.assumedBodyMassKg, metRange: estimated[0].summary.estimate.metRange, referenceMet: estimated[0].summary.estimate.referenceMet } : {}) },
+    timeZone: zone,
+    sessionsConsidered: sessions.length,
+    sessionsEstimated: estimated.length,
+    sessionsExcluded: sessions.length - estimated.length,
+    excludedNote: "Sessions with no recorded swings are left out of every total and average below, not counted as 0.",
+    totalEstimatedCalories: round(total, 1),
+    estimatedWalkingMinutes: round(sumOf(estimated, "estimatedWalkingMinutes"), 1),
+    estimatedJoggingMinutes: round(sumOf(estimated, "estimatedJoggingMinutes"), 1),
+    avgCaloriesPerSession: estimated.length ? round(total / estimated.length, 1) : null,
+    caloriesPerDay: Array.from({ length: INSIGHT_DAYS }, (_, i) => {
+      const day = fitness.dayFromNum(todayN - (INSIGHT_DAYS - 1) + i);
+      const d = perDay.get(day);
+      return { day, estimatedCalories: d ? round(d.kcal, 1) : null, sessions: d ? d.sessions : 0 };
+    }),
+    byLevel: levels.map((level) => {
+      const list = estimated.filter((r) => r.session.level === level);
+      const i = intensity.find((x) => x.level === level);
+      // Same honesty check as intensity-by-level: no session with swing tiers means no figure.
+      const insufficient = !i || i.sessionsWithSwingData === 0;
+      const kcal = insufficient ? null : sumOf(list, "estimatedCalories");
+      return {
+        level,
+        sessions: i ? i.sessions : 0,
+        sessionsWithSwingData: i ? i.sessionsWithSwingData : 0,
+        sessionsEstimated: insufficient ? 0 : list.length,
+        insufficientData: insufficient,
+        totalEstimatedCalories: round(kcal, 1),
+        avgCaloriesPerSession: kcal !== null && list.length ? round(kcal / list.length, 1) : null,
+      };
+    }),
+    topBurns: [...estimated]
+      .sort((a, b) => b.summary.estimatedCalories - a.summary.estimatedCalories)
+      .slice(0, INSIGHT_TOP)
+      .map((r) => ({ sessionId: r.session.id, playerName: r.session.player, level: r.session.level, date: r.session.startedAt, estimatedCalories: r.summary.estimatedCalories, estimatedWalkingMinutes: r.summary.estimatedWalkingMinutes, estimatedJoggingMinutes: r.summary.estimatedJoggingMinutes })),
+  };
+}
+
 async function researchAnalytics(filters = {}) {
   const run = async (sql) => {
     const params = [];
@@ -501,6 +582,7 @@ module.exports = {
   playerProfile,
   playerEngagement,
   researchAnalytics,
+  calorieInsights,
   sessionFitness,
   exportSessionsCsv,
   exportEventsCsv,

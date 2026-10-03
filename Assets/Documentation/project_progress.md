@@ -1,7 +1,181 @@
 # Project Progress — Fitness Monster Battle
 
-Last updated: **2026-10-02 (third pass) — Level 3 VERIFIED end to end in Play mode (grab → entrance → combat → reactive defend → victory / defeat); 5 issues found and fixed; reactive defend added**
+Last updated: **2026-10-03 (second pass) — Level 1 FIXED: animations were frozen by `CullUpdateTransforms`, colour was killed by normal maps imported as sRGB colour textures (monster + both hammers); sword's dead white effect planes wired to their real additive texture. Hammer glow deliberately skipped.**
 
+---
+
+## 2026-10-03 (second pass) — Level 1: animations frozen by culling, colour killed by mis-imported normal maps
+
+**Method.** Unity MCP over HTTP again (the client link still fails with ECONNREFUSED; the server on 127.0.0.1:8080 works). Everything below was inspected on live objects or watched in Play mode, and the visual claims come from real camera renders taken in the scene, not from reading settings. Test fights ran with `SessionReporter.baseUrl` redirected at runtime to `http://127.0.0.1:9`. **0 console errors at the end.**
+
+### PART 1 — "animations not proper": ROOT CAUSE = Animator culling mode
+
+**Ruled out first, by direct inspection (this bug class has recurred here, so none of it was assumed):**
+- `Monster_L1_Sword.controller`: 10 states, **0 null/missing motions, 0 null transition destinations, 0 transitions with neither a condition nor an exit time**. All 10 trigger parameters exist and every attack's trigger matches a real state. `Any State -> Death` only. Every clip reference resolves to a real FBX.
+- **Rig/avatar is clean:** all 10 source FBXs (idle, hit, death, 6 attacks, the base model) are `animationType=Human`, `avatarSetup=CreateFromThisModel`, each with its **own valid, human avatar**. The prefab uses `Hip Hop DancingAvatar` (valid, human); the `Warrok` skinned mesh has 81 bones and **0 null bones**. No T-pose/mapping fallback anywhere.
+
+**The actual cause:** the Level 1 monster prefab's Animator was set to **`cullingMode = CullUpdateTransforms`** — the **only** one of the three monsters set that way (`Monster_Medium_VampireLust` and `Monster_Hard_TwinAxeBrute` are both `AlwaysAnimate`). With that mode Unity stops retargeting and stops writing bone transforms whenever the renderer is not being rendered; the state machine keeps running, so the fight logic continues while the body is frozen in a stale pose.
+
+Caught directly: the first camera render of the spawned monster showed the mesh **collapsed into a heap**. Flipping only `cullingMode` to `AlwaysAnimate` and re-rendering, with nothing else changed, produced a correct standing ogre (hips 0.750, head 1.524, left foot 0.226).
+
+This is not only an editor artefact. `SkinnedMeshRenderer.updateWhenOffscreen = false` and its `localBounds` are 1.75 x **2.37** x 1.57 m, while **Leaping Slam lifts the head to 3.56 m** — the monster's own signature attack leaves its renderer bounds, so it could be culled (and frozen) mid-jump on device too.
+
+**Fix:** `Monster_Easy_HipHop.prefab` Animator `cullingMode` -> **`AlwaysAnimate`**, matching Levels 2 and 3. Nothing else in the controller or rig was touched.
+
+**Verified in Play mode, every state, after the fix** (AI attack selection and movement disabled so each state was isolated, then a natural fight):
+
+| State | Result | Evidence |
+|---|---|---|
+| Idle | correct | standing, hips ~0.85, head ~1.55 |
+| Atk_Slash | correct | `Idle>Atk_Slash>Idle`, hips 0.78-0.91 |
+| Atk_SideSweep | correct | `Idle>Atk_SideSweep>Idle`, hips 0.73-0.85 |
+| Atk_OverheadStrike | correct | hopping strike, head to 2.67 m (matches the documented hop) |
+| Atk_CutAndChop | correct | ~0.5 m hop on the chop, as documented |
+| Atk_SpinSlash | correct | feet return to the floor (footMin -0.01) |
+| Atk_LeapSlam | correct | 2.4 m jump, head to 3.56 m — the documented signature move |
+| Hit | correct | `Idle>Hit>Idle` on **4 of 4** trials from idle. It does *not* fire while an attack is running, which is deliberate (`MonsterController.OnTakeDamage` skips the flinch when `isAttacking`, so a swing is never cut mid-clip) |
+| Defend | correct and **standing** (hips 0.741-0.757) | the guard-pose clip fix from the previous pass is holding |
+| Death | correct | lies down (hips-to-foot extension -0.01) |
+
+**Natural 90 s fight** (AI choosing, body hit every 1.6 s): **24 of 24 attacks reached their own animator state**, animation starting 0.100-0.117 s after the trigger (exactly the authored 0.10-0.15 s blend), **0 missing**, and all six distinct attacks appeared.
+
+### PART 2 — "colouring not coming": ROOT CAUSE = normal maps imported as colour textures
+
+**One root cause, two victims.** A normal-map PNG was imported as `textureType=Default` with `sRGB=true` (an ordinary colour texture) and then wired into URP/Lit's `_BumpMap` with `_NORMALMAP` enabled. URP runs `UnpackNormal` on it, gets invalid normals out of sRGB-decoded colour data, and the surface lights flat and colourless.
+
+| Asset | Texture | Was | Now |
+|---|---|---|---|
+| Monster body (`warrok_MAT`) | `Assets/training/bear_normal.png` | Default, sRGB on | **NormalMap, sRGB off** |
+| **Both player hammers** (`Material.001`) | `hammer_FINISH_Material_001_Normal.png` | Default, sRGB on | **NormalMap, sRGB off** |
+
+**Measured, not assumed.** Monster torso pixel with the broken normal map: **RGBA(0.239, 0.239, 0.243)** — R=G=B, literally colourless grey. The same pixel with the normal map disabled as a control: **RGBA(0.114, 0.102, 0.090)**, a warm brown-green. After the correct re-import the body renders as the intended green mottled ogre skin with real muscle relief, maroon horned pauldron and black leather straps. The hammers went from flat white-grey blocks to carved stone heads with bronze banding.
+
+Every material used by the Level 1 scene and the monster prefab was scanned: **only those two use a `_BumpMap` at all**, and both are now correct.
+
+**Second, separate colour bug, also fixed:** 7 `pPlane*` effect cards on the monster's sword used the FBX-embedded `Special_effects` material — URP/Lit **transparent, `_BaseMap` NULL, `_BaseColor` alpha 1** — so they rendered as **solid white ribbons** across the blade. The intended texture (`shattered-crystal-sword/textures/special effects png.png`, a white-on-black additive glow sheet with no alpha channel) existed on disk but was never wired up. Created **`Assets/Materials/M_L1_SwordGlow.mat`** (URP/**Unlit**, Transparent + Additive, that texture) and assigned it to those 7 renderers in the prefab. The white planes are gone; the blade now carries faint energy wisps.
+
+**Checked and NOT a problem, despite appearances:** the `bear_*` textures in `Assets/training/` really are the **correct Warrok atlas** — the PNG was rendered and inspected: a green ogre UV layout with a tusked face, torso, limbs and armour pieces. Only the file names and the `training/` location are misleading. Neither monster FBX embeds any texture, so these are the only ones there are. **Not renamed** (renaming risks the GUID references for no visual gain), but worth moving to `Models/Monsters/Textures/` and renaming `warrok_*` when there is time.
+
+**Magenta check:** the documented `_NORMALMAP` + skinned-mesh magenta bug on this Mac's Metal editor (which is why Level 2's vampire has its normal map off) **did not reproduce** here with a correctly imported normal map: 6-8 magenta-like pixels out of 29,876 sampled (0.02-0.03%), i.e. none. Still worth a look on Quest.
+
+### PART 3 — Glowing hammers: SKIPPED (deliberately, not half-done)
+
+The hammer mesh `HIGH` is **25,958 vertices in a single submesh with Read/Write disabled**, and one material covers head, haft and pommel. A glow on **the head only** therefore needs either (a) enabling Read/Write and rasterising the head's UV islands into a generated emission mask, or (b) splitting the mesh into head/haft submeshes (the approach used for Level 2's axe and Level 3). Both are real asset changes with memory and build-size implications, on the weapon the player holds in front of their face, the night before a build. The cheap alternatives were rejected: a whole-material emission would violate "the head, not the whole object", and a point light per hammer would add two realtime lights on Quest (the project already disabled point-light shadows for cost).
+
+**No colour was chosen**, since nothing was built. When this is picked up: Level 1 has no established glow identity yet (Level 2's was never built either; Level 3 owns blue/orange-red), and the dungeon's point lights are warm orange (0.80, 0.49, 0.16), so a **cool pale tint reads better against that lighting than a warm one**, and keeping it dimmer than Level 3's flame preserves the L1 < L2 < L3 escalation.
+
+### Is Level 1 visually correct now? **YES, in the editor.**
+Monster animates through all 10 states with correct poses, body and hammers are properly coloured and lit, no white planes, 0 console errors. Not yet seen on a headset.
+
+### Headset checks
+1. **The monster must stay animated when you look away and back.** That was the actual bug; `AlwaysAnimate` fixes the freeze, but watch the Leaping Slam specifically — the renderer's bounds (2.37 m) are shorter than the jump (3.56 m), so if the *mesh* visibly pops out of existence mid-jump, set `SkinnedMeshRenderer.updateWhenOffscreen = true` on the prefab (costs a per-frame bounds recompute).
+2. **Monster colour:** green mottled ogre skin with visible muscle relief, maroon horned pauldron. If any part shows magenta on Quest/Vulkan, turn `_NORMALMAP` off on `warrok_MAT` exactly as Level 2's vampire does.
+3. **Hammers:** carved stone heads with bronze bands, not flat white.
+4. **Monster sword:** faint wispy glow along the blade, no solid white ribbons.
+---
+
+## 2026-10-03 (pre-build pass) — L2 "sitting" bug FIXED, L1 lag re-diagnosed, in-VR naming verified
+
+**Method.** Unity MCP's own client connection failed this session (ECONNREFUSED); the server on 127.0.0.1:8080 was driven over HTTP instead (initialize -> mcp-session-id -> tools/call), which worked for everything below. Every claim was measured in Play mode or read off live objects; no prior "fixed/verified" note was taken on trust. Test fights ran with `SessionReporter.baseUrl` redirected at runtime to `http://127.0.0.1:9` so nothing reached the production backend. **0 console errors at the end** (warnings: the pre-existing Meta ISDK telemetry notice, and the deliberate "not delivered ... dropped" lines from that dead test port).
+
+### PART 2C — Level 2 monster "stuck sitting": ROOT CAUSE FOUND AND FIXED
+
+**The two reported bugs are not one bug, and only one of them is real.**
+
+**(a) "Stuck sitting" — REAL, fixed.** Measured on the live monster, Defend state held directly:
+
+| | Idle | Defend (before) | Defend (after fix) |
+|---|---|---|---|
+| hips Y | 1.013 m | **0.482 m** | **0.875-0.926 m** |
+| head Y | 1.540 m | **1.051 m** | - |
+| hips - lowest foot | 0.920 m | **0.287 m** | - |
+
+The legs fold to 31 % of standing extension and the head drops half a metre: a deep squat, held ~1.03 s every ~5.6 s, i.e. **17.6 % of the whole fight** (1603 of 7603 sampled frames). Root Y never moves (0.000), and the feet go *up* (0.093 -> 0.203), so this is **the clip's own pose, not a sunk root** — no import/Bake-Into-Pose setting can fix it.
+
+**Cause:** the `Defend` state was playing `Assets/Animations/Monster/Great Sword Impact.fbx` — a knocked-back impact recoil, not a guard. **Level 1 had the identical bug** (same clip, state speed 0.444, so it sits for 1.5 s). **Level 3 was already correct**: it uses a purpose-baked `L3_Defend.anim` that stands.
+
+**Fix (brings L1/L2 in line with L3):** copied `Level3/L3_Defend.anim` to `Assets/Animations/Monster/Monster_GuardPose.anim` (the existing convention for clips shared across levels, alongside `Monster_SwordIdle` / `Monster_HitReaction`), and pointed both Defend states at it. State speed set to keep each level's existing guard window exactly: **L2 speed 0.67 -> 1.0 (1.00 s window, `defendDuration` 1.0)**, **L1 speed 0.444 -> 0.667 (1.50 s window, `defendDuration` 1.5)**. Nothing else in either controller changed. Candidate clips were measured on the vampire before choosing: L3_Defend gave hips 0.926 / head 1.474 / leg extension 0.803 with the hands raised into a guard (idle reference: 1.004 / 1.546 / 0.911).
+
+**Verified after the fix** (fresh 100 s fight, AI choosing, body hit every 1.3 s): 17 guards, every one standing (hips min 0.875, mean 0.930), window still 1.01-1.11 s.
+
+**(b) "Weapon swing animation not playing" — NOT REPRODUCED.** In 150 s of fighting with a hit every 1.3 s, **46 of 46 attacks reached their own animator state**, delay 0.103-0.159 s, which is exactly the authored 0.10-0.15 s blend. 0 attacks missing. Forcing all 10 table attacks one by one, the axe head travelled **11.9-27.6 m of path at 22.6-39.5 m/s peak** in every one, so the axe visibly swings; `MonsterAxe/Visual` (MeshRenderer, `M_L2_AxeEdge`, URP Lit) is enabled and bone-parented to `RightHand`. The 2026-09-30 flinch fix has **not** regressed. What probably produced the report: 18 of 46 attacks begin *out of* the Defend state, so before this fix a swing often started by blending out of that collapsed squat.
+
+**Dead end worth recording:** a first hit-test showed 0 attacks in 60 s and looked like a stunlock. It was invalid — the player had already died at t~155 s, so `IsBattleActive` was false and the AI had legitimately stopped. Re-run with the player held alive. Don't trust a Level-2 fight trace without checking `BattleManager.IsBattleActive` in the same frame.
+
+### PART 1 — Level 1 lag: no reproducible regression; the cost is rendering, not scripts
+
+**Nothing has landed in Level 1 since the last lag fix.** `Level1_Easy.unity` and `Monster_Easy_HipHop.prefab` are untouched since `95b198a`; the latest commit (`d453096`) does not touch Level 1 at all. The shared scripts that *did* change during the Level 3 work were measured and are free.
+
+**Per-script Update cost (Unity Profiler counters, Level 1, battle running):**
+
+| Script | Idle (hands still) | Both hammers swinging |
+|---|---|---|
+| `PlayerCombat.Update` | 0.0081 ms | 0.0402 ms |
+| **`PlayerExertionAudio.Update` (breathing)** | **0.0038 ms** | **0.0083 ms** |
+| `HitDetection.Update` | 0.0017 ms | 0.0015 ms |
+| `SessionReporter.Update` | 0.0012 ms | 0.0006 ms |
+| `MonsterAI.Update` + `LateUpdate` | 0.0016 ms | 0.0016 ms |
+| every game script, summed | ~0.025 ms | **~0.063 ms** |
+
+- **Breathing is not the cause.** Its "rolling calculation" is a `Queue<float>` of swing timestamps with a bounded dequeue of expired entries — amortised O(1), no per-frame allocation (queue reused, arrays `readonly`). 0.0083 ms at full swing rate.
+- **SessionReporter does not stall the main thread.** It uses `UnityWebRequest.SendWebRequest()` with an `op.completed += ...` callback — no `yield return op`, no `.Wait()`, no `Thread.Sleep`. Proven live: 14 "not delivered / dropped" warnings against a dead port while the fight ran at full speed.
+- **No duplicates:** 1 enabled camera (of 3), 1 AudioListener, 1 BattleManager, 1 LevelManager, 1 EventSystem, 1 SessionReporter, 1 PlayerCombat, 0 monsters before Start / 1 after.
+- **No log spam:** `MonsterAI.verboseAttackLogs`, `MonsterAnimator.verboseAttackLogs`, `CombatUIController.verboseDamageLogs`, `SessionReporter.verboseLogging` all **false** on the live objects. 0 console errors; nothing new logging per frame.
+
+**Rendering load (Level 1, mid-combat, editor):** 208,945 triangles, 177,946 vertices, **115 standard draw calls + 55 static-batched (2 static batches)**, 16 SetPass, 61-68 shadow casters. The two hammers are 37,672 triangles each (**75,344 for the pair, ~64 % of all scene geometry**) and are drawn again in the shadow pass. That is the one measurable, pre-existing cost worth attacking if the headset is slow — it is a *rendering* cost the editor cannot score for Quest.
+
+**Two measurement traps corrected (do not repeat):**
+- Summing `MeshFilter.sharedMesh.triangles` gave 1.39 M triangles. Wrong: 49 renderers share one `Combined Mesh (root: scene)` static-batch mesh and each draws only a slice. Real scene geometry is ~118 k; the renderer reports 208 k drawn per frame including the shadow pass.
+- `GC Allocated In Frame` read 35.3 KB idle / 35.9 KB in combat, against 0.7-1.3 KB in the 2026-09-30 notes. Not a regression: **with the game stopped, edit mode allocates 43.2 KB/frame** — it is Editor + Profiler + MCP-polling overhead. It also does not scale with combat.
+
+**No fix was applied for Part 1,** because no cause reproduced. Only the headset can settle it: OVR Metrics Tool / `adb logcat -s VrApi` (CPU% near 100 with stale frames on hit = scripts/physics; GPU% pinned = rendering, which is what the numbers above predict).
+
+### PART 3 — In-VR player management: ALREADY BUILT, now verified in Play mode
+
+`PlayerNamePicker` (728 lines) already does everything asked, and `BattleManager` adds it to `BattleSystems` at runtime, so **all three levels get it with no per-scene setup** — no separate work per level. Verified live on Level2_Medium:
+
+- Panel built on `CombatCanvas`, driven by the existing laser (`ControllerLaserPointer`, 1 active). **8 names listed from the real backend** (VfxTest, Guest, Player 1, thor, Dikshanta, Gaurav) plus presets, 6 per page with a `>` pager.
+- **Start is gated:** `BlocksStart=True` and `StartBattleUIButton active=False` until a name is chosen. After the 10 s auto-select picked the default, Start appeared and a `Change name` button remained.
+- **Full text entry, not auto-increment:** `New player` opens a **41-key laser keyboard** (Shift / Del / Space / Cancel / Done). Typed "ZZTEST" through the real button `onClick` path; `Done` committed it.
+- **The active name is used for the session:** `playerName='ZZTEST'` -> on Start, `sessionPlayerName='ZZTEST'` with `currentSessionId=6296e4f5...`. `SetPlayerName` refuses mid-battle, so a fight cannot be split across two names.
+- **Rename is wired to the backend:** `SessionReporter.RenamePlayer` sends `PATCH /api/players/{oldName}` with `{"newName":...}` and handles Renamed / NotOnServer / Conflict / Unreachable / InBattle; it refuses during a battle.
+- **Network failure never blocks:** with the backend at a dead port the panel still opened from remembered names, Start worked and the fight ran; only "no answer / dropped" warnings appeared.
+- **NOT verified:** a real rename persisting on the backend. That mutates live dashboard data for an existing player, so it was left for you to confirm (see headset checks).
+
+### PARTS 4 and 5 — both verified on live scene objects
+
+**Part 4 — backend URL: no drift in any scene.** All three have exactly one `SessionReporter` on `BattleSystems` with `baseUrl=https://s-t-r-i-k-e-f-i-t.onrender.com`, `wakeBackendOnLoad=True`, `wakeTimeoutSeconds=60`. No code anywhere writes `baseUrl` at runtime, so the serialized value is what ships. Re-checked in the saved scene files after all Play-mode redirects: unchanged.
+
+**Part 5 — levels are separate, not merged.**
+
+| | Level1_Easy | Level2_Medium | Level3_Hard |
+|---|---|---|---|
+| difficulty | Easy | Medium | Hard |
+| environment root | `Environment_LiteDungeon` | `Environment_Level2_Dungeon` | `Environment_OldSeaport` |
+| monster prefab | `Monster_Easy_HipHop` | `Monster_Medium_VampireLust` | `Monster_Hard_TwinAxeBrute` |
+| animator controller | `Monster_L1_Sword` | `Monster_L2_Axe` | `Monster_L3_TwinAxe` |
+| player loadout | Hammer / Hammer | Sword / Sword | None (grabbed in arena) |
+| monsters pre-placed | 0 | 0 | 0 |
+
+No scene contains another level's environment, monster or controller. `autoDetectDifficultyFromSceneName` is true in all three. Sharing `Monster_GuardPose.anim` between L1 and L2 is clip reuse (as `Monster_SwordIdle` and `Monster_HitReaction` already are), not scene merging.
+
+**Minor, not changed:** `LevelManager.monsterWeapon` is `Hammer` in Level 2 (the vampire's two-handed axe is wired through the Hammer `WeaponType` slot, `hammerObject=MonsterAxe`) and `Sword` in Level 1. `WeaponType` only applies a damage *flavour* multiplier — stats come from `DifficultyParams` — so this is a naming inconsistency, not a live bug. Worth renaming when the enum is next touched.
+
+### BUILD BLOCKER for tomorrow
+
+**`Level1_Easy` is disabled in Build Settings** (`EditorBuildSettings.asset`: `Level2_Medium` enabled, `Level3_Hard` enabled, `MainMenu` / `Level1_Easy` / `Results` **disabled**). If Level 1 is meant to be in tomorrow's build it must be ticked and ordered. This was already noted on 2026-09-30 and is still true.
+
+### Not done this pass
+- **Part 2A** (Level 1 attack variety from unused clips) — not started.
+- **Part 2B** (Level 1 subtle single-area glow) — not started.
+- **Part 2D** (shared Fresnel/rim-light full-body aura for all three levels) — not started.
+- Part 2C's fix has **not been seen on a headset**, only measured in Play mode in the editor.
+
+### Headset checks
+1. **Level 2, the fix that matters:** let the vampire guard (about every 5.6 s, blue tint + guard sound). It must stay **standing** with the axe raised — it previously dropped into a squat for a full second. Same check on Level 1 (guard window is 1.5 s there).
+2. Keep hitting the vampire while it attacks: every attack should still show its swing (46/46 did in the editor).
+3. **Rename round trip:** rename a player in the pre-battle panel, then check the dashboard that the history moved. This is the one Part 3 claim not verified here.
+4. Level 1 frame time with OVR Metrics overlay on, swinging steadily vs standing still. If GPU% is pinned rather than CPU%, the hammers (75,344 triangles for the pair) are the first thing to cut.
 ---
 
 ## 2026-10-02 (fourth pass) — Level 3: flaming axes + coiling blue serpent aura
@@ -1883,3 +2057,16 @@ All five features are additive (no existing API field, colour or font changed). 
 5. **Engagement page** — `/dashboard/engagement`, sidebar entry directly after Analytics (it is analysis of player behaviour, next to Players/Compare/Analytics research pages). Site-wide section on top, player selector below; honest empty states for single-day / single-session players and a single-player site.
 
 **Data caveats for the thesis:** Level 3 (Hard) has 6 sessions but zero swing events, so the Level 1/2/3 comparison has no Level 3 data yet. Level 1 vs 2 swing samples are small (23 and 165 swings). One recorded swing speed (14.0 m/s) exceeds the game's 8 m/s cap and should be checked.
+
+---
+
+## Dashboard: Calorie Insights (2026-10-03)
+
+Backup: branch `backup-before-insights` created at the prior HEAD (d453096) before any change. The one uncommitted file at the time (`Assets/XR/Settings/OpenXRPackageSettings.asset`) is not on that branch.
+
+- **Backend:** `GET /api/insights/calories?tz=` -> `analytics.calorieInsights()` (web/backend/analytics.js). It sums `fitness.sessionSummary()` per-session estimates; the formula in fitness.js is untouched (only `safeZone/dayIn/dayNum/dayFromNum` were added to its exports for day bucketing). Returns total (+ walking/jogging equivalents), average per session, 30 calendar days, per-level, top 5 sessions.
+- **Honesty:** sessions with no swings have `estimatedCalories: null` and are excluded from every total/average (not 0). A level with no session carrying swing tiers returns `insufficientData: true` and null calories (same rule as intensity-by-level).
+- **Real data (Neon, read-only, 2026-10-03):** 26 non-live sessions, 6 estimated, 20 excluded; total 53.7 kcal (est.), avg 9.0/session; Easy 29.1 (2 sessions), Medium 24.6 (4), Hard `insufficientData` (6 sessions, none with swings). The total equals the sum of the three players' `/api/players/:name` fitnessEstimate (35.7 + 11.8 + 6.2).
+- **Frontend:** `components/fitness/CalorieInsights.jsx`, placed on the Overview page as new section 02 (existing sections renumbered 03-06). Overview is the landing page for the dashboard; Analytics is filtered by level/player, which doesn't suit a site-wide total. Uses existing Card/BarChart/WorkoutEquivalent/EstimateNote/Tooltip components and tokens.
+- **Not verified:** the UI was only built (`vite build` passes), not seen rendered; headless Chrome produced no screenshot. Check the Overview page in a browser.
+- Level 3 needs real playtest sessions with swing data before its calorie bar can appear.

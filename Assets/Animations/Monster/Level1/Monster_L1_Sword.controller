@@ -1155,7 +1155,7 @@ AnimatorState:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Defend
-  m_Speed: 0.4444444
+  m_Speed: 0.6666667
   m_CycleOffset: 0
   m_Transitions:
   - {fileID: -3145098555370187258}
@@ -1169,7 +1169,7 @@ AnimatorState:
   m_MirrorParameterActive: 0
   m_CycleOffsetParameterActive: 0
   m_TimeParameterActive: 0
-  m_Motion: {fileID: -203655887218126122, guid: 1ce002ed340ff4ec598c1f1c01f0e557, type: 3}
+  m_Motion: {fileID: 7400000, guid: e1103961739f44af0a19ba69b731118f, type: 2}
   m_Tag: 
   m_SpeedParameter: 
   m_MirrorParameter: 

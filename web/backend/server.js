@@ -626,6 +626,11 @@ app.get("/api/public-stats", route(async (_req, res) => {
   res.json(await analytics.publicStats());
 }));
 
+// Site-wide estimated calorie burn: total, per day (30 days), per level, top 5 sessions. Day boundaries follow ?tz=.
+app.get("/api/insights/calories", route(async (req, res) => {
+  res.json(await analytics.calorieInsights({ tz: req.query.tz }));
+}));
+
 app.get("/api/analytics", route(async (req, res) => {
   const { player, level, from, to } = req.query;
   res.json(await analytics.researchAnalytics({ player, level, from, to }));
