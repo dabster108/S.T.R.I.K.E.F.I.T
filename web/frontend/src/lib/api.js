@@ -82,6 +82,7 @@ export const api = {
   // Returns the renamed player's profile (same shape as player()).
   renamePlayer: (name, newName) => request(`/api/players/${enc(name)}`, { method: "PATCH", body: { newName }, timeoutMs: 20000 }),
   overview: () => request(`/api/overview${qs({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`),
+  calorieInsights: () => request(`/api/insights/calories${qs({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`),
   publicStats: () => request("/api/public-stats"),
   // Landing page: short timeouts, no wake-up signalling, callers swallow failures.
   liveQuiet: () => request("/api/live", { quiet: true, timeoutMs: 12000 }),

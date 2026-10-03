@@ -775,6 +775,26 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -2339499586288615448, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 4df8e4b711f584f868beb84d7aa404a6, type: 2}
+    - target: {fileID: -1163548339276323931, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 4df8e4b711f584f868beb84d7aa404a6, type: 2}
+    - target: {fileID: -615309114576341211, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 4df8e4b711f584f868beb84d7aa404a6, type: 2}
+    - target: {fileID: -230338755355663336, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 4df8e4b711f584f868beb84d7aa404a6, type: 2}
+    - target: {fileID: -163498549696734157, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 4df8e4b711f584f868beb84d7aa404a6, type: 2}
     - target: {fileID: 919132149155446097, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
       propertyPath: m_Name
       value: MonsterSword
@@ -783,6 +803,14 @@ PrefabInstance:
       propertyPath: m_TagString
       value: MonsterWeapon
       objectReference: {fileID: 0}
+    - target: {fileID: 1680389602566815970, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 4df8e4b711f584f868beb84d7aa404a6, type: 2}
+    - target: {fileID: 4271049788240168503, guid: 33eec5e6600d448ff8a04ed04998c017, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 4df8e4b711f584f868beb84d7aa404a6, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -882,6 +910,10 @@ PrefabInstance:
       propertyPath: m_Controller
       value: 
       objectReference: {fileID: 9100000, guid: 0094301fd90d440028ae357500839de8, type: 2}
+    - target: {fileID: 5866666021909216657, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
+      propertyPath: m_CullingMode
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5866666021909216657, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
       propertyPath: m_ApplyRootMotion
       value: 0
@@ -1133,6 +1165,7 @@ MonoBehaviour:
     followUpArcs: []
     weightFullHp: 30
     weightLowHp: 20
+    enragedWeight: -1
     maxHpFraction: 1
     requiresIdleFor: 0
     cooldown: 0
@@ -1144,6 +1177,17 @@ MonoBehaviour:
     impactClip: {fileID: 0}
     impactVolume: 1
     fireVfx: 0
+    unblockable: 0
+    impactForward: 1.3
+    dodgeRadius: 1.6
+    warningClip: {fileID: 0}
+    warningVolume: 1
+    rangedKind: 0
+    minRange: 0
+    maxRange: 0
+    travelWindow: {x: 0, y: 0}
+    throwAxes: 
+    catchTime: 2
   - name: Side Sweep
     category: 0
     animatorTrigger: Atk_SideSweep
@@ -1156,6 +1200,7 @@ MonoBehaviour:
     followUpArcs: []
     weightFullHp: 22
     weightLowHp: 15
+    enragedWeight: -1
     maxHpFraction: 1
     requiresIdleFor: 0
     cooldown: 0
@@ -1167,6 +1212,17 @@ MonoBehaviour:
     impactClip: {fileID: 0}
     impactVolume: 1
     fireVfx: 0
+    unblockable: 0
+    impactForward: 1.3
+    dodgeRadius: 1.6
+    warningClip: {fileID: 0}
+    warningVolume: 1
+    rangedKind: 0
+    minRange: 0
+    maxRange: 0
+    travelWindow: {x: 0, y: 0}
+    throwAxes: 
+    catchTime: 2
   - name: Overhead Strike
     category: 0
     animatorTrigger: Atk_OverheadStrike
@@ -1179,6 +1235,7 @@ MonoBehaviour:
     followUpArcs: []
     weightFullHp: 18
     weightLowHp: 13
+    enragedWeight: -1
     maxHpFraction: 1
     requiresIdleFor: 0
     cooldown: 0
@@ -1190,6 +1247,17 @@ MonoBehaviour:
     impactClip: {fileID: 0}
     impactVolume: 1
     fireVfx: 0
+    unblockable: 0
+    impactForward: 1.3
+    dodgeRadius: 1.6
+    warningClip: {fileID: 0}
+    warningVolume: 1
+    rangedKind: 0
+    minRange: 0
+    maxRange: 0
+    travelWindow: {x: 0, y: 0}
+    throwAxes: 
+    catchTime: 2
   - name: Cut and Chop
     category: 4
     animatorTrigger: Atk_CutAndChop
@@ -1204,6 +1272,7 @@ MonoBehaviour:
     - 45
     weightFullHp: 8
     weightLowHp: 16
+    enragedWeight: -1
     maxHpFraction: 1
     requiresIdleFor: 0
     cooldown: 6
@@ -1215,6 +1284,17 @@ MonoBehaviour:
     impactClip: {fileID: 0}
     impactVolume: 1
     fireVfx: 0
+    unblockable: 0
+    impactForward: 1.3
+    dodgeRadius: 1.6
+    warningClip: {fileID: 0}
+    warningVolume: 1
+    rangedKind: 0
+    minRange: 0
+    maxRange: 0
+    travelWindow: {x: 0, y: 0}
+    throwAxes: 
+    catchTime: 2
   - name: Spin Slash
     category: 1
     animatorTrigger: Atk_SpinSlash
@@ -1227,6 +1307,7 @@ MonoBehaviour:
     followUpArcs: []
     weightFullHp: 12
     weightLowHp: 20
+    enragedWeight: -1
     maxHpFraction: 1
     requiresIdleFor: 0
     cooldown: 5
@@ -1238,6 +1319,17 @@ MonoBehaviour:
     impactClip: {fileID: 0}
     impactVolume: 1
     fireVfx: 0
+    unblockable: 0
+    impactForward: 1.3
+    dodgeRadius: 1.6
+    warningClip: {fileID: 0}
+    warningVolume: 1
+    rangedKind: 0
+    minRange: 0
+    maxRange: 0
+    travelWindow: {x: 0, y: 0}
+    throwAxes: 
+    catchTime: 2
   - name: Leaping Slam
     category: 3
     animatorTrigger: Atk_LeapSlam
@@ -1250,6 +1342,7 @@ MonoBehaviour:
     followUpArcs: []
     weightFullHp: 8
     weightLowHp: 16
+    enragedWeight: -1
     maxHpFraction: 1
     requiresIdleFor: 0
     cooldown: 9
@@ -1261,11 +1354,32 @@ MonoBehaviour:
     impactClip: {fileID: 0}
     impactVolume: 1
     fireVfx: 0
+    unblockable: 0
+    impactForward: 1.3
+    dodgeRadius: 1.6
+    warningClip: {fileID: 0}
+    warningVolume: 1
+    rangedKind: 0
+    minRange: 0
+    maxRange: 0
+    travelWindow: {x: 0, y: 0}
+    throwAxes: 
+    catchTime: 2
   heavyPityCycles: 4
   desperationHpFraction: 0.4
   lowHpCooldownScale: 0.94
   swingSfxLead: 0.12
+  tempoScale: 1
+  allowParry: 0
+  parryDamageMultiplier: 0.35
+  axeThrow: {fileID: 0}
+  maxRushSpeed: 6
+  enraged: 0
+  restingTint: {r: 1, g: 1, b: 1, a: 1}
+  extraTintRenderers: []
+  dangerZone: {fileID: 0}
   weaponFireVfx: {fileID: 0}
+  extraWeaponFireVfx: []
   impactBurstVfx: {fileID: 0}
   impactBurstOffset: {x: 1.2, y: 0.05}
   weaponFireLight: {fileID: 0}
@@ -1280,6 +1394,16 @@ MonoBehaviour:
   defendBraceVolume: 0.8
   defendBlockClip: {fileID: 0}
   defendBlockVolume: 0.9
+  defendCooldownJitter: 0
+  reactiveDefendChance: 0
+  reactiveDefendChancePhase2: 0
+  reactiveDefendChanceEnraged: 0
+  reactivePhase2HpFraction: 0.66
+  reactiveSwingSpeed: 2.5
+  reactiveRange: 1.25
+  reactiveTarget: {fileID: 0}
+  reactiveCooldown: 3
+  reactiveDefendDuration: 0.8
   telegraphRenderer: {fileID: 8190314631309884529}
   telegraphColor: {r: 1, g: 0.2, b: 0.2, a: 1}
   heavyTelegraphColor: {r: 1, g: 0.1, b: 0.1, a: 1}

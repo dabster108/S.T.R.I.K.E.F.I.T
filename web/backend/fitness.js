@@ -364,4 +364,8 @@ module.exports = {
   intensityByLevel,
   playerEngagement,
   siteEngagement,
+  safeZone,
+  dayIn,
+  dayNum,
+  dayFromNum,
 };
