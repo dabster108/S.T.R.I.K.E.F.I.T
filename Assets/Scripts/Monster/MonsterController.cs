@@ -39,6 +39,10 @@ public class MonsterController : MonoBehaviour
     public float attackRange = 2.5f;
     public float moveSpeed = 0.5f;
 
+    [Header("Damage cap (Level 3)")]
+    [Tooltip("Largest share of max HP one player hit can take after every multiplier (0.07 = 7 %). 0 = no cap.")]
+    [Range(0f, 1f)] public float maxSingleHitFraction = 0f;
+
     [Header("Runtime (read-only)")]
     public MonsterAnimState currentAnimState = MonsterAnimState.Idle;
     public bool isAlive = true;
@@ -56,13 +60,23 @@ public class MonsterController : MonoBehaviour
     private MonsterHealth health;
     private MonsterAI ai;
     private MonsterAnimator monsterAnimator;
+    private MonsterDefense defense;
+    private BossPhaseController phases;
     private float lastAttackTime = -999f;
+
+    /// <summary>Damage the last player hit dealt after every reduction / bonus / cap (verification).</summary>
+    public float LastDamageTaken { get; private set; }
+    /// <summary>True if the last hit was cut down by maxSingleHitFraction.</summary>
+    public bool LastHitCapped { get; private set; }
+    public int CappedHits { get; private set; }
 
     void Awake()
     {
         health = GetComponent<MonsterHealth>();
         ai = GetComponent<MonsterAI>();
         monsterAnimator = GetComponent<MonsterAnimator>();
+        defense = GetComponent<MonsterDefense>();
+        phases = GetComponent<BossPhaseController>();
 
         if (attackPoint == null)
             attackPoint = transform;
@@ -226,8 +240,16 @@ public class MonsterController : MonoBehaviour
 
     public void OnTakeDamage(float amount, Vector3 hitPoint)
     {
+        OnTakeDamage(amount, hitPoint, float.PositiveInfinity, false); // unknown swing (debug key): treated as full
+    }
+
+    /// <param name="swingSpeed">Player swing speed (m/s): picks the poise tier and the damage-number style.</param>
+    /// <param name="weakPoint">The hit landed on a MonsterWeakPoint.</param>
+    public void OnTakeDamage(float amount, Vector3 hitPoint, float swingSpeed, bool weakPoint)
+    {
         if (!isAlive || health == null) return;
 
+        var style = weakPoint ? CombatUIController.DamageStyle.Weak : CombatUIController.StyleForSpeed(swingSpeed);
         bool isDefending = false;
         if (ai != null) isDefending = ai.IsDefending;
 
@@ -236,17 +258,38 @@ public class MonsterController : MonoBehaviour
             // Damage reduction while defending (MonsterAI.defendDamageMultiplier, default 0.3 = 70% reduction)
             amount *= ai.defendDamageMultiplier;
             ai.NotifyDefendedHit(hitPoint);
+            if (defense != null) defense.OnGuardAbsorbedHit(); // fills the guard meter (weapon parries never get here)
+            style = CombatUIController.DamageStyle.Blocked;
             if (ai.verboseAttackLogs)
                 Debug.Log($"[Monster] Blocked! Reduced damage to {amount:0.#}");
         }
+        else if (defense != null && defense.IsStaggered)
+            amount *= defense.staggerDamageMultiplier; // guard broken: the opening pays more
 
-        health.TakeDamage(amount, hitPoint);
+        if (phases != null && phases.InPhaseShift)
+        {
+            // Phase-shift roar (Level 3): hits are resisted, so a phase cannot be burst through.
+            amount *= phases.phaseShiftDamageMultiplier;
+            phases.NotifyResistedHit();
+            style = CombatUIController.DamageStyle.Resisted;
+        }
+
+        LastHitCapped = false;
+        if (maxSingleHitFraction > 0f)
+        {
+            float cap = health.maxHealth * maxSingleHitFraction;
+            if (amount > cap) { amount = cap; LastHitCapped = true; CappedHits++; }
+        }
+        LastDamageTaken = amount;
+
+        health.TakeDamage(amount, hitPoint, style);
 
         if (health.IsDead)
             OnDeath();
         // No hit-flinch while attacking: Any State -> Hit would cancel the Slash/Heavy/Special clip mid-swing
-        // (damage still applies above). Flinch only from Idle.
-        else if (!isDefending && !isAttacking)
+        // (damage still applies above). Flinch only from Idle, never during a guard / stagger / dodge, and only for
+        // swings strong enough for this monster's poise (MonsterDefense.flinchMinTier).
+        else if (!isDefending && !isAttacking && !(ai != null && ai.IsBusy) && (defense == null || defense.TryFlinch(swingSpeed)))
         {
             SetAnimState(MonsterAnimState.Hit);
             CancelInvoke(nameof(ReturnToIdleIfAlive));
@@ -258,7 +301,7 @@ public class MonsterController : MonoBehaviour
     {
         // A defend that began during the flinch owns the Animator: sending Idle now would drop the guard pose
         // while the damage reduction is still active.
-        if (isAlive && !isAttacking && !(ai != null && ai.IsDefending))
+        if (isAlive && !isAttacking && !(ai != null && ai.IsBusy))
             SetAnimState(MonsterAnimState.Idle);
     }
 

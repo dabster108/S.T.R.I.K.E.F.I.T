@@ -255,6 +255,12 @@ public class MonsterAI : MonoBehaviour
     private readonly HitDetection[] reactiveHd = new HitDetection[2];
     private readonly Transform[] reactiveHdOwner = new Transform[2];
     public bool IsDefending { get; private set; }
+    /// <summary>True while an attack, guard, stagger or dodge owns the monster (nothing new may start).</summary>
+    public bool IsBusy => busy;
+    /// <summary>True during a guard-break stagger (MonsterDefense).</summary>
+    public bool IsStaggered { get; private set; }
+    /// <summary>Set by BossPhaseController for a phase-shift roar: no new attack or guard starts while it is on.</summary>
+    [System.NonSerialized] public bool holdActions;
     /// <summary>True while the current guard was raised in reaction to a swing (not the timer).</summary>
     public bool DefendIsReactive { get; private set; }
     /// <summary>Swings that were close and fast enough to roll for a reactive guard (verification).</summary>
@@ -284,6 +290,12 @@ public class MonsterAI : MonoBehaviour
     public bool verboseAttackLogs = false;
 
     private MonsterController controller;
+    private MonsterDefense defense;             // shared combat sense (facing, guards, poise); null = legacy behaviour
+    private MonsterPersonalSpace personalSpace; // personal-space clamp; its push-back is added back to range checks
+    private Coroutine guardRoutine;
+    private float animSpeedScale = 1f;          // stagger slows the hit reaction; tempoScale * this = Animator speed
+    private Vector3 lockedImpact;               // unblockable impact centre, fixed when the wind-up starts
+    private bool hasLockedImpact;
     private float nextThinkTime;
     private bool busy;
     private MaterialPropertyBlock mpb;
@@ -347,6 +359,8 @@ public class MonsterAI : MonoBehaviour
     void Awake()
     {
         controller = GetComponent<MonsterController>();
+        defense = GetComponent<MonsterDefense>();
+        personalSpace = GetComponent<MonsterPersonalSpace>();
         if (axeThrow == null) axeThrow = GetComponent<MonsterAxeThrow>();
         mpb = new MaterialPropertyBlock();
         if (sfxAudioSource == null)
@@ -402,8 +416,8 @@ public class MonsterAI : MonoBehaviour
     void Update()
     {
         if (controller == null || !controller.isAlive) return;
-        CheckReactiveDefend();
-        if (busy) return;
+        if (defense == null) CheckReactiveDefend(); // MonsterDefense owns guards when present (one source of truth)
+        if (busy || holdActions) return;
         if (Time.time < nextThinkTime) return;
         nextThinkTime = Time.time + thinkInterval;
 
@@ -415,7 +429,7 @@ public class MonsterAI : MonoBehaviour
 
         float dist = DistanceToTarget();
 
-        if (facePlayer)
+        if (facePlayer && (defense == null || !defense.turnToFacePlayer))
             FaceTarget();
 
         if (dist > controller.attackRange && UsesAttackTable && HasRangedRows && controller.CanAttack())
@@ -431,7 +445,7 @@ public class MonsterAI : MonoBehaviour
 
         if (dist <= controller.attackRange)
         {
-            if (canDefend && Time.time >= nextDefendTime && !controller.isAttacking)
+            if (defense == null && canDefend && Time.time >= nextDefendTime && !controller.isAttacking)
             {
                 StartCoroutine(DefendRoutine());
             }
@@ -486,7 +500,7 @@ public class MonsterAI : MonoBehaviour
 
     void LateUpdate()
     {
-        if (controller == null || !controller.isAlive || busy || !canMove) return;
+        if (controller == null || !controller.isAlive || busy || holdActions || !canMove) return;
         if (playerTarget == null) return;
         if (BattleManager.Instance != null && !BattleManager.Instance.IsBattleActive) return;
 
@@ -591,6 +605,23 @@ public class MonsterAI : MonoBehaviour
 
     IEnumerator DefendRoutine(bool reactive)
     {
+        return DefendRoutine(reactive, reactive ? reactiveDefendDuration : defendDuration, null, Color.clear, 0f);
+    }
+
+    /// <summary>
+    /// MonsterDefense: raise the guard now for <paramref name="duration"/> seconds with <paramref name="trigger"/>
+    /// (empty = MonsterAnimator.defendTrigger). A brief flash in <paramref name="flashColor"/> marks the raise. Refused
+    /// while anything else owns the monster.
+    /// </summary>
+    public bool BeginGuard(float duration, bool reactive, string trigger, Color flashColor, float flashSeconds)
+    {
+        if (busy || holdActions || controller == null || !controller.isAlive || controller.isAttacking) return false;
+        guardRoutine = StartCoroutine(DefendRoutine(reactive, duration, trigger, flashColor, flashSeconds));
+        return true;
+    }
+
+    IEnumerator DefendRoutine(bool reactive, float duration, string trigger, Color flashColor, float flashSeconds)
+    {
         busy = true;
         IsDefending = true;
         DefendIsReactive = reactive;
@@ -601,24 +632,120 @@ public class MonsterAI : MonoBehaviour
             Debug.Log(reactive ? "[MonsterAI] Enter Defend (reactive)" : "[MonsterAI] Enter Defend");
 
         var anim = GetComponent<MonsterAnimator>();
-        if (anim != null) anim.PlayDefend();
+        if (anim != null) anim.PlayDefend(trigger);
 
         if (defendBraceClip != null && sfxAudioSource != null)
             sfxAudioSource.PlayOneShot(defendBraceClip, defendBraceVolume);
-        if (defendTintEnabled)
+        if (flashSeconds > 0f)
+        {
+            // Raise cue: a short cool flash (never the red attack telegraph), then the guard tint if this monster has one.
+            SetBodyTint(flashColor);
+            yield return new WaitForSeconds(flashSeconds);
+            duration -= flashSeconds;
+            if (defendTintEnabled) SetBodyTint(defendTintColor); else ClearBodyTint();
+        }
+        else if (defendTintEnabled)
             SetBodyTint(defendTintColor);
 
-        yield return new WaitForSeconds(reactive ? reactiveDefendDuration : defendDuration);
+        yield return new WaitForSeconds(Mathf.Max(0f, duration));
 
+        guardRoutine = null;
         IsDefending = false;
         DefendIsReactive = false;
         busy = false;
         idleSince = Time.time;
-        if (defendTintEnabled)
+        if (defendTintEnabled || flashSeconds > 0f)
             ClearBodyTint();
         if (verboseAttackLogs)
             Debug.Log("[MonsterAI] Exit Defend");
         if (anim != null) anim.PlayState(MonsterAnimState.Idle);
+    }
+
+    /// <summary>
+    /// MonsterDefense guard break: drop the guard and stagger for <paramref name="seconds"/> (no attacks, no guard). The
+    /// hit reaction is reached through its real transitions (Defend -> Idle -> Hit) and played slower so it fills the stagger.
+    /// </summary>
+    public void BeginStagger(float seconds, float animScale, Color flashColor, float flashSeconds)
+    {
+        if (controller == null || !controller.isAlive) return;
+        if (guardRoutine != null) { StopCoroutine(guardRoutine); guardRoutine = null; }
+        IsDefending = false;
+        DefendIsReactive = false;
+        StartCoroutine(StaggerRoutine(seconds, animScale, flashColor, flashSeconds));
+    }
+
+    IEnumerator StaggerRoutine(float seconds, float animScale, Color flashColor, float flashSeconds)
+    {
+        busy = true;
+        IsStaggered = true;
+        float end = Time.time + seconds;
+        var anim = GetComponent<MonsterAnimator>();
+        SetBodyTint(flashColor);
+        if (anim != null)
+        {
+            anim.PlayState(MonsterAnimState.Idle); // Defend -> Idle (trigger), then Idle -> Hit
+            float giveUp = Time.time + 0.3f;
+            while (Time.time < giveUp && anim.animator != null && !InIdleState(anim.animator)) yield return null;
+            anim.PlayState(MonsterAnimState.Hit);
+        }
+        animSpeedScale = Mathf.Clamp(animScale, 0.1f, 1f);
+        ApplyAnimSpeed();
+        float flashEnd = Time.time + flashSeconds;
+        while (Time.time < end)
+        {
+            if (controller == null || !controller.isAlive) break;
+            if (flashEnd > 0f && Time.time >= flashEnd) { flashEnd = -1f; ClearBodyTint(); }
+            yield return null;
+        }
+        if (flashEnd > 0f) ClearBodyTint();
+        animSpeedScale = 1f;
+        ApplyAnimSpeed();
+        IsStaggered = false;
+        busy = false;
+        idleSince = Time.time;
+        if (controller != null && controller.isAlive && anim != null) anim.PlayState(MonsterAnimState.Idle);
+    }
+
+    static bool InIdleState(Animator a)
+    {
+        var st = a.GetCurrentAnimatorStateInfo(0);
+        return !a.IsInTransition(0) && (st.IsName("Idle") || st.IsName("IdleEnraged"));
+    }
+
+    /// <summary>Animator speed = attack tempo x stagger slow-down (left alone while a hit-stop holds it at 0).</summary>
+    void ApplyAnimSpeed()
+    {
+        if (InHitStop) return;
+        var anim = GetComponent<MonsterAnimator>();
+        if (anim != null && anim.animator != null) anim.animator.speed = Mathf.Max(0.25f, tempoScale) * animSpeedScale;
+    }
+
+    /// <summary>MonsterDefense dodge: fire the dodge clip's trigger and slide the root by <paramref name="offset"/>.</summary>
+    public bool BeginDodge(string trigger, Vector3 offset, float seconds)
+    {
+        if (busy || holdActions || controller == null || !controller.isAlive || controller.isAttacking) return false;
+        var anim = GetComponent<MonsterAnimator>();
+        if (anim == null || !anim.PlayNamedTrigger(trigger)) return false;
+        StartCoroutine(DodgeRoutine(offset, seconds));
+        return true;
+    }
+
+    IEnumerator DodgeRoutine(Vector3 offset, float seconds)
+    {
+        busy = true;
+        float t = 0f, done = 0f;
+        while (t < seconds && controller != null && controller.isAlive)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / Mathf.Max(0.01f, seconds)));
+            transform.position += offset * (k - done); // MonsterPersonalSpace still clamps after this
+            done = k;
+            yield return null;
+        }
+        busy = false;
+        idleSince = Time.time;
+        var anim = GetComponent<MonsterAnimator>();
+        if (anim != null && controller != null && controller.isAlive) anim.PlayState(MonsterAnimState.Idle);
     }
 
     /// <summary>Called by MonsterController when a player hit lands inside the defend window.</summary>
@@ -823,12 +950,13 @@ public class MonsterAI : MonoBehaviour
         HitStopCount++;
         var anim = GetComponent<MonsterAnimator>();
         Animator a = anim != null ? anim.animator : null;
-        float speed = a != null ? a.speed : 1f;
         if (a != null) a.speed = 0f;
         yield return new WaitForSecondsRealtime(seconds);
-        if (a != null && a.speed == 0f) a.speed = speed; // an enrage switch during the freeze keeps its own tempo
         frozenTotal += Time.time - freezeStart;
         freezeStart = -1f;
+        // Restore what the monster should run at now (tempo x stagger), not what it ran at before: an enrage switch or
+        // the end of a stagger during the freeze keeps its own speed.
+        if (a != null && a.speed == 0f) a.speed = Mathf.Max(0.25f, tempoScale) * animSpeedScale;
     }
 
     /// <summary>MonsterAxeThrow: a thrown axe reached the player.</summary>
@@ -842,11 +970,14 @@ public class MonsterAI : MonoBehaviour
     {
         float t0 = start + a.travelWindow.x / tempo, t1 = start + a.travelWindow.y / tempo;
         LastRushDistance = 0f;
-        // Anticipation: square up to the player.
+        // Aim lock (MonsterDefense): the charge line is fixed when the wind-up starts, so a sidestep beats it.
+        bool aimLocked = defense != null && defense.turnToFacePlayer;
+        Vector3 lane = transform.forward; lane.y = 0f; lane.Normalize();
+        // Anticipation: square up to the player (legacy only).
         while (AiTime < t0)
         {
             if (controller == null || !controller.isAlive || CurrentAttack != a) yield break;
-            TurnToTarget(12f);
+            if (!aimLocked) TurnToTarget(12f);
             yield return null;
         }
         float last = AiTime;
@@ -857,14 +988,26 @@ public class MonsterAI : MonoBehaviour
             last = now;
             if (dt > 0f)
             {
-                TurnToTarget(10f);
                 Vector3 d = playerTarget.position - transform.position; d.y = 0f;
-                float remaining = d.magnitude - stopDistance;
+                Vector3 dir;
+                float remaining;
+                if (aimLocked)
+                {
+                    // Along the locked lane, up to where the player stood in it.
+                    dir = lane;
+                    remaining = Vector3.Dot(d, lane) - stopDistance;
+                }
+                else
+                {
+                    TurnToTarget(10f);
+                    dir = d.normalized;
+                    remaining = d.magnitude - stopDistance;
+                }
                 if (remaining > 0.005f)
                 {
-                    // Cover what is left by the end of the window (re-aimed every frame: the player can still sidestep).
+                    // Cover what is left by the end of the window.
                     float step = Mathf.Min(remaining * Mathf.Clamp01(dt / Mathf.Max(dt, t1 - now + dt)), maxRushSpeed * dt);
-                    transform.position += d.normalized * step;
+                    transform.position += dir * step;
                     LastRushDistance += step;
                 }
             }
@@ -919,8 +1062,11 @@ public class MonsterAI : MonoBehaviour
             sfxAudioSource.PlayOneShot(a.windUpClip, a.windUpVolume);
         StartCoroutine(TelegraphFlash(windUp, a.telegraphColor));
         if (a.fireVfx) SetWeaponFire(true);
+        // The impact zone is fixed where it was shown (the clamp may slide the root back during the slam).
+        lockedImpact = ImpactPoint(a);
+        hasLockedImpact = true;
         if (a.unblockable && dangerZone != null)
-            dangerZone.Show(ImpactPoint(a), a.dodgeRadius, windUp);
+            dangerZone.Show(lockedImpact, a.dodgeRadius, windUp);
         inWindUp = true;
 
         float start = AiTime;
@@ -985,6 +1131,7 @@ public class MonsterAI : MonoBehaviour
         if (controller != null && controller.isAlive)
             AttackResolved?.Invoke(this, a.name, LastHitLanded);
 
+        hasLockedImpact = false;
         float recoverEnd = AiTime + a.recover / tempo;
         while (AiTime < recoverEnd) yield return null;
         CurrentAttack = null;
@@ -1006,7 +1153,7 @@ public class MonsterAI : MonoBehaviour
     public bool IsTargetInImpactZone(AttackDefinition a)
     {
         if (playerTarget == null) return false;
-        Vector3 d = playerTarget.position - ImpactPoint(a);
+        Vector3 d = playerTarget.position - (hasLockedImpact ? lockedImpact : ImpactPoint(a));
         d.y = 0f;
         return d.magnitude <= a.dodgeRadius;
     }
@@ -1015,7 +1162,8 @@ public class MonsterAI : MonoBehaviour
     bool IsTargetInSwing(float hitArc)
     {
         if (playerTarget == null) return false;
-        if (DistanceToTarget() > controller.attackRange * 1.15f) return false;
+        float pushback = personalSpace != null ? personalSpace.AttackPushback : 0f;
+        if (DistanceToTarget() - pushback > controller.attackRange * 1.15f) return false;
         Vector3 to = playerTarget.position - transform.position;
         to.y = 0f;
         if (to.sqrMagnitude < 0.0001f) return true;

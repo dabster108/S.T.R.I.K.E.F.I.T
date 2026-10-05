@@ -53,6 +53,14 @@ public class LevelManager : MonoBehaviour
     public WeaponType playerOffhandWeapon = WeaponType.None;
     public WeaponType monsterWeapon = WeaponType.None;
 
+    [Header("Balance (Inspector wins over the built-in table)")]
+    [Tooltip("Monster max HP for this scene. 0 = the GetParams table value.")]
+    public float monsterMaxHealthOverride = 0f;
+    [Tooltip("Player max HP for this scene. 0 = the GetParams table value.")]
+    public float playerMaxHealthOverride = 0f;
+    [Tooltip("Monster stand-off / attack range for this scene (horizontal m to the headset). 0 = the table value.")]
+    public float monsterAttackRangeOverride = 0f;
+
     [Header("Auto-start")]
     [Tooltip("Start the battle automatically when this level scene loads.")]
     public bool autoStartBattleOnLoad = true;
@@ -152,6 +160,9 @@ public class LevelManager : MonoBehaviour
     public DifficultyParams GetSceneParams()
     {
         var p = GetParams(sceneDifficulty);
+        if (monsterMaxHealthOverride > 0f) p.monsterMaxHealth = monsterMaxHealthOverride;
+        if (monsterAttackRangeOverride > 0f) p.monsterAttackRange = monsterAttackRangeOverride;
+        if (playerMaxHealthOverride > 0f) p.playerMaxHealth = playerMaxHealthOverride;
         p.playerPrimaryWeapon = playerPrimaryWeapon;
         p.playerOffhandWeapon = playerOffhandWeapon;
         p.monsterWeapon = monsterWeapon;
@@ -212,7 +223,9 @@ public class LevelManager : MonoBehaviour
                     monsterMaxHealth = 500f,   // Item 5: Level 1 monster HP = 500 (multi-hit fight). Inspector-exposed on MonsterHealth too.
                     monsterDamage = 8f,       // Per-hit base damage (×1.1 sword flavor = ~8.8). With player HP 500 → ~57 hits to kill player.
                     monsterAttackCooldown = 3.2f, // L1: slow, telegraphed (~3-4s between attacks)
-                    monsterAttackRange = 2.2f,
+                    monsterAttackRange = 1.75f,    // L1 MonsterAI.useHeadTarget: HORIZONTAL metres to the headset (L2 1.55, L3 1.45).
+                                                   // Was 2.2 measured as 3D to the rig ROOT (y=1.6), which put the monster only
+                                                   // 1.51 m away horizontally and swept its forearms to 0.19 m from the player's face.
                     monsterMoveSpeed = 0.35f,
                     aggression = 1.0f,
                     playerMaxHealth = 500f,   // Item 6: Level 1 player HP = 500 (matches monster for long fights)

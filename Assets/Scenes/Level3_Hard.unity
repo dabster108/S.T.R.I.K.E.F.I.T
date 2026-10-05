@@ -1561,6 +1561,38 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 1861004154886944149, guid: 955a4a0ae2e0c4961bd448e778d95327, type: 3}
+      propertyPath: hitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1861004154886944149, guid: 955a4a0ae2e0c4961bd448e778d95327, type: 3}
+      propertyPath: 'hitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 2274a158022034139a66d4e57b846cd9, type: 3}
+    - target: {fileID: 1861004154886944149, guid: 955a4a0ae2e0c4961bd448e778d95327, type: 3}
+      propertyPath: 'hitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+    - target: {fileID: 1861004154886944149, guid: 955a4a0ae2e0c4961bd448e778d95327, type: 3}
+      propertyPath: 'hitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 61aa95eeb86eb4a1eb3c91f7ee93209f, type: 3}
+    - target: {fileID: 1861004154886944149, guid: 955a4a0ae2e0c4961bd448e778d95327, type: 3}
+      propertyPath: heavyHitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1861004154886944149, guid: 955a4a0ae2e0c4961bd448e778d95327, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 74c677fd9a83e4f70b2ecf6f7710c3ea, type: 3}
+    - target: {fileID: 1861004154886944149, guid: 955a4a0ae2e0c4961bd448e778d95327, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 2274a158022034139a66d4e57b846cd9, type: 3}
+    - target: {fileID: 1861004154886944149, guid: 955a4a0ae2e0c4961bd448e778d95327, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
     - target: {fileID: 9201890578974795963, guid: 955a4a0ae2e0c4961bd448e778d95327, type: 3}
       propertyPath: m_Name
       value: PlayerMace_Left
@@ -1953,6 +1985,7 @@ GameObject:
   - component: {fileID: 311020125}
   - component: {fileID: 311020124}
   - component: {fileID: 311020123}
+  - component: {fileID: 311020134}
   m_Layer: 0
   m_Name: BattleSystems
   m_TagString: Untagged
@@ -2181,6 +2214,9 @@ MonoBehaviour:
   xpFullSwingBonus: 40
   xpPerBlock: 22
   xpVictoryBonus: 320
+  comboWindow: 2
+  xpComboStepBonus: 8
+  comboBonusCap: 10
   weakSwingSpeed: 1.4
   mediumSwingSpeed: 2.8
   fullSwingSpeed: 4.6
@@ -2205,6 +2241,7 @@ MonoBehaviour:
   timerText: {fileID: 175640783}
   damageCounterText: {fileID: 1617782562}
   xpText: {fileID: 1100834279}
+  comboText: {fileID: 0}
   playerHealthTMP: {fileID: 0}
   monsterHealthTMP: {fileID: 0}
   scoreTMP: {fileID: 0}
@@ -2226,6 +2263,11 @@ MonoBehaviour:
   damageNumberLifetime: 1
   damageNumberRiseSpeed: 1.2
   damageNumberParent: {fileID: 0}
+  builtInDamageNumbers: 1
+  scaleNumbersWithTier: 1
+  damageNumberPoolSize: 8
+  baseNumberSize: 1.1
+  numberTowardViewer: 0.3
   staminaUiStep: 0.02
   verboseDamageLogs: 0
   phaseMarkerColor: {r: 1, g: 0.92, b: 0.6, a: 0.95}
@@ -2274,6 +2316,9 @@ MonoBehaviour:
   playerPrimaryWeapon: 0
   playerOffhandWeapon: 0
   monsterWeapon: 7
+  monsterMaxHealthOverride: 2900
+  playerMaxHealthOverride: 1100
+  monsterAttackRangeOverride: 1.45
   autoStartBattleOnLoad: 0
   autoStartDelay: 0.5
 --- !u!114 &311020132
@@ -2313,6 +2358,28 @@ Transform:
   - {fileID: 686264314}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &311020134
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 311020121}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a13aa16d38cc440b39622a641a2b7e47, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CombatFeedback
+  haptics: 1
+  lightPulse: {x: 0.25, y: 0.04}
+  mediumPulse: {x: 0.5, y: 0.06}
+  fullPulse: {x: 0.9, y: 0.09}
+  blockedPulse: {x: 0.35, y: 0.05}
+  clashPulse: {x: 1, y: 0.03}
+  damagePulse: {x: 0.7, y: 0.12}
+  frequency: 0.5
+  hitStop: 1
+  hitStopSeconds: 0.07
 --- !u!1001 &312068041
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -5001,6 +5068,38 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 1710222557580859564, guid: 4cbc7fee83a7347ea91a701f08486155, type: 3}
+      propertyPath: hitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1710222557580859564, guid: 4cbc7fee83a7347ea91a701f08486155, type: 3}
+      propertyPath: 'hitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 2274a158022034139a66d4e57b846cd9, type: 3}
+    - target: {fileID: 1710222557580859564, guid: 4cbc7fee83a7347ea91a701f08486155, type: 3}
+      propertyPath: 'hitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+    - target: {fileID: 1710222557580859564, guid: 4cbc7fee83a7347ea91a701f08486155, type: 3}
+      propertyPath: 'hitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 61aa95eeb86eb4a1eb3c91f7ee93209f, type: 3}
+    - target: {fileID: 1710222557580859564, guid: 4cbc7fee83a7347ea91a701f08486155, type: 3}
+      propertyPath: heavyHitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1710222557580859564, guid: 4cbc7fee83a7347ea91a701f08486155, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 74c677fd9a83e4f70b2ecf6f7710c3ea, type: 3}
+    - target: {fileID: 1710222557580859564, guid: 4cbc7fee83a7347ea91a701f08486155, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 2274a158022034139a66d4e57b846cd9, type: 3}
+    - target: {fileID: 1710222557580859564, guid: 4cbc7fee83a7347ea91a701f08486155, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
     - target: {fileID: 4009292522886635611, guid: 4cbc7fee83a7347ea91a701f08486155, type: 3}
       propertyPath: m_Name
       value: PlayerMace_Right
@@ -6206,6 +6305,38 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1066510555}
     m_Modifications:
+    - target: {fileID: 5052261244970132864, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
+      propertyPath: hitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 5052261244970132864, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
+      propertyPath: 'hitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 98d8de18d6c984f86a8b8a8c09d8c270, type: 3}
+    - target: {fileID: 5052261244970132864, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
+      propertyPath: 'hitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+    - target: {fileID: 5052261244970132864, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
+      propertyPath: 'hitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+    - target: {fileID: 5052261244970132864, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
+      propertyPath: heavyHitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 5052261244970132864, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+    - target: {fileID: 5052261244970132864, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 98d8de18d6c984f86a8b8a8c09d8c270, type: 3}
+    - target: {fileID: 5052261244970132864, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
     - target: {fileID: 5765484510754117970, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
       propertyPath: m_Name
       value: PlayerKatana_Left
@@ -7505,6 +7636,38 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 2656504167602098064, guid: 5364c9dcb4e754712a37c8fa8cbfa2e7, type: 3}
+      propertyPath: hitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 2656504167602098064, guid: 5364c9dcb4e754712a37c8fa8cbfa2e7, type: 3}
+      propertyPath: 'hitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 61aa95eeb86eb4a1eb3c91f7ee93209f, type: 3}
+    - target: {fileID: 2656504167602098064, guid: 5364c9dcb4e754712a37c8fa8cbfa2e7, type: 3}
+      propertyPath: 'hitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 2274a158022034139a66d4e57b846cd9, type: 3}
+    - target: {fileID: 2656504167602098064, guid: 5364c9dcb4e754712a37c8fa8cbfa2e7, type: 3}
+      propertyPath: 'hitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+    - target: {fileID: 2656504167602098064, guid: 5364c9dcb4e754712a37c8fa8cbfa2e7, type: 3}
+      propertyPath: heavyHitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 2656504167602098064, guid: 5364c9dcb4e754712a37c8fa8cbfa2e7, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+    - target: {fileID: 2656504167602098064, guid: 5364c9dcb4e754712a37c8fa8cbfa2e7, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 61aa95eeb86eb4a1eb3c91f7ee93209f, type: 3}
+    - target: {fileID: 2656504167602098064, guid: 5364c9dcb4e754712a37c8fa8cbfa2e7, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 74c677fd9a83e4f70b2ecf6f7710c3ea, type: 3}
     - target: {fileID: 3840039801734551687, guid: 5364c9dcb4e754712a37c8fa8cbfa2e7, type: 3}
       propertyPath: m_Name
       value: PlayerFlail_Left
@@ -8404,21 +8567,21 @@ MonoBehaviour:
     minSwingVelocity: 2
     maxSwingVelocity: 7
     maxVelocityDamageMultiplier: 2.6
-    damageMultiplier: 1.35
+    damageMultiplier: 1.05
   - type: 5
     rightObject: {fileID: 1464962000}
     leftObject: {fileID: 1259263634}
     minSwingVelocity: 1.6
     maxSwingVelocity: 6.5
     maxVelocityDamageMultiplier: 2.4
-    damageMultiplier: 1.1
+    damageMultiplier: 1
   - type: 6
     rightObject: {fileID: 1457236035}
     leftObject: {fileID: 1075636084}
     minSwingVelocity: 1.3
     maxSwingVelocity: 6
     maxVelocityDamageMultiplier: 2.2
-    damageMultiplier: 0.9
+    damageMultiplier: 1.12
   showWeaponsBeforeBattle: 1
   swingController: 2
   offhandSwingController: 1
@@ -9473,6 +9636,38 @@ PrefabInstance:
       propertyPath: m_IsActive
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 877788864816411288, guid: a4666581cca544e95905f04bb7b2b9e7, type: 3}
+      propertyPath: hitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 877788864816411288, guid: a4666581cca544e95905f04bb7b2b9e7, type: 3}
+      propertyPath: 'hitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 98d8de18d6c984f86a8b8a8c09d8c270, type: 3}
+    - target: {fileID: 877788864816411288, guid: a4666581cca544e95905f04bb7b2b9e7, type: 3}
+      propertyPath: 'hitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+    - target: {fileID: 877788864816411288, guid: a4666581cca544e95905f04bb7b2b9e7, type: 3}
+      propertyPath: 'hitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+    - target: {fileID: 877788864816411288, guid: a4666581cca544e95905f04bb7b2b9e7, type: 3}
+      propertyPath: heavyHitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 877788864816411288, guid: a4666581cca544e95905f04bb7b2b9e7, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+    - target: {fileID: 877788864816411288, guid: a4666581cca544e95905f04bb7b2b9e7, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 98d8de18d6c984f86a8b8a8c09d8c270, type: 3}
+    - target: {fileID: 877788864816411288, guid: a4666581cca544e95905f04bb7b2b9e7, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -9544,6 +9739,38 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 6437676896874190266, guid: 0b65a5dbb5aae416595c2c07826f8a61, type: 3}
+      propertyPath: hitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 6437676896874190266, guid: 0b65a5dbb5aae416595c2c07826f8a61, type: 3}
+      propertyPath: 'hitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 61aa95eeb86eb4a1eb3c91f7ee93209f, type: 3}
+    - target: {fileID: 6437676896874190266, guid: 0b65a5dbb5aae416595c2c07826f8a61, type: 3}
+      propertyPath: 'hitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 2274a158022034139a66d4e57b846cd9, type: 3}
+    - target: {fileID: 6437676896874190266, guid: 0b65a5dbb5aae416595c2c07826f8a61, type: 3}
+      propertyPath: 'hitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+    - target: {fileID: 6437676896874190266, guid: 0b65a5dbb5aae416595c2c07826f8a61, type: 3}
+      propertyPath: heavyHitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 6437676896874190266, guid: 0b65a5dbb5aae416595c2c07826f8a61, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+    - target: {fileID: 6437676896874190266, guid: 0b65a5dbb5aae416595c2c07826f8a61, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 61aa95eeb86eb4a1eb3c91f7ee93209f, type: 3}
+    - target: {fileID: 6437676896874190266, guid: 0b65a5dbb5aae416595c2c07826f8a61, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 74c677fd9a83e4f70b2ecf6f7710c3ea, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

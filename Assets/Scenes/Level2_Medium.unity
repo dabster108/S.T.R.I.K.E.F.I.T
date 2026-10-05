@@ -805,6 +805,7 @@ GameObject:
   - component: {fileID: 121459568}
   - component: {fileID: 121459567}
   - component: {fileID: 121459575}
+  - component: {fileID: 121459576}
   m_Layer: 0
   m_Name: BattleSystems
   m_TagString: Untagged
@@ -859,6 +860,9 @@ MonoBehaviour:
   xpFullSwingBonus: 40
   xpPerBlock: 22
   xpVictoryBonus: 320
+  comboWindow: 2
+  xpComboStepBonus: 8
+  comboBonusCap: 10
   weakSwingSpeed: 1.4
   mediumSwingSpeed: 2.8
   fullSwingSpeed: 4.6
@@ -883,6 +887,7 @@ MonoBehaviour:
   timerText: {fileID: 1970286808}
   damageCounterText: {fileID: 25885182}
   xpText: {fileID: 1053022129}
+  comboText: {fileID: 0}
   playerHealthTMP: {fileID: 0}
   monsterHealthTMP: {fileID: 0}
   scoreTMP: {fileID: 0}
@@ -904,6 +909,11 @@ MonoBehaviour:
   damageNumberLifetime: 1
   damageNumberRiseSpeed: 1.2
   damageNumberParent: {fileID: 0}
+  builtInDamageNumbers: 1
+  scaleNumbersWithTier: 1
+  damageNumberPoolSize: 8
+  baseNumberSize: 1.1
+  numberTowardViewer: 0.3
   staminaUiStep: 0.02
   verboseDamageLogs: 0
   phaseMarkerColor: {r: 1, g: 0.92, b: 0.6, a: 0.95}
@@ -952,6 +962,9 @@ MonoBehaviour:
   playerPrimaryWeapon: 2
   playerOffhandWeapon: 2
   monsterWeapon: 1
+  monsterMaxHealthOverride: 680
+  playerMaxHealthOverride: 0
+  monsterAttackRangeOverride: 1.85
   autoStartBattleOnLoad: 0
   autoStartDelay: 0.5
 --- !u!114 &121459572
@@ -971,6 +984,7 @@ MonoBehaviour:
   sceneMonster: {fileID: 0}
   timerExpireMeansDefeat: 0
   timerExpireMeansSurvivalWin: 0
+  victoryPanelDelay: 0.75
   scorePerDamagePoint: 1
   victoryBonus: 500
   survivalBonus: 250
@@ -1029,6 +1043,28 @@ MonoBehaviour:
   - Guest
   autoSelectSeconds: 10
   startButtonPath: CombatCanvas/StartBattleUIButton
+--- !u!114 &121459576
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 121459566}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a13aa16d38cc440b39622a641a2b7e47, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CombatFeedback
+  haptics: 1
+  lightPulse: {x: 0.25, y: 0.04}
+  mediumPulse: {x: 0.5, y: 0.06}
+  fullPulse: {x: 0.9, y: 0.09}
+  blockedPulse: {x: 0.35, y: 0.05}
+  clashPulse: {x: 1, y: 0.03}
+  damagePulse: {x: 0.7, y: 0.12}
+  frequency: 0.5
+  hitStop: 1
+  hitStopSeconds: 0.07
 --- !u!1 &135784492
 GameObject:
   m_ObjectHideFlags: 0
@@ -13929,6 +13965,16 @@ MonoBehaviour:
   blockedHitSound: {fileID: 0}
   blockedHitVolume: 0.8
   soundButtonFallback: {fileID: 0}
+  varyHitSounds: 1
+  hitVariants:
+  - {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+  - {fileID: 8300000, guid: 98d8de18d6c984f86a8b8a8c09d8c270, type: 3}
+  - {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+  heavyHitVariants:
+  - {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+  - {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+  - {fileID: 8300000, guid: 98d8de18d6c984f86a8b8a8c09d8c270, type: 3}
+  pitchJitter: 0.06
   hammerTag: Hammer
   playerHandTag: PlayerHand
   hand: 1
@@ -14322,6 +14368,16 @@ MonoBehaviour:
   blockedHitSound: {fileID: 0}
   blockedHitVolume: 0.8
   soundButtonFallback: {fileID: 0}
+  varyHitSounds: 1
+  hitVariants:
+  - {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+  - {fileID: 8300000, guid: 98d8de18d6c984f86a8b8a8c09d8c270, type: 3}
+  - {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+  heavyHitVariants:
+  - {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+  - {fileID: 8300000, guid: 3394e691550fe4c73aecb2b2a3389fb8, type: 3}
+  - {fileID: 8300000, guid: 98d8de18d6c984f86a8b8a8c09d8c270, type: 3}
+  pitchJitter: 0.06
   hammerTag: Hammer
   playerHandTag: PlayerHand
   hand: 0
