@@ -982,6 +982,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
       insertIndex: -1
       addedObject: {fileID: 5393584181838314908}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3668456788359674969}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6213180570981922906}
   m_SourcePrefab: {fileID: 100100000, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
 --- !u!4 &719864772271835393 stripped
 Transform:
@@ -1113,6 +1119,7 @@ MonoBehaviour:
   attackCooldown: 2.5
   attackRange: 2.5
   moveSpeed: 0.5
+  maxSingleHitFraction: 0
   currentAnimState: 0
   isAlive: 1
   isAttacking: 0
@@ -1134,7 +1141,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MonsterAI
   playerTarget: {fileID: 0}
   playerTag: Player
-  useHeadTarget: 0
+  useHeadTarget: 1
   thinkInterval: 0.2
   stopDistance: 1.6
   facePlayer: 1
@@ -1388,11 +1395,11 @@ MonoBehaviour:
   defendCooldown: 8
   defendDuration: 1.5
   defendDamageMultiplier: 0.3
-  defendTintEnabled: 0
+  defendTintEnabled: 1
   defendTintColor: {r: 0.45, g: 0.65, b: 1, a: 1}
-  defendBraceClip: {fileID: 0}
+  defendBraceClip: {fileID: 8300000, guid: f471fccf5a00e45f692b73850307647d, type: 3}
   defendBraceVolume: 0.8
-  defendBlockClip: {fileID: 0}
+  defendBlockClip: {fileID: 8300000, guid: 3f3b32d0907d84e699e7fd6295966790, type: 3}
   defendBlockVolume: 0.9
   defendCooldownJitter: 0
   reactiveDefendChance: 0
@@ -1537,6 +1544,83 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &3668456788359674969
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6231198665464638293}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10dbb86d7845a4660b5f42a68f6e6b81, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterPersonalSpace
+  clampEnabled: 1
+  headClearance: 0.6
+  handClearance: 0.35
+  weaponClearance: 0
+  weaponHeadClearance: 0
+  iterations: 4
+--- !u!114 &6213180570981922906
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6231198665464638293}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0996e4ab6d99a492a9076eca8999f6e6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterDefense
+  turnToFacePlayer: 1
+  turnSpeed: 90
+  detectSpeed: 2.5
+  detectRange: 2.5
+  detectConeAngle: 40
+  guardTarget: {fileID: 6893930887810451051}
+  reactiveGuard: 1
+  reactionDelay: 0.35
+  guardChance: 0.15
+  guardChanceEnraged: 0.15
+  minGuardGap: 6
+  guardDuration: {x: 0.8, y: 1.2}
+  maxGuardUptime: 0.12
+  timedGuard: 1
+  timedGuardInterval: 12
+  timedGuardJitter: 0.3
+  highGuardTrigger: Defend
+  sideGuardTrigger: Defend
+  guardFlashColor: {r: 0.78, g: 0.9, b: 1, a: 1}
+  guardFlashSeconds: 0.12
+  guardBreakEnabled: 1
+  guardBreakHits: 5
+  staggerSeconds: 2.5
+  staggerAnimSpeed: 0.448
+  staggerDamageMultiplier: 1.25
+  guardLockoutAfterBreak: 4
+  guardBreakClip: {fileID: 8300000, guid: cbc48bf379b364886a0212fa155974bc, type: 3}
+  guardBreakVolume: 1
+  guardBreakFlashColor: {r: 1, g: 1, b: 1, a: 1}
+  guardBreakFlashSeconds: 0.2
+  showGuardMeter: 1
+  flinchMinTier: 1
+  flinchCooldown: 0.6
+  flinchWindow: 0.6
+  dodgeEnabled: 0
+  sidestepTrigger: 
+  backstepTrigger: 
+  dodgeChance: 0.12
+  dodgeCooldown: 8
+  dodgeDistance: 0.7
+  dodgeSeconds: 0.45
+  dodgeArenaRadius: 3.5
+--- !u!4 &6893930887810451051 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 366175167995203695, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
+  m_PrefabInstance: {fileID: 6537190354412983812}
+  m_PrefabAsset: {fileID: 0}
 --- !u!137 &8190314631309884529 stripped
 SkinnedMeshRenderer:
   m_CorrespondingSourceObject: {fileID: 3103283877742750325, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}

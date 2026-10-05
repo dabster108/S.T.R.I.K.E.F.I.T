@@ -1,6 +1,419 @@
 # Project Progress — Fitness Monster Battle
 
-Last updated: **2026-10-03 (second pass) — Level 1 FIXED: animations were frozen by `CullUpdateTransforms`, colour was killed by normal maps imported as sRGB colour textures (monster + both hammers); sword's dead white effect planes wired to their real additive texture. Hammer glow deliberately skipped.**
+Last updated: **2026-10-05 — all three levels: personal-space clamp, shared MonsterDefense (awareness, reactive guard, guard meter / break, poise), Level 3 rebalance with phase-shift pauses and a single-hit cap, game feel. Everything below was measured in Play mode in the editor (simulation, not a headset).**
+
+---
+
+## 2026-10-05 — Overlap, reactive defence, Level 3 rebalance, game feel
+
+**Method.** Unity MCP over HTTP, Play mode on each scene, `SessionReporter.baseUrl` redirected to a dead port at runtime only (scenes still ship the production URL). Test harness: `Assets/Editor/CombatVerification.cs` (Play-mode only, never in a build). **Everything here is an editor simulation: the "player" is the real weapon collider driven through the real `HitDetection` trigger path, not a headset.** Swing speeds in the sims are drawn from the live backend histogram per level.
+
+### New / changed files
+| File | What |
+|---|---|
+| `Monster/MonsterPersonalSpace.cs` (new) | LateUpdate clamp (no physics): head >= 0.6 m, hands >= 0.35 m (monster-caused only), slides the root back, adds the push-back to MonsterAI's range check so attacks still land |
+| `Monster/MonsterDefense.cs` (new) | ONE shared component, parameterised per level: facing, swing detection (speed + cone + range), reactive guard, timed fallback guard, guard meter / break, poise, optional dodge (shipped OFF) |
+| `Combat/CombatFeedback.cs` (new) | haptics on the striking hand, clash pulse, both-hand damage pulse, monster-only hit-stop. Each behind a toggle |
+| `Editor/CombatTuning.cs` (new) | the single place every per-level number lives; `Level3DualAxeBuilder` calls it so a boss rebuild keeps the tuning |
+| `Monster/MonsterAI.cs` | `BeginGuard / BeginStagger / BeginDodge`, `holdActions`, aim lock (rush lane, slam zone), clamp-aware range check. When MonsterDefense is present it owns the guard: `MonsterAI.IsDefending` stays the single "is defending" flag |
+| `Monster/MonsterController.cs` | poise via `MonsterDefense.TryFlinch`, stagger x1.25, phase-shift resist, single-hit cap, swing-speed aware `OnTakeDamage` |
+| `Monster/BossPhaseController.cs` | phase-shift pauses (roar + resisted hits) at 66 % and 33 %, enrage shares the same hold path |
+| `Combat/HitDetection.cs` | **front-hit bonus fixed**, 3 hit variants + pitch jitter, passes tier / weak point to the monster |
+| `UI/CombatUIController.cs` | pooled tiered damage numbers, callouts, guard bar (redrawn only on change) |
+| `Manager/LevelManager.cs` | `monsterMaxHealthOverride`, `monsterAttackRangeOverride`, `playerMaxHealthOverride` (serialized) |
+
+### CARRY-OVER from the previous pass (checked live)
+| Item | Status |
+|---|---|
+| (a) L1 hammer overlap fix | **PARTIAL -> DONE here.** The `useHeadTarget` + range fix held, but my consistent head-line metric put the nearest surface only 0.09 m inside the hammer reach; range 1.75 -> 1.65 now gives ~0.13 m (see Part 1) |
+| (b) hammer shadow removal | **DONE** (both hammers `castShadows Off`, verified in the saved scene) |
+| (c) darker L1 lighting | **DONE** (directional 0.75, gradient ambient, fog 0.012; re-checked in scene) |
+| (d) L1 engagement features | **PARTIAL.** Combo counter DONE and still holds. Spacing movement / taunt need clips that do not exist. Stagger: **built now** (guard break), from the existing `Great Sword Impact` hit reaction |
+| (e) L2 glow | **NOT DONE** (never started; untouched this pass on purpose) |
+
+### PART 1 — Overlap (measured, per level)
+Reach = hand 0.60 m in front of the head + weapon past the grip (measured from the colliders): **L1 hammer 0.994 m; L2 sword 1.395-1.409 m; L3 mace 1.297 / katana 1.516 / flail 1.581 m.** Metric below = horizontal distance from the head's vertical line to the nearest body capsule, monster idle.
+
+| | before | after | reach | inside reach |
+|---|---|---|---|---|
+| L1 root / nearest surface (mean) | 1.74 m / 0.90 | 1.65 m / 0.87 | 0.994 | **0.13 m** |
+| L2 root / nearest surface (mean) | 1.53 m / **0.86** | 1.84 m / **1.17** | 1.395 | **0.23 m** (was 0.54 = sunk into the chest) |
+| L3 root / nearest surface (mean) | 1.44 m / 1.07 | 1.44 m / 1.06-1.11 | 1.297 (mace, the shortest) | **0.19-0.24 m** |
+| spawn / entrance min head distance | 2.97 / - / - | L1 2.965, L2 2.906, L3 3.200; **L3 entrance (rise + roar) min 2.73 m** | | |
+
+Forced attacks (every table row once, AI off), minimum body distance to the head: L1 0.64-0.91, L2 0.89-1.12, L3 0.79-1.30 m; **hands never below 0.35 m (monster-caused); 0 head / 0 hand breaches in all sweeps.** All attacks still land at the new spacing: **L1 6/6, L2 10/10, L3 14/14.** The L1 / L3 clamp does push the monster back up to 0.2-0.35 m per attack frame on Slash / Overhead / Spin (that is the attack's travel being shortened, not removed; the attack lands because the push-back is added to the range check). Watch it on the headset: it should read as recoil, not a stutter.
+- **L2 range 1.55 -> 1.85** (scene override); L1 range 1.75 -> 1.65 (scene override). L3 unchanged.
+- **Weapon / hand colliders**: all `isTrigger` on kinematic bodies (checked), the monster has no Rigidbody. Nothing physical can push the rig.
+- **Finding, NOT fixed:** the monster's *own weapon* still passes within 0.03-0.06 m of the head on some attacks (L1 Overhead, L3 chops) and its swinging arm passes through the player's held weapons (that is the clash / parry). A weapon-to-head clamp (`weaponHeadClearance`) and a player-weapon clamp (`weaponClearance`) are implemented but **ship OFF**: at 0.22 / 0.02 they shoved the monster out of its attack range and still left breaches, because a swing path crosses the head zone by design.
+- **L3 long weapons** (katana 1.52, flail 1.58) sink 0.2-0.3 m into the boss at full extension; that follows from sizing to the mace so every loadout can reach.
+
+100 s simulated fights, all attacks forced at least once, swing every 1.3 s:
+| | min head | min hand | breaches head/hand | attacks seen |
+|---|---|---|---|---|
+| L1 | 0.641 (limit 0.6) | 0.350 (0.35) | 0 / 0 | 6/6 |
+| L2 | 0.928 | 0.466 | 0 / 0 | 10/10 |
+| L3 mace | 0.600 | 0.350 | 0 / 0 | 12/14 in the natural fight, 14/14 in the forced sweep (ranged rows need the player out of reach) |
+
+### PART 2 — Reactive defence (shared `MonsterDefense`)
+| | L1 | L2 | L3 |
+|---|---|---|---|
+| reaction delay | 0.35 s | 0.25 s | 0.18 s |
+| guard chance (enraged) | 15 % (15) | 30 % (30) | 45 % (**50**, +5: it is free less often) |
+| min gap between guards | 6 s | 4.5 s | 3.5 s |
+| guard length | 0.8-1.2 s | 0.8-1.2 | 0.8-1.2 |
+| uptime budget | 12 % | 18 % | 25 % |
+| **measured uptime** (100 s fight / 60 s idle-poke worst case) | 5.6 % / 6.9 % | 8.4 % / 9.1 % | 8.0 % / 14.4 % |
+| timed fallback guard | 12 s | 9 s | 8 s (all +-30 %, same rules) |
+| detection range | 2.5 m | 2.2 m | 1.9 m |
+| turn speed | 90 deg/s | 120 | 150 |
+| guard meter to break | 5 absorbed hits | 4 | 3 |
+| stagger (damage x1.25) / lockout | 2.5 s / 4 s | 2.0 s / 4 s | 1.6 s / 4 s |
+| poise: flinches from | Light and up | Medium | Full only (+ phase breaks) |
+
+- **Never during entrance, wind-up, attack, flinch, phase shift, stagger or guard break** (`CanGuardNow`). Enforced by construction (`CanGuardNow` checks `isAttacking`, `IsBusy`, `holdActions`); the wind-up-hit test (27/27) shows no attack was disturbed, but I did not log guard-vs-attack overlap separately.
+- **One source of truth:** `MonsterAI.IsDefending` only. The old per-MonsterAI reactive path runs only when MonsterDefense is absent.
+- **Awareness proof:** max yaw change inside one attack **0.0 deg** on all levels; free turn rate never above the cap (90 / 61 / 97 deg/s). **Brute Rush with the player standing still: landed 3/3. With a 1.3 m sidestep 0.3 s in: landed 0/3** (the charge lane is locked at the wind-up).
+- **Guard direction:** High guard for downward swings, Side guard otherwise (`velocity.y < -0.6|v|`). **Only ONE guard clip exists per monster** (`Monster_GuardPose` L1/L2, `L3_Defend` L3), so both directions use it; the counters (`HighGuards` / `SideGuards`) still record the choice. The Animator hook is `highGuardTrigger` / `sideGuardTrigger`.
+- **Cue:** 0.12 s cool white-blue flash + the block-raise sound `L2_Defend_Brace` (L1 had none; added). Never the red telegraph.
+- **Guard meter:** weapon parries never fill it (`OnGuardAbsorbedHit` is only reached from the body-block branch). Thin bar under the monster HP bar, built on first use, `SetGuardMeter` early-outs when unchanged. Guard breaks observed: L1 1, L2 2, L3 1-2 per 100 s sim. Break = white flash, `GUARD BREAK!` callout, hit-reaction played at ~0.45-0.63x speed to fill the stagger, x1.25 damage.
+- **Reactive vs timed in the sims:** L2 1-3 reactive, L3 4-6 reactive (reaction measured 0.27 s / 0.20 s); **L1 gets 0 reactive in a hard-poke test** because it flinches on most hits (by design) and is almost never free; its guard is mostly the timed one. First version had range 1.5-1.7 and almost no reactive guards at L1/L2 (swing arrives before the 0.35 / 0.25 s delay); widened to 2.5 / 2.2.
+- **Dodge:** implemented (`BeginDodge`, arena-radius limited, 8 s cooldown, never while busy), **shipped OFF** (`dodgeEnabled = false`): no sidestep / backstep clips exist.
+- **Animator discipline:** no controller was edited. No Any State transitions besides Death (re-read all three). Every new state path reuses existing transitions (Defend / Hit / Idle). **Trigger -> animation start: <= 1 frame (0.000-0.033 s at 30 fps) for every attack in every sim; no attack missing.**
+
+**Missing clips (all unverified, I cannot log in to Mixamo):**
+| need | search | alternatives |
+|---|---|---|
+| guard high | `Sword And Shield Block` (verify) | `Great Sword Blocking`, `Standing Block Idle` (verify) |
+| guard side | `Sword And Shield Block Left` (verify) | `Standing Block Left`, `Great Sword Parry` (verify) |
+| sidestep | `Sword And Shield Strafe Left` / `Right` (verify) | `Left Strafe`, `Dodge Left` (verify) |
+| backstep | `Sword And Shield Walk Back` (verify) | `Stand To Roll Back`, `Backwards Dodge` (verify) |
+| stagger | `Great Sword Impact` is ON DISK and used | `Standing React Large From Front` |
+
+### PART 3 — Level 3 rebalance
+**Diagnosis (read, not guessed).**
+- **Front-hit bonus was effectively DEAD**: `ComputeFacingMultiplier` used a 3-D direction from the monster's foot-level root to a chest-height hit point, so the dot with `forward` was ~0.2 and the 0.35 threshold almost never passed. In the sims it fired on **6/49 hits (old formula) vs 49/49 (horizontal fix)**. Fixing it made every front hit +25 %, so L1 hammer base 12 -> 9.5 to compensate.
+- Max single hit (everything stacked: full speed, angle 1.4, front 1.25, weak 1.75, full momentum, 40 taps): **mace 181 (12 % of 1500 HP, before), flail 145, katana 59.** Now capped at **6 % of max HP = 174 of 2900** (`MonsterController.maxSingleHitFraction`); the real maxima after rebalance are 4.9 % / 4.6 % / 2.5 % (+x1.25 in a stagger = 6.1 % / 5.7 % / 3.2 %), so the cap only bites in the corner case.
+- Live backend (read-only GET): Easy 62 swings mean 6.5 m/s, Medium 204 swings mean 2.1 m/s, **Hard 61 swings mean 4.2 m/s** (so L3 has real data this time; tiers: 43 % light / 31 % medium / 26 % full). Dmg per hit L1 ~41, L2 ~21, L3 ~44-64.
+- Round timer = **40 s** on all three levels (`RoundManager.roundDuration`). Both `timerExpireMeansDefeat` and `timerExpireMeansSurvivalWin` are **false** in all scenes, so the battle just continues, but **a ~2 min Level 3 fight does not fit the 40 s timer** (HUD shows 0 s, `RegisterTap` stops counting, tap damage bonus is frozen at the first 40 s). Not changed (decision pending).
+
+**TTK (simple Monte-Carlo, 2,500 fights each; inputs: live swing histograms, measured guard / stagger shares, hit rate 0.43 / 0.59 per s L1 / L2, L3 0.55 / 0.65 / 0.85 per s for mace / flail / katana (ASSUMPTION), tap bonus capped at 40 s). A model, not a headset.**
+| | before | after |
+|---|---|---|
+| L1 hammer | 35 s | 34 s (HP 500 unchanged, base dmg 12 -> 9.5) |
+| L2 sword | 76 s (**2.2x** L1) | **54 s (1.5x)** (HP 800 -> 680) |
+| L3 mace | 59 s | **122 s** (3.5x old L1) |
+| L3 flail | 64 s | **115 s** |
+| L3 katana | 85 s | **116 s** |
+Weapon spread before 59-85 s (**44 %**), after 115-122 s (**6 %**) via damage multipliers mace 1.35 -> 1.05, flail 1.1 -> 1.0, katana 0.9 -> 1.12. **L3 HP 1500 -> 2900.** I took the "2-3 minutes" goal over the "2.2-2.5x L1" suggestion (that would be 77-88 s); to hit 85 s set `monsterMaxHealthOverride` to about 2000 in Level3_Hard.
+
+**Phase shifts (66 % and 33 %):** hits are x0.25 and show `RESISTED n` (grey) for the roar (2.4 s); the roar starts after the current swing / guard / stagger ends. Verified: 2 phase shifts and 2-5 resisted hits per sim; enrage uses the same hold.
+**Enrage:** tempo 1.3 -> **1.15** (shortest wind-up 0.525 s / 1.15 = **0.457 s >= 0.45 s**; at 1.3 it was 0.40 s), cooldown scale 0.8 -> 0.7. The slam keeps its warning sound + red ring + purple tint (unchanged).
+**Player HP loss (model + sim):** never blocks or dodges: **12.5 HP/s** measured (slam only 135 of 1,247 damage, 11 %) -> ~1,500-1,700 over a 2 min fight, so with **player HP 800 -> 1100 (L3 only)** that player dies at ~85 s, roughly two thirds through. A player who dodges the slam and half the other arcs (ASSUMPTION): ~5.6 HP/s = ~670 of 1,100 HP (about 40 % left). Hard, winnable.
+
+| | L1 | L2 | L3 |
+|---|---|---|---|
+| monster max HP | 500 | 680 | 2900 |
+| typical TTK (model) | 34 s | 54 s | 115-122 s |
+| telegraph range (first hit) | 0.89-1.6 s | 0.57-1.48 s | 0.525-1.3 s (enraged 0.457-1.13) |
+| attack cooldown | 3.2 s | 2.2 s | 1.9 s |
+| monster damage / hit (x flavour) | 8 (x1.1) | 14 (x1.2) | 18 (x1.25) |
+| attacks | 6 | 10 | 14 |
+| reactive chance | 15 % | 30 % | 45 % |
+| guard meter threshold | 5 | 4 | 3 |
+| poise | Light | Medium | Full |
+| player HP | 500 | 800 | 1100 |
+Every row ascends L1 < L2 < L3 (telegraph time and cooldown descend, as required) **except** that L2's first-hit telegraph minimum (0.57 s) is below L3's (0.525 s) in the wrong direction by 0.05 s; L3's minimum is the 0.45 s readability floor, so I left it.
+
+### PART 4 — Game feel (all behind toggles)
+| item | status |
+|---|---|
+| Haptics (`CombatFeedback.haptics`) | **ON.** 174 pulses in a 40 s L3 sim, light 0.25 / medium 0.5 / full+weak 0.9 / blocked 0.35 / clash 1.0 (0.03 s) / damage both hands 0.7; every pulse stopped by a realtime coroutine, newest pulse wins. **Untested on a controller** (editor has none) |
+| Hit-stop (`hitStop`, 0.07 s) | **ON**, monster Animator + AI clock only. 3 hit-stops in the sim, `Time.timeScale` stayed 1 |
+| Sound variation (`HitDetection.varyHitSounds`) | **ON.** 3 + 3 variants per weapon from existing clips, +-6 % pitch. **No new files needed; flagged: variants are reused clips, so true variety wants new recordings** |
+| Damage numbers by tier (`builtInDamageNumbers`) | **ON.** There was NO number system (`damageNumberPrefab` is null in every scene, numbers only logged). Built a pooled one: size / colour by tier, grey `RESISTED`, blue `BLOCKED`, `GUARD BREAK!`; 0 allocation per hit after the pool is built |
+
+### PART 5 — Performance (editor, Play mode; NOT Quest numbers)
+| | draw calls | triangles | setPass | shadow casters | script ms/frame |
+|---|---|---|---|---|---|
+| L1 before -> after | 104 -> 114 | 134k -> 134k | 16 -> 14 | 62 -> 66 | 0.11 -> 0.74 |
+| L2 before -> after | 51 -> 49 | 74k -> 69k | 11 -> 11 | 25 -> 23 | 0.15 -> 0.18 |
+| L3 before -> after | 91 -> 89 | 209k -> 207k | 34 -> 33 | 40 -> 38 | 0.19 -> 0.34 |
+The L1 "after" script figure is the noisiest (one sampled window, while the monster was mid-leap); treat 0.1-0.7 ms as the range. Draw-call changes are within run-to-run noise (the guard bar and numbers are screen-space / pooled). **No new lights, no new realtime shadows, no post-processing.** Console: **0 errors, 0 warnings** after the last Play session (the one pre-existing editor-only deprecation warning in `Level3EngagementBuilder` reappears on a recompile). The new components do not allocate per frame: `MonsterPersonalSpace` / `MonsterDefense` use preallocated arrays and cached references, `CombatUIController` numbers are pooled.
+
+### Regression checklist (how each was checked)
+| item | result |
+|---|---|
+| Defend uses `Monster_GuardPose` (L1/L2), no sitting | **holds** - no controller was edited; guard raise uses the same Defend state |
+| Player hit never cancels a wind-up | **holds: 27/27** mid-wind-up full-tier hits (L1 6, L2 10, L3 11 melee): state unchanged, no Hit state, damage applied, attack resolved |
+| Full-body hit coverage, weapon colliders tagged MonsterWeapon | **holds** (collider dump of all three prefabs: 13-15 hit volumes, `MonsterWeapon` triggers untouched) |
+| Weapon parry / body block / normal hit | **holds** - in every sim all three counters were non-zero (e.g. L3 mace: 156 clashes, 4 body-blocked, 55 hits); L3 slam stays unblockable |
+| Log spam / HUD / allocations | **holds** - no new `Debug.Log` outside `verboseAttackLogs`; guard bar and numbers redraw only on change |
+| SessionReporter | **holds** - all scenes: production URL, wake ping, 60 s wake / 5 s timeout, verbose off (re-read from the loaded scenes after saving) |
+| Scenes separate, all three enabled in Build Settings | **FIXED.** Level 1 only was enabled (`ede881d`); L1 + L2 + L3 are now enabled (MainMenu / Results left disabled as found) |
+| L3 flame / aura look unchanged | **holds** - no change to `MonsterGlow`, `MonsterAxeFlames`, `MonsterSerpentAura`, materials |
+
+### Headset checks, most important first
+1. **Recoil feel** of the personal-space clamp on L1 / L3 attacks (up to ~0.3 m back-slide in a frame). If it reads as a stutter, set `MonsterPersonalSpace.iterations` lower or add a push-speed limit.
+2. **L1 spacing**: nearest surface now 0.13 m inside the hammer reach. If you cannot reach it comfortably, raise the L1 scene's `monsterAttackRangeOverride` toward 1.75.
+3. **Reaction fairness**: the guard goes up about 0.35 / 0.25 / 0.18 s after a fast swing comes in. A fast swing should still beat it.
+4. **Haptics** (never run on a controller) and the **0.07 s monster hit-stop** comfort.
+5. **L3 length**: ~2 min and 1100 HP; the 40 s round timer will have expired long before the end.
+6. **Phase-shift roars** at 66 % / 33 % (the hits are resisted; check the "RESISTED" cue reads).
+7. Damage-number size at arm's length; the guard bar visibility under the HP bar.
+8. Frame time on Quest with OVR Metrics (below).
+
+**OVR Metrics on the headset** (each level): install OVR Metrics Tool, enable the overlay in `Developer Runtime Tools`, log FPS, **stale frames**, CPU level, GPU level, app GPU time; fight for 2 minutes at normal swing intensity, then read the CSV. Pass: FPS 72 flat, stale frames 0, GPU level <= 3 (L3 will be the highest: ~207k tris, 33 setPass).
+
+---
+
+Last updated: **2026-10-04 — Level 1: monster spacing root-caused and fixed (useHeadTarget), hammers removed from the shadow pass (-36% triangles), darker battle lighting, combo counter shipped. Parts 4B1/4B2/4B3/4C/4E and Part 5 NOT built — see "Not done this pass".**
+
+---
+
+## 2026-10-04 — L1 spacing, L1 rendering, L1 mood lighting, combo counter
+
+**Method.** Unity MCP again over raw HTTP (the configured client link still fails with ECONNREFUSED; the server on 127.0.0.1:8080 works: initialize → mcp-session-id → tools/call). Every number below was measured on live objects in Play mode or read off the real assets. Test fights ran with `SessionReporter.baseUrl` redirected at runtime to `http://127.0.0.1:9`; the saved scenes still carry the production URL (re-checked after saving).
+
+**Two Play-mode traps, both mine, both now avoidable:**
+- **The editor does not tick while unfocused.** Play mode entered but froze at frame 172. `Application.runInBackground = true` (set at runtime, first thing after entering Play) fixes it. Without this every "nothing happened" result is meaningless.
+- **`PlayerNamePicker` sits ON `BattleSystems`.** Calling `pnp.gameObject.SetActive(false)` to clear the name gate **deactivates BattleSystems**, which silently kills `Update` on BattleManager, RoundManager, SessionReporter and XPManager. Disable the *component* (`pnp.enabled = false`) — `BlocksStart` already checks `isActiveAndEnabled`. This produced one false "combo never expires" bug and the session's only console error.
+
+### CARRY-OVER from the previous pass
+
+| Item | Status |
+|---|---|
+| (a) Level 1 animation diagnosis | **Done and still holding.** `Monster_Easy_HipHop` Animator `cullingMode = AlwaysAnimate`, same as L2/L3. |
+| (b) Monster colour / material fix | **Done and still holding.** `bear_normal.png` and `hammer_FINISH_Material_001_Normal.png` are both `NormalMap`, sRGB off. No material under the monster uses an error shader. |
+| (c) Subtle glowing hammers | **Still not built** (see Part 4E below). |
+
+**Checked while there, not a bug:** the Level 1 monster's sword renders bright pink/magenta. That is the shattered-crystal-sword's own `lambert2` texture, **not** the URP magenta error shader — every material under the monster resolves to `Universal Render Pipeline/Lit` or `/Unlit`. Worth an eye on the headset, but nothing is broken. (Minor: `pPlane1..4` still use `lambert2` while `pPlane8..13,21` use `M_L1_SwordGlow`; only the latter 7 were rewired last pass.)
+
+### PART 1 — "hammer/hand overlapping the monster": ROOT CAUSE = L1 measured distance to the rig ROOT in 3D
+
+**The cause is one serialized flag.** `MonsterAI.useHeadTarget` was **false** on the Level 1 monster and **true** on Levels 2 and 3. With it false, `DistanceToTarget()` is the **3-D** distance from the monster's feet (y≈0) to the `OVRCameraRig` root at **y = 1.6**. The monster closed until that 3-D distance hit `attackRange` 2.2, which left it only
+
+    sqrt(2.2² − 1.6²) = **1.509 m away horizontally**
+
+That is why only Level 1 had the problem: L2 (1.55) and L3 (1.45) already measure *horizontal* metres to the headset, so their numbers mean what they say.
+
+**Measured before the fix** (Play mode, fight running, monster settled):
+
+| | before |
+|---|---|
+| monster root, horizontal from head | 1.509 m |
+| nearest body surface (R forearm) | 0.618–0.744 m |
+| monster's head collider | 0.740 m |
+| chest | 1.067 m |
+| **nearest body surface during its own attacks** | **0.189 m** (Overhead Strike), 0.217 Spin Slash, 0.228 Slash |
+
+**Player reach, measured from the real transforms** (not assumed): the hammer mesh `HIGH` is 0.575 m long at scale 0.085; the striking `BoxCollider` is 0.272 × 0.187 × 0.238 m sitting 0.017 m from the grip pivot, and the grip pivot is 0.216 m from the hand anchor — so the weapon adds **0.392 m beyond the hand anchor**. Sweeping the real hand anchor forward gives:
+
+| hand forward of head | hammer box far face |
+|---|---|
+| 0.38 m (editor rest pose) | 0.799 m |
+| 0.55 m | 0.964 m |
+| **0.60 m (arm extended)** | **1.013 m ← max reach** |
+| 0.65 m (extended + lean) | 1.062 m |
+
+**Fix (two edits):**
+1. `Monster_Easy_HipHop.prefab` → `MonsterAI.useHeadTarget = **true**` (now matches L2/L3).
+2. `LevelManager.GetParams(Easy).monsterAttackRange` 2.2 → **1.75** — now horizontal metres to the headset.
+
+**Measured after the fix** (monster settles at 1.733 m, 493 frames of idle sampled):
+
+| | before | after | target |
+|---|---|---|---|
+| monster root, horizontal | 1.509 | **1.733** | — |
+| nearest body surface | 0.618–0.744 | **0.771 min / 0.845 mean / 1.006 max** | — |
+| → inside max reach (1.013 m) | 0.27–0.43 | **0.168 m mean (0.007–0.242 over the idle cycle)** | 0.15–0.25 ✓ |
+| monster head collider | 0.740 | **1.053** | ≥ 0.5 ✓ |
+| chest | 1.067 | **1.332** | — |
+
+**Personal space during the monster's own attacks**, all six forced and sampled per frame:
+
+| attack | nearest ANY collider (before → after) | nearest torso/head (after) |
+|---|---|---|
+| Slash | 0.228 → **0.473** | 0.867 |
+| Side Sweep | 0.396 → **0.697** | 0.896 |
+| Overhead Strike | 0.189 → **0.495** | 0.794 |
+| Cut and Chop | 0.270 → **0.537** | 0.758 |
+| Spin Slash | 0.217 → **0.442** | 0.908 |
+| Leaping Slam | 0.432 → **0.601** | 0.771 |
+
+**The monster's body (torso, hips, head, body capsule) never comes closer than 0.758 m** — comfortably past the 0.5 m rule. What still dips below 0.5 m is the **swinging forearm** on Slash / Overhead / Spin Slash (0.442–0.495 m), i.e. the sword arm passing through the swing, not the body arriving. Caveat: the editor was running ~10 fps during that sweep (42–92 frames per attack), so the true minimum could be a few cm lower than sampled.
+
+**No lunge exists to shorten.** The monster's root Z was **constant at 1.509** through every one of the six attacks, including Leaping Slam (which lifts the head to 3.56 m but lands on the spot). The airborne attacks are vertical; nothing carries the body through the head or hand volume.
+
+**Item 3 — contact forces: already clean, nothing to change.** Both hammer colliders are `BoxCollider` **isTrigger = true** on **kinematic** Rigidbodies (gravity off). The monster has **no Rigidbody and no CharacterController** at all, so its 14 hit volumes are static colliders that cannot push anything. The layer collision matrix has **zero** ignore pairs — everything is on `Default` — which is harmless here because there is no dynamic body in the fight. `Physics.ComputePenetration` between each hammer and every monster collider reports **no overlap** in the idle pose.
+
+**Item 4 — attacks still land, both directions, verified in Play mode:**
+- **Monster → player:** 70 s natural fight, AI choosing: 18 attacks started, **17 of 17 resolved attacks reached the player**, resolve distance 1.685–1.781 m, 9 defends. Mix: Slash ×5, Side Sweep ×5, Cut and Chop ×4, Spin Slash ×3, Overhead ×1.
+- **Player → monster:** driving the real hand anchor through a 0.30–0.70 m thrust at 1.6 Hz for 25 s landed **26 real hits** through the real `HitDetection` trigger path (19–22 damage each), plus 10 weapon clashes and 4 correctly-rejected too-slow taps, taking the monster from **500 HP to 0**. The new spacing does not put the monster out of reach.
+
+### PART 2 — Level 1 rendering: hammers removed from the shadow pass
+
+**Measured in Play mode, Level 1, fight active, before → after:**
+
+| | before | after | change |
+|---|---|---|---|
+| triangles | 208,783 | **133,147** | **−75,636 (−36.2 %)** |
+| vertices | 177,622 | 125,224 | −52,398 (−29.5 %) |
+| draw calls | 114 | **98** | −16 |
+| SetPass calls | 16 | 16 | 0 |
+| shadow casters | 68 | **59** | −9 |
+
+The 75,636 triangles saved is almost exactly the hammer pair (37,672 × 2 = 75,344): they were being drawn a **second** time for the shadow map. `PlayerHammer` and `PlayerHammer_Left` are now `castShadows = Off`, `receiveShadows = false` (both verified on the saved scene; the right one is a prefab instance, so its change is a prefab override).
+
+**Do not repeat this measurement trap:** summing `sharedMesh` triangles over shadow-casting renderers reports ~1.4 M triangles for Level 1. That is wrong — 49 dungeon renderers share one `Combined Mesh (root: scene)` static-batch mesh and each draws only a slice. `UnityStats.triangles` (208 k → 133 k) is the real per-frame figure.
+
+**URP asset — the shipping one was already right.** Build target is **Android**, and Android's default quality level is **0 "Mobile" → `Assets/Settings/Mobile_RPAsset.asset`**. The editor runs quality level "PC" (`PC_RPAsset`), so editor-only numbers come from a different asset.
+
+| Mobile_RPAsset (ships to Quest) | value | verdict |
+|---|---|---|
+| shadow cascades | **1** | already correct |
+| additional-light shadows | **off** | already correct |
+| soft shadows | off | already correct |
+| main-light shadow resolution | 1024 | fine |
+| render scale / MSAA | 0.80 / 4× | fine |
+| shadow distance | 50 m → **20 m** | **changed** |
+
+Level 1's whole arena is 16.96 × 5.24 × 12.84 m and the furthest shadow-casting renderer sits **7.27 m** from the player, so 50 m of shadow distance was spreading one 1024² map over 2.5× more range than any level needs. **This asset is shared by all three levels** — Level 3's dock arena has not been re-checked at 20 m, so if distant dock geometry loses its shadow, raise this back toward 30 m.
+
+**Hammer meshes: 37,672 triangles each, not decimated (as instructed).** To cut them further, provide either a lower-poly hammer model, or approval to run a Blender decimation to roughly **6–8 k triangles each** — at arm's length in VR the silhouette and the bronze banding are all that read, and ~80 % of the geometry is not visible. The mesh is a **single submesh, 25,958 vertices, Read/Write disabled**.
+
+### PART 3 — Level 1 darker battle atmosphere
+
+**Read first (so L1 < L2 < L3 is preserved by numbers, not by eye):**
+
+| | L1 before | **L1 after** | L2 | L3 |
+|---|---|---|---|---|
+| directional intensity | 1.25 | **0.75** (60 %) | 0.55 | 0.45 |
+| directional colour | 1.00, 1.00, 1.00 | **0.80, 0.86, 1.00** | 0.62, 0.72, 0.95 | 0.62, 0.72, 0.90 |
+| ambient mode | Skybox | **Gradient** | Gradient | Gradient |
+| ambient sky | (skybox-driven) | **0.24, 0.27, 0.33** | 0.20, 0.25, 0.36 | 0.16, 0.20, 0.26 |
+| fog | **off** | **on, exp², 0.012** | on, exp², 0.022 | on, exp², 0.045 |
+| fog colour | — | **0.14, 0.16, 0.21** | 0.10, 0.12, 0.17 | 0.12, 0.14, 0.17 |
+| torch point lights | 2 | 2 (unchanged, **shadows Soft → None**) | 7 | 8 |
+
+Level 1 remains the lightest of the three on every axis (brightest directional, thinnest fog, lightest ambient).
+
+**Correction to an earlier note:** Level 1 was previously recorded as having no point lights. It has **two torches** at (±4.00, 1.60, 0.62), warm orange (0.80, 0.49, 0.16), intensity 2.86, range 5.82. They were missed because they live inside a prefab instance and so are not raw `Light` blocks in the scene YAML — they only show up on live objects. Their intensity is untouched, so they now read *more* strongly against the darker ambient. Their shadows are off, so **Part 3 adds no realtime shadow cost** (and the shipping Mobile asset disables additional-light shadows anyway).
+
+**Measured on real renders from the headset camera** (mean luminance, 0–255, region below the HUD):
+
+| | scene luminance | median |
+|---|---|---|
+| before | 100.9 | 93.4 |
+| **after** | **67.7** | **64.3** |
+
+**−33 %**, and the dungeon is still clearly readable.
+
+**HUD contrast: measured, no change needed.** The HUD is unlit UI, so the darker scene does not dim it. Bright-pixel / panel-pixel contrast is **4.3× before and 4.3× after**; the text and bars read *better* against the darker background. Nothing was brightened.
+
+**Not changed:** the skybox. `AllSky_Space_AnotherPlanet` uses the `Mobile/Skybox` shader, which exposes **no `_Exposure` and no `_Tint`**, so it cannot be dimmed without swapping the material — and the material may be shared. Switching ambient to Gradient already removed the skybox's contribution to scene lighting, which was the part that mattered.
+
+### PART 4A — animation inventory (matched by asset identity, not name)
+
+Every Mixamo FBX clip in this project is literally named `mixamo.com`, so any name-based audit of clip usage is garbage. Matched by asset reference instead:
+
+| clip file | len | used by |
+|---|---|---|
+| `Great Sword High Spin Attack.fbx` | 1.87 s | L1:Atk_SpinSlash (0.87) · L2:Atk_Whirlwind (1.10) |
+| `Great Sword Slash.fbx` | 1.83 s | L1:Atk_Slash (0.94) · L2:Atk_Diagonal (1.20) |
+| `Monster_HitReaction.fbx` | 1.60 s | L1:Hit · L2:Hit · Vampire:Hit |
+| `Monster_SwordIdle.fbx` | 3.70 s (loop) | L1:Idle · L2:Idle · Vampire:Idle |
+| `Monster_GuardPose.anim` | 1.00 s | L1:Defend (0.667) · L2:Defend (1.00) |
+| `Mutant Jump Attack.fbx` | 3.70 s | L1:Atk_LeapSlam |
+| `Sword And Shield Attack (L1).fbx` | 2.33 s | L1:Atk_OverheadStrike |
+| `Sword And Shield Slash (L1).fbx` | 2.43 s | L1:Atk_CutAndChop |
+| `Standing Melee Attack Horizontal.fbx` | 2.40 s | L1:Atk_SideSweep · L2:Atk_Sweep · Vampire:Attack |
+| **`Great Sword Impact.fbx`** | **0.67 s** | **only the legacy Vampire controller — free for Level 1** |
+| **`Great Sword Idle.fbx`** | **3.70 s** | ***UNUSED*** — imported **Generic / NoAvatar**, so unusable on a humanoid without re-import |
+| **`Hit Reaction.fbx`** | 1.60 s | ***UNUSED*** (duplicate of Monster_HitReaction) |
+| **`One Hand Sword Combo.fbx`** | 4.53 s | ***UNUSED*** |
+
+**Gaps against the requested list:**
+
+| needed for | clip in project? |
+|---|---|
+| walk forward | **none** |
+| walk back | **none** |
+| strafe left / right | **none** |
+| idle variant | `Great Sword Idle.fbx` exists but is **Generic/NoAvatar** — needs re-import as Human to be usable |
+| taunt | **none** |
+| big-hit stagger | **`Great Sword Impact.fbx` (0.67 s) is exactly this** — it is the knocked-back recoil that was wrongly used as a guard pose and caused the old "sitting" bug. Free to use. |
+
+### PART 4D — Mixamo shopping list
+
+**Import settings used by every humanoid clip in this project** (copy these exactly): Animation Type **Humanoid**, Avatar Definition **Create From This Model**, Import Materials **None**, Scale Factor **1** with **Use File Scale on**, **Resample Curves on**, Anim. Compression **Keyframe Reduction**, Import BlendShapes on, Optimize Game Objects **off**, Read/Write **off**, Mesh Compression **Off**, `keepOriginalPositionY` **on**, `lockRootHeightY` **on** for the L1 attack clips, Loop Time **on only for idle/locomotion**.
+
+| need | primary search term | alternatives | note |
+|---|---|---|---|
+| walk forward | `Sword And Shield Walk` | `Great Sword Walk`, `Zombie Walk` | (verify) — pick the in-place variant and bake root motion as the L1 clips do |
+| walk back | `Sword And Shield Walk Back` | `Walking Backwards` | (verify) |
+| strafe left | `Sword And Shield Strafe Left` | `Left Strafe Walking` | (verify) |
+| strafe right | `Sword And Shield Strafe Right` | `Right Strafe Walking` | (verify) |
+| taunt | `Taunt` | `Standing Taunt Battlecry`, `Roaring` | (verify) |
+| idle variant | `Sword And Shield Idle` | `Great Sword Idle` (already on disk — re-import as **Humanoid** instead of buying it again) | the on-disk file only needs its importer changed |
+| big-hit stagger | *(already on disk: `Great Sword Impact.fbx`)* | `Standing React Large From Front` | no purchase needed |
+
+I cannot log in to mixamo.com, so every search term above is marked **(verify)**.
+
+### PART 4B4 — combo counter: BUILT AND VERIFIED
+
+- `XPManager`: `comboWindow` **2.0 s**, `xpComboStepBonus` **8**, `comboBonusCap` **10**; `CurrentCombo`, `BestCombo`, `OnComboChanged`. Consecutive hits inside the window raise the count; the bonus is `8 × (min(combo, 10) − 1)` XP, capped so a long chain cannot run away with the score. `Update()` returns on its first line unless a combo is actually live.
+- `CombatUIController.UpdateCombo(int)`: rewrites the label **only when the value changes** (`shownCombo` guard), and shows nothing below ×2, so normal trading leaves the HUD quiet. New `ComboText` on `CombatCanvas`, cloned from the XP label, gold (1.00, 0.82, 0.25) so it does not read as XP.
+
+**Verified in Play mode.** Six hits inside the window, same 3.2 m/s swing and 20 damage:
+
+| hit | combo | XP gained | label |
+|---|---|---|---|
+| 1 | 1 | 32 | *(blank)* |
+| 2 | 2 | 40 | Combo x2 |
+| 3 | 3 | 48 | Combo x3 |
+| 6 | 6 | 72 | Combo x6 |
+
+Three hits spaced 2.6 s apart each gave combo **1** and 32 XP with a blank label. After the window lapsed the counter cleared to 0 and the label blanked. In the **real** 26-hit fight (hits through `HitDetection`, not injected) the counter reached **BestCombo = 16**.
+
+### Not done this pass — deliberately, not half-built
+
+- **Part 4B1 (spacing movement):** not built. There is **no locomotion clip of any kind** in the project — no walk forward, walk back or strafe (see 4A). Per the brief this ships disabled, and it would have to ship disabled, so no toggle was added to avoid dead code. Buy the four clips in 4D first.
+- **Part 4B2 (stagger on strong hits):** not built, but it is now **unblocked** — `Great Sword Impact.fbx` (0.67 s) is the right clip and is free. Needs a `Stagger` state in `Monster_L1_Sword`, a trigger, a ≥6 s cooldown and a full-tier check in `MonsterAI`.
+- **Part 4B3 (taunt / idle variation):** not built. No taunt clip exists; the one candidate idle variant is imported Generic/NoAvatar.
+- **Part 4C (animator discipline + 100 s trace):** only partly done. Verified: **`Any State → Death` is the only Any State transition in all three controllers**, the Defend clips are correct, and a player hit never cancels a wind-up (below). The per-attack trigger-to-animation-start delay trace was **not** re-run this pass.
+- **Part 4E (hammer glow):** still not built, for the same reasons as last pass, which were re-checked and still hold: the hammer mesh is a **single submesh, 25,958 vertices, Read/Write disabled**, one material over head, haft and pommel. A head-only glow needs either Read/Write + a generated emission mask, or a head/haft submesh split. Both are real asset changes on the object the player stares at.
+- **Part 5 (Level 2 glow, shared with Level 3):** **not started.** Flagged as the risky part in the brief and there was not enough of this pass left to refactor Level 3's working VFX into shared components *and* prove Level 3 is unchanged. Level 3's look is therefore untouched and still correct.
+
+### Regression check — every item on the DO-NOT-REGRESS list
+
+| item | result |
+|---|---|
+| Defend uses `Monster_GuardPose.anim`, no sitting | **holds.** L1:Defend → Monster_GuardPose (speed 0.667), L2:Defend → Monster_GuardPose (1.000), L3 → L3_Defend. Live over 461 Defend frames: hips **0.740 min / 0.757 mean**, leg extension **0.511 min** (the old sitting bug was hips 0.482, extension 0.287). Standing. |
+| A player hit never cancels a wind-up | **holds.** Damage applied mid-wind-up on Slash, Overhead Strike, Spin Slash and Leaping Slam: animator state unchanged in **4 of 4**, `isAttacking` still true, damage still applied (500 → 460). |
+| Full-body hit coverage on every monster | **holds.** Easy 13 volumes, Vampire 12 (Torso instead of Chest+Hips), TwinAxeBrute 13. |
+| Per-hit log spam off; HUD updates only on visible change | **holds.** `verboseAttackLogs` false on all three monster prefabs for both MonsterAI and MonsterAnimator. The new combo label follows the same rule via its `shownCombo` guard. |
+| SessionReporter wake ping, timeouts, production URL in all scenes | **holds.** All three scenes: `baseUrl = https://s-t-r-i-k-e-f-i-t.onrender.com`, `wakeBackendOnLoad 1`, `wakeTimeoutSeconds 60`, `requestTimeoutSeconds 5`, `verboseLogging 0`. Re-checked in the saved files after the runtime redirects. |
+| Three separate scenes; Level1_Easy enabled in Build Settings | **separate scenes hold. Level1_Easy is enabled — but see the build blocker below.** |
+
+### BUILD BLOCKER — Build Settings now ship Level 1 ONLY
+
+    [x] Assets/Scenes/Level1_Easy.unity
+    [ ] Assets/Scenes/Level2_Medium.unity
+    [ ] Assets/Scenes/Level3_Hard.unity
+    [ ] Assets/Scenes/MainMenu.unity
+    [ ] Assets/Scenes/Results.unity
+
+This is the mirror image of the previous pass (then L2+L3 shipped and L1 did not); commit `ede881d`/`a9a1ea0` "build settings reframed" flipped it. Level 1 **is** enabled as the DO-NOT-REGRESS list requires, so this was left exactly as found — but a build made now contains **only Level 1**, and `GameStateManager`'s L1 → L2 → L3 progression has nowhere to go. Tick L2 and L3 before building anything but a Level 1 test.
+
+### Headset checks, most important first
+
+1. **Level 1 spacing.** The monster should now stand about 1.73 m away and be fully visible rather than filling your view. A normal swing should connect on its arms/weapon without the hammer sinking into its chest. Its sword arm still sweeps to ~0.44–0.50 m from your face on Slash / Overhead / Spin Slash — if that feels too close in the headset, raise `monsterAttackRange` (Easy) from 1.75 toward 1.85.
+2. **Level 1 frame time**, OVR Metrics overlay on, swinging steadily. The hammers no longer draw in the shadow pass (−36 % triangles, −16 draw calls). If GPU% is still pinned, the hammer meshes themselves (37,672 tris each) are the next cut and need your go-ahead.
+3. **Level 1 mood.** Should read clearly darker and cooler but never murky; the two torches should now carry the room. Quest panels are dimmer than a monitor — if it is too dark, raise the directional from 0.75 toward 0.90 and/or drop fog density from 0.012.
+4. **Combo counter.** Land hits under 2 s apart; a gold "Combo x2/x3/…" should appear above-left of XP and vanish about 2 s after you stop. Check it does not hitch the HUD during a long chain.
+5. **Shadow distance 20 m on Level 3.** Shared asset — confirm no distant dock geometry lost its shadow.
+6. **Monster sword colour** (pink crystal) — confirmed not a shader error, but worth an eye on Quest/Vulkan.
+7. **Build Settings** — decide whether L2/L3 go back in before the next build.
 
 ---
 

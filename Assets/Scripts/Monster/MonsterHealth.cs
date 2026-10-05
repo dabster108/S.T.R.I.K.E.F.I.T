@@ -48,6 +48,12 @@ public class MonsterHealth : MonoBehaviour
 
     public void TakeDamage(float amount, Vector3 hitPoint)
     {
+        TakeDamage(amount, hitPoint, CombatUIController.DamageStyle.Default);
+    }
+
+    /// <param name="style">Damage-number look (swing tier, blocked, resisted...).</param>
+    public void TakeDamage(float amount, Vector3 hitPoint, CombatUIController.DamageStyle style)
+    {
         if (IsDead) return;
 
         amount = Mathf.Max(0f, amount);
@@ -58,7 +64,7 @@ public class MonsterHealth : MonoBehaviour
         PushUI();
 
         if (spawnDamageNumbers && CombatUIController.Instance != null)
-            CombatUIController.Instance.ShowDamageNumber(hitPoint, amount, damageNumberColor);
+            CombatUIController.Instance.ShowDamageNumber(hitPoint, amount, damageNumberColor, true, style);
 
         if (IsDead)
         {

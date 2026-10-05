@@ -4,6 +4,9 @@
 //          (MonsterAI.tempoScale + Animator.speed together, so hit frames stay on the visible impact), shorter
 //          cooldown, enraged attack weights (unblockable slam far more frequent), a red body tint, an aura light +
 //          embers and a faster breathing idle. The switch is announced with a roar that the AI waits for.
+//          Every phase break (including the enrage one) is a phase-shift pause: from the moment HP crosses the threshold
+//          until the roar ends, hits are resisted (phaseShiftDamageMultiplier + a "RESISTED" cue), so a phase cannot be
+//          burst through. The roar itself starts once the current swing / guard / stagger is over.
 // Dependencies: MonsterHealth, MonsterAI, MonsterAnimator, CombatUIController, MonsterEntrance (optional)
 // Attach to: monster root (Level 3 Executioner).
 
@@ -17,11 +20,23 @@ public class BossPhaseController : MonoBehaviour
     public float[] phaseThresholds = { 0.66f, 0.33f };
     public string[] phaseNames = { "PHASE 1", "PHASE 2", "ENRAGED" };
 
+    [Header("Phase-shift pause")]
+    [Tooltip("Roar + resist at every phase break. Off = the old behaviour (enrage roar only).")]
+    public bool phaseShiftPauses = true;
+    [Tooltip("Length of the phase-shift roar (s). The Roar clip is 2.4 s.")]
+    public float phaseShiftSeconds = 2.4f;
+    [Tooltip("Damage multiplier for hits during a phase shift.")]
+    [Range(0f, 1f)] public float phaseShiftDamageMultiplier = 0.25f;
+    [Tooltip("Played on a resisted hit (dull, not the guard clang).")]
+    public AudioClip resistClip;
+    [Range(0f, 1f)] public float resistVolume = 0.6f;
+
     [Header("Enrage")]
-    [Tooltip("Attack tempo while enraged: wind-ups, combo gaps, recovery and the Animator all run this much faster.")]
-    public float enrageTempo = 1.3f;
+    [Tooltip("Attack tempo while enraged: wind-ups, combo gaps, recovery and the Animator all run this much faster. " +
+             "Kept at a value where the shortest wind-up (0.525 s) stays a >= 0.45 s telegraph.")]
+    public float enrageTempo = 1.15f;
     [Tooltip("Attack cooldown multiplier while enraged (on top of the HP-based shrink).")]
-    public float enrageCooldownScale = 0.8f;
+    public float enrageCooldownScale = 0.7f;
     public Color enrageTint = new Color(1f, 0.55f, 0.48f);
     public string enragedBool = "Enraged";
     public string roarTrigger = "Roar";
@@ -39,6 +54,11 @@ public class BossPhaseController : MonoBehaviour
     [Tooltip("Latch: the enrage sequence (roar) has started. The enraged STATE itself is MonsterAI.enraged.")]
     [SerializeField] private bool enrageStarted;
     public int Phase => phase;
+    /// <summary>True from the moment HP crosses a phase threshold until that phase's roar has finished.</summary>
+    public bool InPhaseShift { get; private set; }
+    public int PhaseShifts { get; private set; }
+    public int ResistedHits { get; private set; }
+    private float lastResistSound = -1f;
     /// <summary>
     /// The single source of truth for "is the monster enraged": MonsterAI.enraged, which only EnterEnrage writes (at
     /// the end of the enrage roar). Attack weights, tempo, MonsterGlow, ArenaMoodController, MonsterAxeFlames and
@@ -100,27 +120,84 @@ public class BossPhaseController : MonoBehaviour
         phase = p;
         if (CombatUIController.Instance != null) CombatUIController.Instance.SetMonsterPhaseLabel(NameFor(phase));
         if (phase >= phaseThresholds.Length && !enrageStarted) StartCoroutine(EnterEnrage());
+        else if (phaseShiftPauses) StartCoroutine(PhaseShift());
         else if (phaseChangeClip != null && ai != null && ai.sfxAudioSource != null)
             ai.sfxAudioSource.PlayOneShot(phaseChangeClip, phaseChangeVolume);
+    }
+
+    /// <summary>MonsterController: a hit landed during a phase shift (damage already reduced).</summary>
+    public void NotifyResistedHit()
+    {
+        ResistedHits++;
+        if (resistClip == null || ai == null || ai.sfxAudioSource == null || Time.time - lastResistSound < 0.15f) return;
+        lastResistSound = Time.time;
+        ai.sfxAudioSource.PlayOneShot(resistClip, resistVolume);
+    }
+
+    /// <summary>
+    /// Resist from now; hold new actions, let the current swing / guard / stagger end, then roar (real Idle -> Roar
+    /// transition) with the AI off. Returns false if the monster died meanwhile (InPhaseShift is cleared either way).
+    /// </summary>
+    IEnumerator BeginShiftRoar(System.Action<bool> done)
+    {
+        InPhaseShift = true;
+        PhaseShifts++;
+        if (ai != null) ai.holdActions = true;
+        while (ai != null && (ai.CurrentAttack != null || ai.IsBusy || controller.isAttacking) && controller.isAlive) yield return null;
+        if (controller == null || !controller.isAlive) { InPhaseShift = false; if (ai != null) ai.holdActions = false; done(false); yield break; }
+
+        if (ai != null) ai.enabled = false;
+        controller.isAttacking = true; // no flinch (Hit) may cut the roar; also blocks CanAttack
+        if (anim != null) anim.PlayNamedTrigger(roarTrigger);
+        done(true);
+    }
+
+    void EndShift()
+    {
+        InPhaseShift = false;
+        if (ai != null) { ai.holdActions = false; ai.enabled = true; }
+        if (controller != null && controller.isAlive) controller.isAttacking = false;
+    }
+
+    IEnumerator PhaseShift()
+    {
+        bool ok = false;
+        yield return BeginShiftRoar(r => ok = r);
+        if (!ok) yield break;
+        if (phaseChangeClip != null && ai != null && ai.sfxAudioSource != null)
+            ai.sfxAudioSource.PlayOneShot(phaseChangeClip, phaseChangeVolume);
+        yield return new WaitForSeconds(phaseShiftSeconds);
+        if (controller == null || !controller.isAlive) { InPhaseShift = false; yield break; }
+        EndShift();
+        if (anim != null) anim.PlayState(MonsterAnimState.Idle);
     }
 
     IEnumerator EnterEnrage()
     {
         enrageStarted = true;
-        // Let the current swing finish, then hold the AI for the roar.
-        while (ai != null && ai.CurrentAttack != null) yield return null;
-        if (controller == null || !controller.isAlive) yield break;
-
-        if (ai != null) ai.enabled = false;
-        controller.isAttacking = true; // no flinch (Hit) may cut the roar; also blocks CanAttack
-        if (anim != null) anim.PlayNamedTrigger(roarTrigger);
+        if (phaseShiftPauses)
+        {
+            bool ok = false;
+            yield return BeginShiftRoar(r => ok = r);
+            if (!ok) yield break;
+        }
+        else
+        {
+            // Let the current swing finish, then hold the AI for the roar.
+            while (ai != null && ai.CurrentAttack != null) yield return null;
+            if (controller == null || !controller.isAlive) yield break;
+            if (ai != null) ai.enabled = false;
+            controller.isAttacking = true; // no flinch (Hit) may cut the roar; also blocks CanAttack
+            if (anim != null) anim.PlayNamedTrigger(roarTrigger);
+        }
         if (enrageRoarClip != null && ai != null && ai.sfxAudioSource != null)
             ai.sfxAudioSource.PlayOneShot(enrageRoarClip, enrageRoarVolume);
         if (enrageEmbers != null) enrageEmbers.Play(true);
 
-        // Tint and aura ramp in over the roar.
+        // Tint and aura ramp in over the roar (the roar lasts phaseShiftSeconds when the pause is on).
+        float roarLen = phaseShiftPauses ? Mathf.Max(enrageRoarSeconds, phaseShiftSeconds) : enrageRoarSeconds;
         float t = 0f;
-        while (t < enrageRoarSeconds)
+        while (t < roarLen)
         {
             t += Time.deltaTime;
             float k = Mathf.Clamp01(t / enrageRoarSeconds);
@@ -129,8 +206,10 @@ public class BossPhaseController : MonoBehaviour
             yield return null;
         }
 
-        if (controller == null || !controller.isAlive) yield break;
+        if (controller == null || !controller.isAlive) { InPhaseShift = false; yield break; }
         controller.isAttacking = false;
+        InPhaseShift = false;
+        if (ai != null) ai.holdActions = false;
         if (anim != null)
         {
             anim.SetBoolIfPresent(enragedBool, true);

@@ -1,6 +1,6 @@
 # Fitness Monster Battle (VR) — Project Context
 
-Last updated: **2026-10-02, fourth pass (axe flames + serpent aura) (see project_progress.md)**
+Last updated: **2026-10-05, overlap clamp + shared MonsterDefense + L3 rebalance (see project_progress.md)**
 
 ## Overview
 
@@ -40,8 +40,9 @@ MainMenu → Level1_Easy → Level2_Medium → Level3_Hard → Results
 
 ```
 Assets/Scripts/
-  Combat/     WeaponType, HitDetection, BattleManager
+  Combat/     WeaponType, HitDetection, BattleManager, CombatFeedback (haptics + monster-only hit-stop)
   Monster/    MonsterController, MonsterHealth, MonsterAI, MonsterAnimator, BossPhaseController, MonsterEntrance,
+              MonsterDefense (shared: awareness, reactive guard, guard meter/break, poise), MonsterPersonalSpace (head 0.6 m / hand 0.35 m clamp),
               MonsterWeakPoint, MonsterGlow (L3 emission), MonsterAxeThrow (L3 thrown axes), BossFinale (L3 slow-mo kill)
   Player/     PlayerCombat, PlayerHealth, PlayerExertionAudio (heavy breathing), PlayerLowHealthFeedback (L3 vignette + heartbeat)
   VFX/        GroundRuneVFX, DangerZoneIndicator, ArenaMoodController (L3 fight-driven lighting)
@@ -72,6 +73,10 @@ Assets/Scripts/
 | Lite Dungeon | `Assets/Gridness Studios/Elementary Dungeon Pack Lite/` (do not move) |
 | Old Sea Port | `Assets/Old Sea Port/` (do not move) |
 | HotelRoom | `Assets/HotelRoom-Mavi3D/` (unused) |
+
+## Fight tuning (2026-10-05)
+
+All per-level combat numbers live in `Editor/CombatTuning.cs` (monster prefab values + scene overrides on `LevelManager`: `monsterMaxHealthOverride` 500 / 680 / 2900, `monsterAttackRangeOverride` 1.65 / 1.85 / 1.45, `playerMaxHealthOverride` L3 1100). `Level3DualAxeBuilder` calls `CombatTuning.ConfigureMonster`, so rebuilding the boss keeps it. Re-apply with `CombatTuning.ApplyPrefabs()` + `CombatTuning.ApplyOpenScene()`. Play-mode harness: `Editor/CombatVerification.cs`.
 
 ## Docs
 

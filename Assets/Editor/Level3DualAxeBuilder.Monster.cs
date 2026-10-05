@@ -612,6 +612,10 @@ public static partial class Level3DualAxeBuilder
         phases.enrageRoarClip = Sfx("L3_Roar_Enrage"); phases.phaseChangeClip = Sfx("L3_PhaseChange_Growl");
         phases.enrageRoarSeconds = 1.8f;
 
+        // Shared fight tuning (personal-space clamp, MonsterDefense guards / guard break / poise, single-hit cap,
+        // phase-shift pauses, enrage tempo): one source for all three monsters, so a rebuild keeps it.
+        CombatTuning.ConfigureMonster(root, 3);
+
         PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
         Object.DestroyImmediate(root);
         EditorSceneManager.ClosePreviewScene(buildScene);

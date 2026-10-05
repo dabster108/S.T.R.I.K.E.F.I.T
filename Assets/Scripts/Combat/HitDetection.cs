@@ -27,7 +27,8 @@ public class HitDetection : MonoBehaviour
     public float maxSwingSpeed = 6f;
     [Tooltip("Max damage multiplier from velocity alone (uses PlayerCombat.maxVelocityDamageMultiplier if > 0).")]
     public float maxForceMultiplier = 2.5f;
-    public float facingBonusMultiplier = 1.25f; // bonus when hitting front of monster
+    [Tooltip("Bonus for hits on the monster's front half (measured horizontally from its root).")]
+    public float facingBonusMultiplier = 1.25f;
 
     [Header("Hit Rate Limit")]
     public float hitCooldown = 0.35f;
@@ -55,6 +56,16 @@ public class HitDetection : MonoBehaviour
     [Range(0f, 1f)] public float blockedHitVolume = 0.8f;
     public VRSoundButton soundButtonFallback;
 
+    [Header("Sound variation")]
+    [Tooltip("Pick a random variant + small random pitch per hit so repeated hits never sound identical.")]
+    public bool varyHitSounds = true;
+    [Tooltip("Variants for normal hits (hitSound is used when empty).")]
+    public AudioClip[] hitVariants = new AudioClip[0];
+    [Tooltip("Variants for heavy hits (heavyHitSound is used when empty).")]
+    public AudioClip[] heavyHitVariants = new AudioClip[0];
+    [Tooltip("Random pitch spread (0.06 = +/-6 %).")]
+    [Range(0f, 0.2f)] public float pitchJitter = 0.06f;
+
     [Header("Who can deal hits")]
     public string hammerTag = "Hammer";
     public string playerHandTag = "PlayerHand";
@@ -71,6 +82,11 @@ public class HitDetection : MonoBehaviour
     public bool LastWasWeakPoint { get; private set; }
     /// <summary>Damage passed to the monster by the last Hit / Blocked contact (before the monster's own defend reduction).</summary>
     public float LastDamage { get; private set; }
+    /// <summary>Monster struck by the last Hit / Blocked contact.</summary>
+    public MonsterController LastMonster { get; private set; }
+    public Vector3 LastHitPoint { get; private set; }
+    /// <summary>True if the front-hit bonus applied to the last Hit / Blocked contact (verification).</summary>
+    public bool LastWasFrontHit { get; private set; }
 
     private float lastHitTime = -999f;
     private Vector3 lastPosition;
@@ -155,6 +171,7 @@ public class HitDetection : MonoBehaviour
             {
                 // Clash clip in project is a long riser (~5s); keep it short/quiet so hits don't feel 2x frantic.
                 float vol = clashSound.length > 1.5f ? 0.45f : 0.85f;
+                Jitter();
                 audioSource.PlayOneShot(clashSound, vol);
             }
             
@@ -231,7 +248,10 @@ public class HitDetection : MonoBehaviour
         LastResult = monsterDefending ? ContactResult.Blocked : ContactResult.Hit;
         LastDamage = damage;
         LastWasWeakPoint = weakPoint != null;
-        monster.OnTakeDamage(damage, hitPoint);
+        LastWasFrontHit = facingMul > 1f;
+        LastMonster = monster;
+        LastHitPoint = hitPoint;
+        monster.OnTakeDamage(damage, hitPoint, speed, weakPoint != null);
         if (weakPoint != null) weakPoint.NotifyHit(this);
         if (monsterDefending)
             PlayBlockedFeedback(hitPoint, speed, monsterAi);
@@ -239,6 +259,7 @@ public class HitDetection : MonoBehaviour
         {
             // Weak point: its own confirmation sound instead of the normal flesh hit.
             if (hitParticles != null) { hitParticles.transform.position = hitPoint; hitParticles.Play(); }
+            Jitter();
             audioSource.PlayOneShot(weakPoint.hitClip, weakPoint.hitVolume);
         }
         else
@@ -282,8 +303,14 @@ public class HitDetection : MonoBehaviour
 
     float ComputeFacingMultiplier(Transform monsterRoot, Vector3 hitPoint)
     {
-        Vector3 toHit = (hitPoint - monsterRoot.position).normalized;
-        float facing = Vector3.Dot(monsterRoot.forward, toHit); // front hits ~1
+        // Horizontal: the root is at the feet, so a 3-D direction to a chest-height hit point pointed mostly up and the
+        // front bonus almost never fired (dot ~0.2 for a hit dead centre on the chest).
+        Vector3 toHit = hitPoint - monsterRoot.position;
+        toHit.y = 0f;
+        if (toHit.sqrMagnitude < 1e-6f) return 1f;
+        toHit.Normalize();
+        Vector3 fwd = monsterRoot.forward; fwd.y = 0f; fwd.Normalize();
+        float facing = Vector3.Dot(fwd, toHit); // front hits ~1
         if (facing > 0.35f) return facingBonusMultiplier;
         if (facing < -0.35f) return 0.85f;
         return 1f;
@@ -300,13 +327,17 @@ public class HitDetection : MonoBehaviour
         if (audioSource != null)
         {
             AudioClip clipToPlay = null;
-            if (swingSpeed >= heavySwingSpeedThreshold && heavyHitSound != null)
-                clipToPlay = heavyHitSound;
+            bool heavy = swingSpeed >= heavySwingSpeedThreshold && (heavyHitSound != null || (varyHitSounds && heavyHitVariants.Length > 0));
+            if (heavy)
+                clipToPlay = Pick(heavyHitVariants, heavyHitSound);
             else
-                clipToPlay = hitSound != null ? hitSound : heavyHitSound;
+                clipToPlay = Pick(hitVariants, hitSound != null ? hitSound : heavyHitSound);
 
             if (clipToPlay != null)
+            {
+                Jitter();
                 audioSource.PlayOneShot(clipToPlay);
+            }
         }
         else if (soundButtonFallback != null)
             soundButtonFallback.PlayClickSound();
@@ -320,6 +351,7 @@ public class HitDetection : MonoBehaviour
     {
         if (audioSource != null && blockedHitSound != null)
         {
+            Jitter();
             audioSource.PlayOneShot(blockedHitSound, blockedHitVolume);
             return;
         }
@@ -327,6 +359,19 @@ public class HitDetection : MonoBehaviour
         bool monsterPlaysBlockCue = monsterAi != null && monsterAi.defendBlockClip != null && monsterAi.sfxAudioSource != null;
         if (!monsterPlaysBlockCue)
             PlayFeedback(hitPoint, swingSpeed); // no block cue anywhere: keep the hit audible
+    }
+
+    AudioClip Pick(AudioClip[] variants, AudioClip fallback)
+    {
+        if (!varyHitSounds || variants == null || variants.Length == 0) return fallback;
+        var c = variants[UnityEngine.Random.Range(0, variants.Length)];
+        return c != null ? c : fallback;
+    }
+
+    void Jitter()
+    {
+        if (audioSource != null)
+            audioSource.pitch = varyHitSounds ? 1f + UnityEngine.Random.Range(-pitchJitter, pitchJitter) : 1f;
     }
 
     public Vector3 CurrentVelocity => velocity;

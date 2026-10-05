@@ -14,17 +14,17 @@ OcclusionCullingSettings:
 RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 10
-  m_Fog: 0
-  m_FogColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  m_Fog: 1
+  m_FogColor: {r: 0.14, g: 0.16, b: 0.21, a: 1}
   m_FogMode: 3
-  m_FogDensity: 0.01
+  m_FogDensity: 0.012
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
-  m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
-  m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
+  m_AmbientSkyColor: {r: 0.24, g: 0.27, b: 0.33, a: 1}
+  m_AmbientEquatorColor: {r: 0.17, g: 0.18, b: 0.2, a: 1}
+  m_AmbientGroundColor: {r: 0.08, g: 0.075, b: 0.07, a: 1}
   m_AmbientIntensity: 1
-  m_AmbientMode: 0
+  m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
   m_SkyboxMaterial: {fileID: 2100000, guid: 656058fe318eb48558d21d66d1a79a2b, type: 2}
   m_HaloStrength: 0.5
@@ -720,6 +720,7 @@ RectTransform:
   - {fileID: 1947588007}
   - {fileID: 2051043084}
   - {fileID: 267091911}
+  - {fileID: 1760713635}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -1006,6 +1007,7 @@ GameObject:
   - component: {fileID: 214438334}
   - component: {fileID: 214438335}
   - component: {fileID: 214438336}
+  - component: {fileID: 214438337}
   m_Layer: 0
   m_Name: BattleSystems
   m_TagString: Untagged
@@ -1034,6 +1036,7 @@ MonoBehaviour:
   timerText: {fileID: 1630030879}
   damageCounterText: {fileID: 1139243351}
   xpText: {fileID: 1947588008}
+  comboText: {fileID: 1760713636}
   playerHealthTMP: {fileID: 0}
   monsterHealthTMP: {fileID: 0}
   scoreTMP: {fileID: 0}
@@ -1055,8 +1058,15 @@ MonoBehaviour:
   damageNumberLifetime: 1
   damageNumberRiseSpeed: 1.2
   damageNumberParent: {fileID: 0}
+  builtInDamageNumbers: 1
+  scaleNumbersWithTier: 1
+  damageNumberPoolSize: 8
+  baseNumberSize: 1.1
+  numberTowardViewer: 0.3
   staminaUiStep: 0.02
   verboseDamageLogs: 0
+  phaseMarkerColor: {r: 1, g: 0.92, b: 0.6, a: 0.95}
+  phaseMarkerWidth: 0.012
 --- !u!114 &214438329
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1101,6 +1111,9 @@ MonoBehaviour:
   playerPrimaryWeapon: 1
   playerOffhandWeapon: 1
   monsterWeapon: 2
+  monsterMaxHealthOverride: 500
+  playerMaxHealthOverride: 0
+  monsterAttackRangeOverride: 1.65
   autoStartBattleOnLoad: 0
   autoStartDelay: 0.5
 --- !u!114 &214438331
@@ -1120,6 +1133,7 @@ MonoBehaviour:
   sceneMonster: {fileID: 0}
   timerExpireMeansDefeat: 0
   timerExpireMeansSurvivalWin: 0
+  victoryPanelDelay: 0.75
   scorePerDamagePoint: 1
   victoryBonus: 500
   survivalBonus: 250
@@ -1175,6 +1189,9 @@ MonoBehaviour:
   xpFullSwingBonus: 25
   xpPerBlock: 15
   xpVictoryBonus: 200
+  comboWindow: 2
+  xpComboStepBonus: 8
+  comboBonusCap: 10
   weakSwingSpeed: 1.5
   mediumSwingSpeed: 3
   fullSwingSpeed: 5
@@ -1200,6 +1217,8 @@ MonoBehaviour:
   maxBufferedEvents: 256
   maxEventsPerRequest: 50
   requestTimeoutSeconds: 5
+  playerListTimeoutSeconds: 3
+  renameTimeoutSeconds: 8
   verboseLogging: 0
   currentSessionId: 
   sessionPlayerName: 
@@ -1226,6 +1245,28 @@ MonoBehaviour:
   - Guest
   autoSelectSeconds: 10
   startButtonPath: CombatCanvas/StartBattleUIButton
+--- !u!114 &214438337
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 214438325}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a13aa16d38cc440b39622a641a2b7e47, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CombatFeedback
+  haptics: 1
+  lightPulse: {x: 0.25, y: 0.04}
+  mediumPulse: {x: 0.5, y: 0.06}
+  fullPulse: {x: 0.9, y: 0.09}
+  blockedPulse: {x: 0.35, y: 0.05}
+  clashPulse: {x: 1, y: 0.03}
+  damagePulse: {x: 0.7, y: 0.12}
+  frequency: 0.5
+  hitStop: 1
+  hitStopSeconds: 0.07
 --- !u!1 &267091910
 GameObject:
   m_ObjectHideFlags: 0
@@ -5281,6 +5322,8 @@ MonoBehaviour:
   swordObject: {fileID: 0}
   offhandSwordObject: {fileID: 0}
   shieldObject: {fileID: 1812943775}
+  weaponSets: []
+  showWeaponsBeforeBattle: 0
   swingController: 2
   offhandSwingController: 1
   shieldController: 1
@@ -5432,6 +5475,8 @@ MonoBehaviour:
   maxVolume: 0.3
   swingTriggerSpeed: 2
   swingRearmSpeed: 1.2
+  swingReversalAngle: 150
+  minSwingInterval: 0.35
   exertionWindow: 12
   swingsToStart: 8
   swingsToSustain: 5
@@ -5495,6 +5540,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 935806930815462672, guid: 7a937ee5bc40ba142a195e3a41fa7258, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4220554822487122790, guid: 7a937ee5bc40ba142a195e3a41fa7258, type: 3}
+      propertyPath: m_Shadows.m_Type
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
@@ -6313,8 +6362,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 13
   m_Type: 1
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_Intensity: 1.25
+  m_Color: {r: 0.8, g: 0.86, b: 1, a: 1}
+  m_Intensity: 0.75
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.802082
@@ -6714,6 +6763,85 @@ CanvasRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1759345379}
+  m_CullTransparentMesh: 1
+--- !u!1 &1760713634
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1760713635}
+  - component: {fileID: 1760713637}
+  - component: {fileID: 1760713636}
+  m_Layer: 0
+  m_Name: ComboText
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &1760713635
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1760713634}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 154840382}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 420, y: 162.5}
+  m_SizeDelta: {x: 200, y: 50}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1760713636
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1760713634}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f7201a12d95ffc409449d95f23cf332, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 0.82, b: 0.25, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_FontData:
+    m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
+    m_FontSize: 28
+    m_FontStyle: 1
+    m_BestFit: 0
+    m_MinSize: 10
+    m_MaxSize: 40
+    m_Alignment: 4
+    m_AlignByGeometry: 0
+    m_RichText: 1
+    m_HorizontalOverflow: 0
+    m_VerticalOverflow: 0
+    m_LineSpacing: 1
+  m_Text: 
+--- !u!222 &1760713637
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1760713634}
   m_CullTransparentMesh: 1
 --- !u!1001 &1762199431
 PrefabInstance:
@@ -7631,6 +7759,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4220554822487122790, guid: 7a937ee5bc40ba142a195e3a41fa7258, type: 3}
+      propertyPath: m_Shadows.m_Type
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -7786,12 +7918,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cac57dca394fa417c9eb67302efaa4a0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HitDetection
-  baseDamage: 12
+  baseDamage: 9.5
   minSwingSpeed: 1.2
   maxSwingSpeed: 8
   maxForceMultiplier: 2.5
   facingBonusMultiplier: 1.25
   hitCooldown: 0.35
+  momentumMaxBonus: 0
+  momentumBuildSeconds: 0.6
   hitParticles: {fileID: 0}
   audioSource: {fileID: 2018423429}
   hitSound: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
@@ -7801,6 +7935,16 @@ MonoBehaviour:
   blockedHitSound: {fileID: 0}
   blockedHitVolume: 0.8
   soundButtonFallback: {fileID: 0}
+  varyHitSounds: 1
+  hitVariants:
+  - {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+  - {fileID: 8300000, guid: 2274a158022034139a66d4e57b846cd9, type: 3}
+  - {fileID: 8300000, guid: 61aa95eeb86eb4a1eb3c91f7ee93209f, type: 3}
+  heavyHitVariants:
+  - {fileID: 8300000, guid: 74c677fd9a83e4f70b2ecf6f7710c3ea, type: 3}
+  - {fileID: 8300000, guid: 2274a158022034139a66d4e57b846cd9, type: 3}
+  - {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+  pitchJitter: 0.06
   hammerTag: Hammer
   playerHandTag: PlayerHand
   hand: 1
@@ -7833,8 +7977,8 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2018423422}
   m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
+  m_CastShadows: 0
+  m_ReceiveShadows: 0
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
   m_MotionVectors: 1
@@ -8428,6 +8572,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1475721779}
     m_Modifications:
+    - target: {fileID: 5257991026592706564, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5257991026592706564, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
+      propertyPath: m_ReceiveShadows
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5572942118458991960, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
       propertyPath: m_Material
       value: 
@@ -8497,6 +8649,10 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
     - target: {fileID: 7106805307913920253, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
+      propertyPath: baseDamage
+      value: 9.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 7106805307913920253, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
       propertyPath: audioSource
       value: 
       objectReference: {fileID: 4022487582033512963}
@@ -8504,6 +8660,38 @@ PrefabInstance:
       propertyPath: heavyHitSound
       value: 
       objectReference: {fileID: 8300000, guid: 74c677fd9a83e4f70b2ecf6f7710c3ea, type: 3}
+    - target: {fileID: 7106805307913920253, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
+      propertyPath: hitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7106805307913920253, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
+      propertyPath: 'hitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+    - target: {fileID: 7106805307913920253, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
+      propertyPath: 'hitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 2274a158022034139a66d4e57b846cd9, type: 3}
+    - target: {fileID: 7106805307913920253, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
+      propertyPath: 'hitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 61aa95eeb86eb4a1eb3c91f7ee93209f, type: 3}
+    - target: {fileID: 7106805307913920253, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
+      propertyPath: heavyHitVariants.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7106805307913920253, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[0]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 74c677fd9a83e4f70b2ecf6f7710c3ea, type: 3}
+    - target: {fileID: 7106805307913920253, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[1]'
+      value: 
+      objectReference: {fileID: 8300000, guid: 2274a158022034139a66d4e57b846cd9, type: 3}
+    - target: {fileID: 7106805307913920253, guid: 09aca19edcb6c49e19bfd0f237323719, type: 3}
+      propertyPath: 'heavyHitVariants.Array.data[2]'
+      value: 
+      objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

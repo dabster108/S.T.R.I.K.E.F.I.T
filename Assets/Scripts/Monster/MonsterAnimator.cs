@@ -133,9 +133,15 @@ public class MonsterAnimator : MonoBehaviour
 
     public void PlayDefend()
     {
+        PlayDefend(null);
+    }
+
+    /// <summary>Guard with a specific trigger (high / side guard); empty = defendTrigger.</summary>
+    public void PlayDefend(string trigger)
+    {
         if (animator == null || animator.runtimeAnimatorController == null) return;
         ResetAllTriggers();
-        TrySetTrigger(defendTrigger);
+        TrySetTrigger(string.IsNullOrEmpty(trigger) ? defendTrigger : trigger);
     }
 
     /// <summary>
