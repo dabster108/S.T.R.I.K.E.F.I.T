@@ -20,6 +20,7 @@ import { LiveArenaCard, LiveChip } from "../components/live/LiveFight.jsx";
 import { BarChart, CompareBars, LEVEL_COLORS, Legend, LineChart, TierBar } from "../components/charts/Charts.jsx";
 import { CalorieEstimate, EstimateNote, ExertionChart, LevelIntensityChart, PersonalBests, SwingTierChart, VsAverage } from "../components/fitness/Fitness.jsx";
 import PlayerEngagement from "../components/fitness/Engagement.jsx";
+import { AchievementsSection } from "../components/fitness/Achievements.jsx";
 
 const LEVELS = [
   { id: "all", label: "All levels" },
@@ -282,7 +283,12 @@ export default function PlayerView() {
             />
           </div>
 
-          <SectionRule index="01" title="Results" className="mt-10" />
+          <SectionRule index="01" title="Progress" className="mt-10" />
+          <div className="mt-4">
+            <AchievementsSection name={name} />
+          </div>
+
+          <SectionRule index="02" title="Results" className="mt-12" />
           <FigureStrip
             className="mt-4"
             items={[
@@ -294,7 +300,7 @@ export default function PlayerView() {
             ]}
           />
 
-          <SectionRule index="02" title="Effort over time" className="mt-12" />
+          <SectionRule index="03" title="Effort over time" className="mt-12" />
           <div className="mt-4 grid gap-6 xl:grid-cols-12">
             <Card className="overflow-hidden xl:col-span-8">
               <CardHeader title="Damage over time" subtitle="Total damage in each fight, in the order played" />
@@ -392,7 +398,7 @@ export default function PlayerView() {
             </Card>
           </div>
 
-          <SectionRule index="03" title="Fitness outcomes" className="mt-12" />
+          <SectionRule index="04" title="Fitness outcomes" className="mt-12" />
           <div className="mt-4 space-y-6">
             <PersonalBests bests={p.personalBests} />
             <div className="grid gap-6 xl:grid-cols-12">
@@ -433,7 +439,7 @@ export default function PlayerView() {
           </div>
 
           <SectionRule
-            index="04"
+            index="05"
             title="Engagement"
             className="mt-12"
             aside={
@@ -444,7 +450,7 @@ export default function PlayerView() {
           />
           <div className="mt-4">{engagement.data?.playerName === name ? <PlayerEngagement data={engagement.data} /> : null}</div>
 
-          <SectionRule index="05" title="History" className="mt-12" />
+          <SectionRule index="06" title="History" className="mt-12" />
           <Card className="mt-4 overflow-hidden">
             <CardHeader
               title="Session history"

@@ -8,6 +8,10 @@
 //               LevelManager, PlayerCombat (all optional at runtime), PlayerNameStore.
 // Attach to: BattleSystems (same GameObject as BattleManager). BattleManager adds one if missing.
 //
+// Telemetry fields the dashboard reads: hit events carry swingSpeed, tier, hand, defended and (via the state block) combo;
+// every state block (hit, player_hurt, hp snapshot, session start) carries combo, effort (0-1) and kcal (estimate).
+// They add no events and no requests: they ride on the events that were already sent.
+//
 // Networking never touches gameplay: events go into a bounded buffer, at most one request is in
 // flight, requests are sent every flushInterval seconds, and any failure drops that batch silently.
 // The player requests are sent straight away (nothing else is in flight before a battle), each with
@@ -56,6 +60,9 @@ public class SessionReporter : MonoBehaviour
     public int playerListTimeoutSeconds = 3;
     [Tooltip("Seconds before a rename request is abandoned (the name panel waits for the answer).")]
     public int renameTimeoutSeconds = 8;
+    [Tooltip("Seconds before the personal-bests request (sent in the background when a battle starts, for the NEW PB line " +
+             "on the result panel) is abandoned. Failure is silent: the result panel just shows no PB line.")]
+    public int bestsTimeoutSeconds = 5;
     [Tooltip("Log every request result to the Console (off in builds).")]
     public bool verboseLogging = false;
 
@@ -343,6 +350,48 @@ public class SessionReporter : MonoBehaviour
             });
     }
 
+    // GET /api/players/:name -> personalBests. Only the three records the result panel compares are read.
+    [Serializable] class BestEntry { public float value; }
+    [Serializable] class BestsBlock { public BestEntry highestSwingVelocity; public BestEntry highestEstimatedCalories; public BestEntry highestScore; }
+    [Serializable] class BestsResponse { public BestsBlock personalBests; }
+
+    /// <summary>A player's records from earlier sessions. A value of 0 means "no record yet" (nothing to beat).</summary>
+    public struct PlayerBests
+    {
+        public bool ok;
+        public float swingSpeed, kcal, score;
+    }
+
+    /// <summary>
+    /// GET /api/players/:name in the background (bestsTimeoutSeconds). Calls back once, with ok = false when the backend did not
+    /// answer, the player has no sessions yet (404) or the answer was unreadable. Nothing waits on it.
+    /// </summary>
+    public void FetchPlayerBests(string name, Action<PlayerBests> done)
+    {
+        SendNow(UnityWebRequest.kHttpVerbGET, ApiUrl("/api/players/" + Uri.EscapeDataString(name ?? "")), null, bestsTimeoutSeconds, "personal bests",
+            (answered, code, body, error) =>
+            {
+                var r = new PlayerBests();
+                if (answered && code == 200)
+                {
+                    try
+                    {
+                        var parsed = JsonUtility.FromJson<BestsResponse>(body);
+                        var b = parsed != null ? parsed.personalBests : null;
+                        if (b != null)
+                        {
+                            r.ok = true;
+                            r.swingSpeed = b.highestSwingVelocity != null ? b.highestSwingVelocity.value : 0f;
+                            r.kcal = b.highestEstimatedCalories != null ? b.highestEstimatedCalories.value : 0f;
+                            r.score = b.highestScore != null ? b.highestScore.value : 0f;
+                        }
+                    }
+                    catch (Exception) { /* unreadable: no PB line */ }
+                }
+                done(r);
+            });
+    }
+
     static DateTime PlayedAt(PlayerRow p)
     {
         DateTime t;
@@ -412,6 +461,7 @@ public class SessionReporter : MonoBehaviour
         sessionPlayerName = CleanName(playerName);
         PlayerNameStore.RecordSession(sessionPlayerName, currentSessionId);
         sessionStartedAt = Time.realtimeSinceStartup;
+        BattleStats.Begin(sessionStartedAt); // HUD kcal and the telemetry share this start time
         hitCount = 0;
         sessionOpen = true;
         hasPendingSwing = false;
@@ -725,7 +775,12 @@ public class SessionReporter : MonoBehaviour
         var bm = BattleManager.Instance;
         if (bm != null) F("damageTotal", bm.TotalDamageDealt);
         var xp = XPManager.Instance;
-        if (xp != null) { F("xp", xp.CurrentXP); F("fullSwings", xp.FullSwings); }
+        if (xp != null) { F("xp", xp.CurrentXP); F("fullSwings", xp.FullSwings); F("combo", xp.CurrentCombo); }
+        // Effort (0-1) is PlayerExertionAudio's value, the same one the breathing and the HUD bar use.
+        var ex = PlayerExertionAudio.Instance;
+        if (ex != null) F("effort", ex.Exertion01);
+        // Running calorie estimate (est.): same formula as the backend, none until a swing with a tier has landed.
+        if (BattleStats.TryGetKcal(Time.realtimeSinceStartup, out float kcal)) F("kcal", kcal);
         var rm = RoundManager.Instance;
         if (rm != null && rm.roundActive) F("timeLeft", rm.GetSecondsRemaining());
         var pc = PlayerCombat.Instance;

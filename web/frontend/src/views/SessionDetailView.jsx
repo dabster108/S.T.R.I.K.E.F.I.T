@@ -18,6 +18,9 @@ import Scrubber, { SCRUB_LEGEND } from "../components/sessions/Scrubber.jsx";
 import { HpBar, LiveChip } from "../components/live/LiveFight.jsx";
 import { BarChart, Legend, LineChart } from "../components/charts/Charts.jsx";
 import { CalorieEstimate, EstimateNote, ExertionChart, SwingTierChart } from "../components/fitness/Fitness.jsx";
+import { NewPbChip, PersonalBestsHeld } from "../components/fitness/Achievements.jsx";
+import RatingForm, { RatingSummary } from "../components/feedback/RatingForm.jsx";
+import RecapPanel from "../components/recap/RecapCard.jsx";
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const P = (e) => (e.payload && typeof e.payload === "object" && !Array.isArray(e.payload) ? e.payload : {});
@@ -169,6 +172,7 @@ export default function SessionDetailView({ onDeleted }) {
   });
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [recap, setRecap] = useState(false);
 
   const s = data?.session;
   const events = useMemo(() => (data ? timed(data.events, data.session.startedAt) : []), [data]);
@@ -231,6 +235,7 @@ export default function SessionDetailView({ onDeleted }) {
         actions={
           s && (
             <>
+              <NewPbChip records={data?.personalBestsSet} />
               {s.status === "live" ? <LiveChip /> : <OutcomeBadge outcome={s.outcome} />}
               <Button variant="danger" icon="trash" onClick={() => setConfirm(true)}>
                 Delete
@@ -268,6 +273,32 @@ export default function SessionDetailView({ onDeleted }) {
               ))}
             </dl>
           </Card>
+
+          <PersonalBestsHeld records={data.personalBestsSet} />
+
+          {s.status !== "live" && (
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Card className="overflow-hidden">
+                <CardHeader
+                  title={data.feedback ? "Player rating" : "Rate this session"}
+                  subtitle={data.feedback ? `Saved ${formatDateTime(data.feedback.createdAt)}` : "Enjoyment (1 to 5) and perceived exertion (Borg 6 to 20), stored with the session for research"}
+                />
+                <div className="px-5 py-5">{data.feedback ? <RatingSummary feedback={data.feedback} /> : <RatingForm sessionId={s.id} onSaved={reload} />}</div>
+              </Card>
+              <Card className="overflow-hidden">
+                <CardHeader
+                  title="Recap card"
+                  subtitle="A shareable image of this session"
+                  actions={
+                    <Button icon={recap ? "chevronUp" : "chevronDown"} onClick={() => setRecap((r) => !r)} aria-expanded={recap}>
+                      {recap ? "Hide" : "Show"}
+                    </Button>
+                  }
+                />
+                <div className="px-5 py-5">{recap ? <RecapPanel data={data} /> : <p className="text-sm font-medium text-[var(--muted)]">Create a 1080 × 1350 card with the player, result, estimated energy use, peak swing speed, XP and any badges earned.</p>}</div>
+              </Card>
+            </div>
+          )}
 
           {data.fitness && (
             <div className="grid gap-6 xl:grid-cols-2">

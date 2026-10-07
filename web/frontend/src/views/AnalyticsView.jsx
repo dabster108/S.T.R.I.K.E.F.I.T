@@ -12,6 +12,7 @@ import { AnalyticsSkeleton } from "../components/ui/Skeletons.jsx";
 import { LevelBadge } from "../components/ui/Badge.jsx";
 import Icon from "../components/ui/Icon.jsx";
 import { BarChart, LEVEL_COLORS, Legend, LineChart, TIERS, TierBar } from "../components/charts/Charts.jsx";
+import PerceivedEffort from "../components/fitness/PerceivedEffort.jsx";
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const speed = (v) => (isNum(v) ? `${v.toFixed(1)} m/s` : "—");
@@ -190,8 +191,12 @@ export default function AnalyticsView() {
   const players = useApi(() => api.players(), []);
   const { data, error, loading, reload } = useApi(() => api.analytics({ level, player }), [level, player]);
   const refresh = useThrottledCallback(reload, 6000);
+  // Site-wide survey results; the player and level filters above don't apply (ratings are few).
+  const feedback = useApi(() => api.feedbackAnalytics(), []);
+  const refreshFeedback = useThrottledCallback(feedback.reload, 6000);
   useLiveMessages((type, payload) => {
     if (type === "session_finished") refresh();
+    if (type === "feedback_saved") refreshFeedback();
     if (type === "player_renamed") {
       players.reload();
       if (player === payload.oldName) setPlayer(payload.newName);
@@ -330,6 +335,17 @@ export default function AnalyticsView() {
               </Card>
             )}
           </section>
+
+          <SectionRule index={hasSpeed ? "05" : "02"} title="Perceived vs measured effort" className="mt-12" />
+          <div className="mt-4">
+            {feedback.data ? (
+              <PerceivedEffort data={feedback.data} />
+            ) : (
+              <Card>
+                <EmptyState icon="gauge" title={feedback.error ? "Ratings will appear here" : "Loading ratings…"} description={feedback.error ? "They load as soon as the server answers." : undefined} />
+              </Card>
+            )}
+          </div>
         </div>
       )}
     </div>

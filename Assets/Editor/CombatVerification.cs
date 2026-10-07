@@ -93,6 +93,9 @@ public static class CombatVerification
     public static WeaponType l3Weapon = WeaponType.Mace;
     public static float frameDt = 1f / 30f;
     public static float simSeconds = 100f;
+    /// <summary>Where SessionReporter posts during a harness run. Default: a dead port, so nothing reaches a backend.
+    /// Set to a local backend ("http://localhost:4100") to read a simulated session back.</summary>
+    public static string backendUrl = "http://127.0.0.1:9";
 
     static OVRCameraRig rig;
     static Transform Head => rig != null ? rig.centerEyeAnchor : null;
@@ -102,7 +105,7 @@ public static class CombatVerification
     {
         Application.runInBackground = true;
         Time.captureDeltaTime = frameDt;
-        if (SessionReporter.Instance != null) SessionReporter.Instance.baseUrl = "http://127.0.0.1:9";
+        if (SessionReporter.Instance != null) SessionReporter.Instance.baseUrl = backendUrl;
         var pnp = Object.FindAnyObjectByType<PlayerNamePicker>();
         if (pnp != null) pnp.enabled = false; // component only: the picker lives ON BattleSystems
         rig = Object.FindAnyObjectByType<OVRCameraRig>();

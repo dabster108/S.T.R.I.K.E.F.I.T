@@ -2,7 +2,9 @@
 // Purpose: Cheap, VR-safe game feel shared by all three levels, each piece behind its own toggle:
 //          - controller haptics on the hand that struck (light / medium / full by swing tier, a sharp pulse for a weapon
 //            clash or parry) and on both hands when the player takes damage; every pulse is stopped by a timed coroutine;
-//          - hit-stop on the MONSTER only (MonsterAI.HitStop: Animator + attack clock) on full-tier and weak-point hits.
+//          - hit-stop on the MONSTER only (MonsterAI.HitStop: Animator + attack clock) on full-tier and weak-point hits, never while
+//            the monster is winding up or attacking. One timer lives in MonsterAI (a second hit during a freeze is ignored, the
+//            speed is always restored to the monster's own speed, which is 1 unless an enrage tempo or stagger is active).
 //            Time.timeScale, the player's hands and head are never touched.
 //          Hit-sound variation lives on HitDetection (varyHitSounds) and tiered damage numbers on CombatUIController.
 // Dependencies: HitDetection (events), PlayerHealth (DamageTaken), MonsterAI, CombatUIController (tiers), OVRInput
@@ -32,10 +34,14 @@ public class CombatFeedback : MonoBehaviour
     public bool hitStop = true;
     [Tooltip("Seconds the monster's Animator and attack clock freeze on a full-tier or weak-point hit.")]
     public float hitStopSeconds = 0.07f;
+    [Tooltip("Skip the freeze while the monster is winding up or attacking, so its animation and damage timing stay in sync.")]
+    public bool skipHitStopDuringAttacks = true;
 
     /// <summary>Pulses / hit-stops requested (verification).</summary>
     public int Pulses { get; private set; }
     public int HitStops { get; private set; }
+    /// <summary>Hit-stops not applied because the monster was winding up or attacking (verification).</summary>
+    public int HitStopsSkipped { get; private set; }
     public float LastAmplitude { get; private set; }
 
     private readonly int[] generation = new int[2]; // newest pulse per hand; an older stop never cuts a newer pulse
@@ -73,7 +79,9 @@ public class CombatFeedback : MonoBehaviour
             if (m != null)
             {
                 if (m != lastMonster) { lastMonster = m; lastAi = m.GetComponent<MonsterAI>(); }
-                if (lastAi != null && !lastAi.InHitStop) { lastAi.HitStop(hitStopSeconds); HitStops++; }
+                bool attacking = skipHitStopDuringAttacks && m.isAttacking; // isAttacking covers the wind-up too
+                if (lastAi != null && !attacking && !lastAi.InHitStop) { lastAi.HitStop(hitStopSeconds); HitStops++; }
+                else if (attacking) HitStopsSkipped++;
             }
         }
     }

@@ -6,6 +6,7 @@ import { PageHeader } from "../components/ui/Card.jsx";
 import { useDocTitle } from "../hooks/useDocTitle.js";
 import Icon from "../components/ui/Icon.jsx";
 import { useBroadcast } from "../hooks/useBroadcast.js";
+import { LiveOverlay } from "../components/live/LiveHud.jsx";
 
 // strikefit.vercel.app/broadcast — the headset's view, live. Opening the page is the
 // trigger: it connects to the signaling relay and asks the game for video, so nobody
@@ -76,6 +77,7 @@ function BroadcastPanel({ room, header }) {
 
       <div ref={frame} className="relative mt-5 aspect-video w-full overflow-hidden rounded-[var(--radius-xl)] bg-[var(--blue-900)] shadow-[var(--shadow-card)]">
         <video ref={video} autoPlay playsInline muted className={`h-full w-full object-contain ${live ? "" : "invisible"}`} />
+        {live && <LiveOverlay />}
         {live ? (
           <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-[var(--bad)] px-2 py-1 text-xs font-extrabold tracking-wider text-white">
             <span className="h-1.5 w-1.5 rounded-full bg-white status-live" aria-hidden /> LIVE

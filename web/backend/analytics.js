@@ -7,6 +7,8 @@
 const { query } = require("./db");
 const { SESSION_API_SELECT, EVENT_SELECT, fromRow } = require("./columns");
 const fitness = require("./fitness");
+const progression = require("./progression");
+const feedback = require("./feedback");
 
 const LEVEL_ORDER = ["Easy", "Medium", "Hard"];
 const TIERS = ["tap", "light", "medium", "full"];
@@ -332,6 +334,93 @@ function sessionFitness(session, events) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Achievements (streak, weekly goal, level, badges) and per-session personal bests
+// ---------------------------------------------------------------------------
+
+// Everything the progression logic needs for one player: finished sessions oldest first, a
+// fitness summary for each, and per-session combo / damage evidence from the stored events.
+async function playerProgressData(name) {
+  const { rows } = await query(
+    `SELECT ${SESSION_API_SELECT}, live_state AS "liveState" FROM sessions
+     WHERE player_name = $1 AND status <> 'live' ORDER BY started_at, seq`,
+    [name]
+  );
+  const sessions = rows.map((r) => {
+    const { liveState, ...rest } = r;
+    return { ...fromRow(rest), liveState: liveState || null };
+  });
+  const hitParams = [];
+  const hitRows = (await query(`WITH ${hitsCte({ player: name }, hitParams)} SELECT session_id, tier, speed, t FROM hits`, hitParams)).rows;
+  const hitsBySession = new Map();
+  for (const h of hitRows) {
+    if (!hitsBySession.has(h.session_id)) hitsBySession.set(h.session_id, []);
+    hitsBySession.get(h.session_id).push({ tier: h.tier, speed: num(h.speed), t: num(h.t) });
+  }
+  const summaries = sessions.map((s) => fitness.sessionSummary(s, hitsBySession.get(s.id) || []));
+  return { sessions, summaries, summaryById: new Map(summaries.map((s) => [s.id, s])) };
+}
+
+async function playerAchievements(name, { tz, goal } = {}) {
+  const [{ sessions, summaryById }, evidence] = await Promise.all([
+    playerProgressData(name),
+    query(
+      `SELECT e.session_ref AS id,
+              max(CASE WHEN json_typeof(e.payload->'combo') = 'number' THEN (e.payload->>'combo')::float8 END) AS combo,
+              max(CASE WHEN json_typeof(e.payload->'playerMaxHp') = 'number' THEN (e.payload->>'playerMaxHp')::float8 END) AS maxhp,
+              count(*) FILTER (WHERE e.type = 'player_hurt')::int AS hurt
+       FROM events e JOIN sessions s ON s.id = e.session_ref
+       WHERE s.player_name = $1 AND e.type IN ('hit', 'hp', 'player_hurt') GROUP BY e.session_ref`,
+      [name]
+    ).then((r) => r.rows),
+  ]);
+  if (!sessions.length) {
+    // Either an unknown name (404) or a player whose only session is still live (empty progress).
+    const any = await query("SELECT 1 FROM sessions WHERE player_name = $1 LIMIT 1", [name]);
+    if (!any.rowCount) return null;
+  }
+  const comboById = new Map(evidence.filter((r) => r.combo !== null).map((r) => [r.id, Number(r.combo)]));
+  const hurtById = new Map(evidence.map((r) => [r.id, r.hurt]));
+  const maxHpById = new Map(evidence.filter((r) => r.maxhp !== null).map((r) => [r.id, Number(r.maxhp)]));
+  const eventSessions = new Set(evidence.map((r) => r.id));
+
+  const zone = progression.safeZone(tz || progression.DEFAULT_TZ);
+  const today = progression.dayIn(new Date(), zone);
+  const days = new Map(sessions.map((s) => [s.id, progression.dayIn(new Date(s.startedAt), zone)]));
+  const dayList = [...days.values()];
+  const target = Number.isInteger(goal) && goal > 0 ? goal : progression.WEEKLY_GOAL_TARGET;
+  const streak = progression.streakWithFreeze(dayList, today);
+  const weekly = progression.weeklyGoal(dayList, today, target);
+  const totalXp = sessions.reduce((a, s) => a + (Number(s.xp) || 0), 0);
+
+  const badges = progression.evaluateBadges({
+    sessions, summaryById, comboById, hurtById, maxHpById, eventSessions, days, streak,
+    weeklyTarget: target, thisWeekSessions: weekly.sessionsThisWeek,
+  });
+  const { reachedOn, ...streakOut } = streak;
+  return {
+    playerName: name,
+    timeZone: zone,
+    level: progression.levelFromXp(totalXp),
+    streak: {
+      ...streakOut,
+      rule: `Consecutive days with a session. One missed day is forgiven once per rolling ${progression.FREEZE_WINDOW_DAYS} days (a "freeze"); two missed days in a row end the streak.`,
+    },
+    weeklyGoal: weekly,
+    badges,
+    badgesUnlocked: badges.filter((b) => b.unlocked).length,
+    badgesTotal: badges.length,
+    definitions: { session: "Finished or abandoned sessions; a session still being played is not counted yet." },
+  };
+}
+
+// Records this session holds against the player's other finished sessions (see progression.personalBestsSet).
+async function sessionPersonalBests(session) {
+  if (session.status === "live") return [];
+  const { summaries } = await playerProgressData(session.playerName);
+  return progression.personalBestsSet(session.id, summaries);
+}
+
 // One player's engagement over time (sessions grouped by day and week, streaks, recency).
 async function playerEngagement(name, { tz } = {}) {
   const { rows } = await query(`SELECT started_at AS "startedAt" FROM sessions WHERE player_name = $1`, [name]);
@@ -539,6 +628,7 @@ const toCsv = (cols, rows) => [cols.join(","), ...rows.map((r) => cols.map((c) =
 const SESSION_CSV_COLS = [
   "id", "playerName", "level", "status", "outcome", "score", "xp", "damageDealt", "hitCount", "fullSwings",
   "tapCount", "durationSec", "playerHpRemaining", "monsterHpRemaining", "startedAt", "endedAt", "source", "notes",
+  "enjoyment", "rpe", "feedbackComment", // post-session survey, blank when unrated
 ];
 const EVENT_PAYLOAD_COLS = ["t", "damage", "swingSpeed", "tier", "hand", "defended", "score", "xp", "hits",
   "playerHp", "playerMaxHp", "monsterHp", "monsterMaxHp", "attack", "category", "amount", "blocked", "timeLeft"];
@@ -551,7 +641,12 @@ async function exportSessionsCsv(filters) {
     `SELECT ${SESSION_API_SELECT} FROM sessions s ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY s.started_at, s.seq`,
     params
   );
-  return { csv: toCsv(SESSION_CSV_COLS, rows.map(fromRow)), count: rows.length };
+  const ratings = await feedback.feedbackBySession();
+  const flat = rows.map(fromRow).map((s) => {
+    const f = ratings.get(s.id);
+    return { ...s, enjoyment: f ? f.enjoyment : null, rpe: f ? f.rpe : null, feedbackComment: f ? f.comment : null };
+  });
+  return { csv: toCsv(SESSION_CSV_COLS, flat), count: rows.length };
 }
 
 async function exportEventsCsv(filters) {
@@ -581,6 +676,8 @@ module.exports = {
   publicStats,
   playerProfile,
   playerEngagement,
+  playerAchievements,
+  sessionPersonalBests,
   researchAnalytics,
   calorieInsights,
   sessionFitness,

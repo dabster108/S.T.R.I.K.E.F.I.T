@@ -84,3 +84,21 @@ All per-level combat numbers live in `Editor/CombatTuning.cs` (monster prefab va
 - `Documentation/MOVE_LIST.md`
 - `Documentation/project_progress.md`
 - Root `README.md`, `.gitignore`, `.gitattributes`
+
+---
+
+## Web additions, 2026-10-07 (branch `feel-and-fitness`)
+
+- Backend (web/backend): `feedbackCore.js` / `feedback.js` (survey), `progression.js` (streak with freeze, weekly goal, level, badges, personal bests held), tests in `test/progression.test.js` (`npm test`). New routes: `POST /api/sessions/:id/feedback`, `GET /api/analytics/feedback`, `GET /api/players/:name/achievements`. New table `session_feedback`. `GET /api/sessions/:id` adds `feedback` and `personalBestsSet`. Live state keys `combo`, `effort`, `kcal` are kept. Nothing existing was removed or reshaped.
+- Frontend (web/frontend): public `/feedback`; Progress section on player pages; rating and recap cards on session pages; "Perceived vs measured effort" on Analytics; `LiveHud` on Live Arena cards and over the broadcast video. New dependency: `html-to-image`.
+- The Unity side of "feel and fitness" (breathing tiers, blood, haptics, hit-stop, damage numbers, effort HUD, results panels, combo/effort/kcal telemetry) is NOT built; the web side already accepts those fields.
+
+---
+
+## Unity feel and fitness, 2026-10-07 (branch `unity-feel`)
+
+- New scripts: `Player/PlayerExertionAudio.cs` (rewritten: `Exertion01`, tiers calm/medium/high, two sources, hysteresis), `Player/AudioGainFilter.cs`, `Player/PlayerDamageVignette.cs`, `Combat/HitBloodFx.cs`, `Manager/BattleStats.cs` (peak speed, damage taken, running kcal), `Manager/FitnessEstimateConfig.cs` (mirror of `web/backend/fitness.js`), Editor `FeelSetup.cs` (idempotent scene wiring) and `FeelVerification.cs` (play-mode probes).
+- Changed: `SessionReporter` (combo / effort / kcal in the state block, `FetchPlayerBests`), `CombatUIController` (damage-number colours + FULL POWER, effort HUD, result extras, medals), `CombatFeedback` (hit-stop skips attacks), `PlayerHealth` (`flashReplacedByVignette`), `CombatVerification` (`backendUrl`).
+- Audio: `Assets/Audio/SFX/Player/breathingfast.mp3`. FX: `Assets/Materials/FX/` (`M_HitBlood`, `M_HitSparks`, `M_DamageVignette`), `Assets/VFX/T_DamageVignette.png`.
+- Exertion is one value (`PlayerExertionAudio.Exertion01`): breathing, effort bar and telemetry `effort` all read it.
+- Test harness note: run the harness against a local backend with `http://127.0.0.1:4100`, not `localhost` (Unity resolved `localhost` to IPv6 first and timed out); delete the test player's sessions and restore PlayerPrefs `StrikeFit.PlayerNames` afterwards.

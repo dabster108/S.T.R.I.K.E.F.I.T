@@ -6,6 +6,7 @@ import { formatClock, formatNumber } from "../../lib/format.js";
 import { useTween } from "../../hooks/motion.js";
 import { LevelBadge, OutcomeBadge } from "../ui/Badge.jsx";
 import Icon from "../ui/Icon.jsx";
+import { LiveHud } from "./LiveHud.jsx";
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const TIER_TONE = { full: "text-[var(--accent-strong)]", medium: "text-[var(--accent)]", light: "text-[var(--ink-secondary)]", tap: "text-[var(--muted)]" };
@@ -214,6 +215,8 @@ export const LiveArenaCard = memo(function LiveArenaCard({ id, compact = false }
           </div>
         ))}
       </dl>
+
+      {!compact && <LiveHud id={id} />}
 
       {!compact && (
         <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-3 text-xs">

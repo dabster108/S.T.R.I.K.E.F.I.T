@@ -2483,3 +2483,93 @@ Backup: branch `backup-before-insights` created at the prior HEAD (d453096) befo
 - **Frontend:** `components/fitness/CalorieInsights.jsx`, placed on the Overview page as new section 02 (existing sections renumbered 03-06). Overview is the landing page for the dashboard; Analytics is filtered by level/player, which doesn't suit a site-wide total. Uses existing Card/BarChart/WorkoutEquivalent/EstimateNote/Tooltip components and tokens.
 - **Not verified:** the UI was only built (`vite build` passes), not seen rendered; headless Chrome produced no screenshot. Check the Overview page in a browser.
 - Level 3 needs real playtest sessions with swing data before its calorie bar can appear.
+
+---
+
+## Feel and fitness: web parts 3 to 5 (2026-10-07)
+
+Backup: branch `backup-before-feel-and-fitness` (commit cdcd51c) holds the state before any change, including the previously uncommitted Build Settings/DevAgent edits and the audio file moves. Work is on branch `feel-and-fitness`, uncommitted.
+
+**Unity Parts 1 and 2 were NOT done.** The Unity MCP server was unreachable (ECONNREFUSED, nothing on port 8080, Unity not running), so no breathing tiers, blood, haptics, hit-stop, damage numbers, effort HUD, Victory/Defeat results, or game-side telemetry was touched. Every earlier "done/verified" claim about those is still unconfirmed. Web code already accepts the Part 2C fields (`combo`, `effort`, `kcal`, hit `swingSpeed`/`tier`/`combo`) and degrades cleanly without them.
+
+### Part 3: post-session survey
+- Table `session_feedback` (schema.sql, `CREATE TABLE IF NOT EXISTS`, applied on boot): `session_id` PK referencing `sessions(id) ON DELETE CASCADE`, `enjoyment` 1-5, `rpe` 6-20, `comment` (<= 500), `created_at`; at least one rating required (CHECK).
+- `POST /api/sessions/:id/feedback` (public, no auth): validation in `feedbackCore.js`; 400 invalid, 404 unknown session, 409 session still live or already rated (first write wins), 429 per-IP limit (12 per 10 min, in memory, `trust proxy` = 1 for Render), generic 500. Broadcasts `feedback_saved` on SSE (comment excluded).
+- `GET /api/sessions/:id` now also returns `feedback` (null when unrated) and `personalBestsSet`. Sessions CSV gains `enjoyment`, `rpe`, `feedbackComment` columns at the end.
+- `GET /api/analytics/feedback`: n, mean + distribution of both ratings, per-level means, anonymous points (rpe, mean swing intensity, estimated kcal/min), Spearman rho only when n >= 8 paired sessions, otherwise `status: insufficient_data`. Descriptive only; kcal/min is a fixed function of swing intensity so it is not independent evidence.
+- Frontend: public `/feedback` (player search -> latest sessions -> 2 questions, skippable, thank-you state), "Rate this session" / "Player rating" card on the session page, "Perceived vs measured effort" section on Analytics (scatter, per-level means, n always shown, honest empty state).
+- Borg RPE source cited in code comments: Borg GA (1982) Med Sci Sports Exerc 14(5):377-381. **Verify the citation before using it in the thesis.**
+- **Limitation: there is no authentication.** Anyone who knows a player name can rate any finished session of that player, and the per-IP limit is a spam guard, not a security boundary. Because first write wins, a wrong or malicious rating cannot be corrected from the UI (delete the session or the row in the database).
+
+### Part 4: streak, goal, level, badges
+- `GET /api/players/:name/achievements?tz=&goal=` (default tz Asia/Kathmandu, goal 3), logic in `progression.js` (pure, tested). Existing engagement endpoint and fields untouched; its plain streak still exists and can differ from the freeze-aware streak.
+- **Streak rule:** consecutive days with a session; one missed day between played days is forgiven (a "freeze") at most once per rolling 7 days; two missed days in a row break it. If the last session was two days ago and a freeze is free, the streak is shown alive as "play today to keep it".
+- **Level curve:** total XP to reach level L = 250 x (L-1)^2 (L2 250, L3 1000, L5 4000, L8 12250). Titles: Rookie (1), Brawler (3), Gladiator (5), Warlord (8), Legend (12). Sessions do store XP (`sessions.xp`, 17 of 42 rows non-zero at check time, max 6193).
+- **Badges:** First Blood, Full Power x50, 10-hit combo, Untouched (Level 2 victory with zero damage), Burned 100 kcal (sum of estimates), 3-day streak, Weekly goal met. Each returns unlocked, unlockedAt, source session and progress. Combo reports `tracking: true` ("Tracking starts after the game update") until a session carries combo data. Untouched needs max HP (live state or event) and remaining HP, else the `player_hurt` count; it is never guessed.
+- `personalBestsSet` lists the records a session holds against the player's other finished sessions (none for a first session).
+- Frontend: Progress section on the player page (level/title bar, streak card with "freeze used", weekly-goal ring, trophy grid), "New PB" chip and card on the session page.
+
+### Part 5: recap card and live HUD
+- Recap card (1080x1350) on the session page, built with `html-to-image` (lazy-loaded), waits for `document.fonts.ready`, Web Share where available, else download. Only recorded numbers appear; calories say "estimated" on the card; "vs your average" only with 2+ sessions.
+- `LiveHud` on each Live Arena card and as an overlay on the broadcast video: combo counter, swing-speed gauge, player-vs-monster race, flash on a faster swing than the player's stored record. Transform and opacity only, reduced-motion safe, falls back when a fight has no combo or swing data.
+- Backend `LIVE_KEYS` gained `combo`, `effort`, `kcal` so the live state carries them.
+
+### Verification done (2026-10-07)
+- Backend: 23 unit tests (`npm test`, `node --test`), all pass. Frontend: `vite build` passes, 0 browser console errors/warnings across the pages checked.
+- Real submit with disposable player ZZTEST against the Neon database: validation 400s, 404, 409 duplicate, 429 limit, read-back, CSV columns, analytics (n=8 gave rho 1 on constructed data, 0 ratings gave insufficient_data), achievements, personalBestsSet. All ZZTEST rows deleted afterwards; database returned to 42 sessions, 7882 events, 0 feedback rows.
+- Headless Chrome: survey page at 390 px (no horizontal scroll), session page, player Progress, Analytics scatter, Live Arena HUD with a simulated fight (combo 8, 7.4 m/s, PB label shown then removed) and a fight with no combo data.
+- Recap export 1080x1350 vs the on-screen render: 0.55% of pixels differ (antialiasing), layout and Inter font identical.
+
+### Not verified
+- The broadcast overlay was not seen over real video (needs a headset stream); its code is the same `LiveHud` as the Live Arena card.
+- Nothing was tested on a phone browser or with the Web Share API; the survey page was only checked in headless Chrome.
+- Headset-side telemetry (combo, effort, kcal, hit tier) does not exist yet, so combo badge and live combo are untested on real data.
+
+---
+
+## Feel and fitness: Unity parts 1 and 2 (2026-10-07)
+
+Backup: branch `backup-before-unity-feel` (commit 9d63c76, includes the web work from the earlier pass). Work is on branch `unity-feel`, uncommitted. Nothing under `web/` was touched.
+
+**How it was driven.** The session's MCP link to Unity failed at startup, but Unity was open and the MCP server was listening on 8080, so every call went over HTTP (initialize, session id, tools/call). The Editor bridge answered normally, so nothing was edited blind. All play-mode runs were in the Editor (Mono, not IL2CPP, no headset), driven by the existing `CombatVerification` harness and a new `FeelVerification`.
+
+### Part 2C: telemetry (the dashboard already reads it)
+- **Found:** hit events already carried `swingSpeed`, `tier`, `hand`, `defended`; HP snapshots every 1 s carried HP, score, hits, xp, fullSwings, stamina, timeLeft. No combo, effort or kcal.
+- **Built:** `SessionReporter.AppendStateFields` now also writes `combo` (XPManager), `effort` (0-1, `PlayerExertionAudio.Exertion01`) and `kcal` (running estimate, omitted until a swing with a tier has landed). The state block rides on hit, player_hurt, hp and session-start payloads, so no new events or requests; the 1 s snapshot cadence is unchanged.
+- **Proof (local backend, disposable player ZZTEST, all of it deleted afterwards):** 53/53 hit events had swingSpeed + tier + combo, 302/303 HP snapshots had combo + effort + kcal (the one without is the snapshot before the first swing), snapshots 1.0 to 1.1 s apart, liveState carried `combo`, `effort`, `kcal`.
+
+### Part 1A: breathing, three tiers from one value
+- **Found:** one clip (`ribhavagrawal-heavy-breathing`), one looping source, volume ramped by sustained swings. All three scenes already had the component (Level 2 included).
+- **Built:** `PlayerExertionAudio` now computes `Exertion01` (0-1): swings in a 12 s window weighted 0.5-1 by hand speed, divided by 14, smoothed (0.6 s). Tiers: calm silent; medium = heavy breathing (on 0.28, off 0.18); high = fast breathing (on 0.70, off 0.55) or player HP under 25% (off above 30%). Minimum 1 s hold before stepping down. Two AudioSources, 1.5 s crossfade, per-source caps (0.30 each), 0.3 s cut at victory/defeat, silent outside combat. Level 3's low-HP panting floor still applies to the heavy source, never under the fast tier. Everything is in the Inspector. The HUD bar and the telemetry read the same `Exertion01`.
+- **Asset:** `breathingfast.mp3` moved to `Assets/Audio/SFX/Player/` with AssetDatabase (meta kept). Import: Vorbis, quality 0.7, Compressed In Memory, Force To Mono, preload on (it was Decompress On Load, stereo flag off, 3D on).
+- **Finding: the clip is about 27 dB too quiet** (peak 0.048, RMS 0.0036 against 0.98 / 0.082 for the heavy clip). `AudioSource.volume` cannot raise it, so `AudioGainFilter` applies a fixed x18 (hard-limited) on that source only. The loop is sample-clean (jump at the wrap 0.0001), so no loop fix was needed.
+- **Observed in Play mode, all three levels:** rest: exertion 0.00, silent. Level 1 sim: Calm -> Medium at 0.35 (medium volume 0.134 rising to 0.29) -> High at 0.70 with a 1.5 s crossfade (medium 0.292 -> 0, fast 0.007 -> 0.300) -> back to Medium 2 s after effort fell. HP 20%: High forced from silence, fast volume 0.050 -> 0.202 -> 0.300 in 2 s; HP 28%: still High (hysteresis); HP 40%: fast fades 0.275 -> 0 over about 4 s. Level 2: real swing speeds only reached 0.33-0.39 (Medium); injected hard swings every 0.5 s gave Calm -> Medium (0.38) -> High (0.95) -> crossfade -> Medium -> Calm; HP rule and rest identical to Level 1. Level 3: sim reached Medium (0.64); injected swings reached High (1.00); HP rule identical; fast loop cut 0.300 -> 0 in 0.30 s at victory.
+
+### Part 1B: blood
+- `HitBloodFx` (one component on BattleSystems): enum Off / Sparks / Blood (default Blood), one pooled ParticleSystem per monster created on its first hit, 6/8/10/12 particles by tier, +2 for weak-point hits (cap 14), bigger droplets for weak-point and full hits, life 0.25-0.45 s, no decals. Guarded (blocked) hits draw nothing. Materials are assets (`Assets/Materials/FX`).
+- **Draw calls (Editor Game view, noisy):** paired test with particles alive, renderer on vs off on alternate frames: mean +0.93 draw call (median equal). Whole-fight means: 103.1 (Off) against 103.4 without particles / 105.6 with particles (those frames also have other hit effects). Max live particles 12 in a fight (cap 48 per system). Blood off costs nothing.
+- **Player damage:** `PlayerDamageVignette` replaces the full-rect red flash with a head-locked edge vignette (own radial texture `T_DamageVignette`, clear centre, same 0.6 peak and 0.25 s fade). Below 25% HP a slow pulse (2.4 s period, alpha 0.10-0.30) runs with the fast-breathing tier (same `LowHpActive` flag). Level 3 keeps its own low-HP vignette and heartbeat, so the pulse is off there.
+- Seen in Game-view captures: the droplets read clearly on the dark Level 1 monster and stay distinct from the monster's red telegraph horn.
+
+### Part 1C: combat feel (status from the live project)
+| Item | Before | Now |
+|---|---|---|
+| Haptics | DONE (CombatFeedback) | verified by amplitude: tap/light 0.25, medium 0.5, full 0.9, guarded 0.35, clash 1.0, damage 0.7 on both hands; each pulse stopped by a timed coroutine. Editor only: no controller to feel it. |
+| Hit-stop | PARTIAL (no attack skip) | monster only, never Time.timeScale; now skipped while the monster is winding up or attacking (15 skipped, 12 applied in one fight). One timer in `MonsterAI`; it restores the monster's own speed (1 unless an enrage tempo or stagger is active, so not literally 1 in those cases). |
+| Damage numbers | PARTIAL (grey/white/yellow/orange, no popup) | pooled TextMeshPro (12), white tap / yellow light / orange medium / red full, plus "FULL POWER" popup on full swings. |
+Each behind a toggle: `haptics`, `hitStop`, `skipHitStopDuringAttacks`, `builtInDamageNumbers`, `scaleNumbersWithTier`, `fullPowerPopup`.
+
+### Part 2A: live effort HUD
+Built on the existing CombatCanvas by `CombatUIController`: "est. X.X kcal" and an effort bar (tier colour), under the Score / Time / Dmg column. Redrawn at most 4 Hz and only when the shown value changed. Mirror of the backend formula in `FitnessEstimateConfig` (points at `web/backend/fitness.js`; no automatic sync). `BattleStats` holds the tallies both HUD and telemetry read. **Cost (Editor, Mono, stopwatch):** gated frames 13 ns, full refresh 45 ns, `PlayerExertionAudio.Update` 0.5 us, all 0 B allocated. **HUD vs backend:** Victory run HUD/panel 8.6 kcal, backend `estimatedCalories` 8.6 (final event 8.635); Defeat run 7.2 against 7.2 (7.205). Difference under 0.01 kcal.
+
+### Part 2B: results on the existing panels
+XP count-up (1.2 s), medal, est. kcal, peak swing speed, best combo, "NEW PB" lines and "player - Rate this session: strikefit.vercel.app/feedback". The personal-bests fetch (`GET /api/players/:name`, 5 s, background at battle start) failed silently when it timed out and parsed correctly when it answered (27.86 m/s, 59.5 kcal, score 1445). PB lines appear only against an existing record and only when the fetch answered. Medal limits per scene (serialized): Level 1 gold 35 s / 15% HP lost, silver 50 s / 40%; Level 2 35 s / 25%, 55 s / 55%; Level 3 55 s / 25%, 80 s / 50%. These are development values from very few victories (n = 8, 4, 2).
+
+### Things found that are not new
+- **Level 2 has 7 enabled realtime point lights (5 active) and Level 3 has 4; Level 1 has 2.** The same in the backup commit, so the "at most 2" rule was already exceeded.
+- **Level 3's Defend state uses `L3_Defend.anim`, not `Monster_GuardPose`.** Levels 1 and 2 do. Unchanged.
+- **Build Settings: only Level3_Hard is enabled** (Level1, Level2, MainMenu, Results off). Not changed, as the setting is flipped on purpose.
+- `GET /api/players/:name` took 3.7 to 3.9 s from this machine against the 5 s timeout. On a slow link or a cold Render the NEW PB lines may often not appear; the backend would need a lightweight "bests" route to fix it (not touched).
+
+### Not verified
+Haptics on a real controller, the audio levels by ear (fast tier x18 gain is a measured match, not a listening test), draw calls and particle cost on Quest (IL2CPP), the HUD and panels in a headset (readable in the Editor Game view only), and any Level 3 blood capture.
