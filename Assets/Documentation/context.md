@@ -84,3 +84,11 @@ All per-level combat numbers live in `Editor/CombatTuning.cs` (monster prefab va
 - `Documentation/MOVE_LIST.md`
 - `Documentation/project_progress.md`
 - Root `README.md`, `.gitignore`, `.gitattributes`
+
+---
+
+## Web additions, 2026-10-07 (branch `feel-and-fitness`)
+
+- Backend (web/backend): `feedbackCore.js` / `feedback.js` (survey), `progression.js` (streak with freeze, weekly goal, level, badges, personal bests held), tests in `test/progression.test.js` (`npm test`). New routes: `POST /api/sessions/:id/feedback`, `GET /api/analytics/feedback`, `GET /api/players/:name/achievements`. New table `session_feedback`. `GET /api/sessions/:id` adds `feedback` and `personalBestsSet`. Live state keys `combo`, `effort`, `kcal` are kept. Nothing existing was removed or reshaped.
+- Frontend (web/frontend): public `/feedback`; Progress section on player pages; rating and recap cards on session pages; "Perceived vs measured effort" on Analytics; `LiveHud` on Live Arena cards and over the broadcast video. New dependency: `html-to-image`.
+- The Unity side of "feel and fitness" (breathing tiers, blood, haptics, hit-stop, damage numbers, effort HUD, results panels, combo/effort/kcal telemetry) is NOT built; the web side already accepts those fields.

@@ -75,3 +75,16 @@ ALTER TABLE sessions ADD COLUMN IF NOT EXISTS live_state    jsonb;              
 CREATE INDEX IF NOT EXISTS sessions_status_idx     ON sessions (status);
 CREATE INDEX IF NOT EXISTS sessions_started_at_idx ON sessions (started_at);
 CREATE INDEX IF NOT EXISTS events_occurred_at_idx  ON events (occurred_at);
+
+-- ---------------------------------------------------------------------------
+-- Post-session survey (enjoyment 1-5, Borg RPE 6-20). Additive and idempotent.
+-- One row per session; deleting a session deletes its rating.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS session_feedback (
+  session_id  text PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+  enjoyment   smallint CHECK (enjoyment BETWEEN 1 AND 5),
+  rpe         smallint CHECK (rpe BETWEEN 6 AND 20),
+  comment     text CHECK (comment IS NULL OR char_length(comment) <= 500),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  CHECK (enjoyment IS NOT NULL OR rpe IS NOT NULL)
+);

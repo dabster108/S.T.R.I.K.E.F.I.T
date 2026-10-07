@@ -243,7 +243,7 @@ function dropped() {
   reconnectTimer = setTimeout(connect, delay);
 }
 
-const TYPES = ["hello", "heartbeat", "session_started", "session_updated", "session_finished", "event_created", "session_deleted", "player_renamed"];
+const TYPES = ["hello", "heartbeat", "session_started", "session_updated", "session_finished", "event_created", "session_deleted", "player_renamed", "feedback_saved"];
 
 function connect() {
   // Only ever one connection: a pending backoff retry and a tab refocus can both land here.

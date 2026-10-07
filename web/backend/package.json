@@ -9,7 +9,8 @@
     "dev": "node --watch server.js",
     "db:schema": "node scripts/apply-schema.js",
     "db:migrate": "node scripts/migrate-json-to-postgres.js",
-    "simulate": "node scripts/simulate-live.js"
+    "simulate": "node scripts/simulate-live.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -11,6 +11,9 @@ const { SESSION_API_FIELDS, SESSION_API_SELECT, EVENT_SELECT, fromRow } = requir
 const stream = require("./stream");
 const broadcast = require("./broadcast");
 const analytics = require("./analytics");
+const feedback = require("./feedback");
+const feedbackCore = require("./feedbackCore");
+const progression = require("./progression");
 
 const PORT = Number(process.env.PORT) || 4000;
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
@@ -30,6 +33,8 @@ const FINAL_OUTCOMES = new Set(["victory", "defeat", "timeout"]);
 const LIVE_KEYS = [
   "playerHp", "playerMaxHp", "monsterHp", "monsterMaxHp", "xp", "score", "hits",
   "damageTotal", "fullSwings", "t", "timeLeft", "stamina", "maxStamina",
+  // Sent by the game since the feel-and-fitness update; absent from older builds (the live view falls back).
+  "combo", "effort", "kcal",
 ];
 
 // ---------------------------------------------------------------------------
@@ -424,6 +429,7 @@ function originAllowed(origin) {
 const corsOptions = { origin: (origin, cb) => cb(null, originAllowed(origin)), methods: ["GET", "POST", "PATCH", "DELETE"] };
 
 const app = express();
+app.set("trust proxy", 1); // Render sits behind one proxy; makes req.ip the client (used by the survey rate limit)
 const server = http.createServer(app);
 const io = new Server(server, { cors: corsOptions });
 broadcast.attach(server);
@@ -504,8 +510,10 @@ app.get("/api/sessions/:id", route(async (req, res) => {
     [session.id]
   );
   const events = rows.map(fromRow);
-  // Added: swing-tier breakdown, exertion trend and calorie estimate (see fitness.js).
-  res.json({ session, events, liveState, fitness: analytics.sessionFitness(session, events) });
+  // Added: swing-tier breakdown, exertion trend and calorie estimate (see fitness.js), the
+  // post-session rating (null when unrated) and the personal bests this session holds.
+  const [rating, personalBestsSet] = await Promise.all([feedback.getFeedback(session.id), analytics.sessionPersonalBests(session)]);
+  res.json({ session, events, liveState, fitness: analytics.sessionFitness(session, events), feedback: rating, personalBestsSet });
 }));
 
 app.get("/api/stats", route(async (_req, res) => {
@@ -529,6 +537,15 @@ app.get("/api/players/:name/engagement", route(async (req, res) => {
   const engagement = await analytics.playerEngagement(String(req.params.name), { tz: req.query.tz });
   if (!engagement) return res.status(404).json({ ok: false, error: "Player not found" });
   res.json(engagement);
+}));
+
+// Level, title, streak (with freeze), weekly goal and badges. Day boundaries follow ?tz= (default Asia/Kathmandu).
+// ?goal= overrides the weekly session target.
+app.get("/api/players/:name/achievements", route(async (req, res) => {
+  const goal = Number(req.query.goal);
+  const result = await analytics.playerAchievements(String(req.params.name), { tz: req.query.tz, goal: Number.isInteger(goal) && goal > 0 && goal <= 50 ? goal : undefined });
+  if (!result) return res.status(404).json({ ok: false, error: "Player not found" });
+  res.json(result);
 }));
 
 const MAX_PLAYER_NAME = 40;
@@ -629,6 +646,11 @@ app.get("/api/public-stats", route(async (_req, res) => {
 // Site-wide estimated calorie burn: total, per day (30 days), per level, top 5 sessions. Day boundaries follow ?tz=.
 app.get("/api/insights/calories", route(async (req, res) => {
   res.json(await analytics.calorieInsights({ tz: req.query.tz }));
+}));
+
+// Perceived vs measured effort. Aggregates and anonymous points only.
+app.get("/api/analytics/feedback", route(async (_req, res) => {
+  res.json(await feedback.feedbackAnalytics());
 }));
 
 app.get("/api/analytics", route(async (req, res) => {
@@ -739,6 +761,24 @@ app.post("/api/events", route(async (req, res) => {
   res.status(201).json({ ok: true, event: events[0] });
 }));
 
+// Post-session survey: enjoyment (1-5) and/or Borg RPE (6-20), one rating per finished session.
+// Public and unauthenticated by design (players rate from their phone), so it is rate limited per IP.
+const feedbackLimiter = feedbackCore.createRateLimiter({ max: 12, windowMs: 10 * 60_000 });
+app.post("/api/sessions/:id/feedback", route(async (req, res) => {
+  if (!feedbackLimiter.allow(req.ip)) return res.status(429).json({ ok: false, error: "Too many ratings from this connection. Try again in a few minutes." });
+  const checked = feedbackCore.validateFeedback(req.body);
+  if (!checked.ok) return res.status(400).json({ ok: false, error: checked.error });
+  const found = await query("SELECT id, player_name, level, status FROM sessions WHERE id = $1", [req.params.id]);
+  if (!found.rows.length) return res.status(404).json({ ok: false, error: "Session not found" });
+  const s = found.rows[0];
+  if (s.status === "live") return res.status(409).json({ ok: false, error: "That session is still being played. Rate it when it finishes." });
+  const saved = await feedback.saveFeedback(s.id, checked.value);
+  if (!saved) return res.status(409).json({ ok: false, error: "That session has already been rated." });
+  // The comment stays out of the live stream.
+  stream.broadcast("feedback_saved", { sessionId: s.id, playerName: s.player_name, level: s.level, enjoyment: saved.enjoyment, rpe: saved.rpe }, s.player_name);
+  res.status(201).json({ ok: true, feedback: saved });
+}));
+
 app.delete("/api/sessions/:id", route(async (req, res) => {
   const deleted = await withTransaction(async (client) => {
     const r = await client.query("DELETE FROM sessions WHERE id = $1 RETURNING player_name", [req.params.id]);
@@ -825,7 +865,8 @@ ready.then(() => server.listen(PORT, "0.0.0.0", () => {
   console.log("  GET    /api/overview | /api/public-stats | /api/analytics | /api/export/{sessions,events}.csv");
   console.log("  GET    /api/stream[?player]  (Server-Sent Events)");
   console.log(`  WS     ${broadcast.PATH}?role=streamer|viewer[&room]  (WebRTC signaling) | GET /api/broadcast/status`);
-  console.log("  POST   /api/sessions | /api/events (single or batch)");
+  console.log("  GET    /api/players/:name/achievements | /api/analytics/feedback");
+  console.log("  POST   /api/sessions | /api/events (single or batch) | /api/sessions/:id/feedback");
   console.log("  PATCH  /api/players/:name  { newName }");
   console.log("  DELETE /api/sessions | /api/sessions/:id");
   if (fs.existsSync(FRONTEND_DIST)) console.log(`  Dashboard: http://localhost:${PORT}/`);

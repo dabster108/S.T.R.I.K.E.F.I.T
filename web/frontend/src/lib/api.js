@@ -88,6 +88,11 @@ export const api = {
   liveQuiet: () => request("/api/live", { quiet: true, timeoutMs: 12000 }),
   publicStatsQuiet: () => request("/api/public-stats", { quiet: true, timeoutMs: 20000 }),
   analytics: (filters) => request(`/api/analytics${qs(filters)}`),
+  // Post-session survey (public, no auth) and the perceived-vs-measured effort aggregate.
+  submitFeedback: (sessionId, body) => request(`/api/sessions/${enc(sessionId)}/feedback`, { method: "POST", body, timeoutMs: 20000 }),
+  feedbackAnalytics: () => request("/api/analytics/feedback"),
+  // Level, title, streak (with freeze), weekly goal and badges. Day boundaries follow the viewer's time zone.
+  playerAchievements: (name) => request(`/api/players/${enc(name)}/achievements${qs({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`),
   exportUrl: (kind, filters) => `${API_BASE}/api/export/${kind}.csv${qs(filters)}`,
   streamUrl: () => `${API_BASE}/api/stream`,
 };

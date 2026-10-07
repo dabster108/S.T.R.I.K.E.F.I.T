@@ -2483,3 +2483,44 @@ Backup: branch `backup-before-insights` created at the prior HEAD (d453096) befo
 - **Frontend:** `components/fitness/CalorieInsights.jsx`, placed on the Overview page as new section 02 (existing sections renumbered 03-06). Overview is the landing page for the dashboard; Analytics is filtered by level/player, which doesn't suit a site-wide total. Uses existing Card/BarChart/WorkoutEquivalent/EstimateNote/Tooltip components and tokens.
 - **Not verified:** the UI was only built (`vite build` passes), not seen rendered; headless Chrome produced no screenshot. Check the Overview page in a browser.
 - Level 3 needs real playtest sessions with swing data before its calorie bar can appear.
+
+---
+
+## Feel and fitness: web parts 3 to 5 (2026-10-07)
+
+Backup: branch `backup-before-feel-and-fitness` (commit cdcd51c) holds the state before any change, including the previously uncommitted Build Settings/DevAgent edits and the audio file moves. Work is on branch `feel-and-fitness`, uncommitted.
+
+**Unity Parts 1 and 2 were NOT done.** The Unity MCP server was unreachable (ECONNREFUSED, nothing on port 8080, Unity not running), so no breathing tiers, blood, haptics, hit-stop, damage numbers, effort HUD, Victory/Defeat results, or game-side telemetry was touched. Every earlier "done/verified" claim about those is still unconfirmed. Web code already accepts the Part 2C fields (`combo`, `effort`, `kcal`, hit `swingSpeed`/`tier`/`combo`) and degrades cleanly without them.
+
+### Part 3: post-session survey
+- Table `session_feedback` (schema.sql, `CREATE TABLE IF NOT EXISTS`, applied on boot): `session_id` PK referencing `sessions(id) ON DELETE CASCADE`, `enjoyment` 1-5, `rpe` 6-20, `comment` (<= 500), `created_at`; at least one rating required (CHECK).
+- `POST /api/sessions/:id/feedback` (public, no auth): validation in `feedbackCore.js`; 400 invalid, 404 unknown session, 409 session still live or already rated (first write wins), 429 per-IP limit (12 per 10 min, in memory, `trust proxy` = 1 for Render), generic 500. Broadcasts `feedback_saved` on SSE (comment excluded).
+- `GET /api/sessions/:id` now also returns `feedback` (null when unrated) and `personalBestsSet`. Sessions CSV gains `enjoyment`, `rpe`, `feedbackComment` columns at the end.
+- `GET /api/analytics/feedback`: n, mean + distribution of both ratings, per-level means, anonymous points (rpe, mean swing intensity, estimated kcal/min), Spearman rho only when n >= 8 paired sessions, otherwise `status: insufficient_data`. Descriptive only; kcal/min is a fixed function of swing intensity so it is not independent evidence.
+- Frontend: public `/feedback` (player search -> latest sessions -> 2 questions, skippable, thank-you state), "Rate this session" / "Player rating" card on the session page, "Perceived vs measured effort" section on Analytics (scatter, per-level means, n always shown, honest empty state).
+- Borg RPE source cited in code comments: Borg GA (1982) Med Sci Sports Exerc 14(5):377-381. **Verify the citation before using it in the thesis.**
+- **Limitation: there is no authentication.** Anyone who knows a player name can rate any finished session of that player, and the per-IP limit is a spam guard, not a security boundary. Because first write wins, a wrong or malicious rating cannot be corrected from the UI (delete the session or the row in the database).
+
+### Part 4: streak, goal, level, badges
+- `GET /api/players/:name/achievements?tz=&goal=` (default tz Asia/Kathmandu, goal 3), logic in `progression.js` (pure, tested). Existing engagement endpoint and fields untouched; its plain streak still exists and can differ from the freeze-aware streak.
+- **Streak rule:** consecutive days with a session; one missed day between played days is forgiven (a "freeze") at most once per rolling 7 days; two missed days in a row break it. If the last session was two days ago and a freeze is free, the streak is shown alive as "play today to keep it".
+- **Level curve:** total XP to reach level L = 250 x (L-1)^2 (L2 250, L3 1000, L5 4000, L8 12250). Titles: Rookie (1), Brawler (3), Gladiator (5), Warlord (8), Legend (12). Sessions do store XP (`sessions.xp`, 17 of 42 rows non-zero at check time, max 6193).
+- **Badges:** First Blood, Full Power x50, 10-hit combo, Untouched (Level 2 victory with zero damage), Burned 100 kcal (sum of estimates), 3-day streak, Weekly goal met. Each returns unlocked, unlockedAt, source session and progress. Combo reports `tracking: true` ("Tracking starts after the game update") until a session carries combo data. Untouched needs max HP (live state or event) and remaining HP, else the `player_hurt` count; it is never guessed.
+- `personalBestsSet` lists the records a session holds against the player's other finished sessions (none for a first session).
+- Frontend: Progress section on the player page (level/title bar, streak card with "freeze used", weekly-goal ring, trophy grid), "New PB" chip and card on the session page.
+
+### Part 5: recap card and live HUD
+- Recap card (1080x1350) on the session page, built with `html-to-image` (lazy-loaded), waits for `document.fonts.ready`, Web Share where available, else download. Only recorded numbers appear; calories say "estimated" on the card; "vs your average" only with 2+ sessions.
+- `LiveHud` on each Live Arena card and as an overlay on the broadcast video: combo counter, swing-speed gauge, player-vs-monster race, flash on a faster swing than the player's stored record. Transform and opacity only, reduced-motion safe, falls back when a fight has no combo or swing data.
+- Backend `LIVE_KEYS` gained `combo`, `effort`, `kcal` so the live state carries them.
+
+### Verification done (2026-10-07)
+- Backend: 23 unit tests (`npm test`, `node --test`), all pass. Frontend: `vite build` passes, 0 browser console errors/warnings across the pages checked.
+- Real submit with disposable player ZZTEST against the Neon database: validation 400s, 404, 409 duplicate, 429 limit, read-back, CSV columns, analytics (n=8 gave rho 1 on constructed data, 0 ratings gave insufficient_data), achievements, personalBestsSet. All ZZTEST rows deleted afterwards; database returned to 42 sessions, 7882 events, 0 feedback rows.
+- Headless Chrome: survey page at 390 px (no horizontal scroll), session page, player Progress, Analytics scatter, Live Arena HUD with a simulated fight (combo 8, 7.4 m/s, PB label shown then removed) and a fight with no combo data.
+- Recap export 1080x1350 vs the on-screen render: 0.55% of pixels differ (antialiasing), layout and Inter font identical.
+
+### Not verified
+- The broadcast overlay was not seen over real video (needs a headset stream); its code is the same `LiveHud` as the Live Arena card.
+- Nothing was tested on a phone browser or with the Web Share API; the survey page was only checked in headless Chrome.
+- Headset-side telemetry (combo, effort, kcal, hit tier) does not exist yet, so combo badge and live combo are untested on real data.
