@@ -1,10 +1,12 @@
 // CombatUIController.cs
 // Purpose: Health bars, stamina, score, XP, floating damage numbers, victory/defeat panels
-//          with full stats (XP, hits, damage taken).
+//          with full stats (XP, hits, damage taken), the live effort readout (est. kcal + effort bar) and the result extras
+//          (XP count-up, medal, est. kcal, peak swing speed, best combo, NEW PB, feedback line).
 // Dependencies: UnityEngine.UI, TMPro (optional)
 // Attach to: Canvas or empty UI root in Battle scene
 
 using System.Collections;
+using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 #if TMP_PRESENT || true
@@ -16,7 +18,7 @@ public class CombatUIController : MonoBehaviour
     public static CombatUIController Instance;
 
     /// <summary>Look of a floating damage number: swing tier, or what happened to the hit.</summary>
-    public enum DamageStyle { Default, Tap, Light, Medium, Full, Weak, Blocked, Resisted, Break }
+    public enum DamageStyle { Default, Tap, Light, Medium, Full, Weak, Blocked, Resisted, Break, FullPower }
 
     /// <summary>Swing tier -> number style, with the same thresholds as XPManager's tiers.</summary>
     public static DamageStyle StyleForSpeed(float speed)
@@ -90,6 +92,33 @@ public class CombatUIController : MonoBehaviour
     [Tooltip("Metres the number is pulled from the hit point toward the player (keeps it in front of the body).")]
     public float numberTowardViewer = 0.3f;
 
+    [Tooltip("Adds a small \"FULL POWER\" word above the number of a full-tier swing (uses the same pool).")]
+    public bool fullPowerPopup = true;
+
+    [Header("Live effort HUD (built on this canvas)")]
+    [Tooltip("Estimated kcal (labelled est.) and an effort bar driven by PlayerExertionAudio.Exertion01, the same value the breathing uses.")]
+    public bool effortHud = true;
+    [Tooltip("The readout is redrawn at most this many times a second, and only when what it shows has changed.")]
+    [Range(1f, 10f)] public float effortHudRefreshHz = 4f;
+    [Tooltip("Canvas position of the readout (centre anchored, like the other HUD texts). Default: under the right-hand Score / Time / Dmg column.")]
+    public Vector2 effortHudPosition = new Vector2(220f, -10f);
+    public float effortBarWidth = 170f;
+
+    [Header("Result extras (Victory / Defeat panels)")]
+    [Tooltip("XP count-up, medal, est. kcal, peak swing speed, best combo, NEW PB and the feedback line.")]
+    public bool resultsExtras = true;
+    public float xpCountUpSeconds = 1.2f;
+    [Tooltip("Shown at the bottom of both panels with the player's name.")]
+    public string ratePrompt = "Rate this session: strikefit.vercel.app/feedback";
+
+    [Header("Medals (Victory only): gold needs BOTH limits, silver needs both, anything else is bronze")]
+    [Tooltip("Fight time limits in seconds (kill time, not counting the panel delay).")]
+    public float goldMaxSeconds = 35f;
+    public float silverMaxSeconds = 50f;
+    [Tooltip("Damage taken as a fraction of the player's max HP.")]
+    [Range(0f, 1f)] public float goldMaxDamageTakenFraction = 0.15f;
+    [Range(0f, 1f)] public float silverMaxDamageTakenFraction = 0.40f;
+
     [Header("HUD refresh")]
     [Tooltip("Stamina bar is redrawn only when it moved by this fraction of max (every change rebuilds the whole canvas).")]
     [Range(0.005f, 0.1f)] public float staminaUiStep = 0.02f;
@@ -102,6 +131,32 @@ public class CombatUIController : MonoBehaviour
     private float shownStamina = -1f;
     private int shownTimerSeconds = -1;
     private int shownCombo = -1;
+
+    // Effort HUD (built lazily on the canvas; redrawn only when the shown value changes).
+    private const int EffortSteps = 40;
+    private GameObject effortRoot;
+    private Text kcalText;
+    private RectTransform effortFill;
+    private Image effortFillImage;
+    private float nextHudTime;
+    private int shownKcalTenths = int.MinValue;
+    private bool shownHasKcal;
+    private int shownEffortStep = -1;
+    private PlayerExertionAudio.Tier shownTier = (PlayerExertionAudio.Tier)(-1);
+    /// <summary>Effort bar fill as currently drawn, 0 to 1 (verification).</summary>
+    public float EffortBarShown => shownEffortStep < 0 ? 0f : shownEffortStep / (float)EffortSteps;
+    public string KcalTextShown => kcalText != null ? kcalText.text : null;
+    public int EffortHudRedraws { get; private set; }
+
+    // Result extras.
+    private SessionReporter.PlayerBests priorBests;
+    private bool bestsReady;
+    private int bestsToken;
+    private Text victoryExtra, victoryFooter, defeatExtra, defeatFooter;
+    private Coroutine xpCountUp;
+    private readonly StringBuilder resultSb = new StringBuilder(256);
+    /// <summary>Text of the last result extras block (verification).</summary>
+    public string LastResultExtras { get; private set; }
 
     // Pooled numbers: created once, animated in Update without allocating.
     private TextMeshPro[] numPool;
@@ -120,6 +175,40 @@ public class CombatUIController : MonoBehaviour
     {
         Instance = this;
         HideOutcomePanels();
+    }
+
+    void Start()
+    {
+        if (BattleManager.Instance != null) BattleManager.Instance.OnBattleStarted += OnBattleStarted;
+        if (effortHud) BuildEffortHud();
+    }
+
+    void OnDestroy()
+    {
+        if (BattleManager.Instance != null) BattleManager.Instance.OnBattleStarted -= OnBattleStarted;
+        if (Instance == this) Instance = null;
+    }
+
+    void OnBattleStarted()
+    {
+        if (effortRoot != null) effortRoot.SetActive(true);
+        shownKcalTenths = int.MinValue; // redraw the effort readout on the first refresh of the fight
+        shownEffortStep = -1;
+        nextHudTime = 0f;
+        priorBests = default;
+        bestsReady = false;
+        // Records from earlier sessions, fetched in the background so nothing waits on them at the end.
+        var rep = SessionReporter.Instance;
+        if (resultsExtras && rep != null)
+        {
+            int token = ++bestsToken;
+            rep.FetchPlayerBests(rep.sessionPlayerName, b =>
+            {
+                if (this == null || token != bestsToken) return;
+                priorBests = b;
+                bestsReady = true;
+            });
+        }
     }
 
     public void ShowBattleHUD(bool show)
@@ -281,6 +370,8 @@ public class CombatUIController : MonoBehaviour
                         : style == DamageStyle.Blocked ? $"BLOCKED {Mathf.RoundToInt(amount)}"
                         : Mathf.RoundToInt(amount).ToString();
             SpawnNumber(worldPos, text, style);
+            if (fullPowerPopup && style == DamageStyle.Full)
+                SpawnNumber(worldPos + Vector3.up * 0.4f, "FULL POWER", DamageStyle.FullPower);
         }
         else if (verboseDamageLogs)
         {
@@ -353,9 +444,11 @@ public class CombatUIController : MonoBehaviour
         if (!scaleNumbersWithTier && style <= DamageStyle.Full) { size = s; color = Color.white; return; }
         switch (style)
         {
-            case DamageStyle.Tap: size = s * 0.75f; color = new Color(0.8f, 0.8f, 0.8f); break;
-            case DamageStyle.Medium: size = s * 1.25f; color = new Color(1f, 0.85f, 0.3f); break;
-            case DamageStyle.Full: size = s * 1.6f; color = new Color(1f, 0.5f, 0.15f); life *= 1.2f; break;
+            case DamageStyle.Tap: size = s * 0.75f; color = Color.white; break;
+            case DamageStyle.Light: size = s; color = new Color(1f, 0.9f, 0.25f); break;
+            case DamageStyle.Medium: size = s * 1.25f; color = new Color(1f, 0.55f, 0.12f); break;
+            case DamageStyle.Full: size = s * 1.6f; color = new Color(1f, 0.16f, 0.14f); life *= 1.2f; break;
+            case DamageStyle.FullPower: size = s * 0.85f; color = new Color(1f, 0.32f, 0.2f); life *= 1.3f; break;
             case DamageStyle.Weak: size = s * 1.7f; color = new Color(0.55f, 1f, 0.35f); life *= 1.2f; break;
             case DamageStyle.Blocked: size = s * 0.85f; color = new Color(0.55f, 0.75f, 1f); break;
             case DamageStyle.Resisted: size = s * 0.85f; color = new Color(0.62f, 0.62f, 0.66f); break;
@@ -366,6 +459,7 @@ public class CombatUIController : MonoBehaviour
 
     void Update()
     {
+        if (effortRoot != null) UpdateEffortHud();
         if (numPool == null) return;
         float dt = Time.deltaTime;
         for (int i = 0; i < numPool.Length; i++)
@@ -468,6 +562,8 @@ public class CombatUIController : MonoBehaviour
         }
         if (victoryDamageText != null) victoryDamageText.text = $"Damage Dealt: {Mathf.RoundToInt(totalDamage)}";
         if (scoreText != null) scoreText.text = $"Score {score}";
+        FinishEffortHud();
+        if (resultsExtras) ShowResultExtras(true, score);
     }
 
     /// <summary>
@@ -487,6 +583,238 @@ public class CombatUIController : MonoBehaviour
         }
         if (defeatDamageText != null) defeatDamageText.text = $"Score: {score}";
         if (defeatRetryHintText != null) defeatRetryHintText.text = "Press A to Retry";
+        FinishEffortHud();
+        if (resultsExtras) ShowResultExtras(false, score);
+    }
+
+    // ─────────────────────────── Live effort HUD ───────────────────────────
+
+    static Text MakeText(Transform parent, string name, Font font, int size, Color color, TextAnchor align, Vector2 pos, Vector2 box)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(Text));
+        var rt = (RectTransform)go.transform;
+        rt.SetParent(parent, false);
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = box;
+        var t = go.GetComponent<Text>();
+        t.font = font;
+        t.fontSize = size;
+        t.color = color;
+        t.alignment = align;
+        t.horizontalOverflow = HorizontalWrapMode.Overflow;
+        t.raycastTarget = false; // never in the way of the laser pointer
+        return t;
+    }
+
+    Font HudFont()
+    {
+        if (xpText != null && xpText.font != null) return xpText.font;
+        if (scoreText != null && scoreText.font != null) return scoreText.font;
+        return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+    }
+
+    Transform HudParent()
+    {
+        if (xpText != null) return xpText.transform.parent;
+        if (scoreText != null) return scoreText.transform.parent;
+        if (playerHealthText != null) return playerHealthText.transform.parent;
+        return null;
+    }
+
+    /// <summary>Builds the estimated-kcal readout and the effort bar on the existing combat canvas (once).</summary>
+    void BuildEffortHud()
+    {
+        if (effortRoot != null) return;
+        var parent = HudParent();
+        if (parent == null) return;
+        var font = HudFont();
+
+        effortRoot = new GameObject("EffortHud", typeof(RectTransform));
+        var rootRt = (RectTransform)effortRoot.transform;
+        rootRt.SetParent(parent, false);
+        rootRt.anchorMin = rootRt.anchorMax = new Vector2(0.5f, 0.5f);
+        rootRt.anchoredPosition = effortHudPosition;
+        rootRt.sizeDelta = new Vector2(Mathf.Max(effortBarWidth, 220f), 80f);
+
+        kcalText = MakeText(rootRt, "EstKcal", font, 24, new Color(1f, 0.82f, 0.4f), TextAnchor.MiddleCenter, new Vector2(0f, 22f), new Vector2(240f, 34f));
+        kcalText.text = "est. \u2014 kcal";
+
+        var back = new GameObject("EffortBar", typeof(RectTransform), typeof(Image));
+        var backRt = (RectTransform)back.transform;
+        backRt.SetParent(rootRt, false);
+        backRt.anchorMin = backRt.anchorMax = new Vector2(0.5f, 0.5f);
+        backRt.anchoredPosition = new Vector2(0f, -8f);
+        backRt.sizeDelta = new Vector2(effortBarWidth, 14f);
+        var backImg = back.GetComponent<Image>();
+        backImg.color = new Color(0.08f, 0.1f, 0.16f, 0.75f);
+        backImg.raycastTarget = false;
+
+        var fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+        effortFill = (RectTransform)fill.transform;
+        effortFill.SetParent(backRt, false);
+        effortFill.anchorMin = Vector2.zero;
+        effortFill.anchorMax = new Vector2(0f, 1f);
+        effortFill.offsetMin = effortFill.offsetMax = Vector2.zero;
+        effortFillImage = fill.GetComponent<Image>();
+        effortFillImage.raycastTarget = false;
+        effortFillImage.color = TierColor(PlayerExertionAudio.Tier.Calm);
+
+        MakeText(rootRt, "EffortLabel", font, 16, new Color(1f, 1f, 1f, 0.75f), TextAnchor.MiddleCenter, new Vector2(0f, -30f), new Vector2(effortBarWidth, 20f)).text = "EFFORT";
+    }
+
+    static Color TierColor(PlayerExertionAudio.Tier tier)
+    {
+        switch (tier)
+        {
+            case PlayerExertionAudio.Tier.High: return new Color(1f, 0.35f, 0.25f);
+            case PlayerExertionAudio.Tier.Medium: return new Color(1f, 0.8f, 0.3f);
+            default: return new Color(0.45f, 0.75f, 1f);
+        }
+    }
+
+    // At most effortHudRefreshHz per second, and each part is only written when the value it shows has changed
+    // (every UI change rebuilds the canvas). Stops while no battle runs, so the last value stays on screen after the fight.
+    void UpdateEffortHud(bool force = false)
+    {
+        var bm = BattleManager.Instance;
+        if (!force && (bm == null || !bm.IsBattleActive)) return;
+        float now = Time.unscaledTime;
+        if (!force && now < nextHudTime) return;
+        nextHudTime = now + 1f / Mathf.Max(1f, effortHudRefreshHz);
+
+        var ex = PlayerExertionAudio.Instance;
+        int step = Mathf.RoundToInt((ex != null ? ex.Exertion01 : 0f) * EffortSteps);
+        if (step != shownEffortStep)
+        {
+            shownEffortStep = step;
+            effortFill.anchorMax = new Vector2(step / (float)EffortSteps, 1f);
+            EffortHudRedraws++;
+        }
+        var tier = ex != null ? ex.CurrentTier : PlayerExertionAudio.Tier.Calm;
+        if (tier != shownTier)
+        {
+            shownTier = tier;
+            effortFillImage.color = TierColor(tier);
+            EffortHudRedraws++;
+        }
+        bool has = BattleStats.TryGetKcal(Time.realtimeSinceStartup, out float kcal);
+        int tenths = has ? Mathf.RoundToInt(kcal * 10f) : 0;
+        if (has != shownHasKcal || tenths != shownKcalTenths)
+        {
+            shownHasKcal = has;
+            shownKcalTenths = tenths;
+            kcalText.text = has ? $"est. {tenths / 10f:0.0} kcal" : "est. \u2014 kcal";
+            EffortHudRedraws++;
+        }
+    }
+
+    // ─────────────────────────── Result extras ───────────────────────────
+
+    // Right-hand column of the panel (the existing stat rows only use the left half) and a footer line, built once per panel.
+    Text EnsurePanelText(GameObject panel, ref Text cache, string name, Vector2 aMin, Vector2 aMax, int size, TextAnchor align, Color color, bool bestFit)
+    {
+        if (cache != null) return cache;
+        if (panel == null) return null;
+        var go = new GameObject(name, typeof(RectTransform), typeof(Text));
+        var rt = (RectTransform)go.transform;
+        rt.SetParent(panel.transform, false);
+        rt.anchorMin = aMin; rt.anchorMax = aMax;
+        rt.offsetMin = new Vector2(8f, 0f); rt.offsetMax = new Vector2(-14f, 0f);
+        var t = go.GetComponent<Text>();
+        t.font = HudFont();
+        t.fontSize = size;
+        t.alignment = align;
+        t.color = color;
+        t.supportRichText = true;
+        t.raycastTarget = false;
+        t.horizontalOverflow = HorizontalWrapMode.Wrap;
+        t.verticalOverflow = VerticalWrapMode.Truncate;
+        if (bestFit) { t.resizeTextForBestFit = true; t.resizeTextMinSize = 12; t.resizeTextMaxSize = size; }
+        cache = t;
+        return t;
+    }
+
+    // The panel replaces the live readout: one last exact refresh (so its final value is the one the panel and the backend use),
+    // then it is hidden so it never draws over the panel. OnBattleStarted brings it back.
+    void FinishEffortHud()
+    {
+        if (effortRoot == null) return;
+        UpdateEffortHud(true);
+        effortRoot.SetActive(false);
+    }
+
+    void ShowResultExtras(bool victory, int score)
+    {
+        var panel = victory ? victoryPanel : defeatPanel;
+        if (panel == null) return;
+        var rep = SessionReporter.Instance;
+        string player = rep != null && !string.IsNullOrEmpty(rep.sessionPlayerName) ? rep.sessionPlayerName : "";
+        float now = Time.realtimeSinceStartup;
+        var sb = resultSb;
+        sb.Clear();
+
+        // Medal (victory): fight time up to the kill and damage taken against the per-level limits on this component.
+        if (victory)
+        {
+            float delay = BattleManager.Instance != null ? BattleManager.Instance.victoryPanelDelay : 0f;
+            float seconds = Mathf.Max(0f, now - BattleStats.StartedAt - delay);
+            float maxHp = PlayerHealth.Instance != null ? Mathf.Max(1f, PlayerHealth.Instance.maxHealth) : 1f;
+            float dmgFrac = BattleStats.DamageTaken / maxHp;
+            string medal, hex;
+            if (seconds <= goldMaxSeconds && dmgFrac <= goldMaxDamageTakenFraction) { medal = "GOLD"; hex = "FFD24A"; }
+            else if (seconds <= silverMaxSeconds && dmgFrac <= silverMaxDamageTakenFraction) { medal = "SILVER"; hex = "D5DAE2"; }
+            else { medal = "BRONZE"; hex = "D9904F"; }
+            sb.Append("<b><color=#").Append(hex).Append('>').Append(medal).Append(" MEDAL</color></b>\n");
+            sb.Append("<size=18>").Append(Mathf.RoundToInt(seconds)).Append("s, ").Append(Mathf.RoundToInt(dmgFrac * 100f)).Append("% HP lost</size>\n");
+        }
+
+        bool hasKcal = BattleStats.TryGetKcal(now, out float kcal);
+        sb.Append("Energy: ").Append(hasKcal ? "est. " + kcal.ToString("0.0") + " kcal" : "est. \u2014").Append('\n');
+        if (BattleStats.PeakSwingSpeed > 0f) sb.Append("Peak swing: ").Append(BattleStats.PeakSwingSpeed.ToString("0.0")).Append(" m/s\n");
+        int bestCombo = XPManager.Instance != null ? XPManager.Instance.BestCombo : 0;
+        if (bestCombo >= 2) sb.Append("Best combo: x").Append(bestCombo).Append('\n');
+
+        // NEW PB: only against a record that exists, and only when the background fetch answered.
+        if (bestsReady && priorBests.ok)
+        {
+            if (priorBests.swingSpeed > 0f && BattleStats.PeakSwingSpeed > priorBests.swingSpeed) sb.Append("<color=#7CFF7C>NEW PB: fastest swing</color>\n");
+            if (hasKcal && priorBests.kcal > 0f && kcal > priorBests.kcal) sb.Append("<color=#7CFF7C>NEW PB: energy</color>\n");
+            if (priorBests.score > 0f && score > priorBests.score) sb.Append("<color=#7CFF7C>NEW PB: score</color>\n");
+        }
+
+        Text extra = victory ? EnsurePanelText(panel, ref victoryExtra, "ResultExtras", new Vector2(0.5f, 0.07f), new Vector2(1f, 0.68f), 26, TextAnchor.UpperLeft, Color.white, true)
+                             : EnsurePanelText(panel, ref defeatExtra, "ResultExtras", new Vector2(0.5f, 0.07f), new Vector2(1f, 0.68f), 26, TextAnchor.UpperLeft, Color.white, true);
+        Text footer = victory ? EnsurePanelText(panel, ref victoryFooter, "ResultFooter", new Vector2(0f, 0f), new Vector2(1f, 0.07f), 18, TextAnchor.MiddleCenter, new Color(1f, 1f, 1f, 0.8f), true)
+                              : EnsurePanelText(panel, ref defeatFooter, "ResultFooter", new Vector2(0f, 0f), new Vector2(1f, 0.07f), 18, TextAnchor.MiddleCenter, new Color(1f, 1f, 1f, 0.8f), true);
+        LastResultExtras = sb.ToString();
+        if (extra != null) extra.text = LastResultExtras;
+        if (footer != null) footer.text = string.IsNullOrEmpty(player) ? ratePrompt : player + "  \u00b7  " + ratePrompt;
+
+        // XP count-up on the existing XP line.
+        var xpLabel = victory ? victoryXPText : defeatXPText;
+        if (xpLabel != null && XPManager.Instance != null && xpCountUpSeconds > 0.05f)
+        {
+            if (xpCountUp != null) StopCoroutine(xpCountUp);
+            xpCountUp = StartCoroutine(CountUpXP(xpLabel, XPManager.Instance.CurrentXP));
+        }
+    }
+
+    // Real time, so a slow-motion finale cannot stretch it; the text is rewritten only when the whole number changes.
+    IEnumerator CountUpXP(Text label, int target)
+    {
+        float t = 0f;
+        int shown = -1;
+        while (t < xpCountUpSeconds && label != null)
+        {
+            t += Time.unscaledDeltaTime;
+            float k = Mathf.Clamp01(t / xpCountUpSeconds);
+            int v = Mathf.RoundToInt(target * (1f - (1f - k) * (1f - k))); // ease-out
+            if (v != shown) { shown = v; label.text = "XP Earned: " + v; }
+            yield return null;
+        }
+        if (label != null) label.text = "XP Earned: " + target;
+        xpCountUp = null;
     }
 
     public void HideOutcomePanels()

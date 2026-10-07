@@ -18,6 +18,8 @@ public class PlayerHealth : MonoBehaviour
     [Tooltip("Red screen flash image (Canvas Image) shown briefly when taking unblocked damage.")]
     public UnityEngine.UI.Image hitFlashImage;
     public float hitFlashDuration = 0.25f;
+    [Tooltip("Set by PlayerDamageVignette while it draws the hit flash as a screen-edge vignette; this full-rect flash then stays off.")]
+    [HideInInspector] public bool flashReplacedByVignette;
     [Tooltip("Optional camera shake transform.")]
     public Transform cameraShakeTarget;
     public float hitShakeMagnitude = 0.08f;
@@ -120,7 +122,7 @@ public class PlayerHealth : MonoBehaviour
 
     void PlayHitReaction()
     {
-        if (hitFlashImage != null)
+        if (hitFlashImage != null && !flashReplacedByVignette)
             StartCoroutine(FlashRoutine());
         if (cameraShakeTarget != null)
             StartCoroutine(ShakeRoutine());
