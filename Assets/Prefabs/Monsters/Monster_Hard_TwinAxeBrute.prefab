@@ -745,6 +745,7 @@ GameObject:
   - component: {fileID: 8976103026171938891}
   - component: {fileID: 916228325732955231}
   - component: {fileID: 9023956306001982432}
+  - component: {fileID: 2230826891526811165}
   m_Layer: 0
   m_Name: Monster_Hard_TwinAxeBrute
   m_TagString: Monster
@@ -1628,6 +1629,7 @@ MonoBehaviour:
   defendTintColor: {r: 0.45, g: 0.65, b: 1, a: 1}
   defendBraceClip: {fileID: 8300000, guid: f471fccf5a00e45f692b73850307647d, type: 3}
   defendBraceVolume: 0.8
+  braceSoundOnReactiveGuard: 0
   defendBlockClip: {fileID: 8300000, guid: 3f3b32d0907d84e699e7fd6295966790, type: 3}
   defendBlockVolume: 0.9
   defendCooldownJitter: 0.3
@@ -1650,6 +1652,7 @@ MonoBehaviour:
   attackSwingVolume: 1
   aggression: 1
   verboseAttackLogs: 0
+  strikeWindowAfterHit: 0.2
 --- !u!114 &4597886644493719949
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1968,6 +1971,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MonsterDefense
   turnToFacePlayer: 1
   turnSpeed: 150
+  dampedTurn: 1
+  turnDeadZone: 4
+  turnSettleAngle: 1
+  turnGain: 4
+  turnAcceleration: 360
+  recentre: 1
+  recentreDeadZone: 0.04
+  recentreSpeed: 0.35
+  recentreGain: 2
   detectSpeed: 2.5
   detectRange: 1.9
   detectConeAngle: 40
@@ -2008,6 +2020,29 @@ MonoBehaviour:
   dodgeDistance: 0.7
   dodgeSeconds: 0.45
   dodgeArenaRadius: 3.5
+--- !u!114 &2230826891526811165
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1559859882870524655}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5d697ffe5b8c4173a8c2c3149c93b55, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterHitShake
+  shakeEnabled: 1
+  tapAmplitude: 0.004
+  lightAmplitude: 0.01
+  mediumAmplitude: 0.02
+  fullAmplitude: 0.035
+  maxAmplitude: 0.04
+  weakPointScale: 1.25
+  duration: {x: 0.06, y: 0.12}
+  cycles: 2.5
+  damping: 4
+  attackScale: 0.25
 --- !u!1 &1832734791609773434
 GameObject:
   m_ObjectHideFlags: 0

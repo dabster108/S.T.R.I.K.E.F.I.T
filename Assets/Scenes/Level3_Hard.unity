@@ -1521,6 +1521,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1066510555}
     m_Modifications:
+    - target: {fileID: 1199026100536281029, guid: 955a4a0ae2e0c4961bd448e778d95327, type: 3}
+      propertyPath: triggerSpeed
+      value: 2.4
+      objectReference: {fileID: 0}
     - target: {fileID: 1490460536001248756, guid: 955a4a0ae2e0c4961bd448e778d95327, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -2007,6 +2011,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BattleManager
   monsterSpawnPoint: {fileID: 1491555620}
+  spawnOnPlayerForwardLine: 1
+  maxSpawnCorrection: 0.75
   fallbackCubeMonsterPrefab: {fileID: 2516576026936844043, guid: a9540218900204811b71401260cbc131, type: 3}
   sceneMonster: {fileID: 0}
   timerExpireMeansDefeat: 0
@@ -2410,22 +2416,32 @@ MonoBehaviour:
   mode: 2
   bloodMaterial: {fileID: 2100000, guid: 61c8e7818618744f9ab8f786e7fbed29, type: 2}
   sparksMaterial: {fileID: 2100000, guid: 26ad0f753a3634302a7821bfc535cbf1, type: 2}
-  tapCount: 6
-  lightCount: 8
-  mediumCount: 10
-  fullCount: 12
-  weakPointBonus: 2
-  maxBurst: 14
-  bigHitSizeScale: 1.2
-  lifetime: {x: 0.25, y: 0.45}
-  size: {x: 0.03, y: 0.06}
-  speed: {x: 1.1, y: 2.7}
-  gravity: 1.6
-  spread: 38
-  bloodColor: {r: 0.55, g: 0.03, b: 0.04, a: 1}
-  bloodColorDark: {r: 0.32, g: 0.01, b: 0.02, a: 1}
+  tapCount: 18
+  lightCount: 22
+  mediumCount: 26
+  fullCount: 36
+  weakPointBonus: 10
+  weakPointMinimum: 32
+  maxBurst: 50
+  bigHitSizeScale: 1.25
+  lifetime: {x: 0.5, y: 0.9}
+  size: {x: 0.035, y: 0.075}
+  speed: {x: 0.8, y: 2.2}
+  gravity: 6
+  spread: 32
+  bloodColor: {r: 0.52, g: 0.04, b: 0.03, a: 1}
+  bloodColorDark: {r: 0.3, g: 0.02, b: 0.01, a: 1}
   sparkColor: {r: 1, g: 0.78, b: 0.3, a: 1}
   sparkColorHot: {r: 1, g: 0.95, b: 0.7, a: 1}
+  drips: 1
+  dripSeconds: 2.5
+  dripInterval: 0.25
+  dripSize: {x: 0.035, y: 0.055}
+  maxWounds: 4
+  deathBurst: 1
+  deathCount: 60
+  clashSparks: 1
+  clashSparkCount: 14
   bursts: 0
   lastBurstSize: 0
   pooledSystems: 0
@@ -5149,6 +5165,10 @@ PrefabInstance:
       propertyPath: 'heavyHitVariants.Array.data[2]'
       value: 
       objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+    - target: {fileID: 2772760755387717166, guid: 4cbc7fee83a7347ea91a701f08486155, type: 3}
+      propertyPath: triggerSpeed
+      value: 2.4
+      objectReference: {fileID: 0}
     - target: {fileID: 4009292522886635611, guid: 4cbc7fee83a7347ea91a701f08486155, type: 3}
       propertyPath: m_Name
       value: PlayerMace_Right
@@ -6354,6 +6374,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1066510555}
     m_Modifications:
+    - target: {fileID: 4178572639440492876, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
+      propertyPath: minInterval
+      value: 0.25
+      objectReference: {fileID: 0}
+    - target: {fileID: 4178572639440492876, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
+      propertyPath: triggerSpeed
+      value: 2
+      objectReference: {fileID: 0}
     - target: {fileID: 5052261244970132864, guid: f97c9ddc71be04a5594ecf21a9c676db, type: 3}
       propertyPath: hitVariants.Array.size
       value: 3
@@ -7717,6 +7745,10 @@ PrefabInstance:
       propertyPath: 'heavyHitVariants.Array.data[2]'
       value: 
       objectReference: {fileID: 8300000, guid: 74c677fd9a83e4f70b2ecf6f7710c3ea, type: 3}
+    - target: {fileID: 2662567813776782261, guid: 5364c9dcb4e754712a37c8fa8cbfa2e7, type: 3}
+      propertyPath: triggerSpeed
+      value: 2.2
+      objectReference: {fileID: 0}
     - target: {fileID: 3840039801734551687, guid: 5364c9dcb4e754712a37c8fa8cbfa2e7, type: 3}
       propertyPath: m_Name
       value: PlayerFlail_Left
@@ -8442,10 +8474,10 @@ MonoBehaviour:
   swingRearmSpeed: 1.2
   swingReversalAngle: 150
   minSwingInterval: 0.35
-  exertionWindow: 12
-  swingsForFullEffort: 14
+  exertionWindow: 30
+  swingsForFullEffort: 20
   minSwingWeight: 0.5
-  fullWeightSpeed: 5
+  fullWeightSpeed: 7
   smoothSeconds: 0.6
   mediumOn: 0.28
   mediumOff: 0.18
@@ -8647,6 +8679,7 @@ MonoBehaviour:
     maxSwingVelocity: 6
     maxVelocityDamageMultiplier: 2.2
     damageMultiplier: 1.12
+  ignoreOwnWeaponCollisions: 1
   showWeaponsBeforeBattle: 1
   swingController: 2
   offhandSwingController: 1
@@ -8860,7 +8893,7 @@ MonoBehaviour:
   exertion: {fileID: 1373539871}
   vignette: {fileID: 1500758473}
   color: {r: 0.85, g: 0, b: 0, a: 1}
-  edgeFlash: 1
+  edgeFlash: 0
   flashPeakAlpha: 0.6
   flashSeconds: 0
   lowHpPulse: 0
@@ -9757,6 +9790,14 @@ PrefabInstance:
       propertyPath: 'heavyHitVariants.Array.data[2]'
       value: 
       objectReference: {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
+    - target: {fileID: 3132062169683737263, guid: a4666581cca544e95905f04bb7b2b9e7, type: 3}
+      propertyPath: minInterval
+      value: 0.25
+      objectReference: {fileID: 0}
+    - target: {fileID: 3132062169683737263, guid: a4666581cca544e95905f04bb7b2b9e7, type: 3}
+      propertyPath: triggerSpeed
+      value: 2
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -9827,6 +9868,10 @@ PrefabInstance:
     - target: {fileID: 3650648455392940538, guid: 0b65a5dbb5aae416595c2c07826f8a61, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4585269004841911588, guid: 0b65a5dbb5aae416595c2c07826f8a61, type: 3}
+      propertyPath: triggerSpeed
+      value: 2.2
       objectReference: {fileID: 0}
     - target: {fileID: 6437676896874190266, guid: 0b65a5dbb5aae416595c2c07826f8a61, type: 3}
       propertyPath: hitVariants.Array.size

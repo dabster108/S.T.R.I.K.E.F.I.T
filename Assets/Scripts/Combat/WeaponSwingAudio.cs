@@ -21,12 +21,17 @@ public class WeaponSwingAudio : MonoBehaviour
     public float rearmSpeed = 1.2f;
     [Tooltip("Speed at which the whoosh reaches full volume.")]
     public float fullSpeed = 6f;
-    public float minInterval = 0.3f;
+    [Tooltip("Cooldown between whooshes on this weapon.")]
+    public float minInterval = 0.25f;
+    [Tooltip("Speed must stay at or above triggerSpeed this long before the whoosh fires: one-frame tracking spikes and " +
+             "small wrist flicks never whoosh.")]
+    public float sustainSeconds = 0.04f;
     [Tooltip("Weapon turning this far (deg) from its direction at the last whoosh re-arms it.")]
     public float reversalAngle = 150f;
 
     private bool armed = true;
     private float lastTime = -999f;
+    private float aboveSince = -1f;
     private Vector3 lastPos, dir, firedDir;
 
     void Start()
@@ -58,15 +63,21 @@ public class WeaponSwingAudio : MonoBehaviour
             else return;
         }
 
-        if (speed >= triggerSpeed && Time.time - lastTime >= minInterval)
+        if (speed < triggerSpeed) { aboveSince = -1f; return; }
+        if (aboveSince < 0f) aboveSince = Time.time;
+        if (Time.time - aboveSince >= sustainSeconds && Time.time - lastTime >= minInterval)
         {
+            aboveSince = -1f;
             armed = false;
             lastTime = Time.time;
             firedDir = dir;
             var clip = swingClips[Random.Range(0, swingClips.Length)];
             float t = Mathf.InverseLerp(triggerSpeed, fullSpeed, speed);
             if (clip != null)
+            {
                 audioSource.PlayOneShot(clip, volume * Mathf.Lerp(0.55f, 1f, t));
+                SfxTrace.Note(this, clip, "whoosh: swing held above trigger speed");
+            }
         }
     }
 }

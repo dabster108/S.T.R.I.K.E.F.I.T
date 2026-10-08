@@ -32,6 +32,6 @@ public class BattleOutcomeAudio : MonoBehaviour
         battle.OnDefeat -= HandleDefeat;
     }
 
-    void HandleVictory(int score) { if (audioSource != null && victoryClip != null) audioSource.PlayOneShot(victoryClip, victoryVolume); }
-    void HandleDefeat(int score) { if (audioSource != null && defeatClip != null) audioSource.PlayOneShot(defeatClip, defeatVolume); }
+    void HandleVictory(int score) { if (audioSource != null && victoryClip != null) { audioSource.PlayOneShot(victoryClip, victoryVolume); SfxTrace.Note(this, victoryClip, "victory sting"); } }
+    void HandleDefeat(int score) { if (audioSource != null && defeatClip != null) { audioSource.PlayOneShot(defeatClip, defeatVolume); SfxTrace.Note(this, defeatClip, "defeat sting"); } }
 }

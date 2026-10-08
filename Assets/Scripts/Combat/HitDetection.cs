@@ -5,6 +5,7 @@
 // Attach to: Hammer head collider (tag this object "Hammer")
 
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Collider))]
@@ -56,6 +57,12 @@ public class HitDetection : MonoBehaviour
     [Range(0f, 1f)] public float blockedHitVolume = 0.8f;
     public VRSoundButton soundButtonFallback;
 
+    [Header("Hit feedback layers")]
+    [Tooltip("Impact sound on a landed hit (normal, weak point, guarded). Off = silent hits; the clash sound has its own clip. " +
+             "The other layers have their own toggles: blood (HitBloodFx.mode), haptics (CombatFeedback.haptics), damage numbers " +
+             "(CombatUIController.builtInDamageNumbers), hit-shake (MonsterHitShake.shakeEnabled).")]
+    public bool hitSounds = true;
+
     [Header("Sound variation")]
     [Tooltip("Pick a random variant + small random pitch per hit so repeated hits never sound identical.")]
     public bool varyHitSounds = true;
@@ -65,6 +72,23 @@ public class HitDetection : MonoBehaviour
     public AudioClip[] heavyHitVariants = new AudioClip[0];
     [Tooltip("Random pitch spread (0.06 = +/-6 %).")]
     [Range(0f, 0.2f)] public float pitchJitter = 0.06f;
+
+    [Header("Valid contacts")]
+    [Tooltip("One landed hit or clash per swing contact with a monster: after it, every collider of that monster (body parts, " +
+             "blade, haft) is ignored until the weapon slows below the speed gate or has been out of the monster for " +
+             "rearmOutsideSeconds. Stops a multi-collider body from sounding several times per swing.")]
+    public bool oneContactPerSwing = true;
+    public float rearmOutsideSeconds = 0.12f;
+    [Tooltip("A clash needs a real swing: this weapon above the speed gate (a parry), the monster's weapon in an attack's " +
+             "strike window (MonsterAI.InStrikeWindow, not wind-up or recovery), or a thrown axe. A monster weapon merely " +
+             "brushing a held weapon (idle sway, guard pose, stepping, wind-up) plays no sound, sends no haptic and raises no " +
+             "clash event.")]
+    public bool clashNeedsSwingOrAttack = true;
+    [Tooltip("One clash SOUND per monster strike across both player weapons: a second weapon clashing with the same monster " +
+             "within this many seconds stays silent (its hand still gets the haptic). 0 = off.")]
+    public float sharedClashSoundWindow = 0.15f;
+    [Tooltip("Ignore the monster while its entrance (summon / rise / roar) is still playing: no damage, no sound.")]
+    public bool ignoreDuringEntrance = true;
 
     [Header("Who can deal hits")]
     public string hammerTag = "Hammer";
@@ -85,14 +109,30 @@ public class HitDetection : MonoBehaviour
     /// <summary>Monster struck by the last Hit / Blocked contact.</summary>
     public MonsterController LastMonster { get; private set; }
     public Vector3 LastHitPoint { get; private set; }
+    /// <summary>Monster collider struck by the last Hit / Blocked contact (its transform follows a bone: blood drips use it).</summary>
+    public Collider LastHitCollider { get; private set; }
+    /// <summary>Contact point of the last weapon clash.</summary>
+    public Vector3 LastClashPoint { get; private set; }
     /// <summary>True if the front-hit bonus applied to the last Hit / Blocked contact (verification).</summary>
     public bool LastWasFrontHit { get; private set; }
 
     private float lastHitTime = -999f;
     private Vector3 lastPosition;
     private Vector3 velocity;
-    // One landed hit per swing while the weapon stays inside the monster: re-armed when the swing ends.
+    // One landed hit per swing contact: re-armed when the swing ends (below the gate) or, with oneContactPerSwing, once the
+    // weapon has left the struck monster.
     private bool stayArmed = true;
+    private UnityEngine.Object contactTarget;
+    private float lastTouchTime = -999f;
+
+    // Collider -> owning monster (null = not a valid target: floor, walls, the other player weapon, the rig). Filled once per
+    // collider so OnTriggerStay never walks the hierarchy every physics step.
+    static readonly Dictionary<Collider, MonsterController> ownerCache = new Dictionary<Collider, MonsterController>();
+    static UnityEngine.Object lastClashSoundTarget;
+    static float lastClashSoundTime = -999f;
+    private MonsterController entranceOwner;
+    private MonsterEntrance entrance;
+    private MonsterAI ownerAi;
     private float aboveGateSince = -1f;
 
     void Reset()
@@ -122,7 +162,8 @@ public class HitDetection : MonoBehaviour
         lastPosition = transform.position;
 
         float speedNow = ImpactSpeed();
-        if (!stayArmed && speedNow < MinSwingSpeed())
+        if (!stayArmed && (speedNow < MinSwingSpeed() ||
+                           (oneContactPerSwing && Time.time - lastTouchTime > rearmOutsideSeconds)))
             stayArmed = true;
 
         if (momentumMaxBonus > 0f)
@@ -155,28 +196,84 @@ public class HitDetection : MonoBehaviour
         TryHit(collision.collider, collision.contacts.Length > 0 ? collision.contacts[0].point : transform.position);
     }
 
+    static MonsterController OwnerOf(Collider c)
+    {
+        if (!ownerCache.TryGetValue(c, out var m))
+        {
+            if (ownerCache.Count > 512) ownerCache.Clear(); // scene changes leave dead keys behind
+            m = c.GetComponentInParent<MonsterController>();
+            ownerCache[c] = m;
+        }
+        return m;
+    }
+
+    void CacheOwnerParts(MonsterController m)
+    {
+        if (m == entranceOwner) return;
+        entranceOwner = m; entrance = m.GetComponent<MonsterEntrance>(); ownerAi = m.GetComponent<MonsterAI>();
+    }
+
+    bool InEntrance(MonsterController m)
+    {
+        if (!ignoreDuringEntrance || m == null) return false;
+        CacheOwnerParts(m);
+        return entrance != null && !entrance.Complete;
+    }
+
+    /// <summary>The monster's weapon is actually swinging: an attack-table strike window, or any attack for the older
+    /// pattern-based AI (no strike timing available).</summary>
+    bool MonsterStriking(MonsterController m)
+    {
+        if (!m.isAttacking) return false;
+        CacheOwnerParts(m);
+        return ownerAi == null || !ownerAi.UsesAttackTable || ownerAi.InStrikeWindow;
+    }
+
     void TryHit(Collider other, Vector3? explicitPoint = null, bool fromStay = false)
     {
+        // Only two kinds of contact count: a monster's body colliders and a MonsterWeapon collider (also a thrown axe in
+        // flight, which has left the monster's hierarchy). Everything else (floor, walls, the other player weapon, the
+        // player's own rig) is ignored before any sound, damage or haptic logic.
+        bool monsterWeapon = other.CompareTag("MonsterWeapon");
+        MonsterController owner = OwnerOf(other);
+        if (owner == null && !monsterWeapon) return;
+        if (owner != null && (!owner.isAlive || InEntrance(owner))) return;
+        UnityEngine.Object target = owner != null ? (UnityEngine.Object)owner : other.transform.root;
+        // Still inside the same contact (blade then haft, or two body parts in one pass) when the weapon touched this target
+        // within rearmOutsideSeconds.
+        bool sameContact = oneContactPerSwing && target == contactTarget && Time.time - lastTouchTime <= rearmOutsideSeconds;
+        if (target == contactTarget) lastTouchTime = Time.time;
+
         if (Time.time - lastHitTime < hitCooldown) return;
+        if (oneContactPerSwing && !stayArmed && target == contactTarget) return;
 
         // --- Clash / Parry check ---
-        if (other.CompareTag("MonsterWeapon"))
+        if (monsterWeapon)
         {
             if (fromStay) return; // a clash is the moment of contact only; resting on the weapon is not a parry
+            // A held (slow) weapon re-arms at once, so a monster swing passing blade-then-haft through it would clash twice.
+            if (sameContact) return;
+            if (clashNeedsSwingOrAttack && owner != null && !MonsterStriking(owner) && ImpactSpeed() < MinSwingSpeed()) return;
             lastHitTime = Time.time;
             stayArmed = false; // a parried swing cannot go on to score on the body it is still passing through
+            contactTarget = target; lastTouchTime = Time.time;
             LastResult = ContactResult.Clash;
+            LastClashPoint = explicitPoint ?? other.ClosestPoint(transform.position);
             WeaponClashed?.Invoke(this, ImpactSpeed());
-            if (audioSource != null && clashSound != null)
+            bool otherWeaponJustClanged = sharedClashSoundWindow > 0f && target == lastClashSoundTarget &&
+                                          Time.time - lastClashSoundTime < sharedClashSoundWindow;
+            if (audioSource != null && clashSound != null && !otherWeaponJustClanged)
             {
+                lastClashSoundTarget = target; lastClashSoundTime = Time.time;
                 // Clash clip in project is a long riser (~5s); keep it short/quiet so hits don't feel 2x frantic.
                 float vol = clashSound.length > 1.5f ? 0.45f : 0.85f;
                 Jitter();
                 audioSource.PlayOneShot(clashSound, vol);
+                SfxTrace.Note(this, clashSound, "clash: player weapon entered a MonsterWeapon collider");
             }
             
             // Optional: spawn sparks at hitPoint
-            Vector3 clashPoint = explicitPoint ?? other.ClosestPoint(transform.position);
+            Vector3 clashPoint = LastClashPoint;
             if (hitParticles != null)
             {
                 hitParticles.transform.position = clashPoint;
@@ -186,9 +283,7 @@ public class HitDetection : MonoBehaviour
             return;
         }
 
-        MonsterController monster = other.GetComponentInParent<MonsterController>();
-        if (monster == null) return;
-        if (!monster.isAlive) return;
+        MonsterController monster = owner;
         if (fromStay && !stayArmed) return;
 
         // --- Swing speed at moment of impact ---
@@ -242,6 +337,7 @@ public class HitDetection : MonoBehaviour
 
         lastHitTime = Time.time;
         stayArmed = false;
+        contactTarget = monster; lastTouchTime = Time.time;
 
         var monsterAi = monster.GetComponent<MonsterAI>();
         bool monsterDefending = monsterAi != null && monsterAi.IsDefending;
@@ -251,18 +347,22 @@ public class HitDetection : MonoBehaviour
         LastWasFrontHit = facingMul > 1f;
         LastMonster = monster;
         LastHitPoint = hitPoint;
+        LastHitCollider = other;
         monster.OnTakeDamage(damage, hitPoint, speed, weakPoint != null);
         if (weakPoint != null) weakPoint.NotifyHit(this);
         if (monsterDefending)
-            PlayBlockedFeedback(hitPoint, speed, monsterAi);
-        else if (weakPoint != null && weakPoint.hitClip != null && audioSource != null)
+        {
+            if (hitSounds) PlayBlockedFeedback(hitPoint, speed, monsterAi);
+        }
+        else if (weakPoint != null && weakPoint.hitClip != null && audioSource != null && hitSounds)
         {
             // Weak point: its own confirmation sound instead of the normal flesh hit.
             if (hitParticles != null) { hitParticles.transform.position = hitPoint; hitParticles.Play(); }
             Jitter();
             audioSource.PlayOneShot(weakPoint.hitClip, weakPoint.hitVolume);
+            SfxTrace.Note(this, weakPoint.hitClip, "hit: landed on weak point");
         }
-        else
+        else if (hitSounds)
             PlayFeedback(hitPoint, speed);
 
         // --- XP: reward good form (full swing > tap) ---
@@ -337,6 +437,7 @@ public class HitDetection : MonoBehaviour
             {
                 Jitter();
                 audioSource.PlayOneShot(clipToPlay);
+                SfxTrace.Note(this, clipToPlay, heavy ? "hit: landed (heavy)" : "hit: landed");
             }
         }
         else if (soundButtonFallback != null)
@@ -353,6 +454,7 @@ public class HitDetection : MonoBehaviour
         {
             Jitter();
             audioSource.PlayOneShot(blockedHitSound, blockedHitVolume);
+            SfxTrace.Note(this, blockedHitSound, "block: landed on a guarding monster");
             return;
         }
 

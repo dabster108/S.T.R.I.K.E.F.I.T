@@ -150,9 +150,9 @@ public static class FeelSetup
             dso.FindProperty("health").objectReferenceValue = rig.GetComponent<PlayerHealth>();
             dso.FindProperty("exertion").objectReferenceValue = rig.GetComponent<PlayerExertionAudio>();
             dso.FindProperty("vignette").objectReferenceValue = qr;
-            dso.FindProperty("edgeFlash").boolValue = true;
+            dso.FindProperty("edgeFlash").boolValue = false; // polish-2: the original PlayerHealth hit flash is kept
             // Level 3 already has its own low-HP vignette + heartbeat (PlayerLowHealthFeedback); a second pulse would double up.
-            dso.FindProperty("lowHpPulse").boolValue = !l3;
+            dso.FindProperty("lowHpPulse").boolValue = false; // polish-2: default off (toggle)
             dso.ApplyModifiedPropertiesWithoutUndo();
 
             // HUD + results + numbers on the existing CombatUIController.

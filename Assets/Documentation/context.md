@@ -1,6 +1,6 @@
 # Fitness Monster Battle (VR) — Project Context
 
-Last updated: **2026-10-05, overlap clamp + shared MonsterDefense + L3 rebalance (see project_progress.md)**
+Last updated: **2026-10-08, polish pass 2 (own-weapon collisions, sound gating, centring, blood, fire aura, breathing, hit-shake; see project_progress.md)**
 
 ## Overview
 
@@ -102,3 +102,11 @@ All per-level combat numbers live in `Editor/CombatTuning.cs` (monster prefab va
 - Audio: `Assets/Audio/SFX/Player/breathingfast.mp3`. FX: `Assets/Materials/FX/` (`M_HitBlood`, `M_HitSparks`, `M_DamageVignette`), `Assets/VFX/T_DamageVignette.png`.
 - Exertion is one value (`PlayerExertionAudio.Exertion01`): breathing, effort bar and telemetry `effort` all read it.
 - Test harness note: run the harness against a local backend with `http://127.0.0.1:4100`, not `localhost` (Unity resolved `localhost` to IPv6 first and timed out); delete the test player's sessions and restore PlayerPrefs `StrikeFit.PlayerNames` afterwards.
+
+---
+
+## Polish pass 2, 2026-10-08 (branch `unity-feel`, backup `backup-before-polish-2`)
+
+- New scripts: `Combat/SfxTrace.cs` (editor-only sound audit hook), `Monster/MonsterFireAura.cs` (L1 yellow-gold / L2 violet body fire, one particle system, per-prefab profile), `Monster/MonsterHitShake.cs` (hips-bone shudder), Editor `PolishVerification.cs` (play-mode probes: sound, cross, centre, blood, fire, breath, shake, jitter, regress, alloc).
+- Changed: `HitDetection` (valid targets only, one contact per swing, entrance gate, shared clash sound, `hitSounds`), `PlayerCombat` (`IgnoreOwnWeaponCollisions`), `WeaponSwingAudio` (sustain + 0.25 s), `MonsterAI` (`InStrikeWindow`, `braceSoundOnReactiveGuard`), `MonsterDefense` (`dampedTurn`, `recentre`), `BattleManager` (`spawnOnPlayerForwardLine`), `HitBloodFx` (rewritten: droplets with gravity, drips, death burst, clash sparks), `PlayerDamageVignette` (flash and pulse default off), per-scene exertion thresholds on `PlayerExertionAudio`.
+- Probe note: Editor swings driven by moving a transform read about 40 % lower than the drive speed (0.12 s hand-speed smoothing), and the Editor has no controller velocity; feed `PlayerExertionAudio.RegisterSwing` for effort tests, and do not set `Application.runInBackground` in edit mode (it rewrites ProjectSettings).

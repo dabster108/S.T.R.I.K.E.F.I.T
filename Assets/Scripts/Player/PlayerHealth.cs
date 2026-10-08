@@ -87,7 +87,7 @@ public class PlayerHealth : MonoBehaviour
         if (fullyBlocked)
         {
             // Successful block — reward defensive play with XP + feedback
-            if (audioSource != null && blockSound != null) audioSource.PlayOneShot(blockSound);
+            if (audioSource != null && blockSound != null) { audioSource.PlayOneShot(blockSound); SfxTrace.Note(this, blockSound, "player blocked a monster hit"); }
             if (XPManager.Instance != null) XPManager.Instance.AwardBlockXP();
             DamageTaken?.Invoke(0f, true, currentHealth);
             return; // no HP loss
@@ -113,7 +113,10 @@ public class PlayerHealth : MonoBehaviour
         if (IsDead)
         {
             if (audioSource != null && defeatSound != null)
+            {
                 audioSource.PlayOneShot(defeatSound, defeatSoundVolume);
+                SfxTrace.Note(this, defeatSound, "player defeated");
+            }
             OnDeath?.Invoke();
             if (BattleManager.Instance != null)
                 BattleManager.Instance.NotifyPlayerDefeated();
@@ -127,9 +130,15 @@ public class PlayerHealth : MonoBehaviour
         if (cameraShakeTarget != null)
             StartCoroutine(ShakeRoutine());
         if (audioSource != null && hitSound != null)
+        {
             audioSource.PlayOneShot(hitSound, hitSoundVolume);
+            SfxTrace.Note(this, hitSound, "player took damage");
+        }
         if (audioSource != null && hurtVocalSound != null)
+        {
             audioSource.PlayOneShot(hurtVocalSound, hurtVocalVolume);
+            SfxTrace.Note(this, hurtVocalSound, "player took damage (vocal)");
+        }
     }
 
     System.Collections.IEnumerator FlashRoutine()

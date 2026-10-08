@@ -89,14 +89,14 @@ public class MonsterEntrance : MonoBehaviour
             summoningCircle.transform.position = new Vector3(transform.position.x, transform.position.y + 0.02f, transform.position.z);
             summoningCircle.Show(circleFadeIn);
         }
-        if (summonClip != null && audioSource != null) audioSource.PlayOneShot(summonClip, summonVolume);
+        if (summonClip != null && audioSource != null) { audioSource.PlayOneShot(summonClip, summonVolume); SfxTrace.Note(this, summonClip, "entrance: summon"); }
 
         yield return new WaitForSeconds(preRiseDelay);
 
         // --- Rise: Y follows the Rise clip's real length ---
         RiseSeconds = ClipLength(riseStateClip, fallbackRiseSeconds);
         if (anim != null) anim.PlayNamedTrigger(riseTrigger);
-        if (riseClip != null && audioSource != null) audioSource.PlayOneShot(riseClip, riseVolume);
+        if (riseClip != null && audioSource != null) { audioSource.PlayOneShot(riseClip, riseVolume); SfxTrace.Note(this, riseClip, "entrance: rise"); }
         float t = 0f;
         while (t < RiseSeconds)
         {
@@ -110,7 +110,7 @@ public class MonsterEntrance : MonoBehaviour
         // --- Roar: animation and sound start on the same frame, then a held beat. The circle has done its job once
         //     the monster is fully risen: it fades out during the roar. ---
         if (anim != null) anim.PlayNamedTrigger(roarTrigger);
-        if (roarClip != null && audioSource != null) audioSource.PlayOneShot(roarClip, roarVolume);
+        if (roarClip != null && audioSource != null) { audioSource.PlayOneShot(roarClip, roarVolume); SfxTrace.Note(this, roarClip, "entrance: roar"); }
         if (summoningCircle != null) summoningCircle.Hide(circleFadeOut);
         float roarLen = ClipLength(roarStateClip, roarHoldSeconds);
         yield return new WaitForSeconds(Mathf.Max(roarHoldSeconds, roarLen));

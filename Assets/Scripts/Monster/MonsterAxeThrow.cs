@@ -215,7 +215,7 @@ public class MonsterAxeThrow : MonoBehaviour
         if (natural)
         {
             Catches++;
-            if (catchClip != null && catchSource != null) catchSource.PlayOneShot(catchClip, catchVolume);
+            if (catchClip != null && catchSource != null) { catchSource.PlayOneShot(catchClip, catchVolume); SfxTrace.Note(this, catchClip, "thrown axe caught"); }
         }
         // The monster's death switches every child collider off; an axe that was away missed that.
         if (controller != null && !controller.isAlive && axeColliders[i] != null)

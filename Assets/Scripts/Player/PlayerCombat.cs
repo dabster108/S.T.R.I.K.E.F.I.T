@@ -61,6 +61,15 @@ public class PlayerCombat : MonoBehaviour
 
     [Header("Selectable Weapon Pairs (Level 3+; empty in Levels 1-2)")]
     public System.Collections.Generic.List<WeaponSet> weaponSets = new System.Collections.Generic.List<WeaponSet>();
+
+    [Header("Own-weapon collisions")]
+    [Tooltip("Physics.IgnoreCollision between every pair of active colliders under this rig (both held weapons, any hand " +
+             "colliders), re-applied each time weapons are shown, equipped or swapped. The player's two weapons never touch " +
+             "each other or the player's own rig.")]
+    public bool ignoreOwnWeaponCollisions = true;
+    /// <summary>Collider pairs ignored by the last IgnoreOwnWeaponCollisions call (verification).</summary>
+    public int IgnoredColliderPairs { get; private set; }
+    private readonly System.Collections.Generic.List<Collider> ownColliders = new System.Collections.Generic.List<Collider>();
     [Tooltip("Show the equipped pair before the battle starts (Level 3: the player picks it up in the arena). " +
              "Off = weapons appear only once the battle is active (Levels 1-2).")]
     public bool showWeaponsBeforeBattle = false;
@@ -365,6 +374,32 @@ public class PlayerCombat : MonoBehaviour
         }
         if (offhandWeaponTransform != null)
             lastOffhandWeaponPos = offhandWeaponTransform.position;
+
+        IgnoreOwnWeaponCollisions();
+    }
+
+    /// <summary>
+    /// IgnoreCollision only takes active colliders and the state is lost when a collider is deactivated, so this runs after
+    /// every visibility change (battle start, Level 3 equip, weapon swap). Runs at equip time only, never per frame.
+    /// </summary>
+    public void IgnoreOwnWeaponCollisions()
+    {
+        IgnoredColliderPairs = 0;
+        if (!ignoreOwnWeaponCollisions) return;
+        GetComponentsInChildren(false, ownColliders);
+        for (int i = 0; i < ownColliders.Count; i++)
+        {
+            var a = ownColliders[i];
+            if (!a.enabled) continue;
+            for (int j = i + 1; j < ownColliders.Count; j++)
+            {
+                var b = ownColliders[j];
+                if (!b.enabled) continue;
+                Physics.IgnoreCollision(a, b, true);
+                IgnoredColliderPairs++;
+            }
+        }
+        ownColliders.Clear();
     }
 
     /// <summary>
