@@ -155,7 +155,10 @@ public class MonsterController : MonoBehaviour
         SetAnimState(MonsterAnimState.Attack);
 
         if (audioSource != null && attackSound != null)
+        {
             audioSource.PlayOneShot(attackSound);
+            SfxTrace.Note(this, attackSound, "monster attack (BeginAttack)");
+        }
     }
 
     /// <summary>
@@ -314,7 +317,10 @@ public class MonsterController : MonoBehaviour
         SetAnimState(MonsterAnimState.Death);
 
         if (audioSource != null && deathSound != null)
+        {
             audioSource.PlayOneShot(deathSound);
+            SfxTrace.Note(this, deathSound, "monster death");
+        }
 
         if (ai != null)
             ai.enabled = false;

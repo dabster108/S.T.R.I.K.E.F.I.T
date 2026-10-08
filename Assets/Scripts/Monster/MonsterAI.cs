@@ -224,6 +224,9 @@ public class MonsterAI : MonoBehaviour
     [Tooltip("Brace cue when the defend window opens.")]
     public AudioClip defendBraceClip;
     [Range(0f, 1f)] public float defendBraceVolume = 0.8f;
+    [Tooltip("Also play the brace cue when the guard is a REACTION to a player swing. Off: a reactive guard is raised against " +
+             "a swing that may never land, so the brace sounded on air swings; the block clang on a landed hit stays.")]
+    public bool braceSoundOnReactiveGuard = false;
     [Tooltip("Block clang when a hit lands during the defend window.")]
     public AudioClip defendBlockClip;
     [Range(0f, 1f)] public float defendBlockVolume = 0.9f;
@@ -323,6 +326,13 @@ public class MonsterAI : MonoBehaviour
     public float LastHitDamageMultiplier { get; private set; }
     private bool inWindUp;
     private bool? hasRangedRows;
+    // Attack-table strike window on the AI clock: from the swing whoosh to strikeWindowAfterHit after each hit frame.
+    private float strikeFrom = -1f, strikeUntil = -1f;
+    /// <summary>The weapon is in an attack's actual swing (not wind-up or recovery). HitDetection uses it to tell a monster
+    /// strike meeting the player's weapon (a clash) from the axe drifting through a held weapon.</summary>
+    public bool InStrikeWindow => AiTime >= strikeFrom && AiTime <= strikeUntil;
+    [Tooltip("Seconds after each hit frame that still count as the strike (InStrikeWindow).")]
+    public float strikeWindowAfterHit = 0.2f;
 
     // Hit-stop: the AI clock (every attack timing) stops together with the Animator, so damage frames stay on the
     // visible impact after a freeze. Without a hit-stop AiTime == Time.time (Levels 1-2 unchanged).
@@ -634,8 +644,11 @@ public class MonsterAI : MonoBehaviour
         var anim = GetComponent<MonsterAnimator>();
         if (anim != null) anim.PlayDefend(trigger);
 
-        if (defendBraceClip != null && sfxAudioSource != null)
+        if (defendBraceClip != null && sfxAudioSource != null && (!reactive || braceSoundOnReactiveGuard))
+        {
             sfxAudioSource.PlayOneShot(defendBraceClip, defendBraceVolume);
+            SfxTrace.Note(this, defendBraceClip, "monster guard raised");
+        }
         if (flashSeconds > 0f)
         {
             // Raise cue: a short cool flash (never the red attack telegraph), then the guard tint if this monster has one.
@@ -752,7 +765,10 @@ public class MonsterAI : MonoBehaviour
     public void NotifyDefendedHit(Vector3 hitPoint)
     {
         if (defendBlockClip != null && sfxAudioSource != null)
+        {
             sfxAudioSource.PlayOneShot(defendBlockClip, defendBlockVolume);
+            SfxTrace.Note(this, defendBlockClip, "monster guard absorbed a landed hit");
+        }
         if (defendTintEnabled)
             StartCoroutine(BlockFlash());
     }
@@ -1057,9 +1073,15 @@ public class MonsterAI : MonoBehaviour
 
         // --- Telegraph ---
         if (a.unblockable && a.warningClip != null && sfxAudioSource != null)
+        {
             sfxAudioSource.PlayOneShot(a.warningClip, a.warningVolume);
+            SfxTrace.Note(this, a.warningClip, "monster attack: unblockable warning");
+        }
         if (a.windUpClip != null && sfxAudioSource != null)
+        {
             sfxAudioSource.PlayOneShot(a.windUpClip, a.windUpVolume);
+            SfxTrace.Note(this, a.windUpClip, "monster attack: wind-up telegraph");
+        }
         StartCoroutine(TelegraphFlash(windUp, a.telegraphColor));
         if (a.fireVfx) SetWeaponFire(true);
         // The impact zone is fixed where it was shown (the clamp may slide the root back during the slam).
@@ -1078,9 +1100,13 @@ public class MonsterAI : MonoBehaviour
             float hitAt = windUp + (i == 0 ? 0f : a.followUpHits[i - 1] / tempo);
 
             float whooshAt = start + Mathf.Max(0f, hitAt - swingSfxLead);
+            strikeFrom = whooshAt; strikeUntil = start + hitAt + strikeWindowAfterHit / tempo;
             while (AiTime < whooshAt) yield return null;
             if (a.swingClip != null && sfxAudioSource != null)
+            {
                 sfxAudioSource.PlayOneShot(a.swingClip, a.swingVolume);
+                SfxTrace.Note(this, a.swingClip, "monster attack: swing whoosh");
+            }
 
             while (AiTime < start + hitAt) yield return null;
             inWindUp = false;
@@ -1096,7 +1122,10 @@ public class MonsterAI : MonoBehaviour
             }
 
             if (a.impactClip != null && sfxAudioSource != null)
+            {
                 sfxAudioSource.PlayOneShot(a.impactClip, a.impactVolume);
+                SfxTrace.Note(this, a.impactClip, "monster attack: impact frame");
+            }
             if (a.fireVfx || a.unblockable) PlayImpactBurst();
             if (a.unblockable && dangerZone != null) dangerZone.Impact();
 
@@ -1211,7 +1240,10 @@ public class MonsterAI : MonoBehaviour
 
         // --- Telegraph: visual + audio cue at wind-up start ---
         if (telegraphCueClip != null && sfxAudioSource != null)
+        {
             sfxAudioSource.PlayOneShot(telegraphCueClip, telegraphCueVolume);
+            SfxTrace.Note(this, telegraphCueClip, "monster attack (pattern): telegraph");
+        }
         float windUp = baseHitDelay / Mathf.Max(0.5f, aggression);
         Color cueColor = pattern == AttackPattern.Heavy ? heavyTelegraphColor : telegraphColor;
         StartCoroutine(TelegraphFlash(windUp, cueColor));
@@ -1220,7 +1252,10 @@ public class MonsterAI : MonoBehaviour
 
         // Attack swing SFX at the hit window.
         if (attackSwingClip != null && sfxAudioSource != null)
+        {
             sfxAudioSource.PlayOneShot(attackSwingClip, attackSwingVolume);
+            SfxTrace.Note(this, attackSwingClip, "monster attack (pattern): swing");
+        }
 
         // --- Hit frame: apply damage if player still in range and didn't move away ---
         if (controller != null && controller.isAlive && playerTarget != null)

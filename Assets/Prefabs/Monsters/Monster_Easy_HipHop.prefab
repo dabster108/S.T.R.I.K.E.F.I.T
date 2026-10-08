@@ -988,6 +988,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
       insertIndex: -1
       addedObject: {fileID: 6213180570981922906}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3757075888026843899}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6250682702081583136}
   m_SourcePrefab: {fileID: 100100000, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
 --- !u!4 &719864772271835393 stripped
 Transform:
@@ -1399,6 +1405,7 @@ MonoBehaviour:
   defendTintColor: {r: 0.45, g: 0.65, b: 1, a: 1}
   defendBraceClip: {fileID: 8300000, guid: f471fccf5a00e45f692b73850307647d, type: 3}
   defendBraceVolume: 0.8
+  braceSoundOnReactiveGuard: 0
   defendBlockClip: {fileID: 8300000, guid: 3f3b32d0907d84e699e7fd6295966790, type: 3}
   defendBlockVolume: 0.9
   defendCooldownJitter: 0
@@ -1421,6 +1428,7 @@ MonoBehaviour:
   attackSwingVolume: 1
   aggression: 1
   verboseAttackLogs: 0
+  strikeWindowAfterHit: 0.2
 --- !u!114 &4627137839898129430
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1576,6 +1584,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MonsterDefense
   turnToFacePlayer: 1
   turnSpeed: 90
+  dampedTurn: 1
+  turnDeadZone: 4
+  turnSettleAngle: 1
+  turnGain: 4
+  turnAcceleration: 360
+  recentre: 1
+  recentreDeadZone: 0.04
+  recentreSpeed: 0.35
+  recentreGain: 2
   detectSpeed: 2.5
   detectRange: 2.5
   detectConeAngle: 40
@@ -1616,6 +1633,66 @@ MonoBehaviour:
   dodgeDistance: 0.7
   dodgeSeconds: 0.45
   dodgeArenaRadius: 3.5
+--- !u!114 &3757075888026843899
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6231198665464638293}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 92c2e98cc661a46b4accb57a629244ce, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterFireAura
+  auraEnabled: 1
+  flameMaterial: {fileID: 2100000, guid: 398c6c18c6fe54577af84b1e378d60a4, type: 2}
+  outerColor: {r: 1, g: 0.62, b: 0.12, a: 1}
+  coreColor: {r: 1, g: 0.9, b: 0.45, a: 1}
+  coreShare: 0.3
+  ratePerSecond: 40
+  lifetime: {x: 0.4, y: 0.7}
+  size: {x: 0.14, y: 0.24}
+  rise: {x: 0.35, y: 0.7}
+  scatter: {x: 0.3, y: 0.12}
+  fitToHitVolumes: 1
+  shellMargin: 0.04
+  maxParticles: 70
+  flareRate: 1.8
+  flareSize: 1.3
+  lowHpFraction: 0.35
+  lowHpRate: 1.35
+  lowHpSize: 1.15
+  deathFadeSeconds: 1.2
+  blendSeconds: 0.25
+  bodyPulse: 1
+  bodyRenderer: {fileID: 8190314631309884529}
+  pulseColor: {r: 1, g: 0.5, b: 0.1, a: 1}
+  pulseIntensity: {x: 0.04, y: 0.12}
+  pulsePeriod: 1.6
+--- !u!114 &6250682702081583136
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6231198665464638293}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5d697ffe5b8c4173a8c2c3149c93b55, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterHitShake
+  shakeEnabled: 1
+  tapAmplitude: 0.004
+  lightAmplitude: 0.01
+  mediumAmplitude: 0.02
+  fullAmplitude: 0.035
+  maxAmplitude: 0.04
+  weakPointScale: 1.25
+  duration: {x: 0.06, y: 0.12}
+  cycles: 2.5
+  damping: 4
+  attackScale: 0.25
 --- !u!4 &6893930887810451051 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 366175167995203695, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}

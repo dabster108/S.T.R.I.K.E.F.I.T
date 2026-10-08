@@ -1142,6 +1142,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BattleManager
   monsterSpawnPoint: {fileID: 1775839309}
+  spawnOnPlayerForwardLine: 1
+  maxSpawnCorrection: 0.75
   fallbackCubeMonsterPrefab: {fileID: 2516576026936844043, guid: a9540218900204811b71401260cbc131, type: 3}
   sceneMonster: {fileID: 0}
   timerExpireMeansDefeat: 0
@@ -1297,22 +1299,32 @@ MonoBehaviour:
   mode: 2
   bloodMaterial: {fileID: 2100000, guid: 61c8e7818618744f9ab8f786e7fbed29, type: 2}
   sparksMaterial: {fileID: 2100000, guid: 26ad0f753a3634302a7821bfc535cbf1, type: 2}
-  tapCount: 6
-  lightCount: 8
-  mediumCount: 10
-  fullCount: 12
-  weakPointBonus: 2
-  maxBurst: 14
-  bigHitSizeScale: 1.2
-  lifetime: {x: 0.25, y: 0.45}
-  size: {x: 0.03, y: 0.06}
-  speed: {x: 1.1, y: 2.7}
-  gravity: 1.6
-  spread: 38
+  tapCount: 18
+  lightCount: 22
+  mediumCount: 26
+  fullCount: 36
+  weakPointBonus: 10
+  weakPointMinimum: 32
+  maxBurst: 50
+  bigHitSizeScale: 1.25
+  lifetime: {x: 0.5, y: 0.9}
+  size: {x: 0.035, y: 0.075}
+  speed: {x: 0.8, y: 2.2}
+  gravity: 6
+  spread: 32
   bloodColor: {r: 0.55, g: 0.03, b: 0.04, a: 1}
   bloodColorDark: {r: 0.32, g: 0.01, b: 0.02, a: 1}
   sparkColor: {r: 1, g: 0.78, b: 0.3, a: 1}
   sparkColorHot: {r: 1, g: 0.95, b: 0.7, a: 1}
+  drips: 1
+  dripSeconds: 2.5
+  dripInterval: 0.25
+  dripSize: {x: 0.035, y: 0.055}
+  maxWounds: 4
+  deathBurst: 1
+  deathCount: 60
+  clashSparks: 1
+  clashSparkCount: 14
   bursts: 0
   lastBurstSize: 0
   pooledSystems: 0
@@ -5469,6 +5481,7 @@ MonoBehaviour:
   offhandSwordObject: {fileID: 0}
   shieldObject: {fileID: 1812943775}
   weaponSets: []
+  ignoreOwnWeaponCollisions: 1
   showWeaponsBeforeBattle: 0
   swingController: 2
   offhandSwingController: 1
@@ -5628,10 +5641,10 @@ MonoBehaviour:
   swingRearmSpeed: 1.2
   swingReversalAngle: 150
   minSwingInterval: 0.35
-  exertionWindow: 12
-  swingsForFullEffort: 14
+  exertionWindow: 30
+  swingsForFullEffort: 19
   minSwingWeight: 0.5
-  fullWeightSpeed: 5
+  fullWeightSpeed: 6
   smoothSeconds: 0.6
   mediumOn: 0.28
   mediumOff: 0.18
@@ -5666,10 +5679,10 @@ MonoBehaviour:
   exertion: {fileID: 1475721790}
   vignette: {fileID: 1320077151}
   color: {r: 0.85, g: 0, b: 0, a: 1}
-  edgeFlash: 1
+  edgeFlash: 0
   flashPeakAlpha: 0.6
   flashSeconds: 0
-  lowHpPulse: 1
+  lowHpPulse: 0
   pulsePeriod: 2.4
   pulseMinAlpha: 0.1
   pulseMaxAlpha: 0.3
@@ -8129,6 +8142,11 @@ MonoBehaviour:
   - {fileID: 8300000, guid: 2274a158022034139a66d4e57b846cd9, type: 3}
   - {fileID: 8300000, guid: d4a6df351c6a24bf69655c4dbf7710ed, type: 3}
   pitchJitter: 0.06
+  oneContactPerSwing: 1
+  rearmOutsideSeconds: 0.12
+  clashNeedsSwingOrAttack: 1
+  sharedClashSoundWindow: 0.15
+  ignoreDuringEntrance: 1
   hammerTag: Hammer
   playerHandTag: PlayerHand
   hand: 1

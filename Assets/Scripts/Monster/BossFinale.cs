@@ -46,7 +46,7 @@ public class BossFinale : MonoBehaviour
     {
         if (Played) return;
         Played = true;
-        if (finalBlowClip != null && audioSource != null) audioSource.PlayOneShot(finalBlowClip, finalBlowVolume);
+        if (finalBlowClip != null && audioSource != null) { audioSource.PlayOneShot(finalBlowClip, finalBlowVolume); SfxTrace.Note(this, finalBlowClip, "boss finale: killing blow"); }
         StartCoroutine(SlowMotion());
     }
 

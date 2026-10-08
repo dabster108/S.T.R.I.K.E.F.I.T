@@ -69,7 +69,10 @@ public class MonsterHealth : MonoBehaviour
         if (IsDead)
         {
             if (deathAudioSource != null && deathSound != null)
+            {
                 deathAudioSource.PlayOneShot(deathSound, deathSoundVolume);
+                SfxTrace.Note(this, deathSound, "monster death");
+            }
             OnDeath?.Invoke();
         }
     }

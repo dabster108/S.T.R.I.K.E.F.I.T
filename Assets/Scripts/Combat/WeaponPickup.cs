@@ -139,7 +139,7 @@ public class WeaponPickup : MonoBehaviour
         foreach (var other in All)
             if (other != this) other.SetHeld(false);
         SetHeld(true);
-        if (audioSource != null && pickupClip != null) audioSource.PlayOneShot(pickupClip, pickupVolume);
+        if (audioSource != null && pickupClip != null) { audioSource.PlayOneShot(pickupClip, pickupVolume); SfxTrace.Note(this, pickupClip, "weapon picked up"); }
         return true;
     }
 

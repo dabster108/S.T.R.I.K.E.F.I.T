@@ -29,6 +29,29 @@ public class MonsterDefense : MonoBehaviour
     public bool turnToFacePlayer = true;
     [Tooltip("Turn speed cap (degrees/second) while free. Never turns during an attack.")]
     public float turnSpeed = 120f;
+    [Tooltip("Damped turn: no turning while the aim error is under turnDeadZone, so head sway never swings the monster. " +
+             "Off = the old constant-speed turn every frame.")]
+    public bool dampedTurn = true;
+    [Tooltip("Aim error (deg) that starts a turn.")]
+    public float turnDeadZone = 4f;
+    [Tooltip("A started turn continues until the aim error is under this (deg), so it settles instead of stopping at the edge.")]
+    public float turnSettleAngle = 1f;
+    [Tooltip("Turn rate per degree of aim error (1/s): the turn slows as it lines up and never overshoots.")]
+    public float turnGain = 4f;
+    [Tooltip("Max change of the turn rate (deg/s per second): turns ease in.")]
+    public float turnAcceleration = 360f;
+
+    [Header("Centre line")]
+    [Tooltip("While free, ease back onto the centre line (the spawn direction, through the player's head) after an attack, " +
+             "the personal-space clamp or a rush left the monster off to one side. Never during an attack, guard, flinch, " +
+             "stagger or the entrance.")]
+    public bool recentre = true;
+    [Tooltip("Lateral offset (m) tolerated before easing back. Wider than a standing player's head sway (about 4 cm), so the monster never chases the sway.")]
+    public float recentreDeadZone = 0.08f;
+    [Tooltip("Max sideways speed (m/s) while easing back.")]
+    public float recentreSpeed = 0.35f;
+    [Tooltip("Sideways speed per metre of offset (1/s).")]
+    public float recentreGain = 2f;
 
     [Header("Swing detection")]
     [Tooltip("Weapon speed (m/s) that counts as an incoming swing (the weapon's hit gate is used if higher).")]
@@ -142,6 +165,11 @@ public class MonsterDefense : MonoBehaviour
     private int shownMeter = -1;
     private Vector3 home;
     private bool dodgeWarned;
+    private bool turning;
+    private float turnRate, recentreVel;
+    private Vector3 centreDir;   // horizontal, from the player's head toward the monster at fight start
+    /// <summary>Signed lateral offset (m) from the centre line, measured by Recentre (verification).</summary>
+    public float LateralOffset { get; private set; }
 
     void Awake()
     {
@@ -172,7 +200,11 @@ public class MonsterDefense : MonoBehaviour
     void Update()
     {
         if (!FightActive()) { pendingGuardAt = -1f; return; }
-        if (fightStart < 0f) { fightStart = Time.time; nextTimedGuard = Time.time + TimedInterval(); PushMeter(); }
+        if (fightStart < 0f)
+        {
+            fightStart = Time.time; nextTimedGuard = Time.time + TimedInterval(); PushMeter();
+            if (ai.playerTarget != null) { centreDir = transform.position - ai.playerTarget.position; centreDir.y = 0f; centreDir.Normalize(); }
+        }
 
         // Uptime bookkeeping + guard end time (for the gap rule).
         bool defending = ai.IsDefending;
@@ -181,6 +213,7 @@ public class MonsterDefense : MonoBehaviour
         wasDefending = defending;
 
         Turn();
+        Recentre();
         DetectSwings();
 
         if (pendingGuardAt >= 0f && Time.time >= pendingGuardAt)
@@ -201,11 +234,45 @@ public class MonsterDefense : MonoBehaviour
     // ───────────────────────── awareness ─────────────────────────
     void Turn()
     {
-        if (!turnToFacePlayer || ctrl.isAttacking || IsStaggered || ai.playerTarget == null) return; // aim locked through the attack
+        // Aim locked from the start of a wind-up through the attack; no turning in a stagger or a flinch either.
+        if (!turnToFacePlayer || ctrl.isAttacking || IsStaggered || (dampedTurn && InFlinch) || ai.playerTarget == null)
+        {
+            turning = false; turnRate = 0f;
+            return;
+        }
         Vector3 dir = ai.playerTarget.position - transform.position;
         dir.y = 0f;
         if (dir.sqrMagnitude < 0.0001f) return;
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(dir), turnSpeed * Time.deltaTime);
+        if (!dampedTurn)
+        {
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(dir), turnSpeed * Time.deltaTime);
+            return;
+        }
+        Vector3 fwd = transform.forward; fwd.y = 0f;
+        float err = Vector3.SignedAngle(fwd, dir, Vector3.up);
+        float abs = Mathf.Abs(err);
+        if (!turning && abs > turnDeadZone) turning = true;
+        else if (turning && abs < turnSettleAngle) turning = false;
+        float want = turning ? Mathf.Clamp(err * turnGain, -turnSpeed, turnSpeed) : 0f;
+        if (turnRate != 0f && Mathf.Sign(turnRate) != Mathf.Sign(err)) turnRate = 0f; // never swing back past the target
+        turnRate = Mathf.MoveTowards(turnRate, want, turnAcceleration * Time.deltaTime);
+        float step = turnRate * Time.deltaTime;
+        if (Mathf.Abs(step) > abs) step = err;
+        if (step != 0f) transform.rotation = Quaternion.AngleAxis(step, Vector3.up) * transform.rotation;
+    }
+
+    // ───────────────────────── centre line ─────────────────────────
+    void Recentre()
+    {
+        if (ai.playerTarget == null || centreDir.sqrMagnitude < 0.5f) return;
+        Vector3 right = Vector3.Cross(Vector3.up, centreDir);
+        Vector3 rel = transform.position - ai.playerTarget.position; rel.y = 0f;
+        LateralOffset = Vector3.Dot(rel, right);
+        bool free = !ctrl.isAttacking && !ai.IsBusy && !ai.holdActions && !IsStaggered && !InFlinch;
+        if (!recentre || !free) { recentreVel = 0f; return; }
+        float want = Mathf.Abs(LateralOffset) < recentreDeadZone ? 0f : Mathf.Clamp(-LateralOffset * recentreGain, -recentreSpeed, recentreSpeed);
+        recentreVel = Mathf.MoveTowards(recentreVel, want, 1.5f * Time.deltaTime);   // eases in and out, no snap
+        if (recentreVel != 0f) transform.position += right * (recentreVel * Time.deltaTime);
     }
 
     // ───────────────────────── swing detection ─────────────────────────
@@ -293,7 +360,10 @@ public class MonsterDefense : MonoBehaviour
         guardLockUntil = staggerUntil + guardLockoutAfterBreak;
         ai.BeginStagger(staggerSeconds, staggerAnimSpeed, guardBreakFlashColor, guardBreakFlashSeconds);
         if (guardBreakClip != null && ai.sfxAudioSource != null)
+        {
             ai.sfxAudioSource.PlayOneShot(guardBreakClip, guardBreakVolume);
+            SfxTrace.Note(this, guardBreakClip, "monster guard broken");
+        }
         if (CombatUIController.Instance != null)
             CombatUIController.Instance.ShowCallout(transform.position + Vector3.up * 2.1f, "GUARD BREAK!", CombatUIController.DamageStyle.Break);
     }

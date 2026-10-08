@@ -13,6 +13,13 @@ public class BattleManager : MonoBehaviour
 
     [Header("Spawn")]
     public Transform monsterSpawnPoint;
+    [Tooltip("Spawn on the player's forward line: the spawn point is moved by the head's offset from the rig origin (a " +
+             "player standing off the play-space centre), capped, and the monster faces the head. The rig's forward is " +
+             "already aimed at the spawn point in every level.")]
+    public bool spawnOnPlayerForwardLine = true;
+    [Tooltip("Largest correction (m) applied to the spawn position, so a player standing at the play-space edge never puts " +
+             "the monster into a wall.")]
+    public float maxSpawnCorrection = 0.75f;
     public GameObject fallbackCubeMonsterPrefab; // use training/Cube.prefab until character prefab ready
     [Tooltip("Optional: a monster already placed (and visible) in the scene. If set, StartBattle adopts it " +
              "at the spawn point instead of instantiating the prefab, so the player sees it before the fight.")]
@@ -187,6 +194,7 @@ public class BattleManager : MonoBehaviour
 
         Vector3 pos = monsterSpawnPoint != null ? monsterSpawnPoint.position : transform.position + transform.forward * 2.5f;
         Quaternion rot = monsterSpawnPoint != null ? monsterSpawnPoint.rotation : Quaternion.LookRotation(-transform.forward);
+        if (spawnOnPlayerForwardLine) AlignSpawnToPlayer(ref pos, ref rot);
 
         if (sceneMonster != null && sceneMonster.isAlive)
         {
@@ -227,6 +235,20 @@ public class BattleManager : MonoBehaviour
             var h = ActiveMonster.GetComponent<MonsterHealth>();
             CombatUIController.Instance.UpdateMonsterHealth(h.currentHealth, h.maxHealth);
         }
+    }
+
+    /// <summary>Shift the spawn by the head's horizontal offset from the rig origin (the spawn point was placed for a player
+    /// standing on the origin) and face the head. Runs once per spawn.</summary>
+    void AlignSpawnToPlayer(ref Vector3 pos, ref Quaternion rot)
+    {
+        var rig = PlayerHealth.Instance != null ? PlayerHealth.Instance.GetComponent<OVRCameraRig>() : null;
+        if (rig == null || rig.centerEyeAnchor == null) return;
+        Vector3 offset = rig.centerEyeAnchor.position - rig.transform.position;
+        offset.y = 0f;
+        pos += Vector3.ClampMagnitude(offset, Mathf.Max(0f, maxSpawnCorrection));
+        Vector3 look = rig.centerEyeAnchor.position - pos;
+        look.y = 0f;
+        if (look.sqrMagnitude > 0.01f) rot = Quaternion.LookRotation(look);
     }
 
     void EnsureMonsterComponents(GameObject go)

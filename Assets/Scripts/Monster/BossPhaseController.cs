@@ -122,7 +122,10 @@ public class BossPhaseController : MonoBehaviour
         if (phase >= phaseThresholds.Length && !enrageStarted) StartCoroutine(EnterEnrage());
         else if (phaseShiftPauses) StartCoroutine(PhaseShift());
         else if (phaseChangeClip != null && ai != null && ai.sfxAudioSource != null)
+        {
             ai.sfxAudioSource.PlayOneShot(phaseChangeClip, phaseChangeVolume);
+            SfxTrace.Note(this, phaseChangeClip, "phase shift roar");
+        }
     }
 
     /// <summary>MonsterController: a hit landed during a phase shift (damage already reduced).</summary>
@@ -132,6 +135,7 @@ public class BossPhaseController : MonoBehaviour
         if (resistClip == null || ai == null || ai.sfxAudioSource == null || Time.time - lastResistSound < 0.15f) return;
         lastResistSound = Time.time;
         ai.sfxAudioSource.PlayOneShot(resistClip, resistVolume);
+        SfxTrace.Note(this, resistClip, "phase shift: landed hit resisted");
     }
 
     /// <summary>
@@ -165,7 +169,10 @@ public class BossPhaseController : MonoBehaviour
         yield return BeginShiftRoar(r => ok = r);
         if (!ok) yield break;
         if (phaseChangeClip != null && ai != null && ai.sfxAudioSource != null)
+        {
             ai.sfxAudioSource.PlayOneShot(phaseChangeClip, phaseChangeVolume);
+            SfxTrace.Note(this, phaseChangeClip, "phase shift roar");
+        }
         yield return new WaitForSeconds(phaseShiftSeconds);
         if (controller == null || !controller.isAlive) { InPhaseShift = false; yield break; }
         EndShift();
@@ -191,7 +198,10 @@ public class BossPhaseController : MonoBehaviour
             if (anim != null) anim.PlayNamedTrigger(roarTrigger);
         }
         if (enrageRoarClip != null && ai != null && ai.sfxAudioSource != null)
+        {
             ai.sfxAudioSource.PlayOneShot(enrageRoarClip, enrageRoarVolume);
+            SfxTrace.Note(this, enrageRoarClip, "enrage roar");
+        }
         if (enrageEmbers != null) enrageEmbers.Play(true);
 
         // Tint and aura ramp in over the roar (the roar lasts phaseShiftSeconds when the pause is on).

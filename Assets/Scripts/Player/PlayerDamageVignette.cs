@@ -18,13 +18,15 @@ public class PlayerDamageVignette : MonoBehaviour
     public Color color = new Color(0.85f, 0f, 0f, 1f);
 
     [Header("Hit flash (replaces PlayerHealth's full-rect flash)")]
-    public bool edgeFlash = true;
+    [Tooltip("Off (default): PlayerHealth's original brief full-rect hit flash is used, as before this component existed.")]
+    public bool edgeFlash = false;
     [Range(0f, 1f)] public float flashPeakAlpha = 0.6f;
     [Tooltip("Seconds for the flash to fade; 0 = PlayerHealth.hitFlashDuration.")]
     public float flashSeconds = 0f;
 
     [Header("Low-HP pulse (paired with the fast breathing tier)")]
-    public bool lowHpPulse = true;
+    [Tooltip("Off by default: a screen overlay is not the blood feedback; the blood comes from the monster's body (HitBloodFx).")]
+    public bool lowHpPulse = false;
     [Tooltip("Seconds per pulse. Slow on purpose.")]
     public float pulsePeriod = 2.4f;
     [Range(0f, 1f)] public float pulseMinAlpha = 0.10f;
