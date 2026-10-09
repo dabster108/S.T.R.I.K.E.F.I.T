@@ -10,6 +10,8 @@ export const EVENT_META = {
   clash: { label: "Weapon clash", icon: "swords", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-300" },
   monster_attack: { label: "Monster attack", icon: "flame", cls: "bg-rose-50 text-rose-600", dot: "bg-rose-600" },
   monster_defend: { label: "Monster guard", icon: "shield", cls: "bg-rose-50 text-rose-600", dot: "bg-rose-600" },
+  monster_guard: { label: "Guard result", icon: "shieldCheck", cls: "bg-blue-50 text-blue-600", dot: "bg-blue-500" },
+  opening_hit: { label: "Opening found", icon: "crosshair", cls: "bg-emerald-50 text-emerald-600", dot: "bg-emerald-500" },
   dodge: { label: "Dodged", icon: "check", cls: "bg-blue-50 text-blue-600", dot: "bg-blue-500" },
   block: { label: "Blocked", icon: "shieldCheck", cls: "bg-blue-50 text-blue-600", dot: "bg-blue-500" },
   player_hurt: { label: "Player hurt", icon: "heart", cls: "bg-red-50 text-[var(--bad)]", dot: "bg-[var(--bad)]" },

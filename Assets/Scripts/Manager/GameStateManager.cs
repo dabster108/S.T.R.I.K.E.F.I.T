@@ -161,6 +161,17 @@ public class GameStateManager : MonoBehaviour
         SetState(GameState.Results);
     }
 
+    // Retry flag for the entrance: the next load of this scene plays the short entrance (MonsterEntrance, Level 2 drop).
+    // Static, so it survives the scene reload; consumed once by the entrance of that scene.
+    static string retryScene;
+    public static void FlagRetry(string sceneName) { retryScene = sceneName; }
+    public static bool ConsumeRetry(string sceneName)
+    {
+        if (string.IsNullOrEmpty(sceneName) || retryScene != sceneName) return false;
+        retryScene = null;
+        return true;
+    }
+
     /// <summary>
     /// Retry the current level scene (used by defeat panel / R key).
     /// </summary>
@@ -168,6 +179,7 @@ public class GameStateManager : MonoBehaviour
     {
         Time.timeScale = 1f;
         string current = SceneManager.GetActiveScene().name;
+        FlagRetry(current);
         if (SceneExists(current))
         {
             SceneManager.LoadScene(current);

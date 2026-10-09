@@ -1780,6 +1780,49 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1c552d1864306465cae14a9b40283742, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MonsterEntrance
+  style: 0
+  dropTrigger: EntranceDrop
+  dropStateClip: MutantJump_HeightBaked
+  dropApexTime: 1
+  dropLandTime: 1.6
+  dropRiseEndTime: 2.9
+  dropExtraHeight: 1
+  entranceRoarTrigger: EntranceRoar
+  entranceRoarStateClip: L3_Roar
+  landAtDistance: 1.85
+  minLandDistance: 1.5
+  torchDimSeconds: 1
+  torchDimTo: 0.3
+  torchFlickerHz: 1.2
+  torchFlickerDepth: 0.12
+  eyesSeconds: 1.6
+  glowUpSeconds: 2
+  torchRestoreSeconds: 1
+  retrySeconds: 1.5
+  alwaysFull: 0
+  emissionRenderer: {fileID: 0}
+  eyeColor: {r: 0.6, g: 0.25, b: 1, a: 1}
+  eyeIntensity: 1.6
+  glowIntensity: 2.6
+  eyeFlareIntensity: 5
+  eyeFlareSeconds: 0.35
+  weaponFire: {fileID: 0}
+  weaponHand: {fileID: 0}
+  igniteSeconds: 0.8
+  fxMaterial: {fileID: 0}
+  mistColor: {r: 0.45, g: 0.2, b: 0.7, a: 0.35}
+  mistParticles: 24
+  dustColor: {r: 0.42, g: 0.38, b: 0.45, a: 0.55}
+  dustParticles: 16
+  ringColor: {r: 0.7, g: 0.35, b: 1, a: 0.8}
+  ringParticles: 24
+  growlClip: {fileID: 0}
+  growlVolume: 0.6
+  landClip: {fileID: 0}
+  landVolume: 0.7
+  entranceRoarClip: {fileID: 0}
+  entranceRoarVolume: 0.7
+  landHaptic: {x: 0.35, y: 0.12}
   riseOffset: {fileID: 3498890698548007687}
   startDepth: 2.9
   riseTrigger: Rise
@@ -2103,11 +2146,11 @@ MonoBehaviour:
   guardTarget: {fileID: 5038271403177728474}
   reactiveGuard: 1
   reactionDelay: 0.18
-  guardChance: 0.45
-  guardChanceEnraged: 0.45
-  minGuardGap: 3.5
+  guardChance: 0.5
+  guardChanceEnraged: 0.5
+  minGuardGap: 2.5
   guardDuration: {x: 0.8, y: 1.2}
-  maxGuardUptime: 0.25
+  maxGuardUptime: 0.3
   timedGuard: 1
   timedGuardInterval: 8
   timedGuardJitter: 0.3
@@ -2123,6 +2166,38 @@ MonoBehaviour:
   lowGuardTrigger: Defend
   blockPitch: {x: 1.18, y: 1, z: 0.82}
   guardChancePerPhase: 0.05
+  swingClasses: 1
+  pathRadius: 0.45
+  pathLookAhead: 0.5
+  thrustAcrossRatio: 0.5
+  overheadVertical: 0.8
+  diagonalVertical: 0.35
+  uppercutVertical: 0.6
+  guardReach: 1.36
+  sideOverlap: 0.1
+  sideGuards: 1
+  lowGuard: 0
+  sideLeftGuardTrigger: Defend
+  sideRightGuardTrigger: Defend
+  lowPoseGuardTrigger: Defend
+  posePitch: {x: 1.18, y: 1.06, z: 0.95, w: 0.82}
+  blockPitchJitter: 0.04
+  adaptiveGuard: 1
+  memoryLength: 6
+  repeatThreshold: 3
+  repeatWindow: 8
+  adaptiveStep: 0.15
+  adaptiveMaxBoost: 0.15
+  decayPerVariedSwing: 0.05
+  decayPerSecond: 0.02
+  maxGuardChance: 0.8
+  maxBlocksInARow: 3
+  forcedOpeningWindow: 1
+  openingClip: {fileID: 8300000, guid: dd2135b44acba4afcaead797bb815061, type: 3}
+  openingVolume: 0.7
+  openingPitch: 1.15
+  openingFlashColor: {r: 1, g: 1, b: 1, a: 1}
+  openingFlashSeconds: 0.08
   counterEnabled: 1
   counterChance: 0.35
   counterMinAbsorbed: 2
@@ -34009,6 +34084,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3498890698548007687}
   - component: {fileID: 3285087667565105803}
+  - component: {fileID: 1054480441812324454}
   m_Layer: 0
   m_Name: RiseOffset
   m_TagString: Untagged
@@ -34055,6 +34131,36 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &1054480441812324454
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6810324037967710221}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3722f9d9df3254099a2a01cba1e57dc4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterGuardIK
+  ikIntercept: 1
+  twoWeapons: 1
+  rightWeapon: {fileID: 2139677900755572132}
+  leftWeapon: {fileID: 1246083921878239841}
+  maxHandSpeed: 2.5
+  reachFraction: 0.9
+  minForward: 0.3
+  maxCross: 0.15
+  minHeight: 0.35
+  blendIn: 8
+  blendOut: 5
+  positionWeight: 1
+  keepClipHandRotation: 1
+  highAnchor: {x: 0, y: 0.95, z: 0.35}
+  sideAnchor: {x: 0.45, y: 0.75, z: 0.6}
+  lowAnchor: {x: 0, y: 0.4, z: 0.4}
+  ikOnHighPose: 0
+  followContact: 0.5
 --- !u!1 &6841976671193130950
 GameObject:
   m_ObjectHideFlags: 0

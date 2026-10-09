@@ -1145,6 +1145,15 @@
   transition: r 0.25s var(--ease-spring);
 }
 
+/* confetti burst (Confetti.jsx): falls and drifts, then fades; removed entirely under reduced motion */
+@keyframes confetti-fall {
+  0% { transform: translate3d(0, -8px, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--dx), 260px, 0) rotate(var(--rot)); opacity: 0; }
+}
+.confetti-piece {
+  animation: confetti-fall 1.4s var(--ease-out) var(--d) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -1160,6 +1169,7 @@
     transition-delay: 0ms !important;
   }
 
+  .confetti-piece,
   .blob,
   .marquee-track,
   .mock-hp,

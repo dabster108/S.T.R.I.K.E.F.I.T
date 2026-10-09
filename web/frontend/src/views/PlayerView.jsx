@@ -21,6 +21,8 @@ import { BarChart, CompareBars, LEVEL_COLORS, Legend, LineChart, TierBar } from 
 import { CalorieEstimate, EstimateNote, ExertionChart, LevelIntensityChart, PersonalBests, SwingTierChart, VsAverage } from "../components/fitness/Fitness.jsx";
 import PlayerEngagement from "../components/fitness/Engagement.jsx";
 import { AchievementsSection } from "../components/fitness/Achievements.jsx";
+import { InsightsCard } from "../components/fitness/Insights.jsx";
+import FirstRunChecklist from "../components/players/FirstRunChecklist.jsx";
 
 const LEVELS = [
   { id: "all", label: "All levels" },
@@ -274,6 +276,7 @@ export default function PlayerView() {
         </Card>
       ) : (
         <>
+          <FirstRunChecklist key={name} name={name} />
           <div className="mt-6">
             <LivePanel
               name={name}
@@ -285,17 +288,20 @@ export default function PlayerView() {
 
           <SectionRule index="01" title="Progress" className="mt-10" />
           <div className="mt-4">
-            <AchievementsSection name={name} />
+            <AchievementsSection name={name} latestSessionId={p.sessions.find((x) => x.status !== "live")?.id} />
+          </div>
+          <div className="mt-6">
+            <InsightsCard name={name} />
           </div>
 
           <SectionRule index="02" title="Results" className="mt-12" />
           <FigureStrip
             className="mt-4"
             items={[
-              { label: "Best score", value: formatNumber(t.bestScore), sub: `${formatNumber(t.totalXp)} XP earned in total`, lead: true },
-              { label: "Sessions", value: formatNumber(t.sessions), sub: `${formatDuration(t.totalDurationSec)} in fights` },
+              { label: "Best score", value: formatNumber(t.bestScore), count: Number(t.bestScore) || 0, format: (v) => formatNumber(Math.round(v)), sub: `${formatNumber(t.totalXp)} XP earned in total`, lead: true },
+              { label: "Sessions", value: formatNumber(t.sessions), count: Number(t.sessions) || 0, format: (v) => formatNumber(Math.round(v)), sub: `${formatDuration(t.totalDurationSec)} in fights` },
               { label: "Wins / losses", value: `${t.wins} / ${t.losses}`, sub: t.winRate === null ? "No decided fights yet" : `${formatPercent(t.winRate)} win rate` },
-              { label: "Total damage", value: formatNumber(t.totalDamage), sub: "HP taken off monsters" },
+              { label: "Total damage", value: formatNumber(t.totalDamage), count: Number(t.totalDamage) || 0, format: (v) => formatNumber(Math.round(v)), sub: "HP taken off monsters" },
               { label: "Levels played", value: formatNumber(levelsAll.length), sub: levelsAll.map(levelName).join(" · ") || "—" },
             ]}
           />

@@ -1314,6 +1314,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
       insertIndex: -1
       addedObject: {fileID: 6250682702081583136}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6184732562978668080}
   m_SourcePrefab: {fileID: 100100000, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
 --- !u!4 &719864772271835393 stripped
 Transform:
@@ -1948,6 +1951,38 @@ MonoBehaviour:
   lowGuardTrigger: Defend
   blockPitch: {x: 1.18, y: 1, z: 0.82}
   guardChancePerPhase: 0
+  swingClasses: 1
+  pathRadius: 0.45
+  pathLookAhead: 0.5
+  thrustAcrossRatio: 0.5
+  overheadVertical: 0.8
+  diagonalVertical: 0.35
+  uppercutVertical: 0.6
+  guardReach: 1.75
+  sideOverlap: 0.1
+  sideGuards: 0
+  lowGuard: 0
+  sideLeftGuardTrigger: Defend
+  sideRightGuardTrigger: Defend
+  lowPoseGuardTrigger: Defend
+  posePitch: {x: 1.18, y: 1.06, z: 0.95, w: 0.82}
+  blockPitchJitter: 0.04
+  adaptiveGuard: 1
+  memoryLength: 6
+  repeatThreshold: 3
+  repeatWindow: 8
+  adaptiveStep: 0.15
+  adaptiveMaxBoost: 0.15
+  decayPerVariedSwing: 0.05
+  decayPerSecond: 0.02
+  maxGuardChance: 0.8
+  maxBlocksInARow: 3
+  forcedOpeningWindow: 1
+  openingClip: {fileID: 8300000, guid: f43d247d7f81b4970a6015c827ae5c93, type: 3}
+  openingVolume: 0.7
+  openingPitch: 1.15
+  openingFlashColor: {r: 1, g: 1, b: 1, a: 1}
+  openingFlashSeconds: 0.08
   counterEnabled: 0
   counterChance: 0
   counterMinAbsorbed: 2
@@ -2037,6 +2072,36 @@ MonoBehaviour:
   cycles: 2.5
   damping: 4
   attackScale: 0.25
+--- !u!114 &6184732562978668080
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6231198665464638293}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3722f9d9df3254099a2a01cba1e57dc4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterGuardIK
+  ikIntercept: 0
+  twoWeapons: 0
+  rightWeapon: {fileID: 5831863967683481644}
+  leftWeapon: {fileID: 0}
+  maxHandSpeed: 2.5
+  reachFraction: 0.9
+  minForward: 0.3
+  maxCross: 0.35
+  minHeight: 0.35
+  blendIn: 8
+  blendOut: 5
+  positionWeight: 1
+  keepClipHandRotation: 1
+  highAnchor: {x: 0, y: 0.95, z: 0.35}
+  sideAnchor: {x: 0.4, y: 0.7, z: 0.45}
+  lowAnchor: {x: 0, y: 0.4, z: 0.4}
+  ikOnHighPose: 0
+  followContact: 0.5
 --- !u!4 &6893930887810451051 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 366175167995203695, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}

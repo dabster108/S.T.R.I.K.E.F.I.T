@@ -158,6 +158,13 @@ public class CombatFeedback : MonoBehaviour
         Pulse(Hand.Right, damagePulse.x, damagePulse.y, 0f, 0f, frequency, "damage");
     }
 
+    /// <summary>The same pulse on both hands (the Level 2 entrance landing). Obeys the haptics toggle.</summary>
+    public void PulseBoth(float amp, float seconds, string kind)
+    {
+        Pulse(Hand.Left, amp, seconds, 0f, 0f, frequency, kind);
+        Pulse(Hand.Right, amp, seconds, 0f, 0f, frequency, kind);
+    }
+
     void Pulse(Hand hand, float amp, float seconds, float tailAmp, float tailSeconds, float freq, string kind)
     {
         if (!haptics || amp <= 0f || seconds <= 0f) return;

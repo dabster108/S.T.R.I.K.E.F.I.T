@@ -22,6 +22,7 @@ public class TwoHandedWeaponIK : MonoBehaviour
 
     private Animator animator;
     private MonsterController controller;
+    private MonsterGuardIK guardIK;   // optional: moves the right hand while guarding
     private float currentWeight;
 
     // leftHandTarget expressed in the right-hand IK goal frame. The weapon is rigidly parented to the
@@ -41,6 +42,7 @@ public class TwoHandedWeaponIK : MonoBehaviour
     {
         animator = GetComponent<Animator>();
         controller = GetComponent<MonsterController>();
+        guardIK = GetComponent<MonsterGuardIK>();
         if (animator != null && animator.isHuman)
         {
             shoulder = animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
@@ -55,7 +57,8 @@ public class TwoHandedWeaponIK : MonoBehaviour
     {
         if (animator == null || leftHandTarget == null) return;
 
-        goalPos = animator.GetIKPosition(AvatarIKGoal.RightHand);
+        // The right hand's final goal (MonsterGuardIK may move it while guarding), so the grip follows the haft.
+        goalPos = guardIK != null && guardIK.isActiveAndEnabled ? guardIK.RightGoal() : animator.GetIKPosition(AvatarIKGoal.RightHand);
         goalRot = animator.GetIKRotation(AvatarIKGoal.RightHand);
         hasGoal = true;
 

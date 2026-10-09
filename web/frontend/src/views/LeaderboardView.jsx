@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { levelRank } from "../lib/derive.js";
+import { MIN_HITS_FOR_EFFORT, MIN_IMPROVED_SESSIONS, bestPerPlayer, boardPool, mostImproved, youVsLastWeek } from "../lib/leaderboard.js";
 import { formatDuration, formatNumber, formatRelative } from "../lib/format.js";
 import { levelName } from "../lib/game.js";
 import { useCountUp } from "../hooks/motion.js";
@@ -12,6 +13,18 @@ import Icon from "../components/ui/Icon.jsx";
 const MODES = [
   { id: "best", label: "Best per player" },
   { id: "all", label: "All runs" },
+];
+
+const BOARDS = [
+  { id: "weekly", label: "This week" },
+  { id: "alltime", label: "All time" },
+  { id: "level", label: "Per level" },
+  { id: "improved", label: "Most improved" },
+];
+
+const MEASURES = [
+  { id: "score", label: "By score" },
+  { id: "effort", label: "By effort" },
 ];
 
 const OUTCOMES = [
@@ -66,7 +79,123 @@ function Podium({ entries, openSession }) {
   );
 }
 
+const signed = (v, digits = 0) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v).toFixed(digits)}`;
+
+// One player's week against the week before (finished fights, best and average score).
+function YouVsLastWeek({ sessions }) {
+  const names = useMemo(() => [...new Set(sessions.map((s) => s.playerName))].sort((a, b) => a.localeCompare(b)), [sessions]);
+  const latest = useMemo(() => [...sessions].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0]?.playerName, [sessions]);
+  const [who, setWho] = useState(null);
+  const name = who || latest;
+  if (!name) return null;
+  const { thisWeek: a, lastWeek: b } = youVsLastWeek(sessions, name);
+  const line =
+    a.fights === 0 && b.fights === 0
+      ? "No finished fights this week or last week."
+      : `This week: ${a.fights} fight${a.fights === 1 ? "" : "s"}${a.best !== null ? `, best ${formatNumber(a.best)}` : ""}. Last week: ${b.fights} fight${b.fights === 1 ? "" : "s"}${b.best !== null ? `, best ${formatNumber(b.best)}` : ""}.`;
+  const delta = a.best !== null && b.best !== null ? a.best - b.best : null;
+  return (
+    <Card className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
+      <Select label="You are" value={name} onChange={setWho} options={names.map((n) => ({ id: n, label: n }))} />
+      <p className="min-w-0 flex-1 text-sm font-semibold text-[var(--ink-secondary)]">
+        <span className="font-extrabold text-[var(--ink)]">You vs last week · </span>
+        {line}
+        {delta !== null && (
+          <span className={`ml-1 font-extrabold ${delta > 0 ? "text-[var(--good-ink)]" : delta < 0 ? "text-[var(--bad)]" : "text-[var(--ink)]"}`}>
+            ({delta > 0 ? "+" : delta < 0 ? "−" : "±"}
+            {formatNumber(Math.abs(delta))} on your best)
+          </span>
+        )}
+      </p>
+    </Card>
+  );
+}
+
+// Top runs per level, side by side (best run per player in each level).
+function PerLevel({ sessions, openSession }) {
+  const levels = [...new Set(sessions.map((s) => s.level))].sort((a, b) => levelRank(a) - levelRank(b));
+  if (!levels.length) return null;
+  return (
+    <div className="stagger grid gap-6 lg:grid-cols-3">
+      {levels.map((l) => {
+        const top = bestPerPlayer(sessions.filter((s) => s.level === l)).slice(0, 5);
+        return (
+          <Card key={l} className="overflow-hidden">
+            <CardHeader title={levelName(l)} subtitle={`Best run per player · ${top.length} shown`} actions={<LevelBadge level={l} />} />
+            <ol className="divide-y divide-[var(--border)]">
+              {top.map((s, i) => (
+                <li key={s.id}>
+                  <button type="button" onClick={() => openSession(s.id)} className="press flex w-full items-center gap-3 px-5 py-2.5 text-left hover:bg-[var(--surface-muted)]">
+                    <span className="t-index w-6 text-[var(--muted)]">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="min-w-0 flex-1 truncate font-bold text-[var(--ink)]">{s.playerName}</span>
+                    <span className="font-extrabold tabular-nums text-[var(--ink)]">
+                      <Score value={s.score} />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// Most improved: the latest third of each player's fights against all their earlier ones (lib/leaderboard.js).
+function MostImproved({ sessions }) {
+  const [measure, setMeasure] = useState("score");
+  const rows = useMemo(() => mostImproved(sessions, measure), [sessions, measure]);
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader
+        title="Most improved"
+        subtitle={
+          measure === "score"
+            ? `Average of each player's latest third of fights against their earlier ones. Score is shown as % of the level's median score, so levels compare. Players with ${MIN_IMPROVED_SESSIONS}+ won or lost fights (abandoned fights left out).`
+            : `Full-power share of hits (fights with ${MIN_HITS_FOR_EFFORT}+ hits), latest third against earlier fights, in percentage points. Players with ${MIN_IMPROVED_SESSIONS}+ such fights.`
+        }
+        actions={<SegmentedControl label="Improvement measure" options={MEASURES} value={measure} onChange={setMeasure} />}
+      />
+      {rows.length === 0 ? (
+        <EmptyState icon="score" title="Nobody qualifies yet" description={`A player needs at least ${MIN_IMPROVED_SESSIONS} won or lost fights${measure === "effort" ? ` with ${MIN_HITS_FOR_EFFORT}+ hits` : ""} before a change can be measured.`} />
+      ) : (
+        <div className="scrollbar-thin overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <thead>
+              <tr className="border-b-2 border-[var(--ink)] bg-[var(--surface-muted)]">
+                {[["Rank", "w-16 pl-5"], ["Player", ""], ["Fights", "text-right"], ["Earlier", "text-right"], ["Latest third", "text-right"], ["Change", "pr-5 text-right"]].map(([h, cls]) => (
+                  <th key={h} scope="col" className={`t-kicker px-3 py-2.5 font-bold ${cls}`}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="stagger divide-y divide-[var(--border)]">
+              {rows.map((r, i) => (
+                <tr key={r.playerName}>
+                  <td className="py-3 pl-5 pr-3">
+                    <span className="t-index pl-1.5 text-[var(--muted)]">{String(i + 1).padStart(2, "0")}</span>
+                  </td>
+                  <td className="max-w-[14rem] truncate px-3 py-3 font-bold text-[var(--ink)]">{r.playerName}</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{r.sessions}</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{r.earlier.toFixed(0)}%</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{r.recent.toFixed(0)}%</td>
+                  <td className={`py-3 pl-3 pr-5 text-right font-extrabold tabular-nums ${r.change > 0 ? "text-[var(--good-ink)]" : r.change < 0 ? "text-[var(--bad)]" : "text-[var(--ink)]"}`}>
+                    {signed(r.change)} {measure === "score" ? "pts" : "pp"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function LeaderboardView({ sessions, openSession }) {
+  const [board, setBoard] = useState("alltime");
   const [mode, setMode] = useState("best");
   const [level, setLevel] = useState("all");
   const [outcome, setOutcome] = useState("all");
@@ -77,16 +206,16 @@ export default function LeaderboardView({ sessions, openSession }) {
   );
 
   const ranked = useMemo(() => {
-    const pool = sessions.filter((s) => (level === "all" || s.level === level) && (outcome === "all" || s.outcome === outcome));
+    const pool = boardPool(sessions, board === "weekly" ? "weekly" : "alltime").filter((s) => (level === "all" || s.level === level) && (outcome === "all" || s.outcome === outcome));
     const sorted = [...pool].sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0) || (a.durationSec || 1e9) - (b.durationSec || 1e9));
     if (mode === "all") return sorted.slice(0, 50);
     const seen = new Set();
     return sorted.filter((s) => !seen.has(s.playerName) && seen.add(s.playerName));
-  }, [sessions, mode, level, outcome]);
+  }, [sessions, mode, level, outcome, board]);
 
   const podium = PODIUM.map((p) => ({ ...p, s: ranked[p.place - 1] })).filter((p) => p.s);
   const top = Math.max(1, Number(ranked[0]?.score) || 0);
-  const filterKey = `${mode}-${level}-${outcome}`;
+  const filterKey = `${board}-${mode}-${level}-${outcome}`;
   const leader = ranked[0];
   const runnerUp = ranked[1];
   const margin = leader && runnerUp ? (Number(leader.score) || 0) - (Number(runnerUp.score) || 0) : null;
@@ -97,19 +226,27 @@ export default function LeaderboardView({ sessions, openSession }) {
       <PageHeader
         eyebrow="Rankings"
         title="Leaderboard"
-        description="Highest scores across all recorded battles. Ties go to the faster run."
+        description="Highest scores across all recorded battles. Ties go to the faster run. This week starts on Monday."
         actions={
-          <>
-            <SegmentedControl label="Ranking mode" options={MODES} value={mode} onChange={setMode} />
-            <Select label="Level" value={level} onChange={setLevel} options={levels} />
-            <Select label="Outcome" value={outcome} onChange={setOutcome} options={OUTCOMES} />
-          </>
+          board === "weekly" || board === "alltime" ? (
+            <>
+              <SegmentedControl label="Ranking mode" options={MODES} value={mode} onChange={setMode} />
+              <Select label="Level" value={level} onChange={setLevel} options={levels} />
+              <Select label="Outcome" value={outcome} onChange={setOutcome} options={OUTCOMES} />
+            </>
+          ) : null
         }
       />
+      <SegmentedControl label="Board" options={BOARDS} value={board} onChange={setBoard} />
+      <YouVsLastWeek sessions={sessions} />
 
-      {ranked.length === 0 ? (
+      {board === "level" ? (
+        <PerLevel sessions={sessions} openSession={openSession} />
+      ) : board === "improved" ? (
+        <MostImproved sessions={sessions} />
+      ) : ranked.length === 0 ? (
         <Card>
-          <EmptyState icon="trophy" title="No scores yet" description="Finish a battle to claim the top spot." />
+          <EmptyState icon="trophy" title={board === "weekly" ? "No scores this week yet" : "No scores yet"} description="Finish a battle to claim the top spot." />
         </Card>
       ) : (
         <>
@@ -128,7 +265,9 @@ export default function LeaderboardView({ sessions, openSession }) {
                   <span className="t-kicker text-[var(--accent-strong)]">Leader</span>
                 </p>
                 <p className="mt-3 truncate text-xl font-extrabold tracking-tight text-[var(--ink)]">{leader.playerName}</p>
-                <p className="t-figure mt-4 text-[var(--ink)]">{formatNumber(leader.score)}</p>
+                <p className="t-figure mt-4 text-[var(--ink)]">
+                  <Score value={leader.score} />
+                </p>
                 <p className="mt-3 text-sm font-semibold text-[var(--ink-secondary)]">
                   {margin === null ? (
                     "No one else on the board yet"

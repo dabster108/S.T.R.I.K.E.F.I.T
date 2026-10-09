@@ -25,10 +25,10 @@ public static class CombatTuning
     static readonly float[] DetectRange = { 2.5f, 2.2f, 1.9f };         // m from the chest: swing speed x reaction delay + margin
     // Reactive guard (fairness limits from the brief)
     static readonly float[] ReactionDelay = { 0.35f, 0.25f, 0.18f };
-    static readonly float[] GuardChance = { 0.15f, 0.30f, 0.45f };
-    static readonly float[] GuardChanceEnraged = { 0.15f, 0.30f, 0.50f }; // L3: +5 points while enraged (it is free less often)
-    static readonly float[] MinGuardGap = { 6f, 4.5f, 3.5f };
-    static readonly float[] MaxUptime = { 0.12f, 0.18f, 0.25f };
+    static readonly float[] GuardChance = { 0.15f, 0.35f, 0.50f };        // adaptive pass 2026-10-09 (was 0.15 / 0.30 / 0.45)
+    static readonly float[] GuardChanceEnraged = { 0.15f, 0.35f, 0.50f }; // L3 phases add GuardChancePerPhase instead
+    static readonly float[] MinGuardGap = { 6f, 3.5f, 2.5f };             // was 6 / 4.5 / 3.5
+    static readonly float[] MaxUptime = { 0.12f, 0.22f, 0.30f };          // was 0.12 / 0.18 / 0.25
     static readonly float[] TimedGuardInterval = { 12f, 9f, 8f };
     // Guard meter / break
     static readonly int[] GuardBreakHits = { 5, 4, 3 };
@@ -142,6 +142,8 @@ public static class CombatTuning
         // Clash colliders fitted to the visible weapon (+4 cm), weapon / body colliders on their own layers.
         MonsterWeaponFitter.Fit(root);
 
+        ConfigureAdaptiveGuard(root, level);
+
         var phases = root.GetComponent<BossPhaseController>();
         if (phases != null)
         {
@@ -151,6 +153,123 @@ public static class CombatTuning
             phases.phase2Tempo = L3Phase2Tempo; phases.phase2CooldownScale = L3Phase2CooldownScale;
             phases.enrageRoarSeconds = L3PhaseShiftSeconds;
         }
+    }
+
+    // ───────────── adaptive guard (swing classes, poses, memory, hand IK) ─────────────
+    // Opening cue: no dedicated sound exists. L1 / L2 reuse the Level 3 weak-point chime (not used in those levels); Level 3,
+    // where that chime is the weak point's own sound, uses the sword-unsheathing ring (not used in Level 3).
+    static readonly string[] OpeningClip = { "Assets/Audio/SFX/Level3/L3_WeakPoint_Hit.wav", "Assets/Audio/SFX/Level3/L3_WeakPoint_Hit.wav",
+                                             "Assets/Audio/SFX/Monster/dragon-studio-sword-unsheathing-393851.mp3" };
+    /// <summary>Side / low guards are shown by MonsterGuardIK (no side or low guard clip exists; both guard clips are left / right
+    /// symmetric, so the Animator Mirror flag gives the same pose). Set false to ship the clip-only guard.</summary>
+    public static bool GuardIK = true;
+    // Per level, from the Play-mode look check (weapon samples inside the body, captures from the head and a 3/4 view):
+    // L1: the guard clip already runs the long sword through the chest and the IK side guard made it worse -> clip only.
+    // L2: side and low guards no deeper in the body than the clip's own guard -> IK on for both.
+    // L3: low guard drove the raised axes through chest and head -> off; side guards on (each hand its own side).
+    static readonly bool[] SideGuardIK = { false, true, true };
+    static readonly bool[] LowGuardIK = { false, true, false };
+    static readonly Vector3[] SideAnchor = { new Vector3(0.4f, 0.7f, 0.45f), new Vector3(0.4f, 0.7f, 0.45f), new Vector3(0.45f, 0.75f, 0.6f) };
+
+    /// <summary>Swing classes, guard poses, adaptive memory, fairness extras, opening cue and the hand-IK guard layer.</summary>
+    public static void ConfigureAdaptiveGuard(GameObject root, int level)
+    {
+        int i = Mathf.Clamp(level, 1, 3) - 1;
+        var d = root.GetComponent<MonsterDefense>();
+        if (d == null) return;
+        d.reactionDelay = ReactionDelay[i]; d.guardChance = GuardChance[i]; d.guardChanceEnraged = GuardChanceEnraged[i];
+        d.guardChancePerPhase = GuardChancePerPhase[i];
+        d.minGuardGap = MinGuardGap[i]; d.guardDuration = new Vector2(0.8f, 1.2f); d.maxGuardUptime = MaxUptime[i];
+        d.swingClasses = true; d.thrustAcrossRatio = 0.5f; d.overheadVertical = 0.8f; d.diagonalVertical = 0.35f; d.uppercutVertical = 0.6f;
+        d.sideOverlap = 0.1f;
+        d.sideGuards = GuardIK && SideGuardIK[i]; d.lowGuard = GuardIK && LowGuardIK[i];
+        d.sideLeftGuardTrigger = d.sideRightGuardTrigger = d.lowPoseGuardTrigger = "Defend"; // one guard clip; the pose comes from the IK
+        d.posePitch = new Vector4(1.18f, 1.06f, 0.95f, 0.82f); d.blockPitchJitter = 0.04f;
+        d.adaptiveGuard = true; d.memoryLength = 6; d.repeatThreshold = 3; d.repeatWindow = 8f;
+        d.adaptiveStep = 0.15f; d.adaptiveMaxBoost = 0.15f; d.decayPerVariedSwing = 0.05f; d.decayPerSecond = 0.02f; d.maxGuardChance = 0.8f;
+        d.maxBlocksInARow = 3; d.forcedOpeningWindow = 1.0f;
+        d.openingClip = Clip(OpeningClip[i]); d.openingVolume = 0.7f; d.openingPitch = 1.15f;
+        d.openingFlashColor = Color.white; d.openingFlashSeconds = 0.08f;
+
+        // Reach: the predicted contact is clamped to where the monster's weapon can get (shoulder -> hand -> weapon middle).
+        var an = root.GetComponentInChildren<Animator>(true);
+        var ik = an != null ? an.GetComponent<MonsterGuardIK>() : null;
+        if (an != null && an.isHuman)
+        {
+            if (ik == null) ik = an.gameObject.AddComponent<MonsterGuardIK>();
+            var rh = an.GetBoneTransform(HumanBodyBones.RightHand); var lh = an.GetBoneTransform(HumanBodyBones.LeftHand);
+            ik.rightWeapon = WeaponUnder(rh); ik.leftWeapon = level == 3 ? WeaponUnder(lh) : null;
+            ik.twoWeapons = level == 3;
+            ik.ikIntercept = GuardIK && (SideGuardIK[i] || LowGuardIK[i]);
+            ik.ikOnHighPose = false;   // the guard clip is the high guard; IK put the blade into the head
+            ik.maxHandSpeed = 2.5f; ik.reachFraction = 0.9f; ik.minForward = 0.3f; ik.minHeight = 0.35f;
+            ik.maxCross = level == 3 ? 0.15f : 0.35f;   // one weapon crosses the body for the far side; Level 3 has a hand per side
+            ik.keepClipHandRotation = true; ik.followContact = 0.5f;
+            ik.highAnchor = new Vector3(0f, 0.95f, 0.35f); ik.sideAnchor = SideAnchor[i]; ik.lowAnchor = new Vector3(0f, 0.4f, 0.4f);
+            ik.blendIn = 8f; ik.blendOut = 5f; ik.positionWeight = 1f;
+            var sh = an.GetBoneTransform(HumanBodyBones.RightUpperArm); var el = an.GetBoneTransform(HumanBodyBones.RightLowerArm);
+            float arm = sh != null && el != null && rh != null ? Vector3.Distance(sh.position, el.position) + Vector3.Distance(el.position, rh.position) : 0.6f;
+            float weaponHalf = ik.rightWeapon != null ? WeaponMidDistance(rh, ik.rightWeapon) : 0.3f;
+            var chest = d.guardTarget;
+            float chestToShoulder = chest != null && sh != null ? Vector3.Distance(chest.position, sh.position) : 0.2f;
+            d.guardReach = Mathf.Round((chestToShoulder + arm * 0.9f + weaponHalf) * 100f) / 100f;
+            // IK Pass on the base layer, only where the guard IK is used (Level 2 already had it for TwoHandedWeaponIK).
+            // A layer flag, not a state; it is never switched off here, because another IK script may need it.
+            var ctrl = an.runtimeAnimatorController as UnityEditor.Animations.AnimatorController;
+            if (ctrl != null && ik.ikIntercept && !ctrl.layers[0].iKPass)
+            {
+                var layers = ctrl.layers; layers[0].iKPass = true; ctrl.layers = layers;
+                EditorUtility.SetDirty(ctrl);
+            }
+        }
+    }
+
+    static Transform WeaponUnder(Transform hand)
+    {
+        if (hand == null) return null;
+        foreach (Transform t in hand)
+            foreach (var c in t.GetComponentsInChildren<Collider>(true))
+                if (c.CompareTag("MonsterWeapon")) return t;
+        return null;
+    }
+
+    static float WeaponMidDistance(Transform hand, Transform weapon)
+    {
+        Vector3 sum = Vector3.zero; int n = 0;
+        foreach (var c in weapon.GetComponentsInChildren<Collider>(true))
+        {
+            if (!c.CompareTag("MonsterWeapon")) continue;
+            Vector3 centre = c is BoxCollider b ? b.center : Vector3.zero;
+            sum += c.transform.TransformPoint(centre); n++;
+        }
+        return n > 0 ? Vector3.Distance(hand.position, sum / n) : 0.3f;
+    }
+
+    [MenuItem("Tools/Combat/Apply Adaptive Guard To Monster Prefabs")]
+    public static void ApplyAdaptiveGuardMenu() { Debug.Log(ApplyAdaptiveGuard()); }
+
+    /// <summary>Writes only the adaptive-guard values (ConfigureAdaptiveGuard) onto the three prefabs.</summary>
+    public static string ApplyAdaptiveGuard()
+    {
+        var log = new System.Text.StringBuilder();
+        string[] paths = { L1Prefab, L2Prefab, L3Prefab };
+        for (int l = 0; l < 3; l++)
+        {
+            var root = PrefabUtility.LoadPrefabContents(paths[l]);
+            try
+            {
+                ConfigureAdaptiveGuard(root, l + 1);
+                PrefabUtility.SaveAsPrefabAsset(root, paths[l]);
+                var d = root.GetComponent<MonsterDefense>();
+                var ik = root.GetComponentInChildren<MonsterGuardIK>(true);
+                log.AppendLine($"L{l + 1}: chance {d.guardChance:0.00} (+{d.guardChancePerPhase:0.00}/phase), delay {d.reactionDelay:0.00} s, gap {d.minGuardGap} s, uptime {d.maxGuardUptime:0.00}, " +
+                               $"reach {d.guardReach:0.00} m, side/low guards {d.sideGuards}/{d.lowGuard}, opening clip {(d.openingClip != null ? d.openingClip.name : "none")}, " +
+                               $"IK {(ik != null ? $"{ik.ikIntercept} right={(ik.rightWeapon ? ik.rightWeapon.name : "none")} left={(ik.leftWeapon ? ik.leftWeapon.name : "none")}" : "missing")}");
+            }
+            finally { PrefabUtility.UnloadPrefabContents(root); }
+        }
+        AssetDatabase.SaveAssets();
+        return log.ToString();
     }
 
     [MenuItem("Tools/Combat/Apply Tuning To Monster Prefabs")]

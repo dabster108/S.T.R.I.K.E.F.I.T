@@ -810,6 +810,21 @@ public class MonsterAI : MonoBehaviour
         if (IsDefending) SetBodyTint(defendTintColor);
     }
 
+    /// <summary>MonsterDefense opening cue: a brief body flash, then back to the guard tint (or the resting tint).</summary>
+    public void FlashTint(Color c, float seconds)
+    {
+        if (controller == null || !controller.isAlive) return;
+        StartCoroutine(FlashTintRoutine(c, seconds));
+    }
+
+    IEnumerator FlashTintRoutine(Color c, float seconds)
+    {
+        SetBodyTint(c);
+        yield return new WaitForSeconds(seconds);
+        if (IsDefending && defendTintEnabled) SetBodyTint(defendTintColor);
+        else if (!IsStaggered && controller != null && !controller.isAttacking) ClearBodyTint();   // never wipe a telegraph
+    }
+
     void SetBodyTint(Color c)
     {
         TintRenderer(telegraphRenderer, c);

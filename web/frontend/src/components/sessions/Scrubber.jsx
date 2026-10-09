@@ -3,11 +3,15 @@ import { useRef, useState } from "react";
 const MARKS = {
   hit: { cls: "bg-amber-500", label: "Hit", lane: 0 },
   clash: { cls: "bg-gray-400", label: "Clash", lane: 0 },
+  opening_hit: { cls: "bg-emerald-500", label: "Opening", lane: 0 },
+  monster_guard: { cls: "bg-blue-500", label: "Monster guard", lane: 1 },
   monster_attack: { cls: "bg-rose-600", label: "Monster attack", lane: 1 },
   player_hurt: { cls: "bg-[var(--bad)]", label: "Player hurt", lane: 1 },
   session_complete: { cls: "bg-emerald-600", label: "Result", lane: 2 },
 };
 export const SCRUB_LEGEND = [MARKS.hit, MARKS.monster_attack, MARKS.player_hurt, MARKS.session_complete];
+// Shown in the legend only when the session has them (sessions recorded before the guard telemetry have none).
+export const SCRUB_LEGEND_OPTIONAL = { clash: MARKS.clash, monster_guard: MARKS.monster_guard, opening_hit: MARKS.opening_hit };
 
 const clock = (s) => `${String(Math.floor(Math.max(0, s) / 60)).padStart(2, "0")}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, "0")}`;
 

@@ -14,7 +14,8 @@ import { SegmentedControl } from "../components/ui/Controls.jsx";
 import Button, { buttonClass } from "../components/ui/Button.jsx";
 import Icon from "../components/ui/Icon.jsx";
 import EventList from "../components/sessions/EventList.jsx";
-import Scrubber, { SCRUB_LEGEND } from "../components/sessions/Scrubber.jsx";
+import Scrubber, { SCRUB_LEGEND, SCRUB_LEGEND_OPTIONAL } from "../components/sessions/Scrubber.jsx";
+import SwingTimeline from "../components/sessions/SwingTimeline.jsx";
 import { HpBar, LiveChip } from "../components/live/LiveFight.jsx";
 import { BarChart, Legend, LineChart } from "../components/charts/Charts.jsx";
 import { CalorieEstimate, EstimateNote, ExertionChart, SwingTierChart } from "../components/fitness/Fitness.jsx";
@@ -86,7 +87,8 @@ function Replay({ events, duration, live }) {
     setT(v);
     follow.current = v >= duration - 0.05;
   };
-  const keyEvents = events.filter((e) => ["hit", "monster_attack", "player_hurt", "clash", "session_complete"].includes(e.type));
+  const keyEvents = events.filter((e) => ["hit", "monster_attack", "player_hurt", "clash", "monster_guard", "opening_hit", "session_complete"].includes(e.type));
+  const legend = [...SCRUB_LEGEND, ...Object.entries(SCRUB_LEGEND_OPTIONAL).filter(([type]) => events.some((e) => e.type === type)).map(([, m]) => m)];
   const jump = (dir) => {
     setPlaying(false);
     const target = dir > 0 ? keyEvents.find((e) => e.t > t + 0.01) : [...keyEvents].reverse().find((e) => e.t < t - 0.01);
@@ -126,7 +128,7 @@ function Replay({ events, duration, live }) {
       <div className="mt-2">
         <Scrubber t={Math.min(t, duration)} duration={duration} events={events} onSeek={seek} onScrubStart={() => setPlaying(false)} />
         <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-[var(--ink-secondary)]" aria-label="Marker legend">
-          {SCRUB_LEGEND.map((m) => (
+          {legend.map((m) => (
             <li key={m.label} className="inline-flex items-center gap-1.5">
               <span className={`h-3 w-[3px] rounded-full ${m.cls}`} aria-hidden />
               {m.label}
@@ -134,6 +136,19 @@ function Replay({ events, duration, live }) {
           ))}
           <li className="ml-auto hidden font-medium text-[var(--muted)] sm:block">Arrow keys move 1 s, Shift for 5 s</li>
         </ul>
+      </div>
+
+      <div className="mt-5">
+        <p className="mb-1 text-xs font-bold text-[var(--ink)]">Swing speed and monster health</p>
+        <SwingTimeline
+          events={events}
+          duration={duration}
+          t={Math.min(t, duration)}
+          onSeek={(v) => {
+            setPlaying(false);
+            seek(v);
+          }}
+        />
       </div>
 
       <div className="mt-5 grid gap-6 lg:grid-cols-5">

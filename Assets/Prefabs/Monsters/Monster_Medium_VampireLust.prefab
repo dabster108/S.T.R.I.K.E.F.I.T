@@ -7771,6 +7771,8 @@ GameObject:
   - component: {fileID: 8905035341286981438}
   - component: {fileID: 1640533961385242570}
   - component: {fileID: 6821371753378915438}
+  - component: {fileID: 3544576131099502058}
+  - component: {fileID: 1367551491765007809}
   m_Layer: 9
   m_Name: Monster_Medium_VampireLust
   m_TagString: Monster
@@ -8622,11 +8624,11 @@ MonoBehaviour:
   guardTarget: {fileID: 8708223597037922119}
   reactiveGuard: 1
   reactionDelay: 0.25
-  guardChance: 0.3
-  guardChanceEnraged: 0.3
-  minGuardGap: 4.5
+  guardChance: 0.35
+  guardChanceEnraged: 0.35
+  minGuardGap: 3.5
   guardDuration: {x: 0.8, y: 1.2}
-  maxGuardUptime: 0.18
+  maxGuardUptime: 0.22
   timedGuard: 1
   timedGuardInterval: 9
   timedGuardJitter: 0.3
@@ -8642,6 +8644,38 @@ MonoBehaviour:
   lowGuardTrigger: Defend
   blockPitch: {x: 1.18, y: 1, z: 0.82}
   guardChancePerPhase: 0
+  swingClasses: 1
+  pathRadius: 0.45
+  pathLookAhead: 0.5
+  thrustAcrossRatio: 0.5
+  overheadVertical: 0.8
+  diagonalVertical: 0.35
+  uppercutVertical: 0.6
+  guardReach: 1.17
+  sideOverlap: 0.1
+  sideGuards: 1
+  lowGuard: 1
+  sideLeftGuardTrigger: Defend
+  sideRightGuardTrigger: Defend
+  lowPoseGuardTrigger: Defend
+  posePitch: {x: 1.18, y: 1.06, z: 0.95, w: 0.82}
+  blockPitchJitter: 0.04
+  adaptiveGuard: 1
+  memoryLength: 6
+  repeatThreshold: 3
+  repeatWindow: 8
+  adaptiveStep: 0.15
+  adaptiveMaxBoost: 0.15
+  decayPerVariedSwing: 0.05
+  decayPerSecond: 0.02
+  maxGuardChance: 0.8
+  maxBlocksInARow: 3
+  forcedOpeningWindow: 1
+  openingClip: {fileID: 8300000, guid: f43d247d7f81b4970a6015c827ae5c93, type: 3}
+  openingVolume: 0.7
+  openingPitch: 1.15
+  openingFlashColor: {r: 1, g: 1, b: 1, a: 1}
+  openingFlashSeconds: 0.08
   counterEnabled: 1
   counterChance: 0.2
   counterMinAbsorbed: 2
@@ -8731,6 +8765,145 @@ MonoBehaviour:
   cycles: 2.5
   damping: 4
   attackScale: 0.25
+--- !u!114 &3544576131099502058
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5489058911841126940}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3722f9d9df3254099a2a01cba1e57dc4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterGuardIK
+  ikIntercept: 1
+  twoWeapons: 0
+  rightWeapon: {fileID: 7564806546145246787}
+  leftWeapon: {fileID: 0}
+  maxHandSpeed: 2.5
+  reachFraction: 0.9
+  minForward: 0.3
+  maxCross: 0.35
+  minHeight: 0.35
+  blendIn: 8
+  blendOut: 5
+  positionWeight: 1
+  keepClipHandRotation: 1
+  highAnchor: {x: 0, y: 0.95, z: 0.35}
+  sideAnchor: {x: 0.4, y: 0.7, z: 0.45}
+  lowAnchor: {x: 0, y: 0.4, z: 0.4}
+  ikOnHighPose: 0
+  followContact: 0.5
+--- !u!114 &1367551491765007809
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5489058911841126940}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c552d1864306465cae14a9b40283742, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterEntrance
+  style: 1
+  dropTrigger: EntranceDrop
+  dropStateClip: MutantJump_HeightBaked
+  dropApexTime: 1
+  dropLandTime: 1.6
+  dropRiseEndTime: 2.9
+  dropExtraHeight: 1
+  entranceRoarTrigger: EntranceRoar
+  entranceRoarStateClip: L3_Roar
+  landAtDistance: 1.85
+  minLandDistance: 1.5
+  torchDimSeconds: 1
+  torchDimTo: 0.3
+  torchFlickerHz: 1.2
+  torchFlickerDepth: 0.12
+  eyesSeconds: 1.6
+  glowUpSeconds: 2
+  torchRestoreSeconds: 1
+  retrySeconds: 1.5
+  alwaysFull: 0
+  emissionRenderer: {fileID: 7232156306593475360}
+  eyeColor: {r: 0.6, g: 0.25, b: 1, a: 1}
+  eyeIntensity: 1.6
+  glowIntensity: 2.6
+  eyeFlareIntensity: 5
+  eyeFlareSeconds: 0.35
+  weaponFire: {fileID: 8318444498566070866}
+  weaponHand: {fileID: 6375482089479033389}
+  igniteSeconds: 0.8
+  fxMaterial: {fileID: 2100000, guid: ddf62190026de467b85fbb3fea056981, type: 2}
+  mistColor: {r: 0.45, g: 0.2, b: 0.7, a: 0.35}
+  mistParticles: 24
+  dustColor: {r: 0.42, g: 0.38, b: 0.45, a: 0.55}
+  dustParticles: 16
+  ringColor: {r: 0.7, g: 0.35, b: 1, a: 0.8}
+  ringParticles: 24
+  growlClip: {fileID: 8300000, guid: 8f605bec07a6c45388012d11141d9b28, type: 3}
+  growlVolume: 0.5
+  landClip: {fileID: 8300000, guid: cbc48bf379b364886a0212fa155974bc, type: 3}
+  landVolume: 0.6
+  entranceRoarClip: {fileID: 8300000, guid: ce83a687add4b4fa3a0149e4c93c7841, type: 3}
+  entranceRoarVolume: 0.6
+  landHaptic: {x: 0.35, y: 0.12}
+  riseOffset: {fileID: 0}
+  startDepth: 2.6
+  riseTrigger: Rise
+  riseStateClip: Exec_Rise
+  roarTrigger: Roar
+  roarStateClip: Exec_Roar
+  fallbackRiseSeconds: 3
+  riseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0.4
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.55
+      value: 0.82
+      inSlope: 1.2
+      outSlope: 1.2
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0.15
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  summoningCircle: {fileID: 0}
+  circleFadeIn: 0.8
+  preRiseDelay: 1.4
+  circleFadeOut: 1.2
+  roarHoldSeconds: 2.2
+  audioSource: {fileID: 2752802109398831736}
+  summonClip: {fileID: 0}
+  summonVolume: 0.9
+  riseClip: {fileID: 0}
+  riseVolume: 1
+  roarClip: {fileID: 0}
+  roarVolume: 1
+  inProgress: 0
+  complete: 0
 --- !u!1 &5712291801053498461
 GameObject:
   m_ObjectHideFlags: 0

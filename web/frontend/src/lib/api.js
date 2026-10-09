@@ -93,6 +93,8 @@ export const api = {
   feedbackAnalytics: () => request("/api/analytics/feedback"),
   // Level, title, streak (with freeze), weekly goal and badges. Day boundaries follow the viewer's time zone.
   playerAchievements: (name) => request(`/api/players/${enc(name)}/achievements${qs({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`),
+  playerInsights: (name) => request(`/api/players/${enc(name)}/insights`),
+  playerChecklist: (name) => request(`/api/players/${enc(name)}/checklist`),
   exportUrl: (kind, filters) => `${API_BASE}/api/export/${kind}.csv${qs(filters)}`,
   streamUrl: () => `${API_BASE}/api/stream`,
 };

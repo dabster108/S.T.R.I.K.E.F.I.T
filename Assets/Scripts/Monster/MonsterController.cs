@@ -272,11 +272,12 @@ public class MonsterController : MonoBehaviour
         if (isDefending)
         {
             // Damage reduction while defending (MonsterAI.defendDamageMultiplier, default 0.3 = 70% reduction)
+            float unguarded = amount;
             amount *= ai.defendDamageMultiplier;
             bool zoned = defense != null && defense.zoneGuard;
             ai.NotifyDefendedHit(hitPoint, !zoned);
             if (zoned) defense.PlayBlockClang(ai.defendBlockClip, ai.defendBlockVolume);
-            if (defense != null) defense.OnGuardAbsorbedHit(amount); // fills the guard meter (weapon parries never get here)
+            if (defense != null) defense.OnGuardAbsorbedHit(amount, unguarded - amount); // fills the guard meter (weapon parries never get here)
             style = CombatUIController.DamageStyle.Blocked;
             if (ai.verboseAttackLogs)
                 Debug.Log($"[Monster] Blocked! Reduced damage to {amount:0.#}");
@@ -284,13 +285,18 @@ public class MonsterController : MonoBehaviour
         else if (guarding && defense != null)
         {
             // Guard up, but the hit went where it does not cover: full damage plus the opening bonus.
-            amount *= 1f + defense.openingBonus;
-            defense.OnOpeningHit(amount);
+            float bonus = amount * defense.openingBonus;
+            amount += bonus;
+            defense.OnOpeningHit(amount, bonus, hitPoint);
             if (CombatUIController.Instance != null)
                 CombatUIController.Instance.ShowCallout(hitPoint + Vector3.up * 0.25f, "OPENING", CombatUIController.DamageStyle.Opening);
         }
-        else if (defense != null && defense.IsStaggered)
-            amount *= defense.staggerDamageMultiplier; // guard broken: the opening pays more
+        else
+        {
+            if (defense != null) defense.OnUnblockedHit();   // ends a run of blocks
+            if (defense != null && defense.IsStaggered)
+                amount *= defense.staggerDamageMultiplier; // guard broken: the opening pays more
+        }
 
         if (phases != null && phases.InPhaseShift)
         {

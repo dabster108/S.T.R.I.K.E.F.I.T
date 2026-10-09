@@ -9,6 +9,7 @@ const { SESSION_API_SELECT, EVENT_SELECT, fromRow } = require("./columns");
 const fitness = require("./fitness");
 const progression = require("./progression");
 const feedback = require("./feedback");
+const insightsRules = require("./insights");
 
 const LEVEL_ORDER = ["Easy", "Medium", "Hard"];
 const TIERS = ["tap", "light", "medium", "full"];
@@ -414,6 +415,63 @@ async function playerAchievements(name, { tz, goal } = {}) {
   };
 }
 
+// Plain-language insights for one player (insights.js rules): each sentence only with enough data behind it, the rest
+// listed as pending with the stated minimum. Guard sentences use the monster_guard / opening_hit telemetry.
+async function playerInsights(name) {
+  const [{ sessions }, hitRows, guardRows] = await Promise.all([
+    playerProgressData(name),
+    (async () => {
+      const params = [];
+      return (await query(`WITH ${hitsCte({ player: name }, params)} SELECT session_id, tier, speed, t FROM hits WHERE status <> 'live'`, params)).rows;
+    })(),
+    query(
+      `SELECT e.session_ref AS id,
+              count(*) FILTER (WHERE e.type = 'hit')::int AS hits,
+              coalesce(sum(CASE WHEN e.type = 'monster_guard' AND json_typeof(e.payload->'blockedHits') = 'number'
+                                THEN (e.payload->>'blockedHits')::float8 END), 0)::int AS blocked,
+              count(*) FILTER (WHERE e.type = 'opening_hit')::int AS openings,
+              count(*) FILTER (WHERE e.type IN ('monster_guard', 'opening_hit'))::int AS guard_events
+       FROM events e JOIN sessions s ON s.id = e.session_ref
+       WHERE s.player_name = $1 AND s.status <> 'live' GROUP BY e.session_ref`,
+      [name]
+    ).then((r) => r.rows),
+  ]);
+  if (!sessions.length) {
+    const any = await query("SELECT 1 FROM sessions WHERE player_name = $1 LIMIT 1", [name]);
+    if (!any.rowCount) return null;
+  }
+  const hitsBy = new Map();
+  for (const h of hitRows) {
+    if (!hitsBy.has(h.session_id)) hitsBy.set(h.session_id, []);
+    hitsBy.get(h.session_id).push({ t: num(h.t), speed: num(h.speed), tier: h.tier });
+  }
+  const result = insightsRules.playerInsights({
+    trendSessions: sessions.map((s) => ({ durationSec: num(s.durationSec), hits: hitsBy.get(s.id) || [] })),
+    tiers: hitRows.map((h) => h.tier),
+    outcomes: sessions.map((s) => ({ level: s.level, outcome: s.outcome })),
+    guardSessions: guardRows.filter((r) => r.guard_events > 0).map((r) => ({ hits: r.hits, guardsBlocked: r.blocked, openings: r.openings })),
+  });
+  return { playerName: name, sessions: sessions.length, ...result };
+}
+
+// First-run checklist for one player, computed from the database (the dashboard only stores its dismissal).
+const DEFAULT_NAME = /^player\s*\d*$/i; // the game's "Player 1" and the API's "Player1"
+async function playerChecklist(name) {
+  const [{ rows }, rated] = await Promise.all([
+    query("SELECT count(*) FILTER (WHERE status <> 'live')::int AS finished, count(*)::int AS total FROM sessions WHERE player_name = $1", [name]),
+    query("SELECT count(*)::int AS n FROM session_feedback f JOIN sessions s ON s.id = f.session_id WHERE s.player_name = $1", [name]),
+  ]);
+  if (!rows[0].total) return null;
+  const ach = await playerAchievements(name, {});
+  const steps = [
+    { id: "first_fight", label: "Play a first fight", done: rows[0].finished > 0, detail: `${rows[0].finished} finished` },
+    { id: "pick_name", label: "Pick a name", done: !DEFAULT_NAME.test(name.trim()), detail: name },
+    { id: "rate_session", label: "Rate a session", done: rated.rows[0].n > 0, detail: `${rated.rows[0].n} rated` },
+    { id: "unlock_badge", label: "Unlock a badge", done: (ach?.badgesUnlocked || 0) > 0, detail: `${ach?.badgesUnlocked || 0} of ${ach?.badgesTotal || 0}` },
+  ];
+  return { playerName: name, steps, done: steps.filter((s) => s.done).length, total: steps.length };
+}
+
 // Records this session holds against the player's other finished sessions (see progression.personalBestsSet).
 async function sessionPersonalBests(session) {
   if (session.status === "live") return [];
@@ -672,6 +730,8 @@ async function exportEventsCsv(filters) {
 }
 
 module.exports = {
+  playerInsights,
+  playerChecklist,
   overview,
   publicStats,
   playerProfile,
