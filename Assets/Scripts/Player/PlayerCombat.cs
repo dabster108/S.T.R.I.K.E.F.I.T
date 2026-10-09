@@ -62,6 +62,15 @@ public class PlayerCombat : MonoBehaviour
     [Header("Selectable Weapon Pairs (Level 3+; empty in Levels 1-2)")]
     public System.Collections.Generic.List<WeaponSet> weaponSets = new System.Collections.Generic.List<WeaponSet>();
 
+    [Header("Weapon surface proxy (visual only)")]
+    [Tooltip("Draw each weapon resting on the monster's surface instead of buried in it (WeaponSurfaceProxy). The logical weapon " +
+             "(collider, swing speed, damage, hit and clash events) is never moved. Off = drawn at the controller.")]
+    public bool weaponSurfaceProxy = true;
+    [Tooltip("Faint unlit material for the ghost of the real controller pose (M_WeaponGhost).")]
+    public Material weaponGhostMaterial;
+    [Tooltip("Show the ghost of the real pose when the drawn weapon is more than 6 cm from the controller.")]
+    public bool weaponGhost = true;
+
     [Header("Own-weapon collisions")]
     [Tooltip("Physics.IgnoreCollision between every pair of active colliders under this rig (both held weapons, any hand " +
              "colliders), re-applied each time weapons are shown, equipped or swapped. The player's two weapons never touch " +
@@ -376,6 +385,21 @@ public class PlayerCombat : MonoBehaviour
             lastOffhandWeaponPos = offhandWeaponTransform.position;
 
         IgnoreOwnWeaponCollisions();
+        EnsureWeaponProxies();
+    }
+
+    /// <summary>Puts a WeaponSurfaceProxy on every held weapon (every HitDetection under the rig) and applies the toggles. Runs at
+    /// equip / battle start with the other weapon set-up, never per frame; a weapon that is inactive picks it up when shown.</summary>
+    public void EnsureWeaponProxies()
+    {
+        foreach (var hd in GetComponentsInChildren<HitDetection>(true))
+        {
+            var proxy = hd.GetComponent<WeaponSurfaceProxy>();
+            if (proxy == null) proxy = hd.gameObject.AddComponent<WeaponSurfaceProxy>();
+            proxy.proxyEnabled = weaponSurfaceProxy;
+            proxy.ghostEnabled = weaponGhost;
+            if (weaponGhostMaterial != null) proxy.ghostMaterial = weaponGhostMaterial;
+        }
     }
 
     /// <summary>

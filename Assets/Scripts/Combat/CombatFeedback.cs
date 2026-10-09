@@ -158,6 +158,17 @@ public class CombatFeedback : MonoBehaviour
         Pulse(Hand.Right, damagePulse.x, damagePulse.y, 0f, 0f, frequency, "damage");
     }
 
+    [Tooltip("Light tick on the striking hand while the controller is pushed into the monster (WeaponSurfaceProxy).")]
+    public bool penetrationTicks = true;
+
+    /// <summary>A very short, light tick (WeaponSurfaceProxy): amplitude scales with how far the controller is inside. Weaker than
+    /// any hit pulse, so it never replaces one (the existing replaceFraction rule).</summary>
+    public void PenetrationTick(Hand hand, float amp)
+    {
+        if (!penetrationTicks) return;
+        Pulse(hand, Mathf.Clamp01(amp), 0.02f, 0f, 0f, frequency, "sink");
+    }
+
     /// <summary>The same pulse on both hands (the Level 2 entrance landing). Obeys the haptics toggle.</summary>
     public void PulseBoth(float amp, float seconds, string kind)
     {

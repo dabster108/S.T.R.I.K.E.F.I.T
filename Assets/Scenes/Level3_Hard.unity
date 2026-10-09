@@ -2412,6 +2412,7 @@ MonoBehaviour:
   hitStop: 1
   hitStopSeconds: 0.07
   skipHitStopDuringAttacks: 1
+  penetrationTicks: 1
 --- !u!114 &311020135
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8716,6 +8717,9 @@ MonoBehaviour:
     maxSwingVelocity: 6
     maxVelocityDamageMultiplier: 2.2
     damageMultiplier: 1.32
+  weaponSurfaceProxy: 1
+  weaponGhostMaterial: {fileID: 2100000, guid: 549c22bd7a05d48248634a5b4b4a4ee7, type: 2}
+  weaponGhost: 1
   ignoreOwnWeaponCollisions: 1
   showWeaponsBeforeBattle: 1
   swingController: 2
