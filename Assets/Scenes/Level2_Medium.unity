@@ -831,6 +831,7 @@ MonoBehaviour:
   wakeTimeoutSeconds: 60
   playerName: Player 1
   sendLiveEvents: 1
+  sendGuardEvents: 1
   snapshotInterval: 1
   flushInterval: 0.4
   maxBufferedEvents: 256
@@ -15597,6 +15598,7 @@ GameObject:
   - component: {fileID: 1935399500}
   - component: {fileID: 1935399499}
   - component: {fileID: 1935399498}
+  - component: {fileID: 1935399502}
   m_Layer: 0
   m_Name: CombatCanvas
   m_TagString: Untagged
@@ -15702,6 +15704,28 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 2.2}
   m_SizeDelta: {x: 900, y: 500}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1935399502
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1935399497}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3823762977267426dbb9caeef3a832ef, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OutcomeMenuButtons
+  buttonsEnabled: 1
+  panelLift: 0.08
+  prompt: Play again?
+  buttonSize: {x: 168, y: 64}
+  fontSize: 26
+  playAgainColor: {r: 0.12, g: 0.55, b: 0.25, a: 0.95}
+  levelSelectColor: {r: 0.2, g: 0.35, b: 0.6, a: 0.95}
+  exitColor: {r: 0.45, g: 0.45, b: 0.5, a: 0.95}
+  built: []
+  confirm: {fileID: 0}
 --- !u!1 &1948268223
 GameObject:
   m_ObjectHideFlags: 0

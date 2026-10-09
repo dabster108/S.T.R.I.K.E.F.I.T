@@ -224,10 +224,21 @@ public class SessionReporter : MonoBehaviour
     void OnDestroy()
     {
         // Scene reload right after a result: send whatever is still queued without waiting.
-        MoveBufferToRequests();
-        while (requests.Count > 0) Send(requests.Dequeue(), true);
+        FlushNow();
         if (Instance == this) Instance = null;
     }
+
+    /// <summary>Hands everything still buffered or queued to the network now (fire and forget, same 5 s timeout, same silent
+    /// failure). Used by the scene flow before Exit Game; <see cref="SendsInFlight"/> says when the requests have finished.</summary>
+    public void FlushNow()
+    {
+        MoveBufferToRequests();
+        while (requests.Count > 0) Send(requests.Dequeue(), true);
+    }
+
+    /// <summary>Requests handed to the network and not yet finished (success or failure).</summary>
+    public int SendsInFlight => sendsInFlight;
+    int sendsInFlight;
 
     // ─────────────────────────── Players (pre-battle, used by PlayerNamePicker) ───────────────────────────
 
@@ -758,6 +769,7 @@ public class SessionReporter : MonoBehaviour
         }
 
         if (!fireAndForget) requestInFlight = true;
+        sendsInFlight++;
         string label = r.label;
         bool verbose = verboseLogging;
         // The callback outlives this component if the scene unloads mid-request.
@@ -773,6 +785,7 @@ public class SessionReporter : MonoBehaviour
             }
             req.Dispose();
             if (!fireAndForget) requestInFlight = false;
+            sendsInFlight--;
         };
     }
 

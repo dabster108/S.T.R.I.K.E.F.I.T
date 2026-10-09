@@ -165,6 +165,7 @@ public class GameStateManager : MonoBehaviour
     // Static, so it survives the scene reload; consumed once by the entrance of that scene.
     static string retryScene;
     public static void FlagRetry(string sceneName) { retryScene = sceneName; }
+    public static void ClearRetry() { retryScene = null; }
     public static bool ConsumeRetry(string sceneName)
     {
         if (string.IsNullOrEmpty(sceneName) || retryScene != sceneName) return false;
@@ -179,11 +180,10 @@ public class GameStateManager : MonoBehaviour
     {
         Time.timeScale = 1f;
         string current = SceneManager.GetActiveScene().name;
-        FlagRetry(current);
         if (SceneExists(current))
         {
-            SceneManager.LoadScene(current);
-            SetState(GameState.Battle);
+            // One load at a time: the A button and the Play Again laser button can both fire in the same frame.
+            if (SceneFlow.PlayAgain()) SetState(GameState.Battle);
         }
         else
         {
