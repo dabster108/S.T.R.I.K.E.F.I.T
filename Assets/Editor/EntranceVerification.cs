@@ -21,6 +21,12 @@ public static class EntranceVerification
     static readonly StringBuilder log = new StringBuilder();
     static int lastFrame = -1;
     public static string captureDir = "Captures/Level2Entrance";
+    /// <summary>Weapon sweeps through the monster during the sequence (off for the tremor / no-whoosh runs).</summary>
+    public static bool sweepsOn = true;
+    /// <summary>Overrides MonsterEntrance.tremor for the run ("" = leave as built).</summary>
+    public static string tremorMode = "";
+    /// <summary>"On" / "Off" overrides MonsterEntrance.dimFlames for the run ("" = as built).</summary>
+    public static string flamesMode = "";
 
     public static string Status() => (job != null ? $"RUNNING t={Time.time:0.0}\n" : "IDLE\n") + log;
 
@@ -99,6 +105,10 @@ public static class EntranceVerification
         while (Time.time - t0 < 3f) { mon = BattleManager.Instance.ActiveMonster; if (mon != null && mon.GetComponent<MonsterEntrance>() != null) break; yield return null; }
         var e = mon != null ? mon.GetComponent<MonsterEntrance>() : null;
         if (e == null) { log.AppendLine("no MonsterEntrance on the monster"); yield break; }
+        if (tremorMode == "Off") e.tremor = MonsterEntrance.TremorStrength.Off;
+        else if (tremorMode == "Light") e.tremor = MonsterEntrance.TremorStrength.Light;
+        else if (tremorMode == "Strong") e.tremor = MonsterEntrance.TremorStrength.Strong;
+        if (flamesMode == "On") e.dimFlames = true; else if (flamesMode == "Off") e.dimFlames = false;
         var health = mon.GetComponent<MonsterHealth>();
         var ps = mon.GetComponent<MonsterPersonalSpace>();
         float hp0 = health.currentHealth, hpAtEnd = hp0;
@@ -119,9 +129,54 @@ public static class EntranceVerification
         int lastStep = -1, sweeps = 0; float minHead = 99f, minLevel = 99f;
         int fxOn = 0, fxOff = 0; long dcOn = 0, dcOff = 0; int maxFx = 0, frame = 0;
         bool controlsOk = true;
+        // tremor / haptic / torch-dip / flame probes
+        var ts = rig.trackingSpace; Vector3 tsRest = ts.position; Quaternion tsRestRot = ts.rotation;
+        var hud = new List<Transform>(); var hudRest = new List<Vector3>();
+        foreach (var c in Object.FindObjectsByType<Canvas>(FindObjectsInactive.Exclude)) if (c.isRootCanvas && c.renderMode == RenderMode.WorldSpace && !c.transform.IsChildOf(rig.transform)) { hud.Add(c.transform); hudRest.Add(c.transform.position); }
+        float tremStart = -1f, tremEnd = -1f, tremPeak = 0f, hudMaxDelta = 0f, maxRotDelta = 0f, maxHandSpeedDuring = 0f; int zc = 0; float lastY = 0f; int tremFrames = 0;
+        var tremY = new List<float>();
+        int lastHaptic = CombatDebugInfo.HapticCalls; var haptics = new List<string>();
+        var flames = new List<ParticleSystemRenderer>(); var flameBase = new List<Color>();
+        foreach (var pr in Object.FindObjectsByType<ParticleSystemRenderer>(FindObjectsInactive.Exclude))
+            if (pr.GetComponentInParent<MonsterController>() == null && pr.sharedMaterial != null && pr.sharedMaterial.name.ToLower().Contains("fire") && pr.sharedMaterial.HasProperty("_BaseColor")) { flames.Add(pr); flameBase.Add(pr.sharedMaterial.GetColor("_BaseColor")); }
+        var mpbRead = new MaterialPropertyBlock(); float flameMin = 1f; bool flameDipSeen = false;
+        float dipMin = 9f, preDip = -1f; float landT = -1f; var dipSamples = new StringBuilder();
+        bool dustShot = false; long dcDim = 0; int dcDimN = 0;
         while (!e.Complete && Time.time - t0 < 20f)
         {
             frame++;
+            // haptic calls (both hands expected at the landing)
+            if (CombatDebugInfo.HapticCalls != lastHaptic)
+            {
+                int dh = CombatDebugInfo.HapticCalls - lastHaptic; lastHaptic = CombatDebugInfo.HapticCalls;
+                haptics.Add($"{Time.time - t0:0.00} s +{dh} call(s), last {CombatDebugInfo.LastHapticHand} amp {CombatDebugInfo.LastHapticAmplitude:0.00} for {CombatDebugInfo.LastHapticSeconds:0.00} s kind '{CombatDebugInfo.LastHapticKind}' backend {CombatDebugInfo.LastHapticBackend} accepted {CombatDebugInfo.LastHapticAccepted}");
+            }
+            if (e.StepTimes[1] > 0f && e.StepTimes[2] <= 0f && Time.time - t0 > e.StepTimes[1] + 0.3f) { dcDim += UnityEditor.UnityStats.drawCalls; dcDimN++; }   // torches dimmed, eyes lit, nothing else changing
+            if (e.TremorActive)
+            {
+                tremFrames++;
+                if (tremStart < 0f) tremStart = Time.time - t0;
+                tremEnd = Time.time - t0;
+                Vector3 d0 = ts.position - tsRest; tremPeak = Mathf.Max(tremPeak, d0.magnitude);
+                if (tremFrames > 1 && Mathf.Sign(d0.y) != Mathf.Sign(lastY) && Mathf.Abs(d0.y) > 1e-5f && Mathf.Abs(lastY) > 1e-5f) zc++;
+                lastY = d0.y; tremY.Add(d0.y);
+                for (int h = 0; h < hud.Count; h++) hudMaxDelta = Mathf.Max(hudMaxDelta, ((hud[h].position - hudRest[h]) - d0).magnitude);
+                maxRotDelta = Mathf.Max(maxRotDelta, Quaternion.Angle(ts.rotation, tsRestRot));
+                maxHandSpeedDuring = Mathf.Max(maxHandSpeedDuring, hd.CurrentVelocity.magnitude);
+            }
+            if (e.StepTimes[3] > 0f && landT < 0f) landT = Time.time - t0;
+            if (landT > 0f && Time.time - t0 - landT < 0.9f && !e.ShortVersion)
+            {
+                float lv = 0f; int nn = 0; for (int i = 0; i < lights.Count; i++) if (before[i] > 0f) { lv += lights[i].intensity / before[i]; nn++; }
+                if (nn > 0) { lv /= nn; dipMin = Mathf.Min(dipMin, lv); dipSamples.Append($"{Time.time - t0 - landT:0.00}:{lv:0.00} "); }
+                for (int i = 0; i < flames.Count; i++) { flames[i].GetPropertyBlock(mpbRead); var cc = mpbRead.GetColor("_BaseColor"); float ratio = flameBase[i].r > 0f && cc.r > 0f ? cc.r / flameBase[i].r : 1f; flameMin = Mathf.Min(flameMin, ratio); if (ratio < 0.999f) flameDipSeen = true; }
+            }
+            else if (landT < 0f && e.StepTimes[0] > 0f && preDip < 0f && Time.time - t0 > e.StepTimes[0] + 0.5f)
+            {
+                float lv = 0f; int nn = 0; for (int i = 0; i < lights.Count; i++) if (before[i] > 0f) { lv += lights[i].intensity / before[i]; nn++; }
+                if (nn > 0) preDip = lv / nn;
+            }
+            if (!dustShot && landT > 0f && Time.time - t0 >= landT + 0.35f) { dustShot = true; CaptureAt($"{captureDir}/{(retry ? "retry" : "full")}_3c_dust_falling.png", head, head.position + Vector3.ProjectOnPlane(head.forward, Vector3.up).normalized * 1.5f + Vector3.up * 0.9f); }
             // step captures
             for (int s = 0; s < MonsterEntrance.StepNames.Length - 1; s++)
                 if (s > lastStep && e.StepTimes[s] > 0f && Time.time - t0 >= e.StepTimes[s])
@@ -156,7 +211,7 @@ public static class EntranceVerification
             if (bones == null) { var an = mon.GetComponentInChildren<Animator>(); bones = new[] { an.GetBoneTransform(HumanBodyBones.Head), an.GetBoneTransform(HumanBodyBones.LeftHand), an.GetBoneTransform(HumanBodyBones.RightHand) }; }
             for (int b = 0; b < bones.Length; b++) if (bones[b] != null) minBone[b] = Mathf.Min(minBone[b], Vector3.Distance(bones[b].position, head.position));
             // sweep the weapon through the chest every 0.5 s once the monster is down (8 m/s)
-            if (e.StepTimes[3] > 0f && Time.time - t0 > e.StepTimes[3] + 0.1f && (frame % 36) == 0)
+            if (sweepsOn && e.StepTimes[3] > 0f && Time.time - t0 > e.StepTimes[3] + 0.1f && (frame % 36) == 0)
             {
                 Vector3 chest = mon.transform.position + Vector3.up * 1.2f;
                 Vector3 side = Vector3.Cross(Vector3.up, (chest - head.position).normalized);
@@ -181,6 +236,13 @@ public static class EntranceVerification
         log.AppendLine($"  invulnerable: {sweeps} weapon sweeps through the chest during the sequence, hits {hits}, clashes {clashes}, monster HP {hp0:0} -> {hpAtEnd:0} at the end of the sequence");
         log.AppendLine($"  sounds during the sequence: {(sounds.Count > 0 ? string.Join("; ", sounds) : "none")}");
         log.AppendLine($"  torches: lowest {minLevel * 100f:0}% of their level");
+        float tremDur = tremEnd >= 0f ? tremEnd - tremStart : 0f;
+        log.AppendLine($"  TREMOR mode {e.tremor}: active {(tremFrames > 0 ? $"{tremStart:0.00} -> {tremEnd:0.00} s ({tremDur:0.00} s, {tremFrames} frames)" : "never")}, peak offset {tremPeak * 100f:0.00} cm (entrance reports {e.TremorPeakApplied * 100f:0.00}), vertical zero crossings {zc} => {(tremDur > 0f ? zc / 2f / tremDur : 0f):0.0} Hz, tracking-space rotation change {maxRotDelta:0.000} deg, HUD canvas shift relative to the head {hudMaxDelta * 1000f:0.0} mm ({hud.Count} canvas), tracking space restored to {(ts.position - tsRest).magnitude * 1000f:0.000} mm of its rest position, HUD to {(hud.Count > 0 ? (hud[0].position - hudRest[0]).magnitude * 1000f : 0f):0.000} mm");
+        log.AppendLine($"  weapon speed while the tremor ran (hand still): max {maxHandSpeedDuring:0.00} m/s (whoosh trigger 2.2 m/s)");
+        { var sbY = new StringBuilder(); for (int i = 0; i < tremY.Count; i++) sbY.Append($"{tremY[i] * 1000f:0.0} "); log.AppendLine($"  vertical offset (mm) per frame: {sbY}"); }
+        log.AppendLine($"  torch dip after landing: before {preDip:0.00} -> min {dipMin:0.00} (samples {dipSamples}); flames dimmed {flameDipSeen} (min ratio {flameMin:0.00}, {flames.Count} flame renderers)");
+        log.AppendLine($"  draw calls while the torches are dimmed (flame dimming {(e.dimFlames ? "ON" : "OFF")}): mean {(dcDimN > 0 ? dcDim / (float)dcDimN : 0f):0.0} over {dcDimN} frames");
+        log.AppendLine($"  haptic calls at the landing: {(haptics.Count > 0 ? string.Join(" | ", haptics) : "none")}");
         // keep tracing the Animator for 1.2 s after the fight starts (the Retry version hands back to Idle on its last frame)
         float tEnd = Time.time + 1.2f;
         while (Time.time < tEnd)

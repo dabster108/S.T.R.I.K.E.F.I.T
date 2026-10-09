@@ -8818,7 +8818,7 @@ MonoBehaviour:
   entranceRoarStateClip: L3_Roar
   landAtDistance: 1.85
   minLandDistance: 1.5
-  torchDimSeconds: 1
+  torchDimSeconds: 1.2
   torchDimTo: 0.3
   torchFlickerHz: 1.2
   torchFlickerDepth: 0.12
@@ -8849,7 +8849,19 @@ MonoBehaviour:
   landVolume: 0.6
   entranceRoarClip: {fileID: 8300000, guid: ce83a687add4b4fa3a0149e4c93c7841, type: 3}
   entranceRoarVolume: 0.6
-  landHaptic: {x: 0.35, y: 0.12}
+  landHaptic: {x: 0.5, y: 0.12}
+  landRumbleTail: {x: 0.22, y: 0.4}
+  rumbleFrequency: 0.25
+  tremor: 1
+  tremorLightMeters: 0.01
+  tremorStrongMeters: 0.025
+  tremorHz: 7
+  tremorSeconds: 0.5
+  tremorKeepsHudSteady: 1
+  fallingDust: 12
+  torchDipSeconds: 0.5
+  torchDipDepth: 0.45
+  dimFlames: 1
   riseOffset: {fileID: 0}
   startDepth: 2.6
   riseTrigger: Rise

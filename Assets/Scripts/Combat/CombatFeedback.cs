@@ -176,6 +176,13 @@ public class CombatFeedback : MonoBehaviour
         Pulse(Hand.Right, amp, seconds, 0f, 0f, frequency, kind);
     }
 
+    /// <summary>An impact pulse that decays into a low rumble, on both hands (the Level 2 entrance landing).</summary>
+    public void PulseBoth(float amp, float seconds, float tailAmp, float tailSeconds, float freq, string kind)
+    {
+        Pulse(Hand.Left, amp, seconds, tailAmp, tailSeconds, freq, kind);
+        Pulse(Hand.Right, amp, seconds, tailAmp, tailSeconds, freq, kind);
+    }
+
     void Pulse(Hand hand, float amp, float seconds, float tailAmp, float tailSeconds, float freq, string kind)
     {
         if (!haptics || amp <= 0f || seconds <= 0f) return;
