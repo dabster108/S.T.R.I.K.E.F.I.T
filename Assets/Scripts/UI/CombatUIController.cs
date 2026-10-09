@@ -18,7 +18,7 @@ public class CombatUIController : MonoBehaviour
     public static CombatUIController Instance;
 
     /// <summary>Look of a floating damage number: swing tier, or what happened to the hit.</summary>
-    public enum DamageStyle { Default, Tap, Light, Medium, Full, Weak, Blocked, Resisted, Break, FullPower }
+    public enum DamageStyle { Default, Tap, Light, Medium, Full, Weak, Blocked, Resisted, Break, FullPower, Opening }
 
     /// <summary>Swing tier -> number style, with the same thresholds as XPManager's tiers.</summary>
     public static DamageStyle StyleForSpeed(float speed)
@@ -127,6 +127,16 @@ public class CombatUIController : MonoBehaviour
     [Tooltip("When true and no damageNumberPrefab is assigned, every hit is written to the Console. Keep OFF for builds.")]
     public bool verboseDamageLogs = false;
 
+    [Header("Debug readout (headset checks)")]
+    [Tooltip("Small text block on this HUD: clash count, last clash hand and time, last haptic call (hand, amplitude, duration, " +
+             "backend, accepted), last clash sound, exertion 0-1, breathing tier and each breathing source's volume. Tells " +
+             "'the logic fired' apart from 'the hardware did nothing'. Redrawn only when a shown value changes. Off by default.")]
+    public bool debugReadout = false;
+    [Tooltip("Development builds only: click both thumbsticks together to switch the readout on or off on the headset.")]
+    public bool debugReadoutToggleInDevBuild = true;
+    public Vector2 debugReadoutPosition = new Vector2(-300f, -120f);
+    [Range(1f, 10f)] public float debugReadoutHz = 4f;
+
     private float displayedDamageTotal;
     private float shownStamina = -1f;
     private int shownTimerSeconds = -1;
@@ -166,6 +176,16 @@ public class CombatUIController : MonoBehaviour
     private int numNext;
     private Transform viewer;
 
+    // Debug readout (built on first use, redrawn only when a shown value changed).
+    private Text debugText;
+    private int shownDebugKey = int.MinValue;
+    private float nextDebugTime;
+    private bool debugComboHeld;
+    private readonly StringBuilder debugSb = new StringBuilder(320);
+    /// <summary>Text of the debug readout as last drawn (verification).</summary>
+    public string DebugReadoutShown => debugText != null && debugText.gameObject.activeSelf ? debugText.text : null;
+    public int DebugReadoutRedraws { get; private set; }
+
     // Guard meter (thin bar under the monster HP bar), built on first use.
     private RectTransform guardFill;
     private GameObject guardBar;
@@ -191,6 +211,7 @@ public class CombatUIController : MonoBehaviour
 
     void OnBattleStarted()
     {
+        CombatDebugInfo.ResetCounts();
         if (effortRoot != null) effortRoot.SetActive(true);
         shownKcalTenths = int.MinValue; // redraw the effort readout on the first refresh of the fight
         shownEffortStep = -1;
@@ -453,12 +474,16 @@ public class CombatUIController : MonoBehaviour
             case DamageStyle.Blocked: size = s * 0.85f; color = new Color(0.55f, 0.75f, 1f); break;
             case DamageStyle.Resisted: size = s * 0.85f; color = new Color(0.62f, 0.62f, 0.66f); break;
             case DamageStyle.Break: size = s * 1.5f; color = new Color(0.85f, 0.95f, 1f); life *= 1.5f; break;
+            case DamageStyle.Opening: size = s * 1.1f; color = new Color(1f, 0.9f, 0.35f); break;
             default: size = s; color = Color.white; break; // Light / Default
         }
     }
 
     void Update()
     {
+        if (debugReadoutToggleInDevBuild && Debug.isDebugBuild) PollDebugToggle();
+        if (debugReadout) UpdateDebugReadout();
+        else if (debugText != null && debugText.gameObject.activeSelf) debugText.gameObject.SetActive(false);
         if (effortRoot != null) UpdateEffortHud();
         if (numPool == null) return;
         float dt = Time.deltaTime;
@@ -707,6 +732,72 @@ public class CombatUIController : MonoBehaviour
             kcalText.text = has ? $"est. {tenths / 10f:0.0} kcal" : "est. \u2014 kcal";
             EffortHudRedraws++;
         }
+    }
+
+    // ─────────────────────────── Debug readout ───────────────────────────
+
+    void PollDebugToggle()
+    {
+        bool both = OVRInput.Get(OVRInput.Button.PrimaryThumbstick, OVRInput.Controller.LTouch) &&
+                    OVRInput.Get(OVRInput.Button.PrimaryThumbstick, OVRInput.Controller.RTouch);
+        if (both && !debugComboHeld)
+        {
+            debugReadout = !debugReadout;
+            shownDebugKey = int.MinValue;
+            Debug.Log("[StrikeFitDebug] readout " + (debugReadout ? "on" : "off"));
+        }
+        debugComboHeld = both;
+    }
+
+    void BuildDebugReadout()
+    {
+        var parent = HudParent();
+        if (parent == null) return;
+        debugText = MakeText(parent, "DebugReadout", HudFont(), 15, new Color(0.75f, 1f, 0.8f, 0.95f), TextAnchor.UpperLeft,
+                             debugReadoutPosition, new Vector2(420f, 140f));
+        debugText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        debugText.verticalOverflow = VerticalWrapMode.Overflow;
+    }
+
+    // At most debugReadoutHz, and only when one of the shown (rounded) values changed.
+    void UpdateDebugReadout()
+    {
+        float now = Time.unscaledTime;
+        if (now < nextDebugTime) return;
+        nextDebugTime = now + 1f / Mathf.Max(1f, debugReadoutHz);
+        if (debugText == null) BuildDebugReadout();
+        if (debugText == null) return;
+        if (!debugText.gameObject.activeSelf) { debugText.gameObject.SetActive(true); shownDebugKey = int.MinValue; }
+
+        var ex = PlayerExertionAudio.Instance;
+        int effort = ex != null ? Mathf.RoundToInt(ex.Exertion01 * 100f) : -1;
+        int heavy = ex != null ? Mathf.RoundToInt(ex.MediumVolume * 100f) : -1;
+        int fast = ex != null ? Mathf.RoundToInt(ex.FastVolume * 100f) : -1;
+        int tier = ex != null ? (int)ex.CurrentTier : -1;
+        int key;
+        unchecked { key = ((((CombatDebugInfo.Version * 397) ^ effort) * 397 ^ heavy) * 397 ^ fast) * 397 ^ tier; }
+        if (key == shownDebugKey) return;
+        shownDebugKey = key;
+
+        var sb = debugSb;
+        sb.Length = 0;
+        sb.Append("DEBUG  clashes ").Append(CombatDebugInfo.Clashes);
+        if (CombatDebugInfo.LastClashTime >= 0f)
+            sb.Append("  last ").Append(CombatDebugInfo.LastClashHand == Hand.Left ? "L" : "R").Append(" @").Append(CombatDebugInfo.LastClashTime.ToString("0.0")).Append("s");
+        sb.Append('\n');
+        sb.Append("haptic #").Append(CombatDebugInfo.HapticCalls).Append(' ').Append(CombatDebugInfo.LastHapticKind).Append(' ')
+          .Append(CombatDebugInfo.LastHapticHand == Hand.Left ? "L" : "R").Append(" amp ").Append(CombatDebugInfo.LastHapticAmplitude.ToString("0.00"))
+          .Append(' ').Append(CombatDebugInfo.LastHapticSeconds.ToString("0.00")).Append("s ").Append(CombatDebugInfo.LastHapticBackend)
+          .Append(CombatDebugInfo.LastHapticAccepted ? " ok" : " REFUSED").Append('\n');
+        sb.Append("clash sfx ").Append(CombatDebugInfo.LastClashClip != null ? CombatDebugInfo.LastClashClip.name : "-");
+        if (CombatDebugInfo.LastClashClip != null) sb.Append(" pitch ").Append(CombatDebugInfo.LastClashPitch.ToString("0.00"));
+        sb.Append('\n');
+        if (ex != null)
+            sb.Append("effort ").Append((effort / 100f).ToString("0.00")).Append(' ').Append(ex.CurrentTier.ToString().ToUpperInvariant())
+              .Append("  heavy ").Append((heavy / 100f).ToString("0.00")).Append("  fast ").Append((fast / 100f).ToString("0.00"));
+        else sb.Append("effort -");
+        debugText.text = sb.ToString();
+        DebugReadoutRedraws++;
     }
 
     // ─────────────────────────── Result extras ───────────────────────────

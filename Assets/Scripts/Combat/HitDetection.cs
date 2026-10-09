@@ -1,13 +1,21 @@
 // HitDetection.cs
 // Purpose: Detect hammer collisions against monsters; compute damage from SWING VELOCITY
 //          (not fixed collision). Min velocity gate prevents spam tapping. Awards XP.
-// Dependencies: MonsterController, PlayerCombat, RoundManager, XPManager, optional VFX/SFX
+//          Contacts come from two sources, resolved once per frame in LateUpdate (after the monster's animation, IK,
+//          personal-space clamp and hit-shake, and after the flail chain): the swept test (WeaponSweep.cs, catches swings
+//          that step over a thin collider between two 50 Hz physics samples) and the normal trigger events. Whichever
+//          contact comes first along the swing wins, a weapon contact wins a tie, and one contact fires once.
+//          A clash (parry) locks this weapon out of body damage for clashBodyLockSeconds.
+// Dependencies: MonsterController, PlayerCombat, RoundManager, XPManager, MonsterHitShapes / SweepMath (WeaponSweep.cs),
+//               CombatDebugInfo, optional VFX/SFX
 // Attach to: Hammer head collider (tag this object "Hammer")
 
 using System;
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 
+[DefaultExecutionOrder(300)] // LateUpdate after MonsterPersonalSpace (100), MonsterHitShake / FlailChainSim (200)
 [RequireComponent(typeof(Collider))]
 public class HitDetection : MonoBehaviour
 {
@@ -90,13 +98,39 @@ public class HitDetection : MonoBehaviour
     [Tooltip("Ignore the monster while its entrance (summon / rise / roar) is still playing: no damage, no sound.")]
     public bool ignoreDuringEntrance = true;
 
+    [Header("Swept detection (fast swings)")]
+    [Tooltip("Each frame, move this weapon's collider from its previous pose to its current one in small steps against the " +
+             "monster's weapon and body colliders (moving too). Catches swings that pass through a thin collider between two " +
+             "physics steps. Off = trigger events only.")]
+    public bool sweptDetection = true;
+    [Tooltip("Longest relative travel (m) between two sub-steps; a thinner weapon uses half its thickness.")]
+    public float sweepStep = 0.03f;
+    [Tooltip("Upper bound on sub-steps per frame (32 x 3 cm = about 1 m of travel in one frame).")]
+    [Range(1, 64)] public int maxSweepSubSteps = 32;
+    [Tooltip("The sweep only runs while this weapon is within this distance (m) of the monster's root.")]
+    public float sweepRange = 4f;
+
+    [Header("Parry (weapon clash)")]
+    [Tooltip("After a clash this weapon deals no body damage for at least this long (s): the parried swing cannot go on to " +
+             "score. Parries never fill the monster's guard meter.")]
+    public float clashBodyLockSeconds = 0.3f;
+    [Tooltip("The clashed flag also holds until that swing ends (the weapon slows below the speed gate), so a parried swing " +
+             "that carries on into the body later still deals nothing. Never longer than this (s) after the clash.")]
+    public float clashSwingLockMax = 1f;
+    [Tooltip("One clash per player weapon / monster weapon pair per contact: the same pair cannot clash again for this long (s).")]
+    public float clashPairCooldown = 0.25f;
+    [Tooltip("Play the clash clip at one of three pitches (never the same one twice in a row).")]
+    public bool clashPitchVariants = true;
+    public Vector3 clashPitches = new Vector3(0.93f, 1f, 1.08f);
+
     [Header("Who can deal hits")]
     public string hammerTag = "Hammer";
     public string playerHandTag = "PlayerHand";
 
     [Header("Dual-wield")]
     [Tooltip("Which hand this hammer is in. Right = primary (uses CurrentSwingSpeed). " +
-             "Left = offhand (uses CurrentOffhandSwingSpeed).")]
+             "Left = offhand (uses CurrentOffhandSwingSpeed). Haptics use the hand anchor the weapon actually sits under " +
+             "(ControllerHand), so a mismatch here cannot buzz the wrong controller.")]
     public Hand hand = Hand.Right;
 
     /// <summary>What the last monster contact resolved to (verification / debug).</summary>
@@ -113,8 +147,22 @@ public class HitDetection : MonoBehaviour
     public Collider LastHitCollider { get; private set; }
     /// <summary>Contact point of the last weapon clash.</summary>
     public Vector3 LastClashPoint { get; private set; }
+    /// <summary>Monster weapon of the last clash (blade and haft of one axe are one weapon).</summary>
+    public Transform LastClashWeapon { get; private set; }
     /// <summary>True if the front-hit bonus applied to the last Hit / Blocked contact (verification).</summary>
     public bool LastWasFrontHit { get; private set; }
+    /// <summary>Controller that holds this weapon: the hand anchor it sits under (falls back to <see cref="hand"/>).</summary>
+    public Hand ControllerHand { get; private set; }
+
+    // Verification counters (where each accepted contact came from, and what the new rules refused).
+    public int SweepClashes { get; private set; }
+    public int SweepBodyContacts { get; private set; }
+    public int TriggerClashes { get; private set; }
+    public int TriggerBodyContacts { get; private set; }
+    public int BodyBlockedByClash { get; private set; }
+    public int PairCooldownRejects { get; private set; }
+    /// <summary>Clashes accepted by every HitDetection since the scene loaded.</summary>
+    public static int TotalClashes { get; private set; }
 
     private float lastHitTime = -999f;
     private Vector3 lastPosition;
@@ -124,22 +172,62 @@ public class HitDetection : MonoBehaviour
     private bool stayArmed = true;
     private UnityEngine.Object contactTarget;
     private float lastTouchTime = -999f;
+    private bool lastContactBody;
+    private float clashLockUntil = -999f;
+    private bool clashedSwing;      // set by a clash, cleared when the swing ends (below the gate) or after clashSwingLockMax
+    private float clashedAt = -999f;
+    /// <summary>This weapon's current swing was parried: no body damage until the swing ends.</summary>
+    public bool ClashLocked => Time.time < clashLockUntil || clashedSwing;
+
+    // Clash cooldown per monster weapon this weapon met (small fixed table, no allocation).
+    private readonly Transform[] pairWeapon = new Transform[4];
+    private readonly float[] pairTime = { -999f, -999f, -999f, -999f };
 
     // Collider -> owning monster (null = not a valid target: floor, walls, the other player weapon, the rig). Filled once per
     // collider so OnTriggerStay never walks the hierarchy every physics step.
     static readonly Dictionary<Collider, MonsterController> ownerCache = new Dictionary<Collider, MonsterController>();
+    static readonly Dictionary<Collider, Transform> weaponRootCache = new Dictionary<Collider, Transform>();
     static UnityEngine.Object lastClashSoundTarget;
     static float lastClashSoundTime = -999f;
     private MonsterController entranceOwner;
     private MonsterEntrance entrance;
     private MonsterAI ownerAi;
     private float aboveGateSince = -1f;
+    private int lastPitch = -1;
+
+    // Trigger contacts of this frame, resolved in LateUpdate together with the sweep (weapons first).
+    private struct Pending { public Collider col; public Vector3 point; public bool hasPoint, stay; }
+    private readonly Pending[] pending = new Pending[12];
+    private int pendingCount;
+
+    // Sweep state (preallocated).
+    private SweepShape self;
+    private bool selfValid;
+    private SweepMath.Geo[] selfAt = new SweepMath.Geo[33];
+    private readonly int[] cand = new int[64];
 
     void Reset()
     {
         var col = GetComponent<Collider>();
         col.isTrigger = true;
     }
+
+    void Awake()
+    {
+        selfValid = SweepShape.TryMake(GetComponent<Collider>(), out self);
+        ResolveControllerHand();
+    }
+
+    void OnEnable()
+    {
+        // Shown, equipped or swapped (Level 3 pickup): no motion carried over from wherever it was last.
+        ResetSweepHistory();
+        pendingCount = 0;
+        lastPosition = transform.position;
+        velocity = Vector3.zero;
+    }
+
+    void OnDisable() { pendingCount = 0; }
 
     void Start()
     {
@@ -155,6 +243,25 @@ public class HitDetection : MonoBehaviour
         lastPosition = transform.position;
     }
 
+    /// <summary>The hand anchor this weapon is parented under decides which controller buzzes.</summary>
+    void ResolveControllerHand()
+    {
+        ControllerHand = hand;
+        for (var t = transform; t != null; t = t.parent)
+        {
+            if (t.name.StartsWith("LeftHandAnchor") || t.name.StartsWith("LeftControllerAnchor")) { ControllerHand = Hand.Left; break; }
+            if (t.name.StartsWith("RightHandAnchor") || t.name.StartsWith("RightControllerAnchor")) { ControllerHand = Hand.Right; break; }
+        }
+        if (ControllerHand != hand)
+            Debug.LogWarning($"[HitDetection] {name}: 'hand' is {hand} but the weapon sits under the {ControllerHand} hand anchor; haptics use {ControllerHand}.");
+    }
+
+    /// <summary>Forget the weapon's previous pose (teleport, equip): the next frame does not sweep the jump.</summary>
+    public void ResetSweepHistory()
+    {
+        self.ResetHistory();
+    }
+
     void Update()
     {
         // Estimate swing velocity from transform motion (works for kinematic held hammers)
@@ -162,6 +269,8 @@ public class HitDetection : MonoBehaviour
         lastPosition = transform.position;
 
         float speedNow = ImpactSpeed();
+        if (clashedSwing && Time.time >= clashLockUntil && (speedNow < MinSwingSpeed() || Time.time - clashedAt > clashSwingLockMax))
+            clashedSwing = false;
         if (!stayArmed && (speedNow < MinSwingSpeed() ||
                            (oneContactPerSwing && Time.time - lastTouchTime > rearmOutsideSeconds)))
             stayArmed = true;
@@ -173,29 +282,140 @@ public class HitDetection : MonoBehaviour
         }
     }
 
+    static readonly ProfilerMarker SweepMarker = new ProfilerMarker("HitDetection.Sweep");
+
+    void LateUpdate()
+    {
+        if (selfValid) self.Advance();
+        if (sweptDetection && selfValid) { using (SweepMarker.Auto()) Sweep(); }
+        ResolvePending();
+    }
+
     float MomentumMultiplier()
     {
         if (momentumMaxBonus <= 0f || aboveGateSince < 0f) return 1f;
         return 1f + momentumMaxBonus * Mathf.Clamp01((Time.time - aboveGateSince) / Mathf.Max(0.01f, momentumBuildSeconds));
     }
 
-    void OnTriggerEnter(Collider other)
-    {
-        TryHit(other);
-    }
+    // ───────────────────────── trigger path (collected, resolved in LateUpdate) ─────────────────────────
+    void OnTriggerEnter(Collider other) { Enqueue(other, Vector3.zero, false, false); }
 
     // A contact rejected on entry (too slow, or inside the cooldown after a clash / the other body part) used to be
     // lost for good, because Enter fires once. While the weapon is still inside the monster it is retried here.
-    void OnTriggerStay(Collider other)
-    {
-        TryHit(other, null, true);
-    }
+    void OnTriggerStay(Collider other) { Enqueue(other, Vector3.zero, false, true); }
 
     void OnCollisionEnter(Collision collision)
     {
-        TryHit(collision.collider, collision.contacts.Length > 0 ? collision.contacts[0].point : transform.position);
+        Enqueue(collision.collider, collision.contactCount > 0 ? collision.GetContact(0).point : transform.position, true, false);
     }
 
+    void Enqueue(Collider other, Vector3 point, bool hasPoint, bool stay)
+    {
+        for (int i = 0; i < pendingCount; i++)
+            if (pending[i].col == other) { if (!stay) pending[i].stay = false; return; } // one entry per collider per frame
+        if (pendingCount >= pending.Length) return;
+        pending[pendingCount++] = new Pending { col = other, point = point, hasPoint = hasPoint, stay = stay };
+    }
+
+    void ResolvePending()
+    {
+        if (pendingCount == 0) return;
+        // Monster weapons first (a weapon contact wins a tie), then body entries, then body "still inside" retries.
+        for (int pass = 0; pass < 3; pass++)
+            for (int i = 0; i < pendingCount; i++)
+            {
+                var p = pending[i];
+                if (p.col == null || !p.col.enabled) continue;
+                bool weapon = p.col.CompareTag("MonsterWeapon");
+                if (pass == 0 ? !weapon : (weapon || (pass == 1) == p.stay)) continue;
+                Contact(p.col, null, p.hasPoint ? p.point : (Vector3?)null, p.stay, false);
+            }
+        pendingCount = 0;
+    }
+
+    // ───────────────────────── swept path ─────────────────────────
+    void Sweep()
+    {
+        var bm = BattleManager.Instance;
+        var m = bm != null ? bm.ActiveMonster : null;
+        if (m == null || !m.isAlive || !self.active || !self.hasPrev) return;
+        if (InEntrance(m)) return;
+        if ((self.curPos - m.transform.position).sqrMagnitude > sweepRange * sweepRange) return;
+
+        var table = MonsterHitShapes.For(m);
+        table.BeginFrame();
+        var shapes = table.shapes;
+
+        // Broad phase: shapes whose bounding spheres can meet this frame (each centre moves at most its Travel).
+        float selfTravel = self.Travel, selfBound = self.BoundRadius;
+        Vector3 selfC = self.CenterAt(1f);
+        float maxOther = 0f;
+        int n = 0;
+        for (int pass = 0; pass < 2; pass++) // weapon shapes first
+            for (int i = 0; i < shapes.Length && n < cand.Length; i++)
+            {
+                if (table.isWeapon[i] != (pass == 0)) continue;
+                ref var s = ref shapes[i];
+                if (!s.active || !s.hasPrev) continue;
+                float otherTravel = s.Travel;
+                float reach = selfBound + s.BoundRadius + selfTravel + otherTravel;
+                if ((selfC - s.CenterAt(1f)).sqrMagnitude > reach * reach) continue;
+                cand[n++] = i;
+                if (otherTravel > maxOther) maxOther = otherTravel;
+            }
+        if (n == 0) return;
+
+        float step = Mathf.Clamp(0.5f * self.Thickness, 0.01f, Mathf.Max(0.01f, sweepStep));
+        int maxK = Mathf.Clamp(maxSweepSubSteps, 1, 64);
+        if (selfAt.Length < maxK + 1) selfAt = new SweepMath.Geo[maxK + 1];
+        int K = Mathf.Clamp(Mathf.CeilToInt((selfTravel + maxOther) / step), 1, maxK);
+        for (int k = 0; k <= K; k++) self.At(k / (float)K, out selfAt[k]);
+
+        int bestK = int.MaxValue, best = -1;
+        bool bestWeapon = false;
+        Vector3 bestPoint = Vector3.zero;
+        for (int c = 0; c < n; c++)
+        {
+            int i = cand[c];
+            ref var s = ref shapes[i];
+            bool weapon = table.isWeapon[i];
+            // Cheap reject per sub-step: bounding spheres around the interpolated centres (+5 cm for the centre's own swing).
+            Vector3 c0 = s.CenterAt(0f), c1 = s.CenterAt(1f);
+            float rr = selfBound + s.BoundRadius + 0.05f; rr *= rr;
+            // Already touching at the start of the frame: an ongoing contact, not a new one (the trigger path retries it).
+            if ((selfAt[0].c - c0).sqrMagnitude <= rr)
+            {
+                s.At(0f, out var g0);
+                if (SweepMath.Overlap(selfAt[0], g0)) { if (weapon) TouchPair(table.weaponRoot[i]); continue; }
+            }
+            int limit = Mathf.Min(K, bestK);
+            for (int k = 1; k <= limit; k++)
+            {
+                float f = k / (float)K;
+                if ((selfAt[k].c - Vector3.LerpUnclamped(c0, c1, f)).sqrMagnitude > rr) continue;
+                s.At(f, out var g);
+                if (!SweepMath.Overlap(selfAt[k], g)) continue;
+                // Earlier wins; on the same sub-step a weapon wins over the body.
+                if (k < bestK || (k == bestK && weapon && !bestWeapon))
+                {
+                    bestK = k; best = i; bestWeapon = weapon;
+                    bestPoint = SweepMath.Closest(g, selfAt[k].c);
+                }
+                break;
+            }
+        }
+        if (best < 0) return;
+
+        var col = shapes[best].collider;
+        if (bestWeapon) Clash(col, m, table.weaponRoot[best], m, bestPoint, false, true);
+        else
+        {
+            if (m == contactTarget) lastTouchTime = Time.time;
+            Body(col, m, m, bestPoint, false, true);
+        }
+    }
+
+    // ───────────────────────── resolution (both paths) ─────────────────────────
     static MonsterController OwnerOf(Collider c)
     {
         if (!ownerCache.TryGetValue(c, out var m))
@@ -205,6 +425,17 @@ public class HitDetection : MonoBehaviour
             ownerCache[c] = m;
         }
         return m;
+    }
+
+    static Transform WeaponRootOf(Collider c)
+    {
+        if (!weaponRootCache.TryGetValue(c, out var t))
+        {
+            if (weaponRootCache.Count > 128) weaponRootCache.Clear();
+            t = MonsterHitShapes.WeaponRootOf(c.transform);
+            weaponRootCache[c] = t;
+        }
+        return t;
     }
 
     void CacheOwnerParts(MonsterController m)
@@ -229,61 +460,107 @@ public class HitDetection : MonoBehaviour
         return ownerAi == null || !ownerAi.UsesAttackTable || ownerAi.InStrikeWindow;
     }
 
-    void TryHit(Collider other, Vector3? explicitPoint = null, bool fromStay = false)
+    /// <summary>Trigger path: only a monster's body colliders and MonsterWeapon colliders count (also a thrown axe in flight).
+    /// Everything else (floor, walls, the other player weapon, the player's own rig) is ignored before any sound, damage or haptic.</summary>
+    void Contact(Collider other, MonsterController knownOwner, Vector3? explicitPoint, bool fromStay, bool fromSweep)
     {
-        // Only two kinds of contact count: a monster's body colliders and a MonsterWeapon collider (also a thrown axe in
-        // flight, which has left the monster's hierarchy). Everything else (floor, walls, the other player weapon, the
-        // player's own rig) is ignored before any sound, damage or haptic logic.
         bool monsterWeapon = other.CompareTag("MonsterWeapon");
-        MonsterController owner = OwnerOf(other);
+        MonsterController owner = knownOwner != null ? knownOwner : OwnerOf(other);
         if (owner == null && !monsterWeapon) return;
         if (owner != null && (!owner.isAlive || InEntrance(owner))) return;
         UnityEngine.Object target = owner != null ? (UnityEngine.Object)owner : other.transform.root;
-        // Still inside the same contact (blade then haft, or two body parts in one pass) when the weapon touched this target
-        // within rearmOutsideSeconds.
-        bool sameContact = oneContactPerSwing && target == contactTarget && Time.time - lastTouchTime <= rearmOutsideSeconds;
         if (target == contactTarget) lastTouchTime = Time.time;
 
-        if (Time.time - lastHitTime < hitCooldown) return;
-        if (oneContactPerSwing && !stayArmed && target == contactTarget) return;
-
-        // --- Clash / Parry check ---
         if (monsterWeapon)
+            Clash(other, owner, WeaponRootOf(other), target, explicitPoint ?? other.ClosestPoint(transform.position), fromStay, fromSweep);
+        else
+            Body(other, owner, target, explicitPoint, fromStay, fromSweep);
+    }
+
+    bool PairOnCooldown(Transform weapon)
+    {
+        for (int i = 0; i < pairWeapon.Length; i++)
+            if (pairWeapon[i] == weapon && Time.time - pairTime[i] < clashPairCooldown) return true;
+        return false;
+    }
+
+    /// <summary>Still touching this monster weapon (another of its boxes, or the same one): the pair's cooldown runs from the
+    /// end of the contact, so one long contact is one clash.</summary>
+    void TouchPair(Transform weapon)
+    {
+        for (int i = 0; i < pairWeapon.Length; i++)
+            if (pairWeapon[i] == weapon && Time.time - pairTime[i] < clashPairCooldown) { pairTime[i] = Time.time; return; }
+    }
+
+    void MarkPair(Transform weapon)
+    {
+        int slot = 0;
+        for (int i = 0; i < pairWeapon.Length; i++)
         {
-            if (fromStay) return; // a clash is the moment of contact only; resting on the weapon is not a parry
-            // A held (slow) weapon re-arms at once, so a monster swing passing blade-then-haft through it would clash twice.
-            if (sameContact) return;
-            if (clashNeedsSwingOrAttack && owner != null && !MonsterStriking(owner) && ImpactSpeed() < MinSwingSpeed()) return;
-            lastHitTime = Time.time;
-            stayArmed = false; // a parried swing cannot go on to score on the body it is still passing through
-            contactTarget = target; lastTouchTime = Time.time;
-            LastResult = ContactResult.Clash;
-            LastClashPoint = explicitPoint ?? other.ClosestPoint(transform.position);
-            WeaponClashed?.Invoke(this, ImpactSpeed());
-            bool otherWeaponJustClanged = sharedClashSoundWindow > 0f && target == lastClashSoundTarget &&
-                                          Time.time - lastClashSoundTime < sharedClashSoundWindow;
-            if (audioSource != null && clashSound != null && !otherWeaponJustClanged)
-            {
-                lastClashSoundTarget = target; lastClashSoundTime = Time.time;
-                // Clash clip in project is a long riser (~5s); keep it short/quiet so hits don't feel 2x frantic.
-                float vol = clashSound.length > 1.5f ? 0.45f : 0.85f;
-                Jitter();
-                audioSource.PlayOneShot(clashSound, vol);
-                SfxTrace.Note(this, clashSound, "clash: player weapon entered a MonsterWeapon collider");
-            }
-            
-            // Optional: spawn sparks at hitPoint
-            Vector3 clashPoint = LastClashPoint;
-            if (hitParticles != null)
-            {
-                hitParticles.transform.position = clashPoint;
-                hitParticles.Play();
-            }
-            
-            return;
+            if (pairWeapon[i] == weapon) { slot = i; break; }
+            if (pairTime[i] < pairTime[slot]) slot = i; // oldest
+        }
+        pairWeapon[slot] = weapon; pairTime[slot] = Time.time;
+    }
+
+    void Clash(Collider other, MonsterController owner, Transform weaponRoot, UnityEngine.Object target, Vector3 point, bool fromStay, bool fromSweep)
+    {
+        if (fromStay) { TouchPair(weaponRoot); return; } // a clash is the moment of contact only; resting on the weapon is not a parry
+        if (PairOnCooldown(weaponRoot)) { TouchPair(weaponRoot); PairCooldownRejects++; return; }
+        // This swing already landed on the body: it cannot turn into a parry on the way through.
+        if (oneContactPerSwing && !stayArmed && lastContactBody && target == contactTarget) return;
+        bool thrown = owner == null || !weaponRoot.IsChildOf(owner.transform);
+        if (clashNeedsSwingOrAttack && !thrown && !MonsterStriking(owner) && ImpactSpeed() < MinSwingSpeed()) return;
+
+        MarkPair(weaponRoot);
+        lastHitTime = Time.time;
+        stayArmed = false; // a parried swing cannot go on to score on the body it is still passing through
+        contactTarget = target; lastTouchTime = Time.time; lastContactBody = false;
+        clashLockUntil = Time.time + clashBodyLockSeconds;
+        clashedSwing = true; clashedAt = Time.time;
+        LastResult = ContactResult.Clash;
+        LastClashPoint = point;
+        LastClashWeapon = weaponRoot;
+        if (fromSweep) SweepClashes++; else TriggerClashes++;
+        TotalClashes++;
+        CombatDebugInfo.NoteClash(ControllerHand);
+        WeaponClashed?.Invoke(this, ImpactSpeed());
+
+        bool otherWeaponJustClanged = sharedClashSoundWindow > 0f && target == lastClashSoundTarget &&
+                                      Time.time - lastClashSoundTime < sharedClashSoundWindow;
+        if (audioSource != null && clashSound != null && !otherWeaponJustClanged)
+        {
+            lastClashSoundTarget = target; lastClashSoundTime = Time.time;
+            // Clash clip in project is a long riser (~5s); keep it short/quiet so hits don't feel 2x frantic.
+            float vol = clashSound.length > 1.5f ? 0.45f : 0.85f;
+            audioSource.pitch = ClashPitch();
+            audioSource.PlayOneShot(clashSound, vol);
+            CombatDebugInfo.NoteClashSound(clashSound, audioSource.pitch);
+            SfxTrace.Note(this, clashSound, fromSweep ? "clash: swept contact with a MonsterWeapon collider" : "clash: player weapon entered a MonsterWeapon collider");
         }
 
-        MonsterController monster = owner;
+        if (hitParticles != null)
+        {
+            hitParticles.transform.position = point;
+            hitParticles.Play();
+        }
+    }
+
+    float ClashPitch()
+    {
+        if (!clashPitchVariants) { Jitter(); return audioSource.pitch; }
+        int i = UnityEngine.Random.Range(0, 3);
+        if (i == lastPitch) i = (i + 1 + UnityEngine.Random.Range(0, 2)) % 3;
+        lastPitch = i;
+        return clashPitches[i];
+    }
+
+    void Body(Collider other, MonsterController monster, UnityEngine.Object target, Vector3? explicitPoint, bool fromStay, bool fromSweep)
+    {
+        // A parried swing deals no body damage for clashBodyLockSeconds.
+        if (ClashLocked) { if (!fromStay) BodyBlockedByClash++; return; }
+        if (Time.time - lastHitTime < hitCooldown) return;
+        if (oneContactPerSwing && !stayArmed && target == contactTarget) return;
         if (fromStay && !stayArmed) return;
 
         // --- Swing speed at moment of impact ---
@@ -337,10 +614,12 @@ public class HitDetection : MonoBehaviour
 
         lastHitTime = Time.time;
         stayArmed = false;
-        contactTarget = monster; lastTouchTime = Time.time;
+        contactTarget = monster; lastTouchTime = Time.time; lastContactBody = true;
+        if (fromSweep) SweepBodyContacts++; else TriggerBodyContacts++;
 
         var monsterAi = monster.GetComponent<MonsterAI>();
-        bool monsterDefending = monsterAi != null && monsterAi.IsDefending;
+        // Same decision the monster makes: guarding AND the raised guard covers where this hit landed (zone guard).
+        bool monsterDefending = monster.WouldBlock(hitPoint);
         LastResult = monsterDefending ? ContactResult.Blocked : ContactResult.Hit;
         LastDamage = damage;
         LastWasWeakPoint = weakPoint != null;

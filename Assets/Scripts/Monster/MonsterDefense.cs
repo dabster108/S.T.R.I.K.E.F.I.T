@@ -12,6 +12,14 @@
 //          - Guard meter: body blocks absorbed while guarding fill it (weapon parries never do). At guardBreakHits the
 //            guard breaks: stagger, extra damage taken, then a guard lockout.
 //          - Poise: which swing tiers make it flinch (a flinch never cancels an attack; MonsterController checks that).
+//          - Zone guard: every incoming swing is classed HIGH (above chest height, downward), MID (horizontal / lateral) or LOW
+//            (aimed below the waist) in the monster's own space, and the guard raised for it covers zones of the body by contact
+//            height (fraction of the monster's height): high guard = head + upper torso, mid = torso, low = legs + lower torso.
+//            A hit on a covered zone is blocked (reduced, fills the guard meter, block clang pitched per guard); a hit on an
+//            uncovered zone lands in full plus openingBonus with an "OPENING" cue. One guard clip per monster exists, so all
+//            three guards play it; the zone logic lives here. MonsterController.WouldBlock is the one block-or-not decision.
+//          - Counter: after a guard that absorbed counterMinAbsorbed hits the monster may answer with its fastest attack
+//            within counterWithin seconds (never with less than counterMinTelegraph of telegraph).
 //          - Dodge (needs sidestep/backstep clips; off unless enabled).
 // Dependencies: MonsterAI, MonsterController, MonsterAnimator, PlayerCombat, HitDetection, XPManager (tiers),
 //               CombatUIController (guard meter), MonsterEntrance / BossPhaseController (optional)
@@ -23,6 +31,8 @@ public class MonsterDefense : MonoBehaviour
 {
     public enum SwingTier { Tap = 0, Light = 1, Medium = 2, Full = 3 }
     public enum GuardDirection { High, Side }
+    /// <summary>Swing class and the guard raised against it.</summary>
+    public enum GuardZone { High = 0, Mid = 1, Low = 2 }
 
     [Header("Awareness")]
     [Tooltip("Turn to face the player between attacks. Off = MonsterAI's legacy facing.")]
@@ -89,6 +99,37 @@ public class MonsterDefense : MonoBehaviour
     [Tooltip("Trigger for a guard against a horizontal swing. Same as high when only one guard clip exists.")]
     public string sideGuardTrigger = "Defend";
 
+    [Header("Zone guard (block by where the swing goes)")]
+    [Tooltip("Class each incoming swing HIGH / MID / LOW and raise the guard for it; hits on a zone that guard does not cover land " +
+             "with an opening bonus. Off = every guard covers the whole body (the old behaviour).")]
+    public bool zoneGuard = true;
+    [Tooltip("Contact height (fraction of the monster's height) under which a hit is on the legs (below the waist).")]
+    [Range(0f, 1f)] public float legsTop = 0.45f;
+    [Tooltip("Contact height above which a hit is on the head.")]
+    [Range(0f, 1f)] public float headBottom = 0.8f;
+    [Tooltip("Lower / upper torso split: the high guard covers above it, the low guard below it.")]
+    [Range(0f, 1f)] public float torsoSplit = 0.62f;
+    [Tooltip("A swing counts as HIGH when it is aimed at or above this height and moving down.")]
+    [Range(0f, 1f)] public float highSwingFrom = 0.62f;
+    [Tooltip("Damage bonus for a hit on a zone the raised guard does not cover (0.1 = +10 %).")]
+    [Range(0f, 1f)] public float openingBonus = 0.1f;
+    public string midGuardTrigger = "Defend";
+    public string lowGuardTrigger = "Defend";
+    [Tooltip("Block clang pitch for the high, mid and low guard (the project has one block clip, so the guards differ by pitch).")]
+    public Vector3 blockPitch = new Vector3(1.18f, 1f, 0.82f);
+    [Tooltip("Level 3: guard chance added for each boss phase after the first (0.05 = +5 % in phase 2, +10 % enraged).")]
+    [Range(0f, 0.2f)] public float guardChancePerPhase = 0f;
+
+    [Header("Counter (after a guard that absorbed hits)")]
+    public bool counterEnabled = false;
+    [Range(0f, 1f)] public float counterChance = 0f;
+    [Tooltip("Hits the guard must have absorbed before a counter can follow it.")]
+    public int counterMinAbsorbed = 2;
+    [Tooltip("The counter starts within this many seconds of the guard dropping.")]
+    public float counterWithin = 0.5f;
+    [Tooltip("Shortest telegraph (wind-up, s) a counter may have.")]
+    public float counterMinTelegraph = 0.45f;
+
     [Header("Guard cue (distinct from the red attack telegraph)")]
     public Color guardFlashColor = new Color(0.78f, 0.9f, 1f);
     public float guardFlashSeconds = 0.12f;
@@ -140,7 +181,14 @@ public class MonsterDefense : MonoBehaviour
     public int Flinches { get; private set; }
     public int Dodges { get; private set; }
     public int HighGuards { get; private set; }
-    public int SideGuards { get; private set; }
+    public int SideGuards { get; private set; }   // mid + low
+    public GuardZone ActiveZone { get; private set; } = GuardZone.Mid;
+    /// <summary>Per class (High, Mid, Low): incoming swings, guards raised, blocked hits, opening hits.</summary>
+    public readonly int[] SwingsByClass = new int[3], GuardsByZone = new int[3], BlockedByZone = new int[3], OpeningsByZone = new int[3];
+    public readonly float[] BlockedDamageByZone = new float[3], OpeningDamageByZone = new float[3];
+    public int Counters { get; private set; }
+    public int CounterRolls { get; private set; }
+    public GuardZone LastSwingClass { get; private set; } = GuardZone.Mid;
     public GuardDirection LastGuardDirection { get; private set; }
     public float GuardTime { get; private set; }
     public float FightTime => fightStart >= 0f ? Time.time - fightStart : 0f;
@@ -167,6 +215,12 @@ public class MonsterDefense : MonoBehaviour
     private bool dodgeWarned;
     private bool turning;
     private float turnRate, recentreVel;
+    private readonly Collider[] hdCol = new Collider[2];
+    private GuardZone pendingZone = GuardZone.Mid;
+    private int absorbedThisGuard;
+    private float counterAt = -1f;
+    private float height = -1f;
+    private AudioSource blockSource;
     private Vector3 centreDir;   // horizontal, from the player's head toward the monster at fight start
     /// <summary>Signed lateral offset (m) from the centre line, measured by Recentre (verification).</summary>
     public float LateralOffset { get; private set; }
@@ -209,8 +263,22 @@ public class MonsterDefense : MonoBehaviour
         // Uptime bookkeeping + guard end time (for the gap rule).
         bool defending = ai.IsDefending;
         if (defending) GuardTime += Time.deltaTime;
-        if (wasDefending && !defending) lastGuardEnd = Time.time;
+        if (wasDefending && !defending)
+        {
+            lastGuardEnd = Time.time;
+            // Counter: the guard soaked up enough hits; answer with a fast attack shortly after it drops.
+            if (counterEnabled && absorbedThisGuard >= counterMinAbsorbed && !IsStaggered)
+            {
+                CounterRolls++;
+                if (Random.value < counterChance) counterAt = Time.time + Random.Range(0.05f, Mathf.Max(0.06f, counterWithin));
+            }
+        }
         wasDefending = defending;
+        if (counterAt >= 0f && Time.time >= counterAt)
+        {
+            counterAt = -1f;
+            if (!IsStaggered && !(phases != null && phases.InPhaseShift) && ai.BeginCounter(counterMinTelegraph)) Counters++;
+        }
 
         Turn();
         Recentre();
@@ -219,13 +287,14 @@ public class MonsterDefense : MonoBehaviour
         if (pendingGuardAt >= 0f && Time.time >= pendingGuardAt)
         {
             pendingGuardAt = -1f;
-            if (CanGuardNow(true)) RaiseGuard(true, pendingDir);
+            if (CanGuardNow(true)) RaiseGuard(true, zoneGuard ? pendingZone : (pendingDir == GuardDirection.High ? GuardZone.High : GuardZone.Mid));
         }
 
         if (timedGuard && Time.time >= nextTimedGuard)
         {
-            // Not free right now: try again shortly instead of waiting a whole interval.
-            nextTimedGuard = Time.time + (CanGuardNow(false) && RaiseGuard(false, GuardDirection.High) ? TimedInterval() : 1f);
+            // Not free right now: try again shortly instead of waiting a whole interval. The timed guard covers where the
+            // player's last swing went.
+            nextTimedGuard = Time.time + (CanGuardNow(false) && RaiseGuard(false, LastSwingClass) ? TimedInterval() : 1f);
         }
     }
 
@@ -286,7 +355,7 @@ public class MonsterDefense : MonoBehaviour
         {
             Transform w = h == 0 ? pc.weaponTransform : pc.offhandWeaponTransform;
             if (w == null || !w.gameObject.activeInHierarchy) { armed[h] = true; continue; }
-            if (hdOwner[h] != w) { hdOwner[h] = w; hd[h] = w.GetComponentInChildren<HitDetection>(); }
+            if (hdOwner[h] != w) { hdOwner[h] = w; hd[h] = w.GetComponentInChildren<HitDetection>(); hdCol[h] = hd[h] != null ? hd[h].GetComponent<Collider>() : null; }
             if (hd[h] == null) continue;
             Vector3 vel = hd[h].CurrentVelocity;
             float speed = Mathf.Max(vel.magnitude, h == 0 ? pc.CurrentSwingSpeed : pc.CurrentOffhandSwingSpeed);
@@ -294,26 +363,115 @@ public class MonsterDefense : MonoBehaviour
             if (!armed[h] || speed < gate || vel.sqrMagnitude < 0.01f) continue;
             Vector3 to = target - hd[h].transform.position;
             if (to.magnitude > detectRange) continue;
-            if (Vector3.Angle(vel, to) > detectConeAngle) continue;
+            // Zone guard: the swing may be aimed at any height (legs, torso, head), so the cone points at the monster's body
+            // axis at the height of the weapon's striking part instead of always at the chest.
+            Vector3 aim = to;
+            if (zoneGuard)
+            {
+                Vector3 strike = hdCol[h] != null ? hdCol[h].bounds.center : hd[h].transform.position;
+                float y = Mathf.Clamp(strike.y - transform.position.y, 0.15f * Height, 0.95f * Height);
+                aim = transform.position + Vector3.up * y - strike;
+            }
+            if (Vector3.Angle(vel, aim) > detectConeAngle) continue;
             armed[h] = false; // one roll per swing
             IncomingSwings++;
-            OnIncomingSwing(vel);
+            // Class from the striking part (the weapon's collider), not the grip.
+            Vector3 head = hdCol[h] != null ? hdCol[h].bounds.center : hd[h].transform.position;
+            OnIncomingSwing(vel, ClassifySwing(head, vel, (target - head).magnitude));
         }
     }
 
-    void OnIncomingSwing(Vector3 velocity)
+    void OnIncomingSwing(Vector3 velocity, GuardZone swingClass)
     {
+        SwingsByClass[(int)swingClass]++;
+        LastSwingClass = swingClass;
         if (pendingGuardAt >= 0f || !CanGuardNow(true)) return;
 
         if (dodgeEnabled && Time.time >= nextDodge && Random.value < dodgeChance && TryDodge(velocity)) return;
 
         if (!reactiveGuard) return;
         GuardRolls++;
-        float chance = ai.enraged ? guardChanceEnraged : guardChance;
+        float chance = (ai.enraged ? guardChanceEnraged : guardChance) + guardChancePerPhase * (phases != null ? phases.Phase : 0);
         if (Random.value >= chance) return;
         pendingGuardAt = Time.time + reactionDelay;
-        // Mostly downward = overhead swing -> high guard; anything else -> side guard.
-        pendingDir = velocity.y < -0.6f * velocity.magnitude ? GuardDirection.High : GuardDirection.Side;
+        pendingZone = swingClass;
+        pendingDir = swingClass == GuardZone.High ? GuardDirection.High : GuardDirection.Side;
+    }
+
+    // ───────────────────────── zones ─────────────────────────
+    /// <summary>Monster height (m) in its idle pose: the top of its highest body collider above the root.</summary>
+    public float Height
+    {
+        get
+        {
+            if (height > 0f) return height;
+            float top = 0f;
+            foreach (var c in GetComponentsInChildren<Collider>())
+            {
+                if (c.CompareTag("MonsterWeapon") || c.transform == transform) continue;
+                top = Mathf.Max(top, c.bounds.max.y - transform.position.y);
+            }
+            height = top > 0.5f ? top : 1.8f;
+            return height;
+        }
+    }
+
+    /// <summary>Contact height as a fraction of the monster's height (0 = feet, 1 = top of the head).</summary>
+    public float HeightFraction(Vector3 point) => Mathf.Clamp01((point.y - transform.position.y) / Mathf.Max(0.5f, Height));
+
+    /// <summary>HIGH: aimed at or above chest height and moving down. LOW: aimed below the waist. MID: everything else.</summary>
+    GuardZone ClassifySwing(Vector3 weaponPos, Vector3 velocity, float distance)
+    {
+        float speed = velocity.magnitude;
+        // Where the weapon will be when it arrives (capped look-ahead).
+        float reach = speed > 0.01f ? Mathf.Min(0.25f, distance / speed) : 0f;
+        float f = HeightFraction(weaponPos + velocity * reach);
+        if (f < legsTop) return GuardZone.Low;
+        if (f >= highSwingFrom && velocity.y < -0.35f * speed) return GuardZone.High;
+        return GuardZone.Mid;
+    }
+
+    /// <summary>Does the active guard cover a hit at this point? (high: head + upper torso, mid: torso, low: legs + lower torso)</summary>
+    public bool Covers(Vector3 hitPoint)
+    {
+        if (!zoneGuard) return true;
+        float f = HeightFraction(hitPoint);
+        switch (ActiveZone)
+        {
+            case GuardZone.High: return f >= torsoSplit;
+            case GuardZone.Low: return f < torsoSplit;
+            default: return f >= legsTop && f < headBottom;
+        }
+    }
+
+    /// <summary>MonsterController: a hit landed on a zone the raised guard leaves open.</summary>
+    public void OnOpeningHit(float damage)
+    {
+        OpeningsByZone[(int)ActiveZone]++;
+        OpeningDamageByZone[(int)ActiveZone] += damage;
+    }
+
+    /// <summary>Block clang for the raised guard (its own pitch), on a dedicated source so other monster sounds keep their pitch.</summary>
+    public void PlayBlockClang(AudioClip clip, float volume)
+    {
+        if (clip == null) return;
+        if (blockSource == null)
+        {
+            var go = new GameObject("GuardBlockAudio");
+            go.transform.SetParent(transform, false);
+            go.transform.localPosition = Vector3.up * 1.3f;
+            blockSource = go.AddComponent<AudioSource>();
+            var src = ai.sfxAudioSource;
+            blockSource.playOnAwake = false;
+            blockSource.spatialBlend = src != null ? src.spatialBlend : 1f;
+            blockSource.minDistance = src != null ? src.minDistance : 1.5f;
+            blockSource.maxDistance = src != null ? src.maxDistance : 20f;
+            blockSource.rolloffMode = src != null ? src.rolloffMode : AudioRolloffMode.Logarithmic;
+            blockSource.outputAudioMixerGroup = src != null ? src.outputAudioMixerGroup : null;
+        }
+        blockSource.pitch = ActiveZone == GuardZone.High ? blockPitch.x : ActiveZone == GuardZone.Low ? blockPitch.z : blockPitch.y;
+        blockSource.PlayOneShot(clip, volume);
+        SfxTrace.Note(this, clip, "monster guard absorbed a landed hit (" + ActiveZone + " guard)");
     }
 
     /// <summary>Fairness gate shared by the reactive and timed guards.</summary>
@@ -329,22 +487,32 @@ public class MonsterDefense : MonoBehaviour
         return true;
     }
 
-    bool RaiseGuard(bool reactive, GuardDirection dir)
+    bool RaiseGuard(bool reactive, GuardDirection dir) => RaiseGuard(reactive, dir == GuardDirection.High ? GuardZone.High : GuardZone.Mid);
+
+    bool RaiseGuard(bool reactive, GuardZone zone)
     {
         float dur = Random.Range(guardDuration.x, guardDuration.y);
-        string trigger = dir == GuardDirection.High ? highGuardTrigger : sideGuardTrigger;
+        string trigger = zone == GuardZone.High ? highGuardTrigger : zone == GuardZone.Low ? lowGuardTrigger : midGuardTrigger;
         if (!ai.BeginGuard(dur, reactive, trigger, guardFlashColor, guardFlashSeconds)) return false;
         if (reactive) ReactiveGuards++; else TimedGuards++;
-        if (dir == GuardDirection.High) HighGuards++; else SideGuards++;
-        LastGuardDirection = dir;
+        if (zone == GuardZone.High) HighGuards++; else SideGuards++;
+        GuardsByZone[(int)zone]++;
+        ActiveZone = zone;
+        LastGuardDirection = zone == GuardZone.High ? GuardDirection.High : GuardDirection.Side;
+        absorbedThisGuard = 0;
         nextTimedGuard = Time.time + TimedInterval(); // a reactive guard also resets the timed one
         return true;
     }
 
     // ───────────────────────── guard meter / break ─────────────────────────
     /// <summary>MonsterController: a body hit was absorbed by the guard (weapon parries never reach here).</summary>
-    public void OnGuardAbsorbedHit()
+    public void OnGuardAbsorbedHit() => OnGuardAbsorbedHit(0f);
+
+    public void OnGuardAbsorbedHit(float damage)
     {
+        absorbedThisGuard++;
+        BlockedByZone[(int)ActiveZone]++;
+        BlockedDamageByZone[(int)ActiveZone] += damage;
         if (!guardBreakEnabled || guardBreakHits <= 0) return;
         GuardMeter++;
         if (GuardMeter >= guardBreakHits) BreakGuard();
@@ -431,6 +599,8 @@ public class MonsterDefense : MonoBehaviour
     public void ResetStats()
     {
         IncomingSwings = GuardRolls = ReactiveGuards = TimedGuards = GuardBreaks = Flinches = Dodges = HighGuards = SideGuards = 0;
+        Counters = CounterRolls = 0;
+        for (int i = 0; i < 3; i++) { SwingsByClass[i] = GuardsByZone[i] = BlockedByZone[i] = OpeningsByZone[i] = 0; BlockedDamageByZone[i] = OpeningDamageByZone[i] = 0f; }
         GuardTime = 0f; fightStart = FightActive() ? Time.time : -1f;
     }
 }

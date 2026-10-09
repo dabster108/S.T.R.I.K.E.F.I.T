@@ -60,6 +60,10 @@ public class LevelManager : MonoBehaviour
     public float playerMaxHealthOverride = 0f;
     [Tooltip("Monster stand-off / attack range for this scene (horizontal m to the headset). 0 = the table value.")]
     public float monsterAttackRangeOverride = 0f;
+    [Tooltip("Monster base damage per hit (before the weapon flavour and attack multipliers). 0 = difficulty table.")]
+    public float monsterDamageOverride = 0f;
+    [Tooltip("Monster attack cooldown, start to start (s). 0 = difficulty table.")]
+    public float monsterAttackCooldownOverride = 0f;
 
     [Header("Auto-start")]
     [Tooltip("Start the battle automatically when this level scene loads.")]
@@ -163,6 +167,8 @@ public class LevelManager : MonoBehaviour
         if (monsterMaxHealthOverride > 0f) p.monsterMaxHealth = monsterMaxHealthOverride;
         if (monsterAttackRangeOverride > 0f) p.monsterAttackRange = monsterAttackRangeOverride;
         if (playerMaxHealthOverride > 0f) p.playerMaxHealth = playerMaxHealthOverride;
+        if (monsterDamageOverride > 0f) p.monsterDamage = monsterDamageOverride;
+        if (monsterAttackCooldownOverride > 0f) p.monsterAttackCooldown = monsterAttackCooldownOverride;
         p.playerPrimaryWeapon = playerPrimaryWeapon;
         p.playerOffhandWeapon = playerOffhandWeapon;
         p.monsterWeapon = monsterWeapon;

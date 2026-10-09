@@ -8,12 +8,18 @@
 //          Every swing attempt counts (hit or miss), weighted by how fast the hand moved; swings inside a rolling window add up,
 //          so exertion rises with a sustained flurry and decays when the player rests. The tier changes with hysteresis (separate
 //          on/off thresholds plus a minimum hold) so it cannot flip-flop around a threshold, and tiers crossfade on two separate
-//          AudioSources. Each source has its own volume cap, kept below the combat SFX. Silent outside an active battle, and cut
-//          quickly at victory or defeat.
+//          AudioSources. Each source has its own volume cap, kept below the combat SFX and above the music. Silent outside an active
+//          battle, and cut quickly at victory or defeat. A tier change is written to the log ("[StrikeFitBreath]", adb logcat).
+//          Headset note (2026-10-08): the fast tier used to reach audibility only through a runtime x18 DSP gain
+//          (AudioGainFilter / OnAudioFilterRead) on a clip recorded at -48.6 dBFS RMS. The clip is now levelled in the asset
+//          (breathingfast_leveled.wav, peak -1 dBFS), so no script DSP is needed; fastGain stays available (1 = off).
+//          Development builds: launch with  adb shell am start -n <package>/com.unity3d.player.UnityPlayerGameActivity
+//          --es strikefit breathtest  to play each tier for a few seconds before the battle and log the measured output levels.
 // Dependencies: PlayerCombat (per-hand swing speed), PlayerHealth (HP for the high tier), BattleManager (only during an active
-//               battle), AudioSource, AudioGainFilter (boosts the very quiet fast-breathing clip)
+//               battle), AudioSource, AudioGainFilter (optional gain; self-test only)
 // Attach to: OVRCameraRig (next to PlayerCombat). Uses its own looping AudioSources on child objects.
 
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -40,9 +46,21 @@ public class PlayerExertionAudio : MonoBehaviour
     public AudioClip fastClip;
     [Tooltip("Hard cap for this source. Keep below the combat SFX.")]
     [Range(0f, 1f)] public float fastMaxVolume = 0.3f;
-    [Tooltip("Linear gain applied to the fast source's output. breathingfast.mp3 is recorded about 27 dB below the heavy-breathing " +
-             "clip (peak 0.05 against 0.98), so at 1 it would be inaudible even at full volume. 1 = off.")]
-    public float fastGain = 18f;
+    [Tooltip("Linear gain applied to the fast source's output through a script DSP filter. 1 = off (no filter is added). The " +
+             "levelled clip (breathingfast_leveled.wav) needs none; the original breathingfast.mp3 is 25 dB too quiet and needed 18.")]
+    public float fastGain = 1f;
+
+    [Header("Mixing")]
+    [Tooltip("AudioSource priority of both breathing loops (0 = highest, 128 = default). High enough that a burst of one-shots " +
+             "past the real-voice limit (Project Settings > Audio, 32) virtualises sound effects before the breathing.")]
+    [Range(0, 256)] public int sourcePriority = 64;
+    [Tooltip("Write each tier change to the log (one line, never per frame).")]
+    public bool logTierChanges = true;
+
+    [Header("Self-test (Development builds)")]
+    [Tooltip("Development builds launched with the intent extra  --es strikefit breathtest  play each tier for a few seconds " +
+             "before the battle and log the measured listener output (dBFS). Release builds ignore it.")]
+    public bool selfTestInDevBuild = true;
 
     [Header("Swing attempts (m/s, hand speed from PlayerCombat)")]
     [Tooltip("Hand speed that counts as one swing attempt.")]
@@ -126,25 +144,49 @@ public class PlayerExertionAudio : MonoBehaviour
     void Awake()
     {
         Instance = this;
-        breathingSource = PrepareSource(breathingSource, transform, "PlayerBreathingAudio", breathingClip);
+        breathingSource = PrepareSource(breathingSource, transform, "PlayerBreathingAudio", breathingClip, sourcePriority);
         if (fastBreathing)
         {
-            fastSource = PrepareSource(fastSource, transform, "PlayerBreathingFastAudio", fastClip);
+            fastSource = PrepareSource(fastSource, transform, "PlayerBreathingFastAudio", fastClip, sourcePriority);
             if (fastSource != null)
             {
                 fastFilter = fastSource.GetComponent<AudioGainFilter>();
-                if (fastFilter == null) fastFilter = fastSource.gameObject.AddComponent<AudioGainFilter>();
-                fastFilter.gain = Mathf.Max(0f, fastGain);
+                bool needGain = Mathf.Abs(fastGain - 1f) > 0.01f;
+                if (needGain && fastFilter == null) fastFilter = fastSource.gameObject.AddComponent<AudioGainFilter>();
+                if (fastFilter != null) { fastFilter.gain = Mathf.Max(0f, fastGain); fastFilter.enabled = needGain; }
             }
         }
     }
+
+    static bool selfTestStarted;
+
+    void Start()
+    {
+        if (!selfTestInDevBuild || !Debug.isDebugBuild || selfTestStarted) return;
+        string extra = LaunchExtra();
+        if (extra == null || !extra.StartsWith("breathtest")) return;
+        // "breathtest" = this scene; "breathtest:Level3_Hard" = load that level first, then test there (",haptictest" may follow).
+        int colon = extra.IndexOf(':');
+        string scene = colon > 0 ? extra.Substring(colon + 1) : null;
+        if (scene != null && scene.IndexOf(',') >= 0) scene = scene.Substring(0, scene.IndexOf(','));   // "breathtest:Level1_Easy,haptictest"
+        string here = gameObject.scene.name;
+        if (!string.IsNullOrEmpty(scene) && scene != here)
+        {
+            if (!switchedForTest) { switchedForTest = true; UnityEngine.SceneManagement.SceneManager.LoadScene(scene); }
+            return;
+        }
+        selfTestStarted = true;
+        Debug.Log("[StrikeFitBreath] selftest starting in " + here);
+        StartCoroutine(SelfTest());
+    }
+    static bool switchedForTest;
 
     void OnDestroy()
     {
         if (Instance == this) Instance = null;
     }
 
-    static AudioSource PrepareSource(AudioSource src, Transform parent, string childName, AudioClip clip)
+    static AudioSource PrepareSource(AudioSource src, Transform parent, string childName, AudioClip clip, int priority)
     {
         if (src == null)
         {
@@ -154,7 +196,10 @@ public class PlayerExertionAudio : MonoBehaviour
         }
         src.playOnAwake = false;
         src.loop = true;
-        src.spatialBlend = 0f;
+        src.spatialBlend = 0f;   // 2D: the spatializer plugin (Meta XR Audio) never touches it
+        src.spatialize = false;
+        src.bypassReverbZones = true;
+        src.priority = priority;
         src.volume = 0f;
         if (clip != null) src.clip = clip;
         return src;
@@ -162,6 +207,7 @@ public class PlayerExertionAudio : MonoBehaviour
 
     void Update()
     {
+        if (selfTesting) return;
         float dt = Time.deltaTime;
         bool battleActive = BattleManager.Instance != null && BattleManager.Instance.IsBattleActive;
         if (!battleActive)
@@ -226,6 +272,8 @@ public class PlayerExertionAudio : MonoBehaviour
         if (!up && Time.time - tierChangedAt < minTierHoldSeconds) return;
         tier = want;
         tierChangedAt = Time.time;
+        if (logTierChanges)
+            Debug.Log($"[StrikeFitBreath] tier {tier} exertion {exertion01:0.00} lowHp {lowHpActive} heavyVol {mediumVolume:0.00} fastVol {fastVolume:0.00}");
     }
 
     void ApplyVolumes(float dt)
@@ -318,4 +366,86 @@ public class PlayerExertionAudio : MonoBehaviour
 
     /// <summary>Count one swing of unknown speed (a mid-weight swing).</summary>
     public void RegisterSwing() => RegisterSwing(Mathf.Lerp(swingTriggerSpeed, fullWeightSpeed, 0.5f));
+
+    // ───────────────────────── self-test (Development builds, before the battle) ─────────────────────────
+    private bool selfTesting;
+    /// <summary>Last self-test result line (also logged).</summary>
+    public string SelfTestReport { get; private set; }
+
+    /// <summary>Intent string extra "strikefit" (Android), or null.</summary>
+    static string LaunchExtra()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        try
+        {
+            using (var up = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+            using (var act = up.GetStatic<AndroidJavaObject>("currentActivity"))
+            using (var intent = act.Call<AndroidJavaObject>("getIntent"))
+                return intent.Call<string>("getStringExtra", "strikefit");
+        }
+        catch (System.Exception) { return null; }
+#else
+        return null;
+#endif
+    }
+
+    /// <summary>Plays nothing, then the heavy loop at its cap, then the fast loop at its cap, then the fast loop through a
+    /// x(1/18) script filter, measuring the AudioListener output each time. Proves on the headset that each source is heard
+    /// (and whether OnAudioFilterRead runs there). Public so the Editor harness can run it too.</summary>
+    public IEnumerator SelfTest()
+    {
+        selfTesting = true;
+        yield return new WaitForSeconds(3f);
+        float quiet = 0f, heavy = 0f, fast = 0f, filtered = 0f;
+        int calls = 0;
+        yield return Measure(2f, v => quiet = v);
+        if (breathingSource != null && breathingSource.clip != null)
+        {
+            breathingSource.volume = maxVolume; breathingSource.Play();
+            yield return Measure(3f, v => heavy = v);
+            breathingSource.Stop(); breathingSource.volume = 0f;
+        }
+        if (fastSource != null && fastSource.clip != null)
+        {
+            fastSource.volume = fastMaxVolume; fastSource.Play();
+            yield return Measure(3f, v => fast = v);
+            var f = fastSource.GetComponent<AudioGainFilter>();
+            bool added = f == null;
+            if (added) f = fastSource.gameObject.AddComponent<AudioGainFilter>();
+            float oldGain = f.gain; bool oldOn = f.enabled;
+            f.gain = 1f / 18f; f.enabled = true;
+            int c0 = f.Calls;
+            yield return Measure(3f, v => filtered = v);
+            calls = f.Calls - c0;
+            f.gain = oldGain; f.enabled = oldOn;
+            if (added) Destroy(f);
+            fastSource.Stop(); fastSource.volume = 0f;
+        }
+        SelfTestReport = $"[StrikeFitBreath] selftest {gameObject.scene.name} listener RMS: nothing {quiet:0.0} dBFS | heavy@{maxVolume:0.00} {heavy:0.0} dBFS " +
+                         $"({breathingSource?.clip?.name}) | fast@{fastMaxVolume:0.00} {fast:0.0} dBFS ({fastSource?.clip?.name}) | " +
+                         $"fast through OnAudioFilterRead x0.056: {filtered:0.0} dBFS, callbacks {calls} " +
+                         $"=> script DSP {(calls > 0 ? "RUNS" : "DOES NOT RUN")} on this device";
+        Debug.Log(SelfTestReport);
+        mediumVolume = fastVolume = 0f;
+        selfTesting = false;
+    }
+
+    static readonly float[] probeBuf = new float[1024];
+
+    static IEnumerator Measure(float seconds, System.Action<float> result)
+    {
+        double sum = 0; long n = 0;
+        float end = Time.realtimeSinceStartup + seconds;
+        while (Time.realtimeSinceStartup < end)
+        {
+            for (int ch = 0; ch < 2; ch++)
+            {
+                AudioListener.GetOutputData(probeBuf, ch);
+                for (int i = 0; i < probeBuf.Length; i++) sum += probeBuf[i] * probeBuf[i];
+                n += probeBuf.Length;
+            }
+            yield return null;
+        }
+        result(n > 0 ? (float)(10.0 * System.Math.Log10(System.Math.Max(sum / n, 1e-12))) : -120f);
+    }
 }
