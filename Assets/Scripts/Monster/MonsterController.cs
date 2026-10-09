@@ -43,6 +43,16 @@ public class MonsterController : MonoBehaviour
     [Tooltip("Largest share of max HP one player hit can take after every multiplier (0.07 = 7 %). 0 = no cap.")]
     [Range(0f, 1f)] public float maxSingleHitFraction = 0f;
 
+    [Header("Burst limit (Level 3)")]
+    [Tooltip("Most damage per second the monster takes, as a fraction of max HP, averaged over burstWindow. Damage past it is " +
+             "taken at burstExcessMultiplier and shown as RESISTED. This sets the fastest possible kill (about 1 / fraction " +
+             "seconds); ordinary swinging never reaches it. 0 = off.")]
+    [Range(0f, 0.1f)] public float maxDamagePerSecondFraction = 0f;
+    public float burstWindow = 4f;
+    [Range(0f, 1f)] public float burstExcessMultiplier = 0.2f;
+    /// <summary>Hits cut by the burst limit (verification).</summary>
+    public int BurstLimitedHits { get; private set; }
+
     [Header("Runtime (read-only)")]
     public MonsterAnimState currentAnimState = MonsterAnimState.Idle;
     public bool isAlive = true;
@@ -183,9 +193,12 @@ public class MonsterController : MonoBehaviour
     /// Attack-table path (Level 2+): start an attack by explicit Animator trigger name.
     /// Returns false (and does nothing) if the monster cannot attack right now.
     /// </summary>
-    public bool BeginAttackTrigger(string trigger)
+    public bool BeginAttackTrigger(string trigger) => BeginAttackTrigger(trigger, false);
+
+    /// <param name="ignoreCooldown">Counter-attack after a guard: allowed even inside the attack cooldown.</param>
+    public bool BeginAttackTrigger(string trigger, bool ignoreCooldown)
     {
-        if (!CanAttack()) return false;
+        if (ignoreCooldown ? (!isAlive || isAttacking) : !CanAttack()) return false;
 
         isAttacking = true;
         lastAttackTime = Time.time;
@@ -253,21 +266,37 @@ public class MonsterController : MonoBehaviour
         if (!isAlive || health == null) return;
 
         var style = weakPoint ? CombatUIController.DamageStyle.Weak : CombatUIController.StyleForSpeed(swingSpeed);
-        bool isDefending = false;
-        if (ai != null) isDefending = ai.IsDefending;
+        bool guarding = ai != null && ai.IsDefending;
+        bool isDefending = WouldBlock(hitPoint);
 
         if (isDefending)
         {
             // Damage reduction while defending (MonsterAI.defendDamageMultiplier, default 0.3 = 70% reduction)
+            float unguarded = amount;
             amount *= ai.defendDamageMultiplier;
-            ai.NotifyDefendedHit(hitPoint);
-            if (defense != null) defense.OnGuardAbsorbedHit(); // fills the guard meter (weapon parries never get here)
+            bool zoned = defense != null && defense.zoneGuard;
+            ai.NotifyDefendedHit(hitPoint, !zoned);
+            if (zoned) defense.PlayBlockClang(ai.defendBlockClip, ai.defendBlockVolume);
+            if (defense != null) defense.OnGuardAbsorbedHit(amount, unguarded - amount); // fills the guard meter (weapon parries never get here)
             style = CombatUIController.DamageStyle.Blocked;
             if (ai.verboseAttackLogs)
                 Debug.Log($"[Monster] Blocked! Reduced damage to {amount:0.#}");
         }
-        else if (defense != null && defense.IsStaggered)
-            amount *= defense.staggerDamageMultiplier; // guard broken: the opening pays more
+        else if (guarding && defense != null)
+        {
+            // Guard up, but the hit went where it does not cover: full damage plus the opening bonus.
+            float bonus = amount * defense.openingBonus;
+            amount += bonus;
+            defense.OnOpeningHit(amount, bonus, hitPoint);
+            if (CombatUIController.Instance != null)
+                CombatUIController.Instance.ShowCallout(hitPoint + Vector3.up * 0.25f, "OPENING", CombatUIController.DamageStyle.Opening);
+        }
+        else
+        {
+            if (defense != null) defense.OnUnblockedHit();   // ends a run of blocks
+            if (defense != null && defense.IsStaggered)
+                amount *= defense.staggerDamageMultiplier; // guard broken: the opening pays more
+        }
 
         if (phases != null && phases.InPhaseShift)
         {
@@ -277,6 +306,17 @@ public class MonsterController : MonoBehaviour
             style = CombatUIController.DamageStyle.Resisted;
         }
 
+        if (maxDamagePerSecondFraction > 0f && health.maxHealth > 0f)
+        {
+            float allowed = maxDamagePerSecondFraction * health.maxHealth * burstWindow - RecentDamage(burstWindow);
+            if (amount > allowed)
+            {
+                amount = Mathf.Max(0f, allowed) + (amount - Mathf.Max(0f, allowed)) * burstExcessMultiplier;
+                style = CombatUIController.DamageStyle.Resisted;
+                BurstLimitedHits++;
+            }
+        }
+
         LastHitCapped = false;
         if (maxSingleHitFraction > 0f)
         {
@@ -284,6 +324,7 @@ public class MonsterController : MonoBehaviour
             if (amount > cap) { amount = cap; LastHitCapped = true; CappedHits++; }
         }
         LastDamageTaken = amount;
+        RecordDamage(amount);
 
         health.TakeDamage(amount, hitPoint, style);
 
@@ -298,6 +339,32 @@ public class MonsterController : MonoBehaviour
             CancelInvoke(nameof(ReturnToIdleIfAlive));
             Invoke(nameof(ReturnToIdleIfAlive), 0.35f);
         }
+    }
+
+    /// <summary>The one block-or-not decision for a body hit: the monster is guarding (MonsterAI.IsDefending) and, with the zone
+    /// guard, the raised guard covers the height the hit landed at. HitDetection asks the same question for its feedback.</summary>
+    public bool WouldBlock(Vector3 hitPoint)
+    {
+        if (ai == null || !ai.IsDefending) return false;
+        return defense == null || defense.Covers(hitPoint);
+    }
+
+    // Damage history for the burst limit: a small ring buffer, no allocation.
+    private readonly float[] dmgTime = new float[64];
+    private readonly float[] dmgAmount = new float[64];
+    private int dmgHead;
+
+    void RecordDamage(float amount)
+    {
+        dmgTime[dmgHead] = Time.time; dmgAmount[dmgHead] = amount;
+        dmgHead = (dmgHead + 1) % dmgTime.Length;
+    }
+
+    float RecentDamage(float window)
+    {
+        float sum = 0f, since = Time.time - window;
+        for (int i = 0; i < dmgTime.Length; i++) if (dmgAmount[i] > 0f && dmgTime[i] >= since) sum += dmgAmount[i];
+        return sum;
     }
 
     void ReturnToIdleIfAlive()

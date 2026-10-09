@@ -1,6 +1,6 @@
 # Fitness Monster Battle (VR) — Project Context
 
-Last updated: **2026-10-08, polish pass 2 (own-weapon collisions, sound gating, centring, blood, fire aura, breathing, hit-shake; see project_progress.md)**
+Last updated: **2026-10-09, adaptive guard (7 swing classes, guard poses, hand IK), Level 2 drop entrance, guard telemetry, dashboard insights / leaderboard tabs / replay chart / checklist (see project_progress.md)**
 
 ## Overview
 
@@ -41,8 +41,10 @@ MainMenu → Level1_Easy → Level2_Medium → Level3_Hard → Results
 ```
 Assets/Scripts/
   Combat/     WeaponType, HitDetection, BattleManager, CombatFeedback (haptics + monster-only hit-stop)
-  Monster/    MonsterController, MonsterHealth, MonsterAI, MonsterAnimator, BossPhaseController, MonsterEntrance,
-              MonsterDefense (shared: awareness, reactive guard, guard meter/break, poise), MonsterPersonalSpace (head 0.6 m / hand 0.35 m clamp),
+  Monster/    MonsterController, MonsterHealth, MonsterAI, MonsterAnimator, BossPhaseController,
+              MonsterEntrance (+ MonsterEntrance.Drop.cs: L3 rises from a circle, L2 drops from above),
+              MonsterDefense (shared: awareness, swing classes + guard poses, adaptive memory, reactive guard, guard meter/break, poise),
+              MonsterGuardIK (hand IK for side / low guards), MonsterPersonalSpace (head 0.6 m / hand 0.35 m clamp),
               MonsterWeakPoint, MonsterGlow (L3 emission), MonsterAxeThrow (L3 thrown axes), BossFinale (L3 slow-mo kill)
   Player/     PlayerCombat, PlayerHealth, PlayerExertionAudio (heavy breathing), PlayerLowHealthFeedback (L3 vignette + heartbeat)
   VFX/        GroundRuneVFX, DangerZoneIndicator, ArenaMoodController (L3 fight-driven lighting)
@@ -110,3 +112,14 @@ All per-level combat numbers live in `Editor/CombatTuning.cs` (monster prefab va
 - New scripts: `Combat/SfxTrace.cs` (editor-only sound audit hook), `Monster/MonsterFireAura.cs` (L1 yellow-gold / L2 violet body fire, one particle system, per-prefab profile), `Monster/MonsterHitShake.cs` (hips-bone shudder), Editor `PolishVerification.cs` (play-mode probes: sound, cross, centre, blood, fire, breath, shake, jitter, regress, alloc).
 - Changed: `HitDetection` (valid targets only, one contact per swing, entrance gate, shared clash sound, `hitSounds`), `PlayerCombat` (`IgnoreOwnWeaponCollisions`), `WeaponSwingAudio` (sustain + 0.25 s), `MonsterAI` (`InStrikeWindow`, `braceSoundOnReactiveGuard`), `MonsterDefense` (`dampedTurn`, `recentre`), `BattleManager` (`spawnOnPlayerForwardLine`), `HitBloodFx` (rewritten: droplets with gravity, drips, death burst, clash sparks), `PlayerDamageVignette` (flash and pulse default off), per-scene exertion thresholds on `PlayerExertionAudio`.
 - Probe note: Editor swings driven by moving a transform read about 40 % lower than the drive speed (0.12 s hand-speed smoothing), and the Editor has no controller velocity; feed `PlayerExertionAudio.RegisterSwing` for effort tests, and do not set `Application.runInBackground` in edit mode (it rewrites ProjectSettings).
+
+---
+
+## Adaptive guard, Level 2 entrance, guard telemetry, dashboard (2026-10-09, branch `unity-feel`, checkpoint commit `61f9ff7` before it)
+
+- **MonsterDefense** classes every incoming swing as OVERHEAD, DIAGONAL, HORIZONTAL_LEFT / RIGHT (as the player sees it), LOW_SWEEP, UPPERCUT or THRUST and computes the predicted contact (weapon + velocity x reaction delay, stopped at the body axis, clamped to `guardReach`). Guard poses HIGH / SIDE_LEFT / SIDE_RIGHT / LOW; a rule-based memory of the last 6 swings raises the chance for a repeated class or side (+15 points, capped, decays when the player varies). Fairness extras: after 3 blocks in a row the next swing cannot be guarded; opening cue (white flash + sound). Static events `GuardEnded` / `OpeningLanded`. Numbers in `Editor/CombatTuning.ConfigureAdaptiveGuard` (chance 15 / 35 / 50 %, +5 % per L3 phase; gap 6 / 3.5 / 2.5 s; uptime 12 / 22 / 30 %).
+- **MonsterGuardIK** (on the Animator's object): side / low guards by hand IK (the guard clips are left/right symmetric, so Mirror cannot make them). Level 1 clip only, Level 2 side + low, Level 3 side only; the HIGH guard is always the clip. IK Pass is on for L2 / L3 base layers only.
+- **Level 2 entrance** (`MonsterEntrance` style DropFromAbove, `Editor/Level2EntranceBuilder.cs`): lights dim, violet mist, eyes in the dark, drop from above (Mutant Jump from its apex), landing at 1.85 m with dust / ring / haptics, roar + violet glow-up, lights back; 7.94 s, 1.5 s after a Retry (`GameStateManager.FlagRetry`). Controller states EntranceDrop / EntranceRoar, real transitions only.
+- **Telemetry**: `monster_guard`, `opening_hit` events (`SessionReporter.sendGuardEvents`), same batches; `clash` already existed.
+- **Web**: backend `insights.js` + `GET /api/players/:name/insights`, `GET /api/players/:name/checklist`; frontend `lib/leaderboard.js` (weekly / all-time / per level / most improved, you vs last week), `Insights.jsx`, `FirstRunChecklist.jsx`, `SwingTimeline.jsx`, `Confetti.jsx`; `npm test` now exists in the frontend too.
+- Harnesses (Editor, Play mode): `AdaptiveGuardVerification` (fight:varied | repeat | varied-idle | repeat-idle, look, alloc), `EntranceVerification` (full, retry).

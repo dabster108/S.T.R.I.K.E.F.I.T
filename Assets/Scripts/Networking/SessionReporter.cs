@@ -11,6 +11,10 @@
 // Telemetry fields the dashboard reads: hit events carry swingSpeed, tier, hand, defended and (via the state block) combo;
 // every state block (hit, player_hurt, hp snapshot, session start) carries combo, effort (0-1) and kcal (estimate).
 // They add no events and no requests: they ride on the events that were already sent.
+// Guard telemetry (sendGuardEvents): monster_guard (one per guard the monster raised: swingClass, guardType, blocked,
+// blockedHits, damagePrevented, openings, reactive, broken, seconds) and opening_hit (swingClass, bonusDamage) go into the
+// same bounded buffer and the same batched requests as every other event, so the request rate is unchanged. clash
+// (hand, swingSpeed) was already sent. A failed batch is dropped silently, as before.
 //
 // Networking never touches gameplay: events go into a bounded buffer, at most one request is in
 // flight, requests are sent every flushInterval seconds, and any failure drops that batch silently.
@@ -44,6 +48,8 @@ public class SessionReporter : MonoBehaviour
     [Tooltip("Send combat events and HP snapshots during the fight (the live dashboard). " +
              "Off = only the session start and final result are sent.")]
     public bool sendLiveEvents = true;
+    [Tooltip("Also send monster_guard and opening_hit events (the adaptive guard). They share the existing batches.")]
+    public bool sendGuardEvents = true;
 
     [Header("Pacing")]
     [Tooltip("Seconds between HP/XP snapshots while a battle is running.")]
@@ -198,6 +204,8 @@ public class SessionReporter : MonoBehaviour
         MonsterAI.AttackResolved += OnMonsterAttackResolved;
         MonsterAI.DefendStarted += OnMonsterDefendStarted;
         PlayerHealth.DamageTaken += OnPlayerDamageTaken;
+        MonsterDefense.GuardEnded += OnMonsterGuardEnded;
+        MonsterDefense.OpeningLanded += OnOpeningLanded;
     }
 
     void OnDisable()
@@ -209,6 +217,8 @@ public class SessionReporter : MonoBehaviour
         MonsterAI.AttackResolved -= OnMonsterAttackResolved;
         MonsterAI.DefendStarted -= OnMonsterDefendStarted;
         PlayerHealth.DamageTaken -= OnPlayerDamageTaken;
+        MonsterDefense.GuardEnded -= OnMonsterGuardEnded;
+        MonsterDefense.OpeningLanded -= OnOpeningLanded;
     }
 
     void OnDestroy()
@@ -633,6 +643,34 @@ public class SessionReporter : MonoBehaviour
     {
         if (!Recording()) return;
         Begin("monster_defend", "Monster raised its guard");
+        End();
+    }
+
+    void OnMonsterGuardEnded(MonsterDefense defense, MonsterDefense.GuardReport r)
+    {
+        if (!Recording() || !sendGuardEvents) return;
+        string cls = MonsterDefense.ClassNames[(int)r.swingClass];
+        string pose = MonsterDefense.PoseNames[(int)r.pose];
+        Begin("monster_guard", r.blocked > 0 ? $"Monster {pose} guard vs {cls}: blocked {r.blocked}" : $"Monster {pose} guard vs {cls}");
+        Str("swingClass", cls);
+        Str("guardType", pose);
+        Bool("blocked", r.blocked > 0);
+        Num("blockedHits", r.blocked);
+        Num("damagePrevented", r.damagePrevented);
+        Num("openings", r.openings);
+        Bool("reactive", r.reactive);
+        Bool("broken", r.broken);
+        Num("seconds", r.seconds);
+        End();
+    }
+
+    void OnOpeningLanded(MonsterDefense defense, MonsterDefense.SwingClass swingClass, float bonusDamage)
+    {
+        if (!Recording() || !sendGuardEvents) return;
+        string cls = MonsterDefense.ClassNames[(int)swingClass];
+        Begin("opening_hit", $"Opening found: {cls}");
+        Str("swingClass", cls);
+        Num("bonusDamage", bonusDamage);
         End();
     }
 

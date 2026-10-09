@@ -1,5 +1,131 @@
 # Project Progress — Fitness Monster Battle
 
+Last updated: **2026-10-09 — adaptive guard (7 swing classes, guard poses, hand IK, rule-based memory), Level 2 drop entrance, guard telemetry, dashboard insights / leaderboard tabs / replay chart / checklist. Editor simulation, not a headset.**
+
+---
+
+## 2026-10-09 — Adaptive guard (Levels 2-3), Level 2 drop entrance, guard telemetry, dashboard features
+
+Branch `unity-feel`; the working tree was committed first as checkpoint `61f9ff7`. This pass is uncommitted. **Everything below was measured in the Editor in Play mode (Mono, no headset)**: the "player" is the real weapon collider driven through the real `HitDetection` path by `Assets/Editor/AdaptiveGuardVerification.cs` and `EntranceVerification.cs`. Swing speeds come from the live backend (549 hit events, read-only, 2026-10-09: median Easy 4.9, Medium 2.1, Hard 6.3 m/s; gaps between hits median 1.2 / 0.6 / 1.0 s).
+
+**Last pass's items (allocation fix, Level 3 difficulty knob, breathing check):** all present in the checkpoint commit (Level 3 HP 5600 / player 1200 / damage 14 / cooldown 2.4 s overrides, the levelled fast-breathing clip and self-test, `ClashVerification` perf probe), never written up and not re-verified in this pass.
+
+### Part 1: adaptive blocking guard (shared `MonsterDefense`, new `MonsterGuardIK`)
+**Status of the shared guard before this pass:** DONE: reactive guard with reaction delay, guard meter / break / stagger / lockout, counter, fairness gate, opening bonus + callout, cool white-blue raise flash, per-zone block pitch. PARTIAL: swing classes (3 zones HIGH / MID / LOW, not 7), guard directions (one clip, so every zone looked the same), opening cue (callout only, no flash or sound). NOT DONE: predicted contact point, adaptive memory, blocks-in-a-row rule, telemetry events.
+
+**Built.**
+- Seven classes from the weapon's velocity in the monster's space: OVERHEAD, DIAGONAL, HORIZONTAL_LEFT / RIGHT (as the player sees it: LEFT comes in from the player's left), LOW_SWEEP, UPPERCUT, THRUST. **Predicted contact** = striking part + velocity x reaction delay, stopped at the swing's closest approach to the body axis (a fast swing is not predicted out through the back), clamped to `guardReach` (computed from shoulder + arm + weapon: 1.75 / 1.17 / 1.36 m).
+- **Detection fix:** the old 40-degree cone aimed at the body at the weapon's own height rejected nearly every overhead and uppercut (velocity mostly vertical). Swing classes use a path test instead: the swing line passes within 0.45 m of the body axis in the next 0.5 s.
+- Poses: HIGH for overhead / diagonal, SIDE_LEFT / SIDE_RIGHT for the horizontals, LOW for low sweep / uppercut, the pose nearest the predicted contact for a thrust. Coverage: HIGH everything above the waist (what the guard clip shields), LOW below the upper torso, a SIDE guard its own half of the torso. A pose that cannot be shown falls back to HIGH.
+- **Adaptive memory (rule-based, not learned):** last 6 swing classes with time stamps; 3 of one class, or 3 from one side, within 8 s add +15 points to that class (cap +15, total chance cap 80 %); every different class takes 5 points off the others, and boosts lose 2 points per second. Varied swings keep the base chance.
+- Base chance 15 / 35 / 50 % (+5 % per Level 3 phase), reaction 0.35 / 0.25 / 0.18 s, gap 6 / 3.5 / 2.5 s, guard 0.8-1.2 s, uptime cap 12 / 22 / 30 %, break after 5 / 4 / 3 absorbed hits (weapon parries never count), stagger 2.5 / 2.0 / 1.6 s at x1.25 then 4 s without guarding, counter 0 / 20 / 35 % after 2+ absorbed hits within 0.5 s with at least 0.45 s of telegraph. **New: after 3 blocks in a row the next detected swing cannot be guarded** (1 s window for it to land; checked deterministically: refused, not covered, landed at full damage, rule released).
+- Cues: guard = the existing cool white-blue flash; opening = +10 % damage, a 0.08 s white flash and its own sound (L1 / L2 `L3_WeakPoint_Hit`, L3 the sword-unsheathing ring; no dedicated clip exists); block clang pitched per pose (1.18 / 1.06 / 0.95 / 0.82) with +-4 % variation.
+- One "is guarding" flag: `MonsterAI.IsDefending`. Toggles: `swingClasses`, `adaptiveGuard`, `sideGuards`, `lowGuard`, `maxBlocksInARow` (0 = off), `openingClip`, `MonsterGuardIK.ikIntercept`, `ikOnHighPose`, `keepClipHandRotation`.
+
+**Clips and the IK decision (1B).** Only one guard clip per monster exists (`Monster_GuardPose` L1 / L2, `L3_Defend` L3) and **both are left / right symmetric**: rendered with the Animator's Mirror flag the pose is identical (hands at the same +-0.25-0.35 m), so Mirror cannot make side guards. The hand-IK layer (`MonsterGuardIK`, position IK toward a pose anchor pulled 50 % toward the predicted contact, clip hand rotation kept, 2.5 m/s hand speed, 90 % arm reach, hand at least 0.3 m in front of the chest) was judged in Play mode from the player's head and a 3/4 view, plus weapon samples inside body capsules (gripping hands excluded):
+
+| | clip guard | IK side L | IK side R | IK low | IK high | shipped |
+|---|---|---|---|---|---|---|
+| L1 (270 samples) | 48 (chest 16) | 71 (chest 30) | 46 | 48 (hips, chest) | not used | **clip only** (the long sword already runs through the chest) |
+| L2 (225) | 14 (head 4) | 18 (head 2, torso 3) | 18 (leg 4) | 14 / 17 (torso 1-2) | 30 (head) | **IK side + low** |
+| L3 (450) | 10 (forearms) | 11 | 15 (own upper arm 5) | 57 (chest 13, head 6) | not used | **IK side only** |
+
+The HIGH guard is always the clip (IK put the blade into the head). No elbow flips seen in the captures (elbow angles 75-145 degrees). The weapon colliders ride on the hand, so parries work unchanged with either approach (L3 parry: `CurrentAttackParried = True`). IK Pass was switched on for the L3 base layer (L2 already had it); L1 left as it was. Captures: `Captures/AdaptiveGuard/`.
+
+**Proof (1E): 100 s per run, bursts of 2-3 swings 1.0-1.5 s apart with 1.5-3.5 s pauses, speeds from the live histograms.** "Varied" cycles the seven classes, "repeat" is HORIZONTAL_LEFT every time. Normal fights (monster attacking):
+
+| | L1 var | L1 rep | L2 var | L2 rep | L3 var | L3 rep |
+|---|---|---|---|---|---|---|
+| swings / detected | 44 / 35 | 44 / 35 | 43 / 23 | 42 / 18 | 48 / 44 | 44 / 40 |
+| rolls (mean chance) | 1 (15 %) | 1 (15 %) | 6 (35 %) | 4 (38.8 %) | 1 (50 %) | 1 (65 %) |
+| guards (reactive / timed) | 7 (0/7) | 6 (0/6) | 9 (1/8) | 10 (0/10) | 8 (0/8) | 8 (1/7) |
+| poses | H7 | H6 | H5 SR1 L3 | SL10 | H4 SL2 SR2 | SL8 |
+| uptime (cap) | 7.6 % (12) | 6.2 % | 9.5 % (22) | 9.9 % | 7.2 % (30) | 8.2 % |
+| blocked hits / damage prevented | 3 / 65 | 0 / 0 | 3 / 42 | 1 / 15 | 4 / 86 | 1 / 16 |
+| openings / bonus damage | 1 / 2.1 | 0 | 0 | 0 | 1 / 2.3 | 0 |
+| guard breaks / counters | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 1 / 0 | 0 / 0 |
+| monster free (not attacking, busy, flinching) | 25 % | 28 % | 32 % | 32 % | 12 % | 11 % |
+
+**Why so few rolls:** the monster is free only 11-32 % of a fight, and a detected swing during a wind-up or attack gets no roll (fairness). No-roll reasons at detection, e.g. L3 varied: attacking 32, already guarding 4, busy 5. So in a real fight the guard is mostly the timed fallback, and Level 2's slow real swings (median 2.1 m/s) are often under the 2.5 m/s detection gate (18-23 of ~43 detected).
+
+Attacks paused ("-idle"), to show the adaptive rule on its own:
+
+| | L1 var | L1 rep | L2 var | L2 rep | L3 var | L3 rep |
+|---|---|---|---|---|---|---|
+| detected / rolls | 37 / 4 | 40 / 6 | 20 / 7 | 19 / 9 | 41 / 15 | 41 / 17 |
+| **mean rolled chance** | **15 %** | **30 %** | **35 %** | **40.2 %** | **50 %** | **64.1 %** |
+| boost active (share of frames) | 0 % | 95 % | 0 % | 36 % | 0 % | 91 % |
+| guards (reactive, of which boosted) | 8 (0) | 9 (3, 3) | 11 (1) | 12 (1, 0) | 16 (13) | 17 (12, 11) |
+| uptime | 8.6 % | 7.8 % | 11.5 % | 11.6 % | 15.3 % | 16.8 % |
+| blocked / prevented | 5 / 115 | 8 / 193 | 4 / 56 | 2 / 39 | 9 / 204 | 6 / 235 |
+| openings / bonus | 0 | 0 | 0 | 0 | 4 / 17.7 | 8 / 37.8 |
+| guard breaks | 1 | 1 | 1 | 0 | 3 | 2 |
+
+Per class, Level 3 varied with attacks paused (swung / detected / guards / blocked + prevented / openings + bonus): OVERHEAD 7/7/2/1+16/0; DIAGONAL 7/7/4/3+58/1+2.2; HORIZONTAL_LEFT 7/5/2/0/2+10.2; HORIZONTAL_RIGHT 6/5/1/0/1+5.4; LOW_SWEEP 6/6/4/4+92/0; UPPERCUT 6/6/3/1+37/0; THRUST 6/5/0/0/0. (Full per-class tables for every run are in the harness output; Level 1 always shows HIGH because it has no side / low pose.) **Counters: 0** in all runs: a counter needs 2+ hits absorbed by one guard, which happened once (L2, the 20 % roll failed).
+
+**Fairness, every run, every frame:** guarding during an attack / wind-up 0 frames, stagger 0, phase shift 0, entrance 0; no guard started in a flinch or inside a break lockout; minimum gap L1 6.9-9.9 s (rule 6), L2 5.2-6.1 s (rule 3.5), L3 2.8-7.2 s (rule 2.5); guard length 0.83-1.23 s (rule 0.8-1.2; 1.23 is 1.2 plus one 1/30 s sample); max blocks in a row 2 in these runs (rule checked separately above). **Wind-ups:** 13-25 player hits landed during attacks per normal run, **0 attacks cancelled into Hit**; `CombatVerification windup` 6/6, 10/10, 11/11. **Animator:** no controller states were added for Part 1; transitions seen are existing ones (Idle / Hit -> Defend, Defend -> Idle / Hit / Atk_*; a per-frame sample can skip the short Idle between an attack and a guard); Any State -> Death only (all three controllers); hips in Defend 0.86-0.98 of idle (no sitting). **Allocation** (GC per frame, guard + IK on vs off, alternating rounds, guards and IK exercised): L2 29,289 vs 29,333 B, L3 30,315-30,729 vs 30,545 B (within 1 %, noise), L1 25,581 vs 25,581 B (no guards raised in that probe; IK off on L1). These are the Editor's own per-frame allocations; the new code adds none measurably.
+
+**Found and fixed during the proof:** the blocks-in-a-row flag stayed on until a body hit landed, and on Level 3 (swings mostly clash on the axes) it refused 23 later swings; it now covers exactly the next detected swing. HIGH coverage first excluded the lower torso, which turned the regression probe's chest strike into an opening; it now covers everything above the waist (body block back to "Blocked").
+
+**Missing clips (1D, nothing downloaded; Mixamo needs the user's login):**
+| need | search | alternatives |
+|---|---|---|
+| side guard, one weapon (L1 / L2) | `Sword And Shield Block` (verify) | `Great Sword Blocking` (verify), `Standing Block Idle` (verify) |
+| low guard | `Sword And Shield Crouch Block` (verify) | `Crouching Block` (verify), `Great Sword Crouch` (verify) |
+| twin-axe side / low guard (L3) | `Dual Weapon Block` (verify) | `Standing Melee Block` (verify) |
+| counter (riposte) | `Sword And Shield Kick` (verify) | `Great Sword Slide Attack` (verify); the counter uses the fastest existing table attack now |
+Side / low guards ship on through the IK where it passed the look check, and off (`sideGuards` / `lowGuard` false, falling back to HIGH) where it did not.
+
+### Part 2: Level 2 entrance, "dropping in from the dark" (`MonsterEntrance` style `DropFromAbove`)
+- **Built.** `Monster/MonsterEntrance.Drop.cs` (a partial of `MonsterEntrance`, so every existing gate keeps working: HitDetection's entrance gate, MonsterDefense, the fire aura and hit-shake wait for `Complete`). Level 3 keeps style `RiseFromCircle` (0, the default): its code path only gained the style check. `Editor/Level2EntranceBuilder.cs` (idempotent) adds to `Monster_L2_Axe.controller` two states reached only through real transitions: **Idle -> EntranceDrop** (trigger `EntranceDrop`, duration 0, transition offset 0.270 = the jump clip's apex) **-> EntranceRoar** (trigger `EntranceRoar`, 0.15 s) **-> Idle** (exit time 0.95), plus EntranceDrop / EntranceRoar -> Idle on the `Idle` trigger. No Any State transition. Material `Assets/VFX/Level2/M_L2_EntranceMist.mat` (same URP Particles/Unlit shader as the fire, alpha blended). Retry flag: `GameStateManager.FlagRetry / ConsumeRetry` (set by `ReloadCurrentLevel`). Haptics: `CombatFeedback.PulseBoth` (obeys the `haptics` toggle). Toggles: `style`, `alwaysFull`, every timing / colour / count field, `landAtDistance`.
+- **Clips measured on the vampire (preview scene):** `MutantJump_HeightBaked` (3.70 s) apex at 1.0 s with the hips 2.0 m above standing, lands at 1.6 s, slam crouch to 2.4 s, standing again at 2.9 s; `L3_Roar` keeps the hips at standing height (no sitting).
+- **Timeline (Play mode, 1/72 s frames, real numbers):**
+
+| step | full | Retry |
+|---|---|---|
+| arena lights dim to 30 % (slow flicker 1.2 Hz, under 2 Hz), violet ground mist (24 particles) | 0 -> 1.01 s | skipped |
+| two violet eyes in the dark above the landing spot (body emission map tinted violet), low growl | 1.01 -> 2.63 s | eyes already lit |
+| drop (clip apex -> landing, + 1 m extra eased fall of the root) | 2.63 s | 0.01 s |
+| landing at **1.85 m** (dust 16 + ground ring 24 thrown away from the player, impact sound, 0.35 / 0.12 s pulse on both hands) | 3.24 s | 0.63 s |
+| crouch and rise (same clip) | 3.24 -> 4.54 s | at 1.8x speed |
+| roar + 2.0 s violet glow-up: body emission ramps, axe fire ignites from the hand up the haft (33 live particles), eye flare at 2.0 s | 4.54 -> 6.94 s | short glow |
+| lights back to 100 % (1.0 s) | 6.94 -> 7.94 s | never dimmed |
+| **fight starts** (colliders + AI on) | **7.94 s** | **1.50 s** |
+
+- **Checks.** During the sequence 8 full-speed sweeps of the real sword through the chest: **0 hits, 0 clashes, monster HP 680 -> 680**; the only sounds were the growl, the impact and the roar (plus the player's own swing whooshes). Controls free the whole time (PlayerCombat enabled, weapons active); the camera is never touched; no screen shake. Closest approach to the player's head during the landing crouch: monster head **1.57 m**, hands **1.26 m** (limits 0.60 / 0.35 m). Lights: all 5 (`LampLight_Left/Right`, `ArenaTorch_Left/Right`, `MonsterRimLight`) to 30 % and back to **100.0 %** exactly (each read back). Loudness at the listener (computed from clip peaks, source volumes 0.8 vs 0.7, spatial blend and distance, not by ear): quietest Level 2 hit peak about **-5.2 dBFS**; entrance impact and roar **-10.0 dBFS**, growl **-15.3 dBFS** (all at least 4.8 dB under). Particles: 0 before, max **64** live during (40 in the Retry version), the system is destroyed 3 s after the fight starts. Draw calls: one system with one material is at most one batch; paired FX-renderer on/off frames while particles were alive gave **49.2 vs 49.9** (no measurable increase; Editor counts are noisy). Captures: `Captures/Level2Entrance/`.
+- **Level 3's own entrance unchanged:** re-run after the change, fight starts at **6.93 s** (same as the earlier verified pass), summon / rise / roar sounds at 0.01 / 1.42 / 4.53 s.
+- **Different from Level 3:** arrives from above, not from below; low violet mist on the floor instead of the glowing summoning circle; the reveal is two eyes in the dark (the arena lights dim) instead of a circle charging; landing dust + ground ring + a pulse on both hands (Level 3's rise has none); violet glow-up with the axe igniting from the hand (Level 3 has no glow-up in its entrance); sounds are Level 2's own growl, slam impact and fire roar instead of the summon / grind / entrance roar; 7.94 s against 6.93 s; a 1.5 s Retry version (Level 3 always plays the full one). **Same:** the roar animation is `L3_Roar` retargeted (the only roar clip in the project).
+- **Missing assets (none invented):** a vampire roar or taunt clip (Mixamo `Zombie Scream`, `Mutant Roaring`, `Standing Taunt Battlecry`, all **(verify)**); a landing clip (`Falling To Landing`, `Hard Landing` **(verify)**; the jump clip from its apex is used now); dedicated sounds: heavy body-landing thud, vampire screech / roar, low growl (now reused: `L2_Slam_Impact`, `L2_Special_FireRoar`, `L2_Heavy_Growl`; sources: freesound.org searches "heavy body fall thud", "creature screech", "monster growl low" (verify licences)).
+
+### Part 3: guard and clash telemetry
+- **Sent before this pass:** session start / result (`POST /api/sessions`), and in batched `POST /api/events`: `hit`, `weak_swing`, `clash` (hand, swingSpeed), `monster_attack`, `dodge`, `monster_defend`, `player_hurt` / `block`, `hp` snapshots every 1 s.
+- **Added (`SessionReporter.sendGuardEvents`, on):** `monster_guard` (one per guard, when it drops: swingClass, guardType, blocked, blockedHits, damagePrevented, openings, reactive, broken, seconds) and `opening_hit` (swingClass, bonusDamage). `clash` (hand, speed) already existed and is unchanged. Same bounded buffer, same 0.4 s flush, same batches, so the request rate cannot rise; failures are dropped silently as before.
+- **ZZTEST fight (local backend on the project database, game pointed at it at runtime only):** 40 s Level 3 fight, then a kill. Read back 216 events: `monster_guard` 4 (the game reported 4), `opening_hit` 1 (1), `clash` 80, every payload field stored verbatim, session stored as a finished victory. Requests: **18 POSTs in 32 s, never more than 1 in any second** (216 events in 16 batches). Older data: a pre-telemetry session still loads; the new insights route on a real player returns its sentences with the guard sentence pending. **Deleted** by id afterwards: database back to **47 sessions / 8,930 events, 0 ZZTEST events**; the headset's remembered-names list never gained ZZTEST and its last-session keys were cleared the way the game does for a deleted session.
+
+### Part 4: dashboard (web/frontend, web/backend)
+- **Insights** (`web/backend/insights.js`, `GET /api/players/:name/insights`, `components/fitness/Insights.jsx` on the player page): a sentence only with enough data, the minimum shown under each one, the rest listed as "what's missing". Effort trend (3 fights with 10+ hits, 30+ hits; a third must lead the others by 10 %), full-power share (20 tiered hits), best and hardest level by win rate (2 levels with 2+ won or lost fights, different rates), guards and openings (20 hits in fights with guard telemetry).
+- **Leaderboard tabs** (`lib/leaderboard.js`): This week (from Monday), All time, Per level (top 5 per level), Most improved (latest third of a player's won or lost fights against their earlier ones, minimum 3; by score as % of the level's median, or by full-power share; abandoned fights left out), and a "You vs last week" line with a player picker.
+- **Session replay chart** (`components/sessions/SwingTimeline.jsx`): swing speed per hit (tier colours) and monster HP over the fight, marker ticks for hits, monster guards, openings and clashes, cursor shared with the existing scrubber, click or drag to seek; fallback text when a session has no samples (the existing "No fight telemetry" card covers sessions with no events). Scrubber and event list know `monster_guard` / `opening_hit`.
+- **First-run checklist** (`GET /api/players/:name/checklist`, `components/players/FirstRunChecklist.jsx`): first fight, a chosen name, a rated session, a badge, all from the database; only the dismissal is kept in localStorage (`strikefit.checklist.dismissed.<name>`).
+- **Polish:** count-up on the player's results strip, the leaderboard leader and per-level scores (existing `useCountUp`, immediate under reduced motion); confetti (`components/ui/Confetti.jsx`) when a badge unlocks (on a live reload that unlocks more, or on opening a player whose latest fight earned one); none under reduced motion. Existing colour classes / tokens only, no new fonts, no dark mode; estimates untouched ("estimated" labels unchanged).
+- Backend additions only: two GET routes and `analytics.playerInsights / playerChecklist`; no existing route, field or response changed.
+
+### Part 5: verification
+- `npm test` backend **31/31** (8 new for the insight rules), frontend **9/9** (new: `node --test`, the leaderboard / most-improved rules); `vite build` passes.
+- Headless Chrome (DevTools protocol, local backend on the real data, 1280 px and 390 px): **0 console errors or warnings**, no horizontal scroll at 390 px. Seen: Iij's insights (3 sentences, guard pending) and checklist (4 of 4); dismissal hides it after a reload and stores only the dismissal key; confetti 36 pieces on strikewhat (latest fight earned First Blood), gone after 2.5 s, none with reduced motion; count-up 0 -> 1,836 -> 3,899 as the strip scrolls in, 3,899 at once with reduced motion; all four leaderboard tabs and both improvement measures; the replay chart (26 swing dots, 62 markers) seeking 00:39 -> 00:19 from a click; the oldest session shows the no-telemetry fallback.
+- **Not checked on a real phone:** touch dragging on the chart and scrubber, the confetti and count-up on a phone GPU, the Select / segmented controls with a phone keyboard; only Chrome's 390 px emulation.
+
+### Regression checks (re-run at the end, see the final report)
+Full-body coverage 13/13, 12/12, 13/13; body block Blocked with its sound on all three; L3 parry `CurrentAttackParried = True` (L1 / L2 parry off as before); wind-ups 27/27 kept; Level 3 flame / aura / enrage scripts untouched and its entrance 6.93 s; no post-processing, no new lights or realtime shadows (the entrance dims existing lights; FX shadows off); no per-frame allocation (probe above); FindObject only at the start of the entrance; no new runtime logs; SessionReporter production URL, wake ping, 5 s timeouts, silent failure unchanged in all three saved scenes; backend: two GET routes added, nothing else changed; web: existing colour classes / tokens only, estimates untouched; test data deleted.
+
+### Headset checks, most important first
+1. The Level 2 entrance in the headset: looking up at the eyes (about 4 m), the landing at 1.85 m, the roar loudness.
+2. Side / low guard IK on Levels 2 and 3 at 72 Hz (hand speed 2.5 m/s), any weapon clipping a 3/4 view missed.
+3. The opening cue (flash + reused chime) reads as different from the guard flash.
+4. Whether the guard feels present at all: in real fights it is mostly the timed one (the monster is free 11-32 % of the time).
+
+---
+
 Last updated: **2026-10-05 — all three levels: personal-space clamp, shared MonsterDefense (awareness, reactive guard, guard meter / break, poise), Level 3 rebalance with phase-shift pauses and a single-hit cap, game feel. Everything below was measured in Play mode in the editor (simulation, not a headset).**
 
 ---

@@ -178,6 +178,29 @@ public class MonsterAI : MonoBehaviour
              "set to the same value so hit frames stay on the visible impact (BossPhaseController does both).")]
     public float tempoScale = 1f;
 
+    [Header("Chains and telegraph variance (Level 3)")]
+    [Tooltip("Chance (boss phase 1 / 2 / 3; x only without a BossPhaseController) that the next attack follows the last one " +
+             "after chainGap instead of after the cooldown. Never the must-dodge attack, never a ranged row.")]
+    public Vector3 chainChanceByPhase = Vector3.zero;
+    [Tooltip("Linked attacks in one chain at most.")]
+    [Range(1, 4)] public int chainMaxAttacks = 3;
+    [Tooltip("Pause between two linked attacks (s, min / max).")]
+    public Vector2 chainGap = new Vector2(0.35f, 0.6f);
+    [Tooltip("Random change to each telegraph (first wind-up), seconds +/-. The wind-up animation is time-scaled to match, so " +
+             "the visible blow still lands on the damage frame. 0 = off.")]
+    public float telegraphJitter = 0f;
+    [Tooltip("No damaging table attack is ever telegraphed for less than this (s), whatever the tempo, phase or jitter. 0 = off.")]
+    public float minTelegraph = 0f;
+    [Tooltip("Weight multiplier for unblockable (must-dodge) rows per boss phase 1 / 2 / 3.")]
+    public Vector3 unblockableWeightByPhase = Vector3.one;
+    /// <summary>Attack cooldown multiplier set by the boss phase (1 = none).</summary>
+    [System.NonSerialized] public float phaseCooldownScale = 1f;
+    public int ChainedAttacks { get; private set; }
+    public int LongestChain { get; private set; }
+    /// <summary>Shortest telegraph actually used since the scene started (verification).</summary>
+    public float ShortestTelegraph { get; private set; } = 99f;
+    public float LongestTelegraph { get; private set; }
+
     [Header("Parry (optional, Level 3)")]
     [Tooltip("A weapon clash (player weapon hits the monster weapon) during the wind-up of a normal attack parries it: " +
              "its hits deal parryDamageMultiplier. Unblockable attacks ignore parries.")]
@@ -295,6 +318,9 @@ public class MonsterAI : MonoBehaviour
     private MonsterController controller;
     private MonsterDefense defense;             // shared combat sense (facing, guards, poise); null = legacy behaviour
     private MonsterPersonalSpace personalSpace; // personal-space clamp; its push-back is added back to range checks
+    private BossPhaseController bossPhases;      // Level 3 only
+    private float attackTimeScale = 1f;         // wind-up time-scale for the telegraph jitter / floor (1 = authored)
+    private int chainLink;                      // attacks already linked in the running chain
     private Coroutine guardRoutine;
     private float animSpeedScale = 1f;          // stagger slows the hit reaction; tempoScale * this = Animator speed
     private Vector3 lockedImpact;               // unblockable impact centre, fixed when the wind-up starts
@@ -371,6 +397,7 @@ public class MonsterAI : MonoBehaviour
         controller = GetComponent<MonsterController>();
         defense = GetComponent<MonsterDefense>();
         personalSpace = GetComponent<MonsterPersonalSpace>();
+        bossPhases = GetComponent<BossPhaseController>();
         if (axeThrow == null) axeThrow = GetComponent<MonsterAxeThrow>();
         mpb = new MaterialPropertyBlock();
         if (sfxAudioSource == null)
@@ -730,7 +757,7 @@ public class MonsterAI : MonoBehaviour
     {
         if (InHitStop) return;
         var anim = GetComponent<MonsterAnimator>();
-        if (anim != null && anim.animator != null) anim.animator.speed = Mathf.Max(0.25f, tempoScale) * animSpeedScale;
+        if (anim != null && anim.animator != null) anim.animator.speed = Mathf.Max(0.25f, tempoScale) * animSpeedScale * attackTimeScale;
     }
 
     /// <summary>MonsterDefense dodge: fire the dodge clip's trigger and slide the root by <paramref name="offset"/>.</summary>
@@ -762,9 +789,12 @@ public class MonsterAI : MonoBehaviour
     }
 
     /// <summary>Called by MonsterController when a player hit lands inside the defend window.</summary>
-    public void NotifyDefendedHit(Vector3 hitPoint)
+    public void NotifyDefendedHit(Vector3 hitPoint) => NotifyDefendedHit(hitPoint, true);
+
+    /// <param name="playClip">False when MonsterDefense plays its own (per-guard) block clang.</param>
+    public void NotifyDefendedHit(Vector3 hitPoint, bool playClip)
     {
-        if (defendBlockClip != null && sfxAudioSource != null)
+        if (playClip && defendBlockClip != null && sfxAudioSource != null)
         {
             sfxAudioSource.PlayOneShot(defendBlockClip, defendBlockVolume);
             SfxTrace.Note(this, defendBlockClip, "monster guard absorbed a landed hit");
@@ -778,6 +808,21 @@ public class MonsterAI : MonoBehaviour
         SetBodyTint(Color.white);
         yield return new WaitForSeconds(0.06f);
         if (IsDefending) SetBodyTint(defendTintColor);
+    }
+
+    /// <summary>MonsterDefense opening cue: a brief body flash, then back to the guard tint (or the resting tint).</summary>
+    public void FlashTint(Color c, float seconds)
+    {
+        if (controller == null || !controller.isAlive) return;
+        StartCoroutine(FlashTintRoutine(c, seconds));
+    }
+
+    IEnumerator FlashTintRoutine(Color c, float seconds)
+    {
+        SetBodyTint(c);
+        yield return new WaitForSeconds(seconds);
+        if (IsDefending && defendTintEnabled) SetBodyTint(defendTintColor);
+        else if (!IsStaggered && controller != null && !controller.isAttacking) ClearBodyTint();   // never wipe a telegraph
     }
 
     void SetBodyTint(Color c)
@@ -821,10 +866,22 @@ public class MonsterAI : MonoBehaviour
         if (!IsDefending) SetBodyTint(restingTint);
     }
 
+    int Phase => bossPhases != null ? bossPhases.Phase : 0;
+
+    static float ByPhase(Vector3 v, int phase) => phase <= 0 ? v.x : phase == 1 ? v.y : v.z;
+
     float SelectionWeight(AttackDefinition a, float hurt)
     {
-        if (enraged && a.enragedWeight >= 0f) return a.enragedWeight;
-        return Mathf.Max(0f, Mathf.Lerp(a.weightFullHp, a.weightLowHp, hurt));
+        float w = enraged && a.enragedWeight >= 0f ? a.enragedWeight : Mathf.Max(0f, Mathf.Lerp(a.weightFullHp, a.weightLowHp, hurt));
+        if (a.unblockable) w *= ByPhase(unblockableWeightByPhase, Phase);
+        return w;
+    }
+
+    /// <summary>Boss phase: attack tempo (every wind-up, swing and recovery scale with it; the Animator follows).</summary>
+    public void SetTempo(float tempo)
+    {
+        tempoScale = Mathf.Max(0.25f, tempo);
+        ApplyAnimSpeed();
     }
 
     // ───────────────────────── Attack table (Level 2+) ─────────────────────────
@@ -833,7 +890,7 @@ public class MonsterAI : MonoBehaviour
     {
         if (baseAttackCooldown < 0f) baseAttackCooldown = controller.attackCooldown;
         float hurt = 1f - HpFraction();
-        controller.attackCooldown = baseAttackCooldown * Mathf.Lerp(1f, lowHpCooldownScale, hurt);
+        controller.attackCooldown = baseAttackCooldown * Mathf.Lerp(1f, lowHpCooldownScale, hurt) * phaseCooldownScale;
     }
 
     float HpFraction()
@@ -972,7 +1029,7 @@ public class MonsterAI : MonoBehaviour
         freezeStart = -1f;
         // Restore what the monster should run at now (tempo x stagger), not what it ran at before: an enrage switch or
         // the end of a stagger during the freeze keeps its own speed.
-        if (a != null && a.speed == 0f) a.speed = Mathf.Max(0.25f, tempoScale) * animSpeedScale;
+        if (a != null && a.speed == 0f) a.speed = Mathf.Max(0.25f, tempoScale) * animSpeedScale * attackTimeScale;
     }
 
     /// <summary>MonsterAxeThrow: a thrown axe reached the player.</summary>
@@ -1039,6 +1096,24 @@ public class MonsterAI : MonoBehaviour
         transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), 1f - Mathf.Exp(-rate * Time.deltaTime));
     }
 
+    /// <summary>MonsterDefense counter: the fastest melee row whose telegraph is at least minTelegraph, started now even inside
+    /// the attack cooldown. Never while anything else owns the monster. Returns false if nothing fits.</summary>
+    public bool BeginCounter(float minTelegraph)
+    {
+        if (!UsesAttackTable || busy || holdActions || controller == null || !controller.isAlive || controller.isAttacking) return false;
+        float tempo = Mathf.Max(0.25f, tempoScale);
+        AttackDefinition best = null;
+        foreach (var a in attackTable)
+        {
+            if (a == null || string.IsNullOrEmpty(a.animatorTrigger) || a.unblockable || a.rangedKind != RangedKind.None) continue;
+            if (a.windUp / tempo < minTelegraph) continue;
+            if (best == null || a.windUp < best.windUp) best = a;
+        }
+        if (best == null) return false;
+        StartCoroutine(TableAttackRoutine(best, true));
+        return true;
+    }
+
     /// <summary>Debug / verification: run a specific table attack immediately (ignores selection rules).</summary>
     public bool DebugForceAttack(int index)
     {
@@ -1048,10 +1123,12 @@ public class MonsterAI : MonoBehaviour
         return true;
     }
 
-    IEnumerator TableAttackRoutine(AttackDefinition a)
+    IEnumerator TableAttackRoutine(AttackDefinition a) => TableAttackRoutine(a, false);
+
+    IEnumerator TableAttackRoutine(AttackDefinition a, bool counter)
     {
         busy = true;
-        if (!controller.BeginAttackTrigger(a.animatorTrigger))
+        if (!controller.BeginAttackTrigger(a.animatorTrigger, counter))
         {
             busy = false;
             yield break;
@@ -1070,6 +1147,16 @@ public class MonsterAI : MonoBehaviour
         // Tempo (enrage): every authored time is divided by it; the Animator speed is scaled to match.
         float tempo = Mathf.Max(0.25f, tempoScale);
         float windUp = a.windUp / tempo;
+        // Telegraph variance and the fairness floor: the first wind-up may move by +/- telegraphJitter but never under
+        // minTelegraph; the wind-up animation is time-scaled by the same ratio so the blow still lands on the damage frame.
+        float authoredWindUp = windUp;
+        if (telegraphJitter > 0f) windUp += Random.Range(-telegraphJitter, telegraphJitter);
+        if (minTelegraph > 0f) windUp = Mathf.Max(windUp, minTelegraph);
+        windUp = Mathf.Max(0.05f, windUp);
+        attackTimeScale = authoredWindUp / windUp;
+        ApplyAnimSpeed();
+        ShortestTelegraph = Mathf.Min(ShortestTelegraph, windUp);
+        LongestTelegraph = Mathf.Max(LongestTelegraph, windUp);
 
         // --- Telegraph ---
         if (a.unblockable && a.warningClip != null && sfxAudioSource != null)
@@ -1110,6 +1197,7 @@ public class MonsterAI : MonoBehaviour
 
             while (AiTime < start + hitAt) yield return null;
             inWindUp = false;
+            if (i == 0 && attackTimeScale != 1f) { attackTimeScale = 1f; ApplyAnimSpeed(); } // follow-ups at the authored timing
             if (controller == null || !controller.isAlive) break;
 
             if (throws)
@@ -1160,6 +1248,7 @@ public class MonsterAI : MonoBehaviour
         if (controller != null && controller.isAlive)
             AttackResolved?.Invoke(this, a.name, LastHitLanded);
 
+        if (attackTimeScale != 1f) { attackTimeScale = 1f; ApplyAnimSpeed(); }
         hasLockedImpact = false;
         float recoverEnd = AiTime + a.recover / tempo;
         while (AiTime < recoverEnd) yield return null;
@@ -1167,9 +1256,46 @@ public class MonsterAI : MonoBehaviour
 
         if (controller != null && controller.isAlive)
             controller.EndAttack();
-
         idleSince = Time.time;
+
+        // Chain: another attack after a short gap instead of the cooldown (each keeps its own telegraph >= minTelegraph).
+        float chainChance = ByPhase(chainChanceByPhase, Phase);
+        if (chainChance > 0f && chainLink + 1 < chainMaxAttacks && controller != null && controller.isAlive && !holdActions &&
+            a.rangedKind == RangedKind.None && DistanceToTarget() <= controller.attackRange * 1.15f && Random.value < chainChance)
+        {
+            var next = ChooseChainFollowUp(a);
+            if (next != null)
+            {
+                float gapEnd = AiTime + Random.Range(chainGap.x, chainGap.y);
+                while (AiTime < gapEnd && controller != null && controller.isAlive && !holdActions) yield return null;
+                if (controller != null && controller.isAlive && !holdActions)
+                {
+                    chainLink++;
+                    ChainedAttacks++;
+                    LongestChain = Mathf.Max(LongestChain, chainLink + 1);
+                    StartCoroutine(TableAttackRoutine(next, true)); // busy stays set: no guard, no new pick in between
+                    yield break;
+                }
+            }
+        }
+        chainLink = 0;
         busy = false;
+    }
+
+    /// <summary>A blockable melee row to link after <paramref name="previous"/> (weighted, never the same row twice in a row).</summary>
+    AttackDefinition ChooseChainFollowUp(AttackDefinition previous)
+    {
+        float hp = HpFraction(), hurt = 1f - hp, total = 0f;
+        AttackDefinition pick = null;
+        foreach (var a in attackTable)
+        {
+            if (a == previous || a.unblockable || a.rangedKind != RangedKind.None || !IsEligible(a, hp, 0f, true)) continue;
+            float w = SelectionWeight(a, hurt);
+            if (w <= 0f) continue;
+            total += w;
+            if (Random.value * total < w) pick = a; // reservoir pick, no allocation
+        }
+        return pick;
     }
 
     public Vector3 ImpactPoint(AttackDefinition a)

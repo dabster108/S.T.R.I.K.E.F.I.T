@@ -35,6 +35,10 @@ public class BossPhaseController : MonoBehaviour
     [Tooltip("Attack tempo while enraged: wind-ups, combo gaps, recovery and the Animator all run this much faster. " +
              "Kept at a value where the shortest wind-up (0.525 s) stays a >= 0.45 s telegraph.")]
     public float enrageTempo = 1.15f;
+    [Tooltip("Attack tempo in phase 2 (1 = authored). Phase 1 is 1; enraged (phase 3) uses enrageTempo.")]
+    public float phase2Tempo = 1f;
+    [Tooltip("Attack cooldown multiplier in phase 2 (enraged uses enrageCooldownScale).")]
+    public float phase2CooldownScale = 1f;
     [Tooltip("Attack cooldown multiplier while enraged (on top of the HP-based shrink).")]
     public float enrageCooldownScale = 0.7f;
     public Color enrageTint = new Color(1f, 0.55f, 0.48f);
@@ -177,6 +181,7 @@ public class BossPhaseController : MonoBehaviour
         if (controller == null || !controller.isAlive) { InPhaseShift = false; yield break; }
         EndShift();
         if (anim != null) anim.PlayState(MonsterAnimState.Idle);
+        if (ai != null && phase == 1) { ai.SetTempo(phase2Tempo); ai.phaseCooldownScale = phase2CooldownScale; }
     }
 
     IEnumerator EnterEnrage()

@@ -1,5 +1,6 @@
 // MonsterEntrance.cs
-// Purpose: Staged boss entrance (Level 3). When the monster spawns: a summoning circle glows on the ground at the
+// Purpose: Staged monster entrance. Style RiseFromCircle (Level 3, this file) or DropFromAbove (Level 2, MonsterEntrance.Drop.cs).
+//          Level 3: When the monster spawns: a summoning circle glows on the ground at the
 //          spawn point, the monster rises from below the floor through it (Y driven by a coroutine over exactly the
 //          Rise clip's length, eased like a heavy body standing up), then roars (animation + sound together) and holds
 //          a beat; the circle fades out as the roar starts (fully risen). Until the sequence finishes the monster cannot attack, be damaged or start
@@ -11,7 +12,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 
-public class MonsterEntrance : MonoBehaviour
+public partial class MonsterEntrance : MonoBehaviour
 {
     [Header("Rig")]
     [Tooltip("Child that is moved down/up for the rise (the Animator animates the body below it).")]
@@ -67,6 +68,7 @@ public class MonsterEntrance : MonoBehaviour
         ai = GetComponent<MonsterAI>();
         anim = GetComponent<MonsterAnimator>();
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
+        if (style == EntranceStyle.DropFromAbove) { AwakeDrop(); return; }
         // Start hidden under the floor and inert from the very first frame.
         if (riseOffset != null) riseOffset.localPosition = new Vector3(0f, -startDepth, 0f);
         if (ai != null) ai.enabled = false;
@@ -74,7 +76,7 @@ public class MonsterEntrance : MonoBehaviour
 
     void Start()
     {
-        StartCoroutine(Sequence());
+        StartCoroutine(style == EntranceStyle.DropFromAbove ? DropSequence() : Sequence());
     }
 
     IEnumerator Sequence()

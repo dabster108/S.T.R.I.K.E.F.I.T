@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api.js";
 import { formatLongDate } from "../../lib/fitness.js";
@@ -7,6 +8,7 @@ import { useLiveMessages } from "../../live/LiveProvider.jsx";
 import { Card, CardHeader } from "../ui/Card.jsx";
 import { EmptyState, ProgressBar, Skeleton } from "../ui/Feedback.jsx";
 import Icon from "../ui/Icon.jsx";
+import Confetti from "../ui/Confetti.jsx";
 
 const BADGE_ICON = {
   first_blood: "crosshair",
@@ -187,8 +189,19 @@ function Trophy({ badge }) {
   );
 }
 
-export function AchievementsSection({ name }) {
+// Confetti when a badge unlocks: on a live reload that unlocks more than before, or on opening the page when a badge was
+// earned in this player's latest finished fight (latestSessionId). Nothing under reduced motion (Confetti handles it).
+export function AchievementsSection({ name, latestSessionId }) {
   const { data, error, reload } = useApi(() => api.playerAchievements(name), [name]);
+  const [burst, setBurst] = useState(0);
+  const seen = useRef({ name: null, unlocked: null });
+  useEffect(() => {
+    if (!data || data.playerName !== name) return;
+    const prev = seen.current;
+    const fresh = prev.name === name ? data.badgesUnlocked > prev.unlocked : Boolean(latestSessionId) && data.badges.some((b) => b.unlocked && b.sessionId === latestSessionId);
+    seen.current = { name, unlocked: data.badgesUnlocked };
+    if (fresh) setBurst((n) => n + 1);
+  }, [data, name, latestSessionId]);
   const refresh = useThrottledCallback(reload, 4000);
   useLiveMessages((type, payload) => {
     if (type === "session_finished" && payload?.session?.playerName === name) refresh();
@@ -215,7 +228,8 @@ export function AchievementsSection({ name }) {
         <StreakCard streak={data.streak} />
         <GoalCard goal={data.weeklyGoal} />
       </div>
-      <Card className="overflow-hidden">
+      <Card className="relative overflow-hidden">
+        <Confetti fire={burst} />
         <CardHeader title="Trophies" subtitle={`${data.badgesUnlocked} of ${data.badgesTotal} unlocked. Each one links to the session that earned it.`} />
         <ul className="stagger grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-4">
           {data.badges.map((b) => (

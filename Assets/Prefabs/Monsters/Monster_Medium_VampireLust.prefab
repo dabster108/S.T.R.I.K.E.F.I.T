@@ -172,7 +172,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5090317315433807149}
   - component: {fileID: 139713472653485353}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_L_LowerLeg
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -356,7 +356,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8004596213611784787}
   - component: {fileID: 2539205412372921398}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_R_UpperLeg
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -755,6 +755,59 @@ Transform:
   - {fileID: 2631072082466146419}
   m_Father: {fileID: 2961110397582575362}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1594652274612581010
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2934857281649111586}
+  - component: {fileID: 8622844637680949830}
+  m_Layer: 8
+  m_Name: ClashBox_2
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2934857281649111586
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1594652274612581010}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7564806546145246787}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &8622844637680949830
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1594652274612581010}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.74179274, y: 0.33999997, z: 0.31554955}
+  m_Center: {x: 0.13144127, y: 0.1559999, z: -0.0104001835}
 --- !u!1 &1662669035467257104
 GameObject:
   m_ObjectHideFlags: 0
@@ -1021,7 +1074,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5546728270018165474}
   - component: {fileID: 844275249369684797}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_L_UpperLeg
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1490,7 +1543,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3645123960088605812}
   - component: {fileID: 3103133226628999631}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_Head
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1641,7 +1694,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2711113362439419072}
   - component: {fileID: 829061920913752532}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_R_Foot
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1980,8 +2033,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7564806546145246787}
-  - component: {fileID: 292725978752305032}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: MonsterAxe
   m_TagString: MonsterWeapon
   m_Icon: {fileID: 0}
@@ -2002,32 +2054,15 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5313024724052122222}
-  - {fileID: 6304616565450092803}
   - {fileID: 5330011545663030099}
   - {fileID: 1695706099136524623}
+  - {fileID: 1051532642021691733}
+  - {fileID: 2629602283437186496}
+  - {fileID: 2934857281649111586}
+  - {fileID: 7159079165912307285}
+  - {fileID: 8759074135238470120}
   m_Father: {fileID: 6375482089479033389}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &292725978752305032
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4534954974050817796}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.936, y: 0.58500004, z: 0.234}
-  m_Center: {x: 0.0364, y: 0.51350003, z: -0.0104}
 --- !u!1 &4543346109577634977
 GameObject:
   m_ObjectHideFlags: 0
@@ -2102,7 +2137,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6250541757254373117}
   - component: {fileID: 4516617668285296689}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_R_UpperArm
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2179,6 +2214,112 @@ Transform:
   - {fileID: 3158358980219186158}
   m_Father: {fileID: 12640952926632432}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &4970492629974071044
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1051532642021691733}
+  - component: {fileID: 5539525683634287309}
+  m_Layer: 8
+  m_Name: ClashBox_0
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1051532642021691733
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4970492629974071044}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7564806546145246787}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &5539525683634287309
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4970492629974071044}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.27781194, y: 0.33999994, z: 0.24360879}
+  m_Center: {x: -0.017836161, y: -0.36400008, z: -0.003389947}
+--- !u!1 &4994863717953459984
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2629602283437186496}
+  - component: {fileID: 8888549506564489730}
+  m_Layer: 8
+  m_Name: ClashBox_1
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2629602283437186496
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4994863717953459984}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7564806546145246787}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &8888549506564489730
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4994863717953459984}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.23812109, y: 0.33999997, z: 0.1940702}
+  m_Center: {x: -0.006918445, y: -0.10400009, z: 0.0047536716}
 --- !u!1 &5001552273172205865
 GameObject:
   m_ObjectHideFlags: 0
@@ -7630,7 +7771,9 @@ GameObject:
   - component: {fileID: 8905035341286981438}
   - component: {fileID: 1640533961385242570}
   - component: {fileID: 6821371753378915438}
-  m_Layer: 0
+  - component: {fileID: 3544576131099502058}
+  - component: {fileID: 1367551491765007809}
+  m_Layer: 9
   m_Name: Monster_Medium_VampireLust
   m_TagString: Monster
   m_Icon: {fileID: 0}
@@ -7937,6 +8080,9 @@ MonoBehaviour:
   attackRange: 2.6
   moveSpeed: 0.75
   maxSingleHitFraction: 0
+  maxDamagePerSecondFraction: 0
+  burstWindow: 4
+  burstExcessMultiplier: 0.2
   currentAnimState: 0
   isAlive: 1
   isAttacking: 0
@@ -8361,6 +8507,12 @@ MonoBehaviour:
   lowHpCooldownScale: 0.85
   swingSfxLead: 0.12
   tempoScale: 1
+  chainChanceByPhase: {x: 0, y: 0, z: 0}
+  chainMaxAttacks: 3
+  chainGap: {x: 0.35, y: 0.6}
+  telegraphJitter: 0
+  minTelegraph: 0
+  unblockableWeightByPhase: {x: 1, y: 1, z: 1}
   allowParry: 0
   parryDamageMultiplier: 0.35
   axeThrow: {fileID: 0}
@@ -8472,16 +8624,63 @@ MonoBehaviour:
   guardTarget: {fileID: 8708223597037922119}
   reactiveGuard: 1
   reactionDelay: 0.25
-  guardChance: 0.3
-  guardChanceEnraged: 0.3
-  minGuardGap: 4.5
+  guardChance: 0.35
+  guardChanceEnraged: 0.35
+  minGuardGap: 3.5
   guardDuration: {x: 0.8, y: 1.2}
-  maxGuardUptime: 0.18
+  maxGuardUptime: 0.22
   timedGuard: 1
   timedGuardInterval: 9
   timedGuardJitter: 0.3
   highGuardTrigger: Defend
   sideGuardTrigger: Defend
+  zoneGuard: 1
+  legsTop: 0.45
+  headBottom: 0.8
+  torsoSplit: 0.62
+  highSwingFrom: 0.62
+  openingBonus: 0.1
+  midGuardTrigger: Defend
+  lowGuardTrigger: Defend
+  blockPitch: {x: 1.18, y: 1, z: 0.82}
+  guardChancePerPhase: 0
+  swingClasses: 1
+  pathRadius: 0.45
+  pathLookAhead: 0.5
+  thrustAcrossRatio: 0.5
+  overheadVertical: 0.8
+  diagonalVertical: 0.35
+  uppercutVertical: 0.6
+  guardReach: 1.17
+  sideOverlap: 0.1
+  sideGuards: 1
+  lowGuard: 1
+  sideLeftGuardTrigger: Defend
+  sideRightGuardTrigger: Defend
+  lowPoseGuardTrigger: Defend
+  posePitch: {x: 1.18, y: 1.06, z: 0.95, w: 0.82}
+  blockPitchJitter: 0.04
+  adaptiveGuard: 1
+  memoryLength: 6
+  repeatThreshold: 3
+  repeatWindow: 8
+  adaptiveStep: 0.15
+  adaptiveMaxBoost: 0.15
+  decayPerVariedSwing: 0.05
+  decayPerSecond: 0.02
+  maxGuardChance: 0.8
+  maxBlocksInARow: 3
+  forcedOpeningWindow: 1
+  openingClip: {fileID: 8300000, guid: f43d247d7f81b4970a6015c827ae5c93, type: 3}
+  openingVolume: 0.7
+  openingPitch: 1.15
+  openingFlashColor: {r: 1, g: 1, b: 1, a: 1}
+  openingFlashSeconds: 0.08
+  counterEnabled: 1
+  counterChance: 0.2
+  counterMinAbsorbed: 2
+  counterWithin: 0.5
+  counterMinTelegraph: 0.45
   guardFlashColor: {r: 0.78, g: 0.9, b: 1, a: 1}
   guardFlashSeconds: 0.12
   guardBreakEnabled: 1
@@ -8566,6 +8765,145 @@ MonoBehaviour:
   cycles: 2.5
   damping: 4
   attackScale: 0.25
+--- !u!114 &3544576131099502058
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5489058911841126940}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3722f9d9df3254099a2a01cba1e57dc4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterGuardIK
+  ikIntercept: 1
+  twoWeapons: 0
+  rightWeapon: {fileID: 7564806546145246787}
+  leftWeapon: {fileID: 0}
+  maxHandSpeed: 2.5
+  reachFraction: 0.9
+  minForward: 0.3
+  maxCross: 0.35
+  minHeight: 0.35
+  blendIn: 8
+  blendOut: 5
+  positionWeight: 1
+  keepClipHandRotation: 1
+  highAnchor: {x: 0, y: 0.95, z: 0.35}
+  sideAnchor: {x: 0.4, y: 0.7, z: 0.45}
+  lowAnchor: {x: 0, y: 0.4, z: 0.4}
+  ikOnHighPose: 0
+  followContact: 0.5
+--- !u!114 &1367551491765007809
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5489058911841126940}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c552d1864306465cae14a9b40283742, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterEntrance
+  style: 1
+  dropTrigger: EntranceDrop
+  dropStateClip: MutantJump_HeightBaked
+  dropApexTime: 1
+  dropLandTime: 1.6
+  dropRiseEndTime: 2.9
+  dropExtraHeight: 1
+  entranceRoarTrigger: EntranceRoar
+  entranceRoarStateClip: L3_Roar
+  landAtDistance: 1.85
+  minLandDistance: 1.5
+  torchDimSeconds: 1
+  torchDimTo: 0.3
+  torchFlickerHz: 1.2
+  torchFlickerDepth: 0.12
+  eyesSeconds: 1.6
+  glowUpSeconds: 2
+  torchRestoreSeconds: 1
+  retrySeconds: 1.5
+  alwaysFull: 0
+  emissionRenderer: {fileID: 7232156306593475360}
+  eyeColor: {r: 0.6, g: 0.25, b: 1, a: 1}
+  eyeIntensity: 1.6
+  glowIntensity: 2.6
+  eyeFlareIntensity: 5
+  eyeFlareSeconds: 0.35
+  weaponFire: {fileID: 8318444498566070866}
+  weaponHand: {fileID: 6375482089479033389}
+  igniteSeconds: 0.8
+  fxMaterial: {fileID: 2100000, guid: ddf62190026de467b85fbb3fea056981, type: 2}
+  mistColor: {r: 0.45, g: 0.2, b: 0.7, a: 0.35}
+  mistParticles: 24
+  dustColor: {r: 0.42, g: 0.38, b: 0.45, a: 0.55}
+  dustParticles: 16
+  ringColor: {r: 0.7, g: 0.35, b: 1, a: 0.8}
+  ringParticles: 24
+  growlClip: {fileID: 8300000, guid: 8f605bec07a6c45388012d11141d9b28, type: 3}
+  growlVolume: 0.5
+  landClip: {fileID: 8300000, guid: cbc48bf379b364886a0212fa155974bc, type: 3}
+  landVolume: 0.6
+  entranceRoarClip: {fileID: 8300000, guid: ce83a687add4b4fa3a0149e4c93c7841, type: 3}
+  entranceRoarVolume: 0.6
+  landHaptic: {x: 0.35, y: 0.12}
+  riseOffset: {fileID: 0}
+  startDepth: 2.6
+  riseTrigger: Rise
+  riseStateClip: Exec_Rise
+  roarTrigger: Roar
+  roarStateClip: Exec_Roar
+  fallbackRiseSeconds: 3
+  riseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0.4
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.55
+      value: 0.82
+      inSlope: 1.2
+      outSlope: 1.2
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0.15
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  summoningCircle: {fileID: 0}
+  circleFadeIn: 0.8
+  preRiseDelay: 1.4
+  circleFadeOut: 1.2
+  roarHoldSeconds: 2.2
+  audioSource: {fileID: 2752802109398831736}
+  summonClip: {fileID: 0}
+  summonVolume: 0.9
+  riseClip: {fileID: 0}
+  riseVolume: 1
+  roarClip: {fileID: 0}
+  roarVolume: 1
+  inProgress: 0
+  complete: 0
 --- !u!1 &5712291801053498461
 GameObject:
   m_ObjectHideFlags: 0
@@ -8598,61 +8936,6 @@ Transform:
   - {fileID: 54202118790128223}
   m_Father: {fileID: 9202845014495289118}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &5718476065584504908
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 6304616565450092803}
-  - component: {fileID: 4871995781606078694}
-  m_Layer: 0
-  m_Name: HaftCollider
-  m_TagString: MonsterWeapon
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &6304616565450092803
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5718476065584504908}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 7564806546145246787}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!136 &4871995781606078694
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5718476065584504908}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.06
-  m_Height: 0.71500003
-  m_Direction: 1
-  m_Center: {x: 0, y: -0.13650002, z: 0}
 --- !u!1 &5730283900537975708
 GameObject:
   m_ObjectHideFlags: 0
@@ -8663,7 +8946,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7350966262874686330}
   - component: {fileID: 687348410384488770}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_L_UpperArm
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -9054,7 +9337,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2696562831815137292}
   - component: {fileID: 5046326310847335134}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_L_LowerArm
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -9324,6 +9607,59 @@ Transform:
   - {fileID: 229249804165046618}
   m_Father: {fileID: 5940143900826638686}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &6870569679078324216
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8759074135238470120}
+  - component: {fileID: 3362386533452324134}
+  m_Layer: 8
+  m_Name: ClashBox_4
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8759074135238470120
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6870569679078324216}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7564806546145246787}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &3362386533452324134
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6870569679078324216}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.95393586, y: 0.3399999, z: 0.20360503}
+  m_Center: {x: 0.07289241, y: 0.6759999, z: 0.0015440434}
 --- !u!1 &7008661148367552166
 GameObject:
   m_ObjectHideFlags: 0
@@ -9419,6 +9755,59 @@ Transform:
   - {fileID: 8464295229004429037}
   m_Father: {fileID: 6375482089479033389}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &7184463191909863811
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7159079165912307285}
+  - component: {fileID: 7662489921557725500}
+  m_Layer: 8
+  m_Name: ClashBox_3
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7159079165912307285
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7184463191909863811}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7564806546145246787}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &7662489921557725500
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7184463191909863811}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1.0255628, y: 0.33999994, z: 0.24812026}
+  m_Center: {x: 0.035720974, y: 0.4159999, z: -0.0034518018}
 --- !u!1 &7196952257076536539
 GameObject:
   m_ObjectHideFlags: 0
@@ -14713,7 +15102,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7208170292290846020}
   - component: {fileID: 5883071638071302576}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_R_LowerLeg
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -14863,7 +15252,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2284290363929590778}
   - component: {fileID: 5984107843964794985}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_L_Foot
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -14918,7 +15307,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4960244947463601595}
   - component: {fileID: 6660497451590139098}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_R_LowerArm
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -14973,7 +15362,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1172340698458321894}
   - component: {fileID: 5480836715756838129}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: HitVol_Torso
   m_TagString: Untagged
   m_Icon: {fileID: 0}

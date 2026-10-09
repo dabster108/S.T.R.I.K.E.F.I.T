@@ -86,11 +86,13 @@ function FluidSpark({ values, label, animate }) {
 }
 
 // A ruled ledger of figures in one card: no icons, the numbers carry it.
-// items: [{ label, value, sub, lead }]; `lead` sets one figure larger than the rest.
+// items: [{ label, value, sub, lead, count, format }]; `lead` sets one figure larger than the rest. Pass `count` (+ `format`)
+// for a number that counts up when the strip scrolls into view (reduced motion: shown at once).
 export function FigureStrip({ items, className = "", caption }) {
   const rest = items.filter((it) => !it.lead).length;
+  const [ref, inView] = useInView({ rootMargin: "0px" });
   return (
-    <div className={`min-w-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)] ${className}`}>
+    <div ref={ref} className={`min-w-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)] ${className}`}>
       {/* the 1px gaps over a border-coloured background are the rules between figures */}
       <dl className="grid grid-cols-2 gap-px bg-[var(--border)] md:flex">
         {items.map((it, i) => (
@@ -101,7 +103,9 @@ export function FigureStrip({ items, className = "", caption }) {
             }`}
           >
             <dt className="t-kicker">{it.label}</dt>
-            <dd className={`mt-2 truncate text-[var(--ink)] ${it.lead ? "t-figure-md" : "text-2xl font-extrabold tracking-tight tabular-nums"}`}>{it.value}</dd>
+            <dd className={`mt-2 truncate text-[var(--ink)] ${it.lead ? "t-figure-md" : "text-2xl font-extrabold tracking-tight tabular-nums"}`}>
+              {typeof it.count === "number" && Number.isFinite(it.count) ? <CountUp value={it.count} format={it.format || ((v) => Math.round(v).toLocaleString())} start={inView} /> : it.value}
+            </dd>
             {it.sub && <dd className="mt-1 truncate text-xs font-semibold text-[var(--muted)]">{it.sub}</dd>}
           </div>
         ))}

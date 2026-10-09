@@ -2290,6 +2290,10 @@ MonoBehaviour:
   silverMaxDamageTakenFraction: 0.5
   staminaUiStep: 0.02
   verboseDamageLogs: 0
+  debugReadout: 0
+  debugReadoutToggleInDevBuild: 1
+  debugReadoutPosition: {x: -300, y: -120}
+  debugReadoutHz: 4
   phaseMarkerColor: {r: 1, g: 0.92, b: 0.6, a: 0.95}
   phaseMarkerWidth: 0.012
 --- !u!114 &311020130
@@ -2336,9 +2340,11 @@ MonoBehaviour:
   playerPrimaryWeapon: 0
   playerOffhandWeapon: 0
   monsterWeapon: 7
-  monsterMaxHealthOverride: 2900
-  playerMaxHealthOverride: 1100
+  monsterMaxHealthOverride: 5600
+  playerMaxHealthOverride: 1200
   monsterAttackRangeOverride: 1.45
+  monsterDamageOverride: 14
+  monsterAttackCooldownOverride: 2.4
   autoStartBattleOnLoad: 0
   autoStartDelay: 0.5
 --- !u!114 &311020132
@@ -2393,11 +2399,15 @@ MonoBehaviour:
   haptics: 1
   lightPulse: {x: 0.25, y: 0.04}
   mediumPulse: {x: 0.5, y: 0.06}
-  fullPulse: {x: 0.9, y: 0.09}
+  fullPulse: {x: 0.75, y: 0.09}
   blockedPulse: {x: 0.35, y: 0.05}
-  clashPulse: {x: 1, y: 0.03}
+  clashPulse: {x: 1, y: 0.15}
+  clashTail: {x: 0.45, y: 0.1}
+  clashOtherHand: {x: 0.3, y: 0.1}
   damagePulse: {x: 0.7, y: 0.12}
   frequency: 0.5
+  replaceFraction: 0.8
+  xrImpulseFallback: 1
   hitStop: 1
   hitStopSeconds: 0.07
   skipHitStopDuringAttacks: 1
@@ -8463,19 +8473,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerExertionAudio
   breathingSource: {fileID: 1084053194}
   breathingClip: {fileID: 8300000, guid: fe5a33db966f24040aa58e3dd6f173bc, type: 3}
-  startVolume: 0.1
-  maxVolume: 0.3
+  startVolume: 0.22
+  maxVolume: 0.34
   fastBreathing: 1
   fastSource: {fileID: 0}
-  fastClip: {fileID: 8300000, guid: 075dcbf4a2a704f0b8a4cc66096ade2c, type: 3}
-  fastMaxVolume: 0.3
-  fastGain: 18
+  fastClip: {fileID: 8300000, guid: ab68a3b0178244bdab95ab1610d8584f, type: 3}
+  fastMaxVolume: 0.42
+  fastGain: 1
+  sourcePriority: 64
+  logTierChanges: 1
+  selfTestInDevBuild: 1
   swingTriggerSpeed: 2
   swingRearmSpeed: 1.2
   swingReversalAngle: 150
   minSwingInterval: 0.35
   exertionWindow: 30
-  swingsForFullEffort: 20
+  swingsForFullEffort: 47
   minSwingWeight: 0.5
   fullWeightSpeed: 7
   smoothSeconds: 0.6
@@ -8664,7 +8677,7 @@ MonoBehaviour:
     minSwingVelocity: 2
     maxSwingVelocity: 7
     maxVelocityDamageMultiplier: 2.6
-    damageMultiplier: 1.05
+    damageMultiplier: 1
   - type: 5
     rightObject: {fileID: 1464962000}
     leftObject: {fileID: 1259263634}
@@ -8678,7 +8691,7 @@ MonoBehaviour:
     minSwingVelocity: 1.3
     maxSwingVelocity: 6
     maxVelocityDamageMultiplier: 2.2
-    damageMultiplier: 1.12
+    damageMultiplier: 1.32
   ignoreOwnWeaponCollisions: 1
   showWeaponsBeforeBattle: 1
   swingController: 2

@@ -548,6 +548,20 @@ app.get("/api/players/:name/achievements", route(async (req, res) => {
   res.json(result);
 }));
 
+// Plain-language insights (insights.js): only sentences with enough data behind them; the rest listed with their minimum.
+app.get("/api/players/:name/insights", route(async (req, res) => {
+  const result = await analytics.playerInsights(String(req.params.name));
+  if (!result) return res.status(404).json({ ok: false, error: "Player not found" });
+  res.json(result);
+}));
+
+// First-run checklist (first fight, a chosen name, a rated session, a badge), computed from the database.
+app.get("/api/players/:name/checklist", route(async (req, res) => {
+  const result = await analytics.playerChecklist(String(req.params.name));
+  if (!result) return res.status(404).json({ ok: false, error: "Player not found" });
+  res.json(result);
+}));
+
 const MAX_PLAYER_NAME = 40;
 
 // Renames a player everywhere the name is stored: sessions.player_name and
