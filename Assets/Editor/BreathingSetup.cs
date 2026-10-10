@@ -12,6 +12,7 @@ using UnityEngine;
 public static class BreathingSetup
 {
     public const string HeavyPath = "Assets/Audio/SFX/Player/breathing_heavy_v3.wav";
+    public const float Level2EffortScale = 1.2f;
     public const string FastPath = "Assets/Audio/SFX/Player/breathing_fast_v3.wav";
 
     [MenuItem("Tools/Combat/Apply Breathing Fix")]
@@ -64,6 +65,9 @@ public static class BreathingSetup
             var p = Object.FindAnyObjectByType<PlayerExertionAudio>();
             if (p == null) { log.AppendLine(sc + ": no PlayerExertionAudio"); continue; }
             ApplyTo(p);
+            // Level 2's swings are slower (median 2.1 m/s against 4.9 / 6.3): the same effort takes about 20 % more swings, so each
+            // one counts 1.2x there. Measured: medium at 15.9 s and fast at 34.5 s without it, against ~11 s / ~26 s on Levels 1 and 3.
+            if (sc == "Level2_Medium") p.effortPerSwing *= Level2EffortScale;
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
             log.AppendLine($"{sc}: heavy {p.breathingClip != null} fast {p.fastClip != null}, caps {p.maxVolume}/{p.fastMaxVolume}, trigger {p.swingTriggerSpeed}, tiers {p.mediumOn}/{p.highOn}");

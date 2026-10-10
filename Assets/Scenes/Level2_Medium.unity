@@ -1605,7 +1605,7 @@ MonoBehaviour:
   swingReversalAngle: 150
   minSwingInterval: 0.35
   useLeakyEffort: 1
-  effortPerSwing: 0.029
+  effortPerSwing: 0.0348
   activeDecaySeconds: 200
   restGraceSeconds: 2.5
   restDecaySeconds: 8

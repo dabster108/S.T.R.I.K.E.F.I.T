@@ -1317,6 +1317,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
       insertIndex: -1
       addedObject: {fileID: 6184732562978668080}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2892000339098437316}
   m_SourcePrefab: {fileID: 100100000, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}
 --- !u!4 &719864772271835393 stripped
 Transform:
@@ -2102,6 +2105,43 @@ MonoBehaviour:
   lowAnchor: {x: 0, y: 0.4, z: 0.4}
   ikOnHighPose: 0
   followContact: 0.5
+--- !u!114 &2892000339098437316
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6231198665464638293}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 861cb709435bf4cb7ad615c37859ab38, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterCosmetics
+  idleVariants: 1
+  idleVariantInterval: {x: 6, y: 11}
+  idleVariantTriggers:
+  - IdleB
+  - IdleC
+  taunt: 1
+  tauntAfterNoHit: {x: 8, y: 10}
+  tauntCooldown: 14
+  minPlainIdle: 0.4
+  variantMinTimeBeforeAttack: 0.7
+  tauntMinTimeBeforeAttack: 1.2
+  tauntTrigger: Taunt
+  directionalHits: 1
+  heavyHitReaction: 1
+  sideThreshold: 0.25
+  heavyTier: FULL
+  heavyCooldown: 6
+  hitLeftTrigger: HitLeft
+  hitRightTrigger: HitRight
+  hitHeavyTrigger: HitHeavy
+  sway: 1
+  swayDegrees: 1.4
+  swayPeriod: 4.2
+  leanDegrees: 5
+  leanSeconds: 0.28
 --- !u!4 &6893930887810451051 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 366175167995203695, guid: e696ce824feaa4da2ac3a24b7ea5b1f7, type: 3}

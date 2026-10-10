@@ -113,6 +113,32 @@ New:
   live fight. Event payload snapshots and message text (e.g. `session_complete`) keep the name as
   recorded. Unity keeps posting under its own `Player Name`, so change it there too.
 
+### Daily goals (added 2026-10-10; additive, no existing route or field changed)
+
+One goal per player per local day (`Asia/Kathmandu` unless `?tz=` names another zone), one of four metrics:
+`kcal` (an ESTIMATE, MET method), `fullSwings`, `activeMinutes` (60 s buckets of the fight that contain a swing), `xp`.
+Targets are validated against fixed safety caps (`goals.TARGET_RANGE`). Table `daily_goals` is created by `schema.sql`
+(`CREATE TABLE IF NOT EXISTS`, run on every boot), unique on `(player_name, goal_date)`.
+
+- `PUT /api/players/:name/goal` `{ "metric": "kcal", "target": 100 }`: sets or changes TODAY's goal (idempotent upsert).
+  `400` invalid metric/target, `409` if today's goal is already met (a met goal is not reopened), `429` over 30 changes per
+  10 min per IP. Broadcasts `goal_set` (and `goal_met` if the day's total already satisfies it).
+- `GET /api/players/:name/goal/today`: `{ goal, progress { value, target, percent, met, metric }, completed, bonusXp, totals,
+  suggestions { source: "data" | "fallback", note, presets }, ranges, bonusXpOnCompletion, estimateNote }`. One database
+  round trip (a single CTE); presets come from a stale-while-revalidate cache pre-warmed at boot.
+- `GET /api/players/:name/goals?days=30` (1 to the history cap): `{ days: [{ date, goal, progress, met, completedAt, bonusXp,
+  sessions }], daysMet, goalStreak { current, longest, daysMet }, bonusXpTotal }`, oldest day first.
+- `GET /api/export/goals.csv` (`player`, `from`, `to`).
+- `GET /api/overview` gains `goalsToday { date, goalsSet, goalsMet }` (added fields only).
+- Completion is evaluated when a session finishes (`POST /api/sessions` with an outcome). It is idempotent: a conditional
+  `UPDATE ... WHERE completed_at IS NULL` awards the one-off `BONUS_XP` (75) exactly once per day. The bonus is exposed as NEW
+  fields on `GET /api/players/:name/achievements`: `goalBonusXp`, `totalXpWithGoals`, `levelWithGoals`, `goalStreak`,
+  `goalsMet`; the existing `level` / XP fields still mean session XP only and are unchanged.
+- SSE: `goal_set`, `goal_met` on `/api/stream` (`{ playerName, date, metric, target, completedAt, bonusXp }`).
+- Badges: Goal Getter (goal met on 3 days), Goal Week (7 days), plus a goal streak (consecutive days).
+- No login exists, so anyone who knows a player's name can set that player's goal. Rate limiting and range caps are the
+  only protection. The kcal figures are estimates, never measurements.
+
 ### Live sessions
 
 A session is `live` from its first event (or a `POST /api/sessions` with

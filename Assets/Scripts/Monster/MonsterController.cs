@@ -72,6 +72,7 @@ public class MonsterController : MonoBehaviour
     private MonsterAnimator monsterAnimator;
     private MonsterDefense defense;
     private BossPhaseController phases;
+    private MonsterCosmetics cosmetics;
     private float lastAttackTime = -999f;
 
     /// <summary>Damage the last player hit dealt after every reduction / bonus / cap (verification).</summary>
@@ -87,6 +88,7 @@ public class MonsterController : MonoBehaviour
         monsterAnimator = GetComponent<MonsterAnimator>();
         defense = GetComponent<MonsterDefense>();
         phases = GetComponent<BossPhaseController>();
+        cosmetics = GetComponent<MonsterCosmetics>();
 
         if (attackPoint == null)
             attackPoint = transform;
@@ -150,6 +152,9 @@ public class MonsterController : MonoBehaviour
         // Mild damage flavor by weapon (stats still come from DifficultyParams)
         // Unarmed Mixamo Hip Hop = None (claws/fists flavor)
     }
+
+    /// <summary>Seconds until CanAttack() would be true on cooldown alone (read-only; MonsterCosmetics uses it to keep flourishes out of a due attack).</summary>
+    public float SecondsUntilAttackReady => Mathf.Max(0f, lastAttackTime + attackCooldown - Time.time);
 
     public bool CanAttack()
     {
@@ -335,6 +340,7 @@ public class MonsterController : MonoBehaviour
         // swings strong enough for this monster's poise (MonsterDefense.flinchMinTier).
         else if (!isDefending && !isAttacking && !(ai != null && ai.IsBusy) && (defense == null || defense.TryFlinch(swingSpeed)))
         {
+            if (cosmetics != null) cosmetics.PrepareHit(hitPoint, swingSpeed);
             SetAnimState(MonsterAnimState.Hit);
             CancelInvoke(nameof(ReturnToIdleIfAlive));
             Invoke(nameof(ReturnToIdleIfAlive), 0.35f);
