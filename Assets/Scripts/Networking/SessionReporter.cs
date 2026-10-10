@@ -206,6 +206,7 @@ public class SessionReporter : MonoBehaviour
         PlayerHealth.DamageTaken += OnPlayerDamageTaken;
         MonsterDefense.GuardEnded += OnMonsterGuardEnded;
         MonsterDefense.OpeningLanded += OnOpeningLanded;
+        DragonHazard.FireResolved += OnDragonFire;
     }
 
     void OnDisable()
@@ -219,6 +220,7 @@ public class SessionReporter : MonoBehaviour
         PlayerHealth.DamageTaken -= OnPlayerDamageTaken;
         MonsterDefense.GuardEnded -= OnMonsterGuardEnded;
         MonsterDefense.OpeningLanded -= OnOpeningLanded;
+        DragonHazard.FireResolved -= OnDragonFire;
     }
 
     void OnDestroy()
@@ -685,15 +687,30 @@ public class SessionReporter : MonoBehaviour
         End();
     }
 
+    /// <summary>One dragon fire strip resolved (Level 3 dragons): whether the player was in the zone and what it cost.</summary>
+    void OnDragonFire(DragonHazard.FireReport r)
+    {
+        if (!Recording()) return;
+        Begin("dragon_fire", r.zoneHit ? $"Dragon fire hit ({r.ticksHit}/{r.ticks} ticks)" : "Dragon fire dodged");
+        Bool("zoneHit", r.zoneHit);
+        Num("damage", r.damage);
+        Num("ticksHit", r.ticksHit);
+        Num("ticks", r.ticks);
+        Num("phase", r.phase);
+        Num("dragon", r.dragon);
+        End();
+    }
+
     void OnPlayerDamageTaken(float amount, bool blocked, float healthAfter)
     {
         if (!Recording()) return;
+        bool fromDragon = DragonHazard.DamageSourceOverride != null;
         Begin(amount > 0.001f ? "player_hurt" : "block",
             amount > 0.001f ? $"Took {amount.ToString("0.#", CultureInfo.InvariantCulture)} damage" : "Blocked the attack");
         Num("amount", amount);
         Bool("blocked", blocked);
-        Str("attack", lastAttackName);
-        Str("category", lastAttackCategory);
+        Str("attack", fromDragon ? DragonHazard.DamageSourceOverride : lastAttackName);
+        Str("category", fromDragon ? "Hazard" : lastAttackCategory);
         AppendState(BattleManager.Instance != null ? BattleManager.Instance.CurrentScore : 0);
         End();
     }

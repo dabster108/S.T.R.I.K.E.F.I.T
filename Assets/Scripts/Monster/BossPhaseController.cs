@@ -61,6 +61,10 @@ public class BossPhaseController : MonoBehaviour
     /// <summary>True from the moment HP crosses a phase threshold until that phase's roar has finished.</summary>
     public bool InPhaseShift { get; private set; }
     public int PhaseShifts { get; private set; }
+    /// <summary>Raised when a phase shift's roar starts (the new phase number: 1, 2). DragonHazard brings its dragons in on it.</summary>
+    public event System.Action<int> PhaseShiftBegan;
+    /// <summary>Raised when the phase shift is over and the monster acts again (the new phase number).</summary>
+    public event System.Action<int> PhaseShiftEnded;
     public int ResistedHits { get; private set; }
     private float lastResistSound = -1f;
     /// <summary>
@@ -158,6 +162,7 @@ public class BossPhaseController : MonoBehaviour
         controller.isAttacking = true; // no flinch (Hit) may cut the roar; also blocks CanAttack
         if (anim != null) anim.PlayNamedTrigger(roarTrigger);
         done(true);
+        PhaseShiftBegan?.Invoke(phase);
     }
 
     void EndShift()
@@ -165,6 +170,7 @@ public class BossPhaseController : MonoBehaviour
         InPhaseShift = false;
         if (ai != null) { ai.holdActions = false; ai.enabled = true; }
         if (controller != null && controller.isAlive) controller.isAttacking = false;
+        PhaseShiftEnded?.Invoke(phase);
     }
 
     IEnumerator PhaseShift()
@@ -201,6 +207,7 @@ public class BossPhaseController : MonoBehaviour
             if (ai != null) ai.enabled = false;
             controller.isAttacking = true; // no flinch (Hit) may cut the roar; also blocks CanAttack
             if (anim != null) anim.PlayNamedTrigger(roarTrigger);
+            PhaseShiftBegan?.Invoke(phase);
         }
         if (enrageRoarClip != null && ai != null && ai.sfxAudioSource != null)
         {
@@ -225,6 +232,7 @@ public class BossPhaseController : MonoBehaviour
         controller.isAttacking = false;
         InPhaseShift = false;
         if (ai != null) ai.holdActions = false;
+        PhaseShiftEnded?.Invoke(phase);
         if (anim != null)
         {
             anim.SetBoolIfPresent(enragedBool, true);

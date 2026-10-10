@@ -1,6 +1,6 @@
 # Fitness Monster Battle (VR) — Project Context
 
-Last updated: **2026-10-09, adaptive guard (7 swing classes, guard poses, hand IK), Level 2 drop entrance, guard telemetry, dashboard insights / leaderboard tabs / replay chart / checklist (see project_progress.md)**
+Last updated: **2026-10-10, main menu / SceneFlow, WeaponSurfaceProxy, Level 2 landing tremor, DragonHazard (off), boss glow-ups and 3 new attacks (see project_progress.md)**
 
 ## Overview
 
@@ -123,3 +123,10 @@ All per-level combat numbers live in `Editor/CombatTuning.cs` (monster prefab va
 - **Telemetry**: `monster_guard`, `opening_hit` events (`SessionReporter.sendGuardEvents`), same batches; `clash` already existed.
 - **Web**: backend `insights.js` + `GET /api/players/:name/insights`, `GET /api/players/:name/checklist`; frontend `lib/leaderboard.js` (weekly / all-time / per level / most improved, you vs last week), `Insights.jsx`, `FirstRunChecklist.jsx`, `SwingTimeline.jsx`, `Confetti.jsx`; `npm test` now exists in the frontend too.
 - Harnesses (Editor, Play mode): `AdaptiveGuardVerification` (fight:varied | repeat | varied-idle | repeat-idle, look, alloc), `EntranceVerification` (full, retry).
+
+## Menu, weapon proxy, tremor, dragons (2026-10-10, branch `unity-feel`)
+- **Scenes / flow:** `MainMenu` (build 0) + three levels; `SceneFlow` (static, one load at a time, `PlayAgain` sets the retry flag, `QuitNow`), `OutcomeMenuButtons` on Victory / Defeat, `ExitConfirmPanel` flushes `SessionReporter` first. `Application.Quit` on Quest is untested.
+- **Visual only:** `WeaponSurfaceProxy` (on every player weapon with a `HitDetection`, added by `PlayerCombat.EnsureWeaponProxies`) moves only the drawn mesh; the logical weapon stays on the controller. Toggle `proxyEnabled`.
+- **Level 2 entrance:** `MonsterEntrance.Drop.cs` tremor (`Off / Light / Strong`), rumble, falling dust, torch dip, flame dimming.
+- **Level 3:** `DragonHazard` on `DragonDirector` in `Level3_Hard` (**disabled**, no model within budget, see project_progress.md); `BossPhaseController.PhaseShiftBegan / Ended`; `MonsterAI.mustDodgeGate`; `MonsterGlow` power-up / ripple / death collapse; `MonsterAxeFlames` charge flare / ember trail; three new rows (Twin Cyclone, Twin Overhead Chain, Lunge Strike) in `Level3DualAxeBuilder` (builder-driven: rebuild with Tools > Level 3 > Build Dual-Axe Monster, never hand-edit the prefab).
+- **Harnesses (Editor, MCP-driven):** `WeaponSinkVerification`, `EntranceVerification`, `DragonVerification`, `Level3AttackVerification`, `PerfProfile`, `MenuVerification`.

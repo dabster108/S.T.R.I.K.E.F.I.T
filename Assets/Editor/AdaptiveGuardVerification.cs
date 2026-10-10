@@ -26,7 +26,12 @@ public static class AdaptiveGuardVerification
     static string jobName = "";
     public static string captureDir = "Captures/AdaptiveGuard";
     public static float seconds = 100f;
+    /// <summary>Per-frame hook inside the fight loop (DragonVerification: staged HP, monitors). Null = off.</summary>
+    public static System.Action<float> frameHook;
+    /// <summary>Appended to the fight report (DragonVerification). Null = nothing.</summary>
+    public static System.Func<string> reportHook;
 
+    public static bool Running => job != null;
     public static string Status() => (job != null ? $"RUNNING {jobName} t={Time.time:0.0}\n" : "IDLE\n") + log;
 
     public static string Run(string name)
@@ -256,6 +261,7 @@ public static class AdaptiveGuardVerification
             if (PlayerHealth.Instance.currentHealth < PlayerHealth.Instance.maxHealth * 0.5f) PlayerHealth.Instance.FullHeal();
             if (health.currentHealth < health.maxHealth * 0.12f) health.currentHealth = health.maxHealth * 0.45f;
 
+            if (frameHook != null) frameHook(Time.time - tStart);
             // ── fairness, every frame ──
             bool d = ai.IsDefending;
             if (d && !wasDef)
@@ -385,6 +391,7 @@ public static class AdaptiveGuardVerification
         var tsb = new StringBuilder();
         foreach (var kv in transitions) tsb.Append($"{kv.Key} x{kv.Value}; ");
         log.AppendLine("animator transitions seen: " + tsb);
+        if (reportHook != null) log.AppendLine(reportHook());
     }
 
     // ───────────────────────── alloc (guard features on vs off) ─────────────────────────
