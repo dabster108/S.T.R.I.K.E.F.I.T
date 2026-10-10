@@ -18,13 +18,15 @@ const BADGE_ICON = {
   burn_100: "activity",
   streak_3: "calendar",
   weekly_goal: "target",
+  goal_getter: "target",
+  goal_week: "calendar",
 };
 
 // "YYYY-MM-DD" day strings from the API are calendar days, not instants: format them in UTC so no viewer time zone shifts them.
 const dayLabel = (day) => new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
 const plural = (n, word) => `${formatNumber(n)} ${word}${n === 1 ? "" : "s"}`;
 
-function LevelCard({ level }) {
+function LevelCard({ level, goalBonusXp = 0 }) {
   return (
     <Card className="flex flex-col p-5">
       <p className="t-kicker">Level and title</p>
@@ -44,7 +46,7 @@ function LevelCard({ level }) {
           </span>
         </p>
       </div>
-      <p className="mt-auto pt-4 text-xs font-medium text-[var(--muted)]">{formatNumber(level.totalXp)} XP earned in total. {level.curve}.</p>
+      <p className="mt-auto pt-4 text-xs font-medium text-[var(--muted)]">{formatNumber(level.totalXp)} XP earned in total (incl. goal bonuses{goalBonusXp > 0 ? `: ${formatNumber(goalBonusXp)} XP` : ""}). {level.curve}.</p>
     </Card>
   );
 }
@@ -224,7 +226,7 @@ export function AchievementsSection({ name, latestSessionId }) {
   return (
     <div className="space-y-6">
       <div className="stagger grid gap-4 lg:grid-cols-3">
-        <LevelCard level={data.level} />
+        <LevelCard level={data.levelWithGoals || data.level} goalBonusXp={data.goalBonusXp || 0} />
         <StreakCard streak={data.streak} />
         <GoalCard goal={data.weeklyGoal} />
       </div>

@@ -847,6 +847,7 @@ MonoBehaviour:
   hitCount: 0
   bufferedEvents: 0
   droppedRequests: 0
+  goalTimeoutSeconds: 5
 --- !u!114 &121459568
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -935,6 +936,7 @@ MonoBehaviour:
   debugReadoutToggleInDevBuild: 1
   debugReadoutPosition: {x: -300, y: -120}
   debugReadoutHz: 4
+  goalHudLine: 1
   phaseMarkerColor: {r: 1, g: 0.92, b: 0.6, a: 0.95}
   phaseMarkerWidth: 0.012
 --- !u!114 &121459570
@@ -1059,6 +1061,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 48078a036c9114322a9e47e2d3d31a9e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerNamePicker
+  dailyGoalStep: 1
   presetNames:
   - Player 1
   - Player 2
@@ -1586,30 +1589,35 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerExertionAudio
   breathingSource: {fileID: 471546210}
-  breathingClip: {fileID: 8300000, guid: fe5a33db966f24040aa58e3dd6f173bc, type: 3}
-  startVolume: 0.22
-  maxVolume: 0.34
+  breathingClip: {fileID: 8300000, guid: 00715f13ba27a47f2a86f5ff7e4eb032, type: 3}
+  startVolume: 0.55
+  maxVolume: 0.8
   fastBreathing: 1
   fastSource: {fileID: 0}
-  fastClip: {fileID: 8300000, guid: ab68a3b0178244bdab95ab1610d8584f, type: 3}
-  fastMaxVolume: 0.42
+  fastClip: {fileID: 8300000, guid: 2597bb5e8139b484bb51336a61bb85ae, type: 3}
+  fastMaxVolume: 0.9
   fastGain: 1
   sourcePriority: 64
   logTierChanges: 1
   selfTestInDevBuild: 1
-  swingTriggerSpeed: 1.5
-  swingRearmSpeed: 1.2
+  swingTriggerSpeed: 1.2
+  swingRearmSpeed: 0.8
   swingReversalAngle: 150
   minSwingInterval: 0.35
+  useLeakyEffort: 1
+  effortPerSwing: 0.029
+  activeDecaySeconds: 200
+  restGraceSeconds: 2.5
+  restDecaySeconds: 8
   exertionWindow: 30
-  swingsForFullEffort: 60
-  minSwingWeight: 0.5
-  fullWeightSpeed: 3.5
+  swingsForFullEffort: 34.5
+  minSwingWeight: 0.75
+  fullWeightSpeed: 4
   smoothSeconds: 0.6
   mediumOn: 0.28
   mediumOff: 0.18
-  highOn: 0.7
-  highOff: 0.55
+  highOn: 0.65
+  highOff: 0.5
   lowHpOn: 0.25
   lowHpOff: 0.3
   minTierHoldSeconds: 1

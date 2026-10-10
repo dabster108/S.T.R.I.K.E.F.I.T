@@ -415,6 +415,86 @@ public class SessionReporter : MonoBehaviour
             });
     }
 
+    // ─────────────────────────── Daily goal (background, never blocks Start) ───────────────────────────
+    [Header("Daily goal")]
+    [Tooltip("Timeout (s) for the goal fetch and save. Short: nothing waits on them.")]
+    public int goalTimeoutSeconds = 5;
+
+    [Serializable] public class GoalRowJson { public string metric; public float target; public string completedAt; public int bonusXp; }
+    [Serializable] public class GoalProgressJson { public float value; public float target; public int percent; public bool met; public string metric; }
+    [Serializable] public class GoalTriple { public float easy; public float standard; public float hard; }
+    [Serializable] public class GoalPresetsJson { public GoalTriple kcal; public GoalTriple fullSwings; public GoalTriple activeMinutes; public GoalTriple xp; }
+    [Serializable] public class GoalSuggestionsJson { public string source; public GoalPresetsJson presets; }
+    [Serializable] public class GoalTodayJson
+    {
+        public bool ok; public string date; public GoalRowJson goal; public GoalProgressJson progress;
+        public bool completed; public int bonusXp; public int bonusXpOnCompletion; public GoalSuggestionsJson suggestions;
+    }
+
+    /// <summary>GET /api/players/:name/goal/today in the background (goalTimeoutSeconds). done(false, null) when the backend did not
+    /// answer or the answer was unreadable. A goal that does not exist comes back as ok with goal.metric empty.</summary>
+    public void FetchDailyGoal(string name, Action<bool, GoalTodayJson> done)
+    {
+        SendNow(UnityWebRequest.kHttpVerbGET, ApiUrl("/api/players/" + Uri.EscapeDataString(name ?? "") + "/goal/today"), null, goalTimeoutSeconds, "daily goal",
+            (answered, code, body, error) =>
+            {
+                if (!answered || code != 200) { done(false, null); return; }
+                try
+                {
+                    var parsed = JsonUtility.FromJson<GoalTodayJson>(body);
+                    if (parsed == null || !parsed.ok) { done(false, null); return; }
+                    done(true, parsed);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[SessionReporter] daily goal: unreadable answer ({e.Message}). Backend: {baseUrl}");
+                    done(false, null);
+                }
+            });
+    }
+
+    /// <summary>PUT /api/players/:name/goal { metric, target } in the background. done(status): 0 = no answer (keep it pending),
+    /// otherwise the HTTP status (200 / 201 saved, 409 already reached today, 400 refused).</summary>
+    public void PutDailyGoal(string name, string metric, float target, Action<long> done)
+    {
+        string json = "{\"metric\":\"" + Escape(metric) + "\",\"target\":" + FormatNum(target) + "}";
+        SendNow("PUT", ApiUrl("/api/players/" + Uri.EscapeDataString(name ?? "") + "/goal"), json, goalTimeoutSeconds, "daily goal save",
+            (answered, code, body, error) => done(answered ? code : 0));
+    }
+
+    /// <summary>Called once at battle end (before the result is queued): the goal and where it stood, through the existing event queue.</summary>
+    void ReportGoalTelemetry()
+    {
+        if (!Recording() || !DailyGoal.HasGoal) return;
+        Begin("goal_progress", $"Daily goal {DailyGoal.Metric}: {DailyGoal.Live:0.#} / {DailyGoal.Target:0.#}");
+        Str("metric", DailyGoal.Metric);
+        Num("target", DailyGoal.Target);
+        Num("value", DailyGoal.Live);
+        Num("percent", DailyGoal.LivePercent);
+        Bool("met", DailyGoal.Live >= DailyGoal.Target);
+        End();
+    }
+
+    /// <summary>Queued when the player sets or changes today's goal on the headset (once, with the name picker's panel).</summary>
+    public void ReportGoalSet(string metric, float target, bool preset, string presetName)
+    {
+        // Events need an open session id; before a battle there is none, so goal_set rides on the first events of the session.
+        pendingGoalSet = $"{metric}|{target.ToString("0.##", CultureInfo.InvariantCulture)}|{(preset ? presetName : "custom")}";
+    }
+    string pendingGoalSet;
+
+    void FlushGoalSet()
+    {
+        if (pendingGoalSet == null || !Recording()) return;
+        var parts = pendingGoalSet.Split('|');
+        pendingGoalSet = null;
+        Begin("goal_set", $"Daily goal set: {parts[0]} {parts[1]}");
+        Str("metric", parts[0]);
+        Num("target", float.Parse(parts[1], CultureInfo.InvariantCulture));
+        Str("choice", parts[2]);
+        End();
+    }
+
     static DateTime PlayedAt(PlayerRow p)
     {
         DateTime t;
@@ -543,6 +623,7 @@ public class SessionReporter : MonoBehaviour
             Begin("hp", "Final state");
             AppendState(score);
             End();
+            ReportGoalTelemetry();
         }
 
         sb.Clear();
@@ -570,6 +651,7 @@ public class SessionReporter : MonoBehaviour
 
         // Events first so the result arrives after the last hit.
         MoveBufferToRequests();
+        ResultAnswered = false;
         requests.Enqueue(new PendingRequest { url = SessionsUrl, json = sb.ToString(), label = "result" });
         sessionOpen = false;
     }
@@ -596,6 +678,7 @@ public class SessionReporter : MonoBehaviour
         Str("level", CurrentLevel());
         AppendState(BattleManager.Instance != null ? BattleManager.Instance.CurrentScore : 0);
         End();
+        FlushGoalSet();
     }
 
     // ─────────────────────────── Gameplay hooks (static events) ───────────────────────────
@@ -716,6 +799,11 @@ public class SessionReporter : MonoBehaviour
     }
 
     bool Recording() => sessionOpen && sendLiveEvents;
+    /// <summary>The finished session's result POST has been answered (or failed); false from the moment a result is queued.
+    /// The daily-goal result line waits for this before it asks the backend where the goal stands.</summary>
+    public bool ResultAnswered { get; private set; }
+    /// <summary>Requests queued or in flight (the result POST is among them until it has been answered).</summary>
+    public int PendingRequests => requests.Count + sendsInFlight;
 
     // ─────────────────────────── Pump ───────────────────────────
 
@@ -803,6 +891,7 @@ public class SessionReporter : MonoBehaviour
             req.Dispose();
             if (!fireAndForget) requestInFlight = false;
             sendsInFlight--;
+            if (label == "result" && this != null) ResultAnswered = true;
         };
     }
 

@@ -10,6 +10,8 @@ const fitness = require("./fitness");
 const progression = require("./progression");
 const feedback = require("./feedback");
 const insightsRules = require("./insights");
+const goalsStore = require("./goalsStore");
+const goalsRules = require("./goals");
 
 const LEVEL_ORDER = ["Easy", "Medium", "Hard"];
 const TIERS = ["tap", "light", "medium", "full"];
@@ -152,6 +154,8 @@ async function overview({ tz } = {}) {
       }))
       .sort(levelSort),
     recentSessions: recent,
+    // Added with daily goals (aggregates only): how many players set a goal today and how many met it.
+    goalsToday: await goalsStore.overviewToday({ tz }).catch(() => null),
   };
 }
 
@@ -394,9 +398,11 @@ async function playerAchievements(name, { tz, goal } = {}) {
   const weekly = progression.weeklyGoal(dayList, today, target);
   const totalXp = sessions.reduce((a, s) => a + (Number(s.xp) || 0), 0);
 
+  // Daily goals: the days this player met their goal, and the bonus XP those earned (NEW fields below; level / streak unchanged).
+  const goalMet = await goalsStore.metSummary(name).catch(() => ({ days: [], bonusXp: 0 }));
   const badges = progression.evaluateBadges({
     sessions, summaryById, comboById, hurtById, maxHpById, eventSessions, days, streak,
-    weeklyTarget: target, thisWeekSessions: weekly.sessionsThisWeek,
+    weeklyTarget: target, thisWeekSessions: weekly.sessionsThisWeek, goalDays: goalMet.days,
   });
   const { reachedOn, ...streakOut } = streak;
   return {
@@ -412,6 +418,12 @@ async function playerAchievements(name, { tz, goal } = {}) {
     badgesUnlocked: badges.filter((b) => b.unlocked).length,
     badgesTotal: badges.length,
     definitions: { session: "Finished or abandoned sessions; a session still being played is not counted yet." },
+    // Added with daily goals: goal bonuses counted into XP / level, and the goal streak. `level` above is session XP only.
+    goalBonusXp: goalMet.bonusXp,
+    totalXpWithGoals: Math.round(totalXp + goalMet.bonusXp),
+    levelWithGoals: progression.levelFromXp(totalXp + goalMet.bonusXp),
+    goalStreak: { ...goalsRules.goalStreak(goalMet.days, today), rule: "Consecutive days on which the daily goal was met (no freeze)." },
+    goalsMet: goalMet.days.length,
   };
 }
 

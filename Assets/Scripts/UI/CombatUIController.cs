@@ -146,6 +146,15 @@ public class CombatUIController : MonoBehaviour
     private const int EffortSteps = 40;
     private GameObject effortRoot;
     private Text kcalText;
+    // Daily goal HUD line (DailyGoal): one line under the effort bar, refreshed at most once a second, written only on change.
+    [Header("Daily goal")]
+    [Tooltip("Show the daily goal line in the fight HUD and on the result panels.")]
+    public bool goalHudLine = true;
+    private Text goalText;
+    private float nextGoalTime;
+    private int shownGoalKey = int.MinValue;
+    private string goalResultLine = "";
+    private Text goalResultTarget;
     private RectTransform effortFill;
     private Image effortFillImage;
     private float nextHudTime;
@@ -178,6 +187,7 @@ public class CombatUIController : MonoBehaviour
 
     // Debug readout (built on first use, redrawn only when a shown value changed).
     private Text debugText;
+    private GameObject debugTestButton;
     private int shownDebugKey = int.MinValue;
     private float nextDebugTime;
     private bool debugComboHeld;
@@ -193,6 +203,7 @@ public class CombatUIController : MonoBehaviour
 
     void Awake()
     {
+        if (DevDebugGate.On) debugReadout = true;   // the debug tools were opened on the menu (both grips, 3 s)
         Instance = this;
         HideOutcomePanels();
     }
@@ -484,6 +495,7 @@ public class CombatUIController : MonoBehaviour
         if (debugReadoutToggleInDevBuild && Debug.isDebugBuild) PollDebugToggle();
         if (debugReadout) UpdateDebugReadout();
         else if (debugText != null && debugText.gameObject.activeSelf) debugText.gameObject.SetActive(false);
+        if (debugTestButton != null && debugTestButton.activeSelf != debugReadout) debugTestButton.SetActive(debugReadout);
         if (effortRoot != null) UpdateEffortHud();
         if (numPool == null) return;
         float dt = Time.deltaTime;
@@ -686,6 +698,9 @@ public class CombatUIController : MonoBehaviour
         effortFillImage.color = TierColor(PlayerExertionAudio.Tier.Calm);
 
         MakeText(rootRt, "EffortLabel", font, 16, new Color(1f, 1f, 1f, 0.75f), TextAnchor.MiddleCenter, new Vector2(0f, -30f), new Vector2(effortBarWidth, 20f)).text = "EFFORT";
+        goalText = MakeText(rootRt, "GoalLine", font, 18, new Color(0.7f, 1f, 0.78f, 0.95f), TextAnchor.MiddleCenter, new Vector2(0f, -56f), new Vector2(Mathf.Max(effortBarWidth, 300f), 26f));
+        goalText.text = "";
+        goalText.gameObject.SetActive(false);
     }
 
     static Color TierColor(PlayerExertionAudio.Tier tier)
@@ -732,12 +747,32 @@ public class CombatUIController : MonoBehaviour
             kcalText.text = has ? $"est. {tenths / 10f:0.0} kcal" : "est. \u2014 kcal";
             EffortHudRedraws++;
         }
+        UpdateGoalLine(force);
+    }
+
+    // One line, at most once a second, rewritten only when its rounded value changed.
+    void UpdateGoalLine(bool force)
+    {
+        if (goalText == null) return;
+        bool show = goalHudLine && DailyGoal.HasGoal;
+        if (goalText.gameObject.activeSelf != show) { goalText.gameObject.SetActive(show); shownGoalKey = int.MinValue; }
+        if (!show) return;
+        float now = Time.unscaledTime;
+        if (!force && now < nextGoalTime) return;
+        nextGoalTime = now + 1f;
+        int key = DailyGoal.HudKey;
+        if (key == shownGoalKey) return;
+        shownGoalKey = key;
+        goalText.text = DailyGoal.HudLine();
+        EffortHudRedraws++;
     }
 
     // ─────────────────────────── Debug readout ───────────────────────────
 
     void PollDebugToggle()
     {
+        // Development builds: both grips held 3 s (DevDebugGate; the same gesture opens it on the menu) shows / hides the readout.
+        if (DevDebugGate.Poll()) { debugReadout = DevDebugGate.On; shownDebugKey = int.MinValue; }
         bool both = OVRInput.Get(OVRInput.Button.PrimaryThumbstick, OVRInput.Controller.LTouch) &&
                     OVRInput.Get(OVRInput.Button.PrimaryThumbstick, OVRInput.Controller.RTouch);
         if (both && !debugComboHeld)
@@ -757,6 +792,30 @@ public class CombatUIController : MonoBehaviour
                              debugReadoutPosition, new Vector2(420f, 140f));
         debugText.horizontalOverflow = HorizontalWrapMode.Wrap;
         debugText.verticalOverflow = VerticalWrapMode.Overflow;
+        BuildBreathingTestButton(parent);
+    }
+
+    // Laser button under the readout: plays each breathing tier for 5 s (PlayerExertionAudio.HardwareTest), bypassing the effort logic.
+    void BuildBreathingTestButton(Transform parent)
+    {
+        var go = new GameObject("TestBreathingButton", typeof(RectTransform), typeof(Image), typeof(Button));
+        var rt = (RectTransform)go.transform;
+        rt.SetParent(parent, false);
+        rt.anchorMin = rt.anchorMax = ((RectTransform)debugText.transform).anchorMin;
+        rt.pivot = new Vector2(0f, 1f);
+        rt.anchoredPosition = debugReadoutPosition + new Vector2(0f, -150f);
+        rt.sizeDelta = new Vector2(240f, 40f);
+        var img = go.GetComponent<Image>(); img.color = new Color(0.12f, 0.35f, 0.28f, 0.95f);
+        var b = go.GetComponent<Button>(); b.targetGraphic = img;
+        var label = MakeText(rt, "Label", HudFont(), 18, Color.white, TextAnchor.MiddleCenter, Vector2.zero, new Vector2(240f, 40f));
+        label.text = "Test breathing";
+        label.raycastTarget = false;
+        b.onClick.AddListener(() =>
+        {
+            var ex = PlayerExertionAudio.Instance;
+            if (ex != null && !ex.HardwareTestRunning) StartCoroutine(ex.HardwareTest(5f));
+        });
+        debugTestButton = go;
     }
 
     // At most debugReadoutHz, and only when one of the shown (rounded) values changed.
@@ -775,7 +834,8 @@ public class CombatUIController : MonoBehaviour
         int fast = ex != null ? Mathf.RoundToInt(ex.FastVolume * 100f) : -1;
         int tier = ex != null ? (int)ex.CurrentTier : -1;
         int key;
-        unchecked { key = ((((CombatDebugInfo.Version * 397) ^ effort) * 397 ^ heavy) * 397 ^ fast) * 397 ^ tier; }
+        int testKey = ex != null && ex.HardwareTestStatus != null ? ex.HardwareTestStatus.GetHashCode() : 0;
+        unchecked { key = (((((CombatDebugInfo.Version * 397) ^ effort) * 397 ^ heavy) * 397 ^ fast) * 397 ^ tier) * 397 ^ testKey; }
         if (key == shownDebugKey) return;
         shownDebugKey = key;
 
@@ -793,8 +853,11 @@ public class CombatUIController : MonoBehaviour
         if (CombatDebugInfo.LastClashClip != null) sb.Append(" pitch ").Append(CombatDebugInfo.LastClashPitch.ToString("0.00"));
         sb.Append('\n');
         if (ex != null)
+        {
             sb.Append("effort ").Append((effort / 100f).ToString("0.00")).Append(' ').Append(ex.CurrentTier.ToString().ToUpperInvariant())
               .Append("  heavy ").Append((heavy / 100f).ToString("0.00")).Append("  fast ").Append((fast / 100f).ToString("0.00"));
+            if (!string.IsNullOrEmpty(ex.HardwareTestStatus)) sb.Append('\n').Append(ex.HardwareTestStatus);
+        }
         else sb.Append("effort -");
         debugText.text = sb.ToString();
         DebugReadoutRedraws++;
@@ -879,7 +942,14 @@ public class CombatUIController : MonoBehaviour
         Text footer = victory ? EnsurePanelText(panel, ref victoryFooter, "ResultFooter", new Vector2(0f, 0f), new Vector2(1f, 0.07f), 18, TextAnchor.MiddleCenter, new Color(1f, 1f, 1f, 0.8f), true)
                               : EnsurePanelText(panel, ref defeatFooter, "ResultFooter", new Vector2(0f, 0f), new Vector2(1f, 0.07f), 18, TextAnchor.MiddleCenter, new Color(1f, 1f, 1f, 0.8f), true);
         LastResultExtras = sb.ToString();
-        if (extra != null) extra.text = LastResultExtras;
+        goalResultLine = "";
+        goalResultTarget = extra;
+        if (goalHudLine && DailyGoal.HasGoal)
+        {
+            goalResultLine = LocalGoalResultLine();
+            StartCoroutine(GoalResultRoutine(victory ? victoryXPText : defeatXPText));
+        }
+        if (extra != null) extra.text = LastResultExtras + goalResultLine;
         if (footer != null) footer.text = string.IsNullOrEmpty(player) ? ratePrompt : player + "  \u00b7  " + ratePrompt;
 
         // XP count-up on the existing XP line.
@@ -891,8 +961,40 @@ public class CombatUIController : MonoBehaviour
         }
     }
 
+    // The goal as this headset computed it (the fallback when the backend does not answer): never says "+XP", that needs the backend.
+    string LocalGoalResultLine()
+    {
+        int i = DailyGoal.MetricIndex(DailyGoal.Metric);
+        if (i < 0) return "";
+        float live = DailyGoal.Live;
+        string state = live >= DailyGoal.Target ? "reached (waiting for the server)" : Mathf.RoundToInt(DailyGoal.LivePercent) + "%";
+        return "Goal: " + DailyGoal.Format(i, live) + " / " + DailyGoal.Format(i, DailyGoal.Target) + " " + DailyGoal.Units[i] + ", " + state + "\n";
+    }
+
+    // After the result POST has left the queue: one fetch (5 s). "Goal reached! +75 XP" and the bonus in the XP count-up only
+    // when the backend confirms it; otherwise the local percentage stays.
+    IEnumerator GoalResultRoutine(Text xpLabel)
+    {
+        bool ok = false, awarded = false; int bonus = 0;
+        yield return DailyGoal.FetchAfterBattle((o, a, b) => { ok = o; awarded = a; bonus = b; });
+        int i = DailyGoal.MetricIndex(DailyGoal.Metric);
+        if (i < 0 || goalResultTarget == null) yield break;
+        string line;
+        if (!ok) line = LocalGoalResultLine();
+        else if (awarded) line = "<color=#7CFF7C>Goal reached! +" + bonus + " XP</color>\n";
+        else if (DailyGoal.Completed) line = "Goal reached today\n";
+        else line = "Goal: " + DailyGoal.Format(i, DailyGoal.Baseline) + " / " + DailyGoal.Format(i, DailyGoal.Target) + " " + DailyGoal.Units[i] + ", " + Mathf.RoundToInt(DailyGoal.Target > 0f ? Mathf.Min(100f, DailyGoal.Baseline / DailyGoal.Target * 100f) : 0f) + "%\n";
+        goalResultLine = line;
+        goalResultTarget.text = LastResultExtras + goalResultLine;
+        if (awarded && xpLabel != null && XPManager.Instance != null && xpCountUpSeconds > 0.05f)
+        {
+            if (xpCountUp != null) StopCoroutine(xpCountUp);
+            xpCountUp = StartCoroutine(CountUpXP(xpLabel, XPManager.Instance.CurrentXP + bonus, XPManager.Instance.CurrentXP));
+        }
+    }
+
     // Real time, so a slow-motion finale cannot stretch it; the text is rewritten only when the whole number changes.
-    IEnumerator CountUpXP(Text label, int target)
+    IEnumerator CountUpXP(Text label, int target, int from = 0)
     {
         float t = 0f;
         int shown = -1;
@@ -900,7 +1002,7 @@ public class CombatUIController : MonoBehaviour
         {
             t += Time.unscaledDeltaTime;
             float k = Mathf.Clamp01(t / xpCountUpSeconds);
-            int v = Mathf.RoundToInt(target * (1f - (1f - k) * (1f - k))); // ease-out
+            int v = from + Mathf.RoundToInt((target - from) * (1f - (1f - k) * (1f - k))); // ease-out
             if (v != shown) { shown = v; label.text = "XP Earned: " + v; }
             yield return null;
         }

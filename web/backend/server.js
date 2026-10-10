@@ -14,6 +14,8 @@ const analytics = require("./analytics");
 const feedback = require("./feedback");
 const feedbackCore = require("./feedbackCore");
 const progression = require("./progression");
+const goals = require("./goals");
+const goalsStore = require("./goalsStore");
 
 const PORT = Number(process.env.PORT) || 4000;
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
@@ -405,6 +407,7 @@ async function sweepStaleSessions() {
     console.log(`[live] ${session.playerName} ${session.id} finished after ${LIVE_TIMEOUT_MS / 1000}s without events (${session.outcome})`);
     broadcastSession("finished", session, liveState);
     io.emit("session", session);
+    await evaluateGoalAfter(session);
   }
 }
 
@@ -426,7 +429,7 @@ function originAllowed(origin) {
   if (!origin || DEV_ORIGIN.test(origin)) return true;
   return ALLOWED_ORIGINS.some((o) => (typeof o === "string" ? o === origin : o.test(origin)));
 }
-const corsOptions = { origin: (origin, cb) => cb(null, originAllowed(origin)), methods: ["GET", "POST", "PATCH", "DELETE"] };
+const corsOptions = { origin: (origin, cb) => cb(null, originAllowed(origin)), methods: ["GET", "POST", "PATCH", "PUT", "DELETE"] };
 
 const app = express();
 app.set("trust proxy", 1); // Render sits behind one proxy; makes req.ip the client (used by the survey rate limit)
@@ -548,6 +551,43 @@ app.get("/api/players/:name/achievements", route(async (req, res) => {
   res.json(result);
 }));
 
+// Daily goal (one metric, one target, for the player's local day). No login: anyone who knows a name can set that player's goal.
+// PUT validates server side and is rate limited per IP; goal/today is the lightweight read the headset and the web both use.
+const goalLimiter = feedbackCore.createRateLimiter({ max: 30, windowMs: 10 * 60_000 });
+async function broadcastGoal(type, goal, extra = {}) {
+  if (!goal) return;
+  stream.broadcast(type, { playerName: goal.playerName, date: goal.date, metric: goal.metric, target: goal.target, completedAt: goal.completedAt, bonusXp: goal.bonusXp, ...extra }, goal.playerName);
+}
+// After a session finished: evaluate that day's goal once and announce goal_met. Never throws (a goal problem must not break saving).
+async function evaluateGoalAfter(session) {
+  try {
+    const r = await goalsStore.evaluateForSession(session);
+    if (r.completedNow) await broadcastGoal("goal_met", r.goal);
+  } catch (err) {
+    console.error("[goals] evaluation failed:", err.message);
+  }
+}
+app.put("/api/players/:name/goal", route(async (req, res) => {
+  if (!goalLimiter.allow(req.ip)) return res.status(429).json({ ok: false, error: "Too many goal changes from this connection. Try again in a few minutes." });
+  const out = await goalsStore.setGoal(String(req.params.name), req.body, { tz: req.query.tz });
+  if (out.status >= 400) return res.status(out.status).json(out.body);
+  await broadcastGoal("goal_set", out.goal);
+  if (out.completedNow) await broadcastGoal("goal_met", out.goal);
+  res.status(out.status).json(out.body);
+}));
+
+app.get("/api/players/:name/goal/today", route(async (req, res) => {
+  const n = goals.validateName(req.params.name);
+  if (!n.ok) return res.status(400).json({ ok: false, error: n.error });
+  res.json(await goalsStore.todayState(n.value, { tz: req.query.tz }));
+}));
+
+app.get("/api/players/:name/goals", route(async (req, res) => {
+  const n = goals.validateName(req.params.name);
+  if (!n.ok) return res.status(400).json({ ok: false, error: n.error });
+  res.json(await goalsStore.history(n.value, req.query.days, { tz: req.query.tz }));
+}));
+
 // Plain-language insights (insights.js): only sentences with enough data behind them; the rest listed with their minimum.
 app.get("/api/players/:name/insights", route(async (req, res) => {
   const result = await analytics.playerInsights(String(req.params.name));
@@ -592,6 +632,12 @@ app.patch("/api/players/:name", route(async (req, res) => {
     }
     const sessions = await client.query("UPDATE sessions SET player_name = $2 WHERE player_name = $1", [oldName, newName]);
     const events = await client.query("UPDATE events SET player_name = $2 WHERE player_name = $1", [oldName, newName]);
+    // Daily goals follow the name (a day that already has a goal under the new name keeps that one).
+    await client.query(
+      `UPDATE daily_goals g SET player_name = $2 WHERE g.player_name = $1
+       AND NOT EXISTS (SELECT 1 FROM daily_goals x WHERE x.player_name = $2 AND x.goal_date = g.goal_date)`,
+      [oldName, newName]
+    );
     return { sessions: sessions.rowCount, events: events.rowCount };
   });
   if (result.error) return res.status(result.status).json({ ok: false, error: result.error });
@@ -675,7 +721,7 @@ app.get("/api/analytics", route(async (req, res) => {
 app.get("/api/export/:kind.csv", route(async (req, res) => {
   const { player, level, from, to, type } = req.query;
   const filters = { player, level, from, to, type };
-  const make = { sessions: analytics.exportSessionsCsv, events: analytics.exportEventsCsv }[req.params.kind];
+  const make = { sessions: analytics.exportSessionsCsv, events: analytics.exportEventsCsv, goals: goalsStore.exportCsv }[req.params.kind];
   if (!make) return res.status(404).json({ ok: false, error: "Unknown export" });
   const { csv, count } = await make(filters);
   const stamp = new Date().toISOString().slice(0, 10);
@@ -744,6 +790,7 @@ app.post("/api/sessions", route(async (req, res) => {
   if (session.status === "live") broadcastSession(wasLive ? "updated" : "started", session, liveState);
   else broadcastSession(wasLive || !before ? "finished" : "updated", session, liveState);
   if (event) stream.broadcast("event_created", event, event.playerName);
+  if (session.status === "finished") await evaluateGoalAfter(session);
 
   console.log(`[session] ${session.playerName} ${session.level} ${session.status}/${session.outcome} score=${session.score}`);
   res.status(updated ? 200 : 201).json({ ok: true, updated, session, stats });
@@ -770,6 +817,7 @@ app.post("/api/events", route(async (req, res) => {
     broadcastSession(c.kind, c.session, c.liveState);
     if (c.kind === "finished") io.emit("session", c.session);
   }
+  for (const c of changes) if (c.kind === "finished") await evaluateGoalAfter(c.session);
 
   if (isBatch) return res.status(201).json({ ok: true, count: events.length, events });
   res.status(201).json({ ok: true, event: events[0] });
@@ -862,6 +910,7 @@ async function prepareDatabase() {
   await query(fs.readFileSync(SCHEMA_SQL, "utf8"));
   await reloadLiveActivity();
   console.log(`  Database: Postgres connected, schema up to date (${liveActivity.size} live session(s))`);
+  goalsStore.refreshPresets(goals.safeZone(goals.DEFAULT_TZ)).catch(() => {});   // warm the goal preset cache (silent failure)
 }
 
 // Migrate first so no request can see the old schema; if Postgres is down the
@@ -882,6 +931,7 @@ ready.then(() => server.listen(PORT, "0.0.0.0", () => {
   console.log("  GET    /api/players/:name/achievements | /api/analytics/feedback");
   console.log("  POST   /api/sessions | /api/events (single or batch) | /api/sessions/:id/feedback");
   console.log("  PATCH  /api/players/:name  { newName }");
+  console.log("  PUT    /api/players/:name/goal  { metric, target } | GET /api/players/:name/goal/today | /api/players/:name/goals?days=30");
   console.log("  DELETE /api/sessions | /api/sessions/:id");
   if (fs.existsSync(FRONTEND_DIST)) console.log(`  Dashboard: http://localhost:${PORT}/`);
 }));

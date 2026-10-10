@@ -73,6 +73,7 @@ public static class MenuSceneBuilder
         BuildEnvironment();
         BuildCanvas();
         BuildSystems();
+        BuildBreathingTest(rig);
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         return $"MainMenu.unity built from {SourcePath}: rig kept (laser, EventSystem, OVRRaycaster), battle parts stripped, lights {Object.FindObjectsByType<Light>(FindObjectsInactive.Include).Length}, AudioListeners {Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Include).Length}.";
@@ -174,6 +175,23 @@ public static class MenuSceneBuilder
         var systems = new GameObject("MenuSystems");
         var mc = systems.AddComponent<MainMenuController>();
         mc.levels = cards; mc.exitButton = exit; mc.confirm = confirm; mc.content = group;
+    }
+
+    /// <summary>Breathing hardware test (Development builds, hidden until both grips are held 3 s): the same PlayerExertionAudio the
+    /// levels use, on the menu rig, plus a small laser panel with a "Test breathing" button and a readout.</summary>
+    static void BuildBreathingTest(OVRCameraRig rig)
+    {
+        var ex = rig.gameObject.AddComponent<PlayerExertionAudio>();
+        BreathingSetup.ApplyTo(ex);
+        ex.selfTestInDevBuild = false;
+        var canvas = GameObject.Find("MenuCanvas").transform;
+        var panel = MenuUi.Panel(canvas, "BreathingTestPanel", new Vector2(345f, 285f), new Vector2(290f, 150f), new Color(0.05f, 0.1f, 0.08f, 0.97f));
+        MenuUi.Label(panel.transform, "Title", "DEBUG: breathing", 22, new Color(0.75f, 1f, 0.8f), TextAnchor.MiddleCenter, new Vector2(0f, 56f), new Vector2(270f, 30f), FontStyle.Bold);
+        var button = MenuUi.MakeButton(panel.transform, "TestBreathingButton", "Test breathing", 26, new Color(0.12f, 0.4f, 0.3f, 0.98f), new Vector2(0f, 14f), new Vector2(250f, 52f));
+        var readout = MenuUi.Label(panel.transform, "Readout", "", 18, new Color(0.85f, 0.95f, 0.88f), TextAnchor.UpperCenter, new Vector2(0f, -42f), new Vector2(270f, 66f));
+        var systems = GameObject.Find("MenuSystems");
+        var bt = systems.AddComponent<BreathingTestPanel>();
+        bt.panel = panel.gameObject; bt.testButton = button; bt.readout = readout; bt.secondsPerTier = 5f;
     }
 
     static void BuildSystems()
