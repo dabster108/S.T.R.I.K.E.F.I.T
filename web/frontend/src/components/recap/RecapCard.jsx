@@ -51,6 +51,17 @@ export function versusAverage(series, sessionId) {
   return rows.length ? rows : null;
 }
 
+// "Daily goal: 42 / 100 kcal (estimated), 42%" for the local day (Asia/Kathmandu, the API's default) the session started on.
+const GOAL_UNIT = { kcal: "kcal (estimated)", fullSwings: "full-power swings", activeMinutes: "active minutes", xp: "XP" };
+export function goalRecapLine(days, startedAt) {
+  if (!days?.length || !startedAt) return null;
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(startedAt));
+  const d = days.find((x) => x.date === day);
+  if (!d || !d.goal || !d.progress) return null;
+  const v = d.goal.metric === "kcal" ? Math.round(d.progress.value * 10) / 10 : Math.round(d.progress.value);
+  return { met: d.met, text: d.met ? `Daily goal reached: ${v} / ${d.goal.target} ${GOAL_UNIT[d.goal.metric]}` : `Daily goal: ${v} / ${d.goal.target} ${GOAL_UNIT[d.goal.metric]} (${d.progress.percent}%)` };
+}
+
 const Tile = ({ label, value, sub }) => (
   <div style={{ background: "var(--surface-muted)", border: "2px solid var(--border)", borderRadius: 28, padding: "18px 30px" }}>
     <div style={{ fontSize: 22, fontWeight: 600, color: "var(--muted)" }}>{label}</div>
@@ -60,7 +71,7 @@ const Tile = ({ label, value, sub }) => (
 );
 
 // Fixed-size card. No transforms on this element: the preview scales a parent, so exporting this node is pixel-exact.
-export const RecapCard = forwardRef(function RecapCard({ session, kcal, peakSpeed, bestCombo, badges = [], versus }, ref) {
+export const RecapCard = forwardRef(function RecapCard({ session, kcal, peakSpeed, bestCombo, badges = [], versus, goalLine = null }, ref) {
   const tiles = [
     isNum(peakSpeed) && { label: "Peak swing speed", value: peakSpeed.toFixed(1), sub: "metres per second" },
     isNum(bestCombo) && { label: "Best combo", value: formatNumber(bestCombo), sub: "hits in a row" },
@@ -153,6 +164,12 @@ export const RecapCard = forwardRef(function RecapCard({ session, kcal, peakSpee
         </div>
       )}
 
+      {goalLine && (
+        <div style={{ marginTop: 24, fontSize: 28, fontWeight: 700, color: goalLine.met ? "var(--good-ink)" : "var(--ink-secondary)" }}>
+          {goalLine.text}
+        </div>
+      )}
+
       <div style={{ marginTop: "auto", fontSize: 22, fontWeight: 500, color: "var(--muted)", lineHeight: 1.4, paddingTop: 20 }}>
         Calories are estimated from fight length and swing strength with an assumed body mass, not measured. · strikefit.vercel.app
       </div>
@@ -179,12 +196,14 @@ export default function RecapPanel({ data }) {
   const [note, setNote] = useState(null);
   const player = useApi(() => api.player(s.playerName), [s.playerName]);
   const ach = useApi(() => api.playerAchievements(s.playerName), [s.playerName]);
+  const goals = useApi(() => api.playerGoals(s.playerName, 30), [s.playerName]);
 
   const { peakSpeed, bestCombo } = useMemo(() => sessionPeaks(data.events), [data.events]);
   const versus = useMemo(() => versusAverage(player.data?.series, s.id), [player.data, s.id]);
   const badges = (ach.data?.badges || []).filter((b) => b.unlocked && b.sessionId === s.id);
+  const goalLine = useMemo(() => goalRecapLine(goals.data?.days, s.startedAt), [goals.data, s.startedAt]);
   const scale = Math.min(1, width / CARD_W);
-  const ready = !player.loading && !ach.loading; // export only once the badges and averages have loaded (or failed)
+  const ready = !player.loading && !ach.loading && !goals.loading; // export only once the badges and averages have loaded (or failed)
 
   useEffect(() => setNote(null), [s.id]);
 
@@ -218,7 +237,7 @@ export default function RecapPanel({ data }) {
       <div ref={ref} className="mx-auto w-full max-w-[540px]">
         <div className="overflow-hidden rounded-2xl border border-[var(--border)] shadow-[var(--shadow-lift)]" style={{ height: CARD_H * scale }}>
           <div style={{ width: CARD_W, height: CARD_H, transform: `scale(${scale})`, transformOrigin: "top left" }}>
-            <RecapCard ref={setNode} session={s} kcal={data.fitness?.estimatedCalories} peakSpeed={peakSpeed} bestCombo={bestCombo} badges={badges} versus={versus} />
+            <RecapCard ref={setNode} session={s} kcal={data.fitness?.estimatedCalories} peakSpeed={peakSpeed} bestCombo={bestCombo} badges={badges} versus={versus} goalLine={goalLine} />
           </div>
         </div>
       </div>

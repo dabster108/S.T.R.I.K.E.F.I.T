@@ -5,6 +5,7 @@ import { api } from "../lib/api.js";
 import { levelName } from "../lib/game.js";
 import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useLiveIds, useLiveMessages } from "../live/LiveProvider.jsx";
+import { GoalsMetToday } from "../components/fitness/DailyGoal.jsx";
 import { LiveArenaCard } from "../components/live/LiveFight.jsx";
 import { BarChart } from "../components/charts/Charts.jsx";
 import { LevelBadge } from "../components/ui/Badge.jsx";
@@ -287,6 +288,10 @@ export default function DashboardView({ sessions, allSessions, events, range, on
           }
           hint={prev ? null : stats.sessions ? `${formatDuration(stats.avgDurationSec)} per battle` : "No battles yet"}
         />
+      </div>
+
+      <div className="mt-4">
+        <GoalsMetToday />
       </div>
 
       {/* 02: site-wide calorie insights */}

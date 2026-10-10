@@ -3,13 +3,18 @@
 //          1. the arena's torches dim (slow flicker, under 2 Hz, no new lights) and a low violet mist gathers where it will land;
 //          2. two violet eyes glow up in the dark above that spot (the body's own emission map, tinted) and a low growl plays;
 //          3. it drops (the Mutant Jump clip from its apex + an extra eased fall of the root) and lands at the stand-off
-//             distance: dust and a ground-ring burst thrown away from the player, a heavy impact, a light pulse on both hands;
+//             distance: dust and a ground-ring burst thrown away from the player, a heavy impact, a rumble on both hands, a short
+//             positional tremor of the play space (Off / Light / Strong), a little dust falling from above and one brief dip of the
+//             torches;
 //          4. it crouches and rises (the same clip), then roars with a 2 s violet glow-up: body emission ramps, the axe fire
 //             ignites from the hand up the haft, an eye flare at the end;
 //          5. the torches come back up; only then does the fight start.
 //          Until Complete the monster cannot attack or be damaged (colliders off, MonsterAI off, HitDetection's entrance gate).
 //          A Retry (GameStateManager.ReloadCurrentLevel on this scene) plays a 1.5 s version: drop, land, quick glow, fight.
-//          VR comfort: the player's camera is never moved, rotated or faded; no screen shake.
+//          VR comfort: the camera is never rotated or faded. The only motion is the landing tremor: positional only (no roll,
+//          pitch or yaw), 6-8 Hz, decaying over 0.5 s, 1 cm Light / 2.5 cm Strong, applied to the tracking space while combat is
+//          still locked (so the controllers' own movement cannot read as a swing); the world-space HUD canvas is moved with it so
+//          the HUD stays steady in view.
 // Dependencies: MonsterEntrance (same class), MonsterAnimator, CombatFeedback (haptics, optional), GameStateManager (retry flag)
 // Attach to: monster root (same MonsterEntrance component, style = DropFromAbove)
 
@@ -45,7 +50,7 @@ public partial class MonsterEntrance
     public float minLandDistance = 1.5f;
 
     [Header("Drop from above: timeline (s)")]
-    public float torchDimSeconds = 1.0f;
+    public float torchDimSeconds = 1.2f;
     [Range(0f, 1f)] public float torchDimTo = 0.3f;
     [Tooltip("Torch flicker while dimmed (Hz). Kept under 2 Hz.")]
     [Range(0f, 2f)] public float torchFlickerHz = 1.2f;
@@ -88,8 +93,31 @@ public partial class MonsterEntrance
     [Range(0f, 1f)] public float landVolume = 0.7f;
     public AudioClip entranceRoarClip;
     [Range(0f, 1f)] public float entranceRoarVolume = 0.7f;
-    [Tooltip("Pulse on both hands at the landing (amplitude, seconds).")]
-    public Vector2 landHaptic = new Vector2(0.35f, 0.12f);
+    [Tooltip("Impact pulse on both hands at the landing (amplitude, seconds).")]
+    public Vector2 landHaptic = new Vector2(0.5f, 0.12f);
+    [Tooltip("Low rumble that follows the impact pulse, matching the tremor (amplitude, seconds).")]
+    public Vector2 landRumbleTail = new Vector2(0.22f, 0.4f);
+    [Range(0f, 1f)] [Tooltip("OVR vibration frequency of the landing rumble (low = deeper).")]
+    public float rumbleFrequency = 0.25f;
+
+    public enum TremorStrength { Off = 0, Light = 1, Strong = 2 }
+    [Header("Drop from above: landing tremor (positional only, tracking space, while combat is locked)")]
+    [Tooltip("Off / Light (peak 1 cm) / Strong (peak 2.5 cm). Positional only, never rotation.")]
+    public TremorStrength tremor = TremorStrength.Light;
+    public float tremorLightMeters = 0.010f;
+    public float tremorStrongMeters = 0.025f;
+    [Range(6f, 8f)] public float tremorHz = 7f;
+    public float tremorSeconds = 0.5f;
+    [Tooltip("Move the world-space HUD canvas with the tracking space so it does not appear to shake.")]
+    public bool tremorKeepsHudSteady = true;
+
+    [Header("Drop from above: landing dust from above and one torch dip")]
+    [Range(0, 20)] public int fallingDust = 12;
+    [Tooltip("One smooth dip of the torches at the landing (a single event, well under 2 per second).")]
+    public float torchDipSeconds = 0.5f;
+    [Range(0f, 0.8f)] public float torchDipDepth = 0.45f;
+    [Tooltip("Dim the arena's flame particles together with the torch lights.")]
+    public bool dimFlames = true;
 
     // ── runtime (verification) ──
     public bool ShortVersion { get; private set; }
@@ -99,10 +127,21 @@ public partial class MonsterEntrance
     public static readonly string[] StepNames = { "torches dimmed", "eyes lit", "drop", "land", "risen", "roar + glow-up", "torches back", "fight starts" };
     public int LiveFxParticles => fx != null ? fx.particleCount : 0;
 
+    /// <summary>Largest tremor offset (m) applied to the tracking space this entrance (verification).</summary>
+    public float TremorPeakApplied { get; private set; }
+    public bool TremorActive { get; private set; }
+    public Vector3 TremorOffset { get; private set; }
+
     private ParticleSystem fx;
     private ParticleSystem.EmitParams emit;
     private Light[] torches;
     private float[] torchBase;
+    private ParticleSystemRenderer[] flames;
+    private Color[] flameBase;
+    private MaterialPropertyBlock flameMpb;
+    private float dipStart = -99f;
+    private Transform tremorSpace; private Vector3 tremorSpaceBase;
+    private Transform[] tremorHud; private Vector3[] tremorHudBase;
     private MaterialPropertyBlock mpb;
     private Color baseEmission;
     private static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
@@ -193,7 +232,9 @@ public partial class MonsterEntrance
         EmitLanding(ground, head);
         if (landClip != null && audioSource != null) { audioSource.PlayOneShot(landClip, landVolume); SfxTrace.Note(this, landClip, "entrance: landing"); }
         var fb = FindAnyObjectByType<CombatFeedback>();
-        if (fb != null) fb.PulseBoth(landHaptic.x, landHaptic.y, "entrance landing");
+        if (fb != null) fb.PulseBoth(landHaptic.x, landHaptic.y, landRumbleTail.x, landRumbleTail.y, rumbleFrequency, "entrance landing rumble");
+        if (!ShortVersion) dipStart = Time.time;
+        if (rig != null && tremor != TremorStrength.Off) StartCoroutine(TremorRoutine(rig));
 
         if (ShortVersion)
         {
@@ -273,6 +314,57 @@ public partial class MonsterEntrance
         if (fx != null) Destroy(fx.gameObject, 3f);   // the last dust settles, then the system goes
     }
 
+    // ───────────────────────── landing tremor ─────────────────────────
+    float TremorPeakMeters => tremor == TremorStrength.Strong ? Mathf.Min(0.03f, tremorStrongMeters) : (tremor == TremorStrength.Light ? Mathf.Min(0.03f, tremorLightMeters) : 0f);
+
+    /// <summary>Positional shake of the tracking space (head, hands and the weapons ride with it), 6-8 Hz, squared decay. Runs only
+    /// while the entrance is in progress (combat locked) and always ends exactly where it started.</summary>
+    IEnumerator TremorRoutine(OVRCameraRig rig)
+    {
+        float peak = TremorPeakMeters;
+        if (peak <= 0f || rig == null || rig.trackingSpace == null || tremorSeconds <= 0f) yield break;
+        tremorSpace = rig.trackingSpace; tremorSpaceBase = tremorSpace.position;
+        tremorHud = null; tremorHudBase = null;
+        if (tremorKeepsHudSteady)
+        {
+            // Once, at the landing: world-space HUD canvases that are not part of the rig stay put in view by moving with it.
+            int n = 0;
+            var canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Exclude);
+            foreach (var c in canvases) if (c.isRootCanvas && c.renderMode == RenderMode.WorldSpace && !c.transform.IsChildOf(rig.transform)) n++;
+            tremorHud = new Transform[n]; tremorHudBase = new Vector3[n]; n = 0;
+            foreach (var c in canvases)
+                if (c.isRootCanvas && c.renderMode == RenderMode.WorldSpace && !c.transform.IsChildOf(rig.transform)) { tremorHud[n] = c.transform; tremorHudBase[n] = c.transform.position; n++; }
+        }
+        TremorActive = true; TremorPeakApplied = 0f;
+        float t = 0f, w = 2f * Mathf.PI * tremorHz;
+        while (t < tremorSeconds && inProgress)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.Clamp01(1f - t / tremorSeconds);
+            float env = peak * k * k;
+            // mostly vertical, a little sideways (a different phase), never rotation
+            Vector3 off = Vector3.up * (env * Mathf.Sin(w * t)) + tremorSpace.right * (env * 0.3f * Mathf.Sin(w * 0.87f * t + 1.1f));
+            ApplyTremor(off);
+            yield return null;
+        }
+        RestoreTremor();
+    }
+
+    void ApplyTremor(Vector3 off)
+    {
+        TremorOffset = off;
+        TremorPeakApplied = Mathf.Max(TremorPeakApplied, off.magnitude);
+        if (tremorSpace != null) tremorSpace.position = tremorSpaceBase + off;
+        if (tremorHud != null) for (int i = 0; i < tremorHud.Length; i++) if (tremorHud[i] != null) tremorHud[i].position = tremorHudBase[i] + off;
+    }
+
+    void RestoreTremor()
+    {
+        if (tremorSpace != null) tremorSpace.position = tremorSpaceBase;
+        if (tremorHud != null) for (int i = 0; i < tremorHud.Length; i++) if (tremorHud[i] != null) tremorHud[i].position = tremorHudBase[i];
+        TremorOffset = Vector3.zero; TremorActive = false;
+    }
+
     // ───────────────────────── torches ─────────────────────────
     void FindTorches()
     {
@@ -284,24 +376,67 @@ public partial class MonsterEntrance
         n = 0;
         foreach (var l in all)
             if (l.enabled && l.intensity > 0f && (l.type == LightType.Point || l.type == LightType.Spot)) { torches[n] = l; torchBase[n] = l.intensity; n++; }
+        // The arena's flame particles (not the monster's own fire) dim with the lights: their material's base colour x level.
+        flames = null;
+        if (dimFlames)
+        {
+            var prs = FindObjectsByType<ParticleSystemRenderer>(FindObjectsInactive.Exclude);
+            int f = 0;
+            foreach (var r in prs) if (IsArenaFlame(r)) f++;
+            flames = new ParticleSystemRenderer[f]; flameBase = new Color[f]; f = 0;
+            foreach (var r in prs)
+                if (IsArenaFlame(r)) { flames[f] = r; var m = r.sharedMaterial; flameBase[f] = m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor") : Color.white; f++; }
+            flameMpb = new MaterialPropertyBlock();
+        }
+    }
+
+    bool IsArenaFlame(ParticleSystemRenderer r)
+    {
+        if (r == null || r.sharedMaterial == null || r.transform.IsChildOf(transform)) return false;
+        return r.sharedMaterial.name.IndexOf("fire", System.StringComparison.OrdinalIgnoreCase) >= 0 && r.sharedMaterial.HasProperty("_BaseColor");
+    }
+
+    /// <summary>1 outside the landing dip; one smooth dip (a single event) of torchDipDepth over torchDipSeconds after the landing.</summary>
+    float DipFactor()
+    {
+        float k = (Time.time - dipStart) / Mathf.Max(0.05f, torchDipSeconds);
+        if (k < 0f || k > 1f) return 1f;
+        float s = Mathf.Sin(k * Mathf.PI);
+        return 1f - torchDipDepth * s * s;
     }
 
     void SetTorches(float level, bool flicker)
     {
         if (torches == null) return;
+        float dip = DipFactor();
         for (int i = 0; i < torches.Length; i++)
         {
             if (torches[i] == null) continue;
             // Slow flicker (under 2 Hz), each torch out of phase.
             float f = flicker && torchFlickerHz > 0f ? 1f + torchFlickerDepth * Mathf.Sin((Time.time * torchFlickerHz + i * 0.37f) * 2f * Mathf.PI) : 1f;
-            torches[i].intensity = torchBase[i] * level * f;
+            torches[i].intensity = torchBase[i] * level * f * dip;
+        }
+        if (flames != null)
+        {
+            bool reset = level >= 0.999f && !flicker && dip >= 0.999f;
+            for (int i = 0; i < flames.Length; i++)
+            {
+                if (flames[i] == null) continue;
+                if (reset) { flames[i].SetPropertyBlock(null); continue; }
+                float f = flicker && torchFlickerHz > 0f ? 1f + torchFlickerDepth * Mathf.Sin((Time.time * torchFlickerHz + i * 0.37f) * 2f * Mathf.PI) : 1f;
+                float lv = Mathf.Clamp01(level * f * dip);
+                flames[i].GetPropertyBlock(flameMpb);
+                flameMpb.SetColor("_BaseColor", new Color(flameBase[i].r * lv, flameBase[i].g * lv, flameBase[i].b * lv, flameBase[i].a));
+                flames[i].SetPropertyBlock(flameMpb);
+            }
         }
     }
 
     void OnDisable()
     {
         // Never leave the arena dark (scene unload or a destroyed monster mid-entrance).
-        if (style == EntranceStyle.DropFromAbove && !complete) SetTorches(1f, false);
+        if (style == EntranceStyle.DropFromAbove && !complete) { dipStart = -99f; SetTorches(1f, false); }
+        if (style == EntranceStyle.DropFromAbove) RestoreTremor();
     }
 
     // ───────────────────────── emission ─────────────────────────
@@ -330,7 +465,7 @@ public partial class MonsterEntrance
         var main = fx.main;
         main.playOnAwake = false; main.loop = false; main.duration = 10f;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.maxParticles = mistParticles + dustParticles + ringParticles + 8;
+        main.maxParticles = mistParticles + dustParticles + ringParticles + fallingDust + 8;
         main.startSpeed = 0f; main.gravityModifier = 0f;
         var em = fx.emission; em.enabled = false;
         var shape = fx.shape; shape.enabled = false;
@@ -378,6 +513,19 @@ public partial class MonsterEntrance
             emit.velocity = dir * Random.Range(0.6f, 1.4f) + Vector3.up * Random.Range(0.3f, 0.9f);
             emit.startLifetime = Random.Range(0.8f, 1.3f);
             emit.startSize = Random.Range(0.25f, 0.5f);
+            emit.startColor = dustColor;
+            emit.rotation = Random.Range(0f, 360f);
+            fx.Emit(emit, 1);
+        }
+        // Dust shaken loose from above: a few small motes drifting down around the player (not in the face: 0.7-1.5 m out).
+        for (int i = 0; i < fallingDust; i++)
+        {
+            Vector2 c = Random.insideUnitCircle.normalized * Random.Range(0.7f, 1.5f);
+            Vector3 centre = head != null ? head.position : ground + Vector3.up * 1.6f;
+            emit.position = centre + new Vector3(c.x, Random.Range(0.1f, 1.4f), c.y);
+            emit.velocity = new Vector3(Random.Range(-0.05f, 0.05f), -Random.Range(0.35f, 0.7f), Random.Range(-0.05f, 0.05f));
+            emit.startLifetime = Random.Range(1.1f, 1.7f);
+            emit.startSize = Random.Range(0.03f, 0.06f);
             emit.startColor = dustColor;
             emit.rotation = Random.Range(0f, 360f);
             fx.Emit(emit, 1);

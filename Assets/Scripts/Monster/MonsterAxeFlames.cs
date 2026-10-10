@@ -9,6 +9,9 @@
 //          orange). Particle life shortens with blade speed, so a fast swing leaves a short flicker, never a long
 //          streak. When an attack lands on the player (MonsterController
 //          .OnMonsterAttackDamage, the same hit event the hit sounds come from) the axe nearest the player bursts sparks.
+//          Charge flare: from the start of every wind-up both axes flare up (rate x size) toward the hit frame, by tier
+//          (standard < combo < heavy < must-dodge), then fall off. Ember trail: a blade faster than emberMinSpeed sheds a few
+//          slow embers per frame, so a fast swing leaves a short glowing trail in the air.
 // Dependencies: MonsterAI, MonsterController, MonsterAxeThrow (optional), MonsterEntrance (optional)
 // Attach to: monster root (Level 3 Twin-Axe Brute). flames[i] / sparks[i]: children of axe i's blade.
 
@@ -59,10 +62,33 @@ public class MonsterAxeFlames : MonoBehaviour
     [Header("Sparks on a landed hit")]
     public int sparkBurst = 14;
 
+    [Header("Charge flare (both axes, per attack tier)")]
+    public bool chargeFlare = true;
+    [Tooltip("Flame rate multiplier reached on the hit frame of a wind-up, by tier.")]
+    public float flareStandard = 1.5f, flareCombo = 1.8f, flareHeavy = 2.6f, flareMustDodge = 3.0f;
+    [Tooltip("Share of the multiplier that also applies to the flame size.")]
+    [Range(0f, 1f)] public float flareSizeShare = 0.5f;
+    [Tooltip("Seconds the flare takes to die down after the hit frame.")]
+    public float flareFallSeconds = 0.3f;
+
+    [Header("Ember trail on fast swings")]
+    public bool emberTrail = true;
+    [Tooltip("Blade speed (m/s) at which embers start / are at full rate.")]
+    public float emberMinSpeed = 6f, emberFullSpeed = 12f;
+    [Tooltip("Embers per second per axe at full speed (alive ~ rate x lifetime; the spark system holds 40).")]
+    public float emberRate = 55f;
+    public float emberLifetime = 0.45f;
+    public float emberSize = 0.045f;
+
     public float CurrentRate(int i) => cur[i].rate;
     public float CurrentSize(int i) => cur[i].size;
     public string CurrentLevelName(int i) => levelName[i];
     public int SparkBursts { get; private set; }
+    public int EmbersEmitted { get; private set; }
+    public float FlareLevel { get; private set; }
+    public float LastFlareMultiplier { get; private set; }
+    public string LastFlareTier { get; private set; } = "-";
+    public int Flares { get; private set; }
     public float EnrageBlend { get; private set; }
     public float BladeSpeed(int i) => bladeSpeed[i];
     public int AliveCount(int i) => flames[i] != null ? flames[i].particleCount : 0;
@@ -80,6 +106,8 @@ public class MonsterAxeFlames : MonoBehaviour
     private readonly Vector3[] lastPos = new Vector3[2];
     private Gradient calmGradient, blendGradient;
     private float appliedBlend = -1f;
+    private float flareStart = -1f, flareEnd = -1f, flareMul = 1f;
+    private readonly float[] emberAcc = new float[2];
 
     void Awake()
     {
@@ -92,8 +120,31 @@ public class MonsterAxeFlames : MonoBehaviour
         if (flames[0] != null) calmGradient = flames[0].colorOverLifetime.color.gradient;
     }
 
-    void OnEnable() { if (controller != null) controller.OnMonsterAttackDamage += HandleHitLanded; }
-    void OnDisable() { if (controller != null) controller.OnMonsterAttackDamage -= HandleHitLanded; }
+    void OnEnable()
+    {
+        if (controller != null) controller.OnMonsterAttackDamage += HandleHitLanded;
+        MonsterAI.AttackStarted += HandleAttackStarted;
+    }
+
+    void OnDisable()
+    {
+        if (controller != null) controller.OnMonsterAttackDamage -= HandleHitLanded;
+        MonsterAI.AttackStarted -= HandleAttackStarted;
+    }
+
+    void HandleAttackStarted(MonsterAI source, string attackName, string tier)
+    {
+        if (source != ai || ai.CurrentAttack == null || !chargeFlare) return;
+        var a = ai.CurrentAttack;
+        float mul; string name;
+        if (a.unblockable) { mul = flareMustDodge; name = "must-dodge"; }
+        else if (a.category == MonsterAI.AttackCategory.Heavy || a.category == MonsterAI.AttackCategory.Special || a.category == MonsterAI.AttackCategory.IdleSlam) { mul = flareHeavy; name = "heavy"; }
+        else if (a.category == MonsterAI.AttackCategory.Combo) { mul = flareCombo; name = "combo"; }
+        else { mul = flareStandard; name = "standard"; }
+        float windUp = a.windUp / Mathf.Max(0.25f, ai.tempoScale);
+        flareStart = Time.time; flareEnd = Time.time + Mathf.Max(0.1f, windUp); flareMul = mul;
+        LastFlareMultiplier = mul; LastFlareTier = name; Flares++;
+    }
 
     void HandleHitLanded(float damage)
     {
@@ -136,6 +187,16 @@ public class MonsterAxeFlames : MonoBehaviour
             EnrageBlend = Mathf.MoveTowards(EnrageBlend, enraged ? 1f : 0f, Time.deltaTime / Mathf.Max(0.05f, enrageBlendSeconds));
             float rateScale = Mathf.Lerp(1f, enragedRateScale, EnrageBlend);
             float sizeScale = Mathf.Lerp(1f, enragedSizeScale, EnrageBlend);
+            // charge flare: ramps to the hit frame, falls off after it (both axes)
+            float fl = 0f;
+            if (flareStart >= 0f)
+            {
+                if (Time.time <= flareEnd) fl = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(flareStart, flareEnd, Time.time));
+                else { fl = 1f - Mathf.Clamp01((Time.time - flareEnd) / Mathf.Max(0.05f, flareFallSeconds)); if (fl <= 0f) flareStart = -1f; }
+            }
+            FlareLevel = fl;
+            rateScale *= 1f + (flareMul - 1f) * fl;
+            sizeScale *= 1f + (flareMul - 1f) * flareSizeShare * fl;
             ApplyColour();
             float k = 1f - Mathf.Exp(-blendSpeed * Time.deltaTime);
             float dt = Mathf.Max(1e-4f, Time.deltaTime);
@@ -146,6 +207,27 @@ public class MonsterAxeFlames : MonoBehaviour
                 bladeSpeed[i] = (p - lastPos[i]).magnitude / dt;
                 lastPos[i] = p;
                 float lifeScale = Mathf.Lerp(1f, fastSwingLifeScale, Mathf.InverseLerp(swingSpeedMin, swingSpeedMax, bladeSpeed[i]));
+                if (emberTrail && sparks[i] != null)
+                {
+                    float e = Mathf.InverseLerp(emberMinSpeed, emberFullSpeed, bladeSpeed[i]);
+                    if (e > 0f)
+                    {
+                        emberAcc[i] += emberRate * e * dt;
+                        int n = (int)emberAcc[i];
+                        if (n > 0)
+                        {
+                            emberAcc[i] -= n;
+                            var ep = new ParticleSystem.EmitParams();
+                            for (int j = 0; j < n; j++)
+                            {
+                                ep.velocity = Random.insideUnitSphere * 0.35f; ep.startLifetime = emberLifetime * Random.Range(0.8f, 1.1f); ep.startSize = emberSize * Random.Range(0.7f, 1.2f);
+                                sparks[i].Emit(ep, 1);
+                            }
+                            EmbersEmitted += n;
+                        }
+                    }
+                    else emberAcc[i] = 0f;
+                }
                 Level target; string name;
                 if (thrower != null && thrower.InFlight(i)) { target = heavy; name = "heavy (thrown)"; }
                 else if (a == null) { target = idle; name = "idle"; }

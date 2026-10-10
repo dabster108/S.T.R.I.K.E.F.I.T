@@ -142,7 +142,7 @@ public static class Level2EntranceBuilder
             e.entranceRoarTrigger = "EntranceRoar"; e.entranceRoarStateClip = "L3_Roar";
             e.landAtDistance = 1.85f;   // Level 2's stand-off (LevelManager.monsterAttackRangeOverride)
             e.minLandDistance = 1.5f;
-            e.torchDimSeconds = 1.0f; e.torchDimTo = 0.3f; e.torchFlickerHz = 1.2f; e.torchFlickerDepth = 0.12f;
+            e.torchDimSeconds = 1.2f; e.torchDimTo = 0.3f; e.torchFlickerHz = 1.2f; e.torchFlickerDepth = 0.12f;
             e.eyesSeconds = 1.6f; e.glowUpSeconds = 2.0f; e.torchRestoreSeconds = 1.0f; e.retrySeconds = 1.5f; e.alwaysFull = false;
             SkinnedMeshRenderer body = null;
             foreach (var r in root.GetComponentsInChildren<SkinnedMeshRenderer>(true)) if (r.name == "Vampire") body = r;
@@ -161,7 +161,9 @@ public static class Level2EntranceBuilder
             e.growlClip = AssetDatabase.LoadAssetAtPath<AudioClip>(Growl); e.growlVolume = GrowlVolume;
             e.landClip = AssetDatabase.LoadAssetAtPath<AudioClip>(Land); e.landVolume = LandVolume;
             e.entranceRoarClip = AssetDatabase.LoadAssetAtPath<AudioClip>(Roar); e.entranceRoarVolume = RoarVolume;
-            e.landHaptic = new Vector2(0.35f, 0.12f);
+            e.landHaptic = new Vector2(0.5f, 0.12f); e.landRumbleTail = new Vector2(0.22f, 0.4f); e.rumbleFrequency = 0.25f;
+            e.tremor = MonsterEntrance.TremorStrength.Light; e.tremorLightMeters = 0.010f; e.tremorStrongMeters = 0.025f; e.tremorHz = 7f; e.tremorSeconds = 0.5f; e.tremorKeepsHudSteady = true;
+            e.fallingDust = 12; e.torchDipSeconds = 0.5f; e.torchDipDepth = 0.45f; e.dimFlames = true;
             PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             return $"prefab: MonsterEntrance DropFromAbove (body {(body != null)}, fire {(fire != null)}, hand {(e.weaponHand != null)}, audio {(e.audioSource != null)}, " +
                    $"growl {(e.growlClip != null)}, land {(e.landClip != null)}, roar {(e.entranceRoarClip != null)})";

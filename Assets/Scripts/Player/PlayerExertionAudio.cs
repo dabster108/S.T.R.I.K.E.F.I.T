@@ -5,8 +5,10 @@
 //            high   = the fast-breathing loop, also forced whenever the player's HP is under lowHpOn of max
 //          Exertion01 is the single source of truth: the live effort bar (CombatUIController) and the session telemetry
 //          ("effort") read it from here, nothing else computes exertion.
-//          Every swing attempt counts (hit or miss), weighted by how fast the hand moved; swings inside a rolling window add up,
-//          so exertion rises with a sustained flurry and decays when the player rests. The tier changes with hysteresis (separate
+//          Every swing attempt counts (hit or miss), weighted by how fast the hand moved. Effort is a leaky accumulator
+//          (useLeakyEffort): each counted swing adds effortPerSwing x its weight, it barely leaks while the player keeps swinging
+//          and drains over ~restDecaySeconds once they stop, so steady swinging reaches the medium tier in about 12 s and the fast
+//          tier in about 28 s, and the breathing fades back within ~15 s of stopping (2026-10-10, tuned on the live swing speeds). The tier changes with hysteresis (separate
 //          on/off thresholds plus a minimum hold) so it cannot flip-flop around a threshold, and tiers crossfade on two separate
 //          AudioSources. Each source has its own volume cap, kept below the combat SFX and above the music. Silent outside an active
 //          battle, and cut quickly at victory or defeat. A tier change is written to the log ("[StrikeFitBreath]", adb logcat).
@@ -34,9 +36,9 @@ public class PlayerExertionAudio : MonoBehaviour
     public AudioSource breathingSource;
     public AudioClip breathingClip;
     [Tooltip("Volume when medium breathing first starts.")]
-    [Range(0f, 1f)] public float startVolume = 0.1f;
+    [Range(0f, 1f)] public float startVolume = 0.55f;
     [Tooltip("Hard cap for this source, reached as exertion climbs toward the high tier. Keep below the combat SFX.")]
-    [Range(0f, 1f)] public float maxVolume = 0.3f;
+    [Range(0f, 1f)] public float maxVolume = 0.8f;
 
     [Header("High tier: fast breathing")]
     [Tooltip("Off = the high tier plays the heavy-breathing source at its cap instead.")]
@@ -45,7 +47,7 @@ public class PlayerExertionAudio : MonoBehaviour
     public AudioSource fastSource;
     public AudioClip fastClip;
     [Tooltip("Hard cap for this source. Keep below the combat SFX.")]
-    [Range(0f, 1f)] public float fastMaxVolume = 0.3f;
+    [Range(0f, 1f)] public float fastMaxVolume = 0.9f;
     [Tooltip("Linear gain applied to the fast source's output through a script DSP filter. 1 = off (no filter is added). The " +
              "levelled clip (breathingfast_leveled.wav) needs none; the original breathingfast.mp3 is 25 dB too quiet and needed 18.")]
     public float fastGain = 1f;
@@ -64,33 +66,46 @@ public class PlayerExertionAudio : MonoBehaviour
 
     [Header("Swing attempts (m/s, hand speed from PlayerCombat)")]
     [Tooltip("Hand speed that counts as one swing attempt.")]
-    public float swingTriggerSpeed = 2f;
+    public float swingTriggerSpeed = 1.2f;
     [Tooltip("Hand slowing below this re-arms the next count (chops that stop between swings).")]
-    public float swingRearmSpeed = 1.2f;
+    public float swingRearmSpeed = 0.8f;
     [Tooltip("Hand turning this far (deg) from its direction at the last count also re-arms, so fluid back-and-forth " +
              "or circular slashing that never slows below swingRearmSpeed still counts every swing.")]
     public float swingReversalAngle = 150f;
     [Tooltip("Shortest time between two counts on the same hand (filters tracking jitter).")]
     public float minSwingInterval = 0.35f;
 
+    [Header("Effort accumulator (replaces the rolling window while on)")]
+    [Tooltip("On: effort is a leaky accumulator (see the header). Off: the old rolling-window count (exertionWindow / swingsForFullEffort).")]
+    public bool useLeakyEffort = true;
+    [Tooltip("Effort (0-1) one full-weight swing adds. 0.029 = 34.5 weighted swings for full effort: a steady swing a second (weight " +
+             "~0.86) gives about 0.025 per second, medium (0.28) at ~12 s and fast (0.65) at ~27 s.")]
+    public float effortPerSwing = 0.029f;
+    [Tooltip("Leak time constant (s) while swinging. Large = barely leaks, so the climb is close to linear.")]
+    public float activeDecaySeconds = 200f;
+    [Tooltip("Seconds without a swing before the fast drain starts.")]
+    public float restGraceSeconds = 2.5f;
+    [Tooltip("Drain time constant (s) once the player has stopped: 0.70 falls under the medium-off threshold in about 11 s.")]
+    public float restDecaySeconds = 8f;
+
     [Header("Exertion value (0-1)")]
     [Tooltip("Rolling window (s). Swings older than this no longer count, so exertion decays when inactive.")]
-    public float exertionWindow = 12f;
+    public float exertionWindow = 30f;
     [Tooltip("Weighted swings inside the window that make exertion 1. A swing weighs minSwingWeight (a slow one) up to 1 " +
              "(a full-power one), so 14 means roughly 1.2 hard swings per second sustained for the whole window.")]
-    public float swingsForFullEffort = 14f;
+    public float swingsForFullEffort = 38.6f;
     [Tooltip("Weight of a swing that only just clears swingTriggerSpeed.")]
-    [Range(0.1f, 1f)] public float minSwingWeight = 0.5f;
+    [Range(0.1f, 1f)] public float minSwingWeight = 0.75f;
     [Tooltip("Hand speed (m/s) at which a swing weighs 1.")]
-    public float fullWeightSpeed = 5f;
+    public float fullWeightSpeed = 4f;
     [Tooltip("Time constant (s) that smooths the value, so the bar and the tiers do not jitter swing by swing.")]
     public float smoothSeconds = 0.6f;
 
     [Header("Tiers (hysteresis: on above, off below)")]
     [Range(0f, 1f)] public float mediumOn = 0.28f;
     [Range(0f, 1f)] public float mediumOff = 0.18f;
-    [Range(0f, 1f)] public float highOn = 0.70f;
-    [Range(0f, 1f)] public float highOff = 0.55f;
+    [Range(0f, 1f)] public float highOn = 0.65f;
+    [Range(0f, 1f)] public float highOff = 0.50f;
     [Tooltip("Player HP fraction below which the high tier is forced, whatever the effort.")]
     [Range(0f, 1f)] public float lowHpOn = 0.25f;
     [Tooltip("HP fraction the player must climb back above before the forced high tier ends.")]
@@ -133,6 +148,9 @@ public class PlayerExertionAudio : MonoBehaviour
     private float weightedSum;
     private readonly bool[] handArmed = { true, true };
     private float tierChangedAt = -999f;
+    private float effort;                 // leaky accumulator (useLeakyEffort)
+    private float lastSwingTime = -999f;
+    private bool hardwareTesting;
     // Per hand: weapon motion direction (for reversal re-arm), its direction at the last count, last count time.
     private readonly Vector3[] lastHandPos = new Vector3[2];
     private readonly bool[] hasHandPos = new bool[2];
@@ -207,7 +225,7 @@ public class PlayerExertionAudio : MonoBehaviour
 
     void Update()
     {
-        if (selfTesting) return;
+        if (selfTesting || hardwareTesting) return;
         float dt = Time.deltaTime;
         bool battleActive = BattleManager.Instance != null && BattleManager.Instance.IsBattleActive;
         if (!battleActive)
@@ -216,6 +234,7 @@ public class PlayerExertionAudio : MonoBehaviour
             swings.Clear();
             weightedSum = 0f;
             swingsInWindow = 0;
+            effort = 0f;
             exertion01 = 0f;
             tier = Tier.Calm;
             lowHpActive = false;
@@ -240,7 +259,15 @@ public class PlayerExertionAudio : MonoBehaviour
         if (swings.Count == 0) weightedSum = 0f;
         swingsInWindow = swings.Count;
 
-        float raw = Mathf.Clamp01(weightedSum / Mathf.Max(0.01f, swingsForFullEffort));
+        float raw;
+        if (useLeakyEffort)
+        {
+            bool resting = Time.time - lastSwingTime > restGraceSeconds;
+            float tau = resting ? restDecaySeconds : activeDecaySeconds;
+            effort = Mathf.Clamp01(effort * Mathf.Exp(-dt / Mathf.Max(0.5f, tau)));
+            raw = effort;
+        }
+        else raw = Mathf.Clamp01(weightedSum / Mathf.Max(0.01f, swingsForFullEffort));
         exertion01 += (raw - exertion01) * (1f - Mathf.Exp(-dt / Mathf.Max(0.01f, smoothSeconds)));
 
         UpdateLowHp();
@@ -362,10 +389,75 @@ public class PlayerExertionAudio : MonoBehaviour
         float w = Mathf.Lerp(minSwingWeight, 1f, t);
         swings.Enqueue(new Swing { time = Time.time, weight = w });
         weightedSum += w;
+        effort = Mathf.Clamp01(effort + w * effortPerSwing);
+        lastSwingTime = Time.time;
+        SwingsAttempted++;
     }
+
+    /// <summary>Every swing attempt counted this scene (hit or miss), for the readout and telemetry checks.</summary>
+    public int SwingsAttempted { get; private set; }
 
     /// <summary>Count one swing of unknown speed (a mid-weight swing).</summary>
     public void RegisterSwing() => RegisterSwing(Mathf.Lerp(swingTriggerSpeed, fullWeightSpeed, 0.5f));
+
+    // ───────────────────────── hardware test (laser button; Development builds) ─────────────────────────
+    /// <summary>One-line state for the debug readouts: "effort 0.42 MEDIUM  heavy 0.55  fast 0.00  out -23 dBFS".</summary>
+    public string HardwareTestStatus { get; private set; } = "";
+    public bool HardwareTestRunning => hardwareTesting;
+    /// <summary>The listener output level measured during the last hardware test tier (dBFS), -120 = nothing came out.</summary>
+    public float LastMeasuredDb { get; private set; } = -120f;
+
+    /// <summary>Plays the medium loop at its cap for secondsPerTier, then the fast loop at its cap for secondsPerTier, bypassing
+    /// the exertion logic, and measures the AudioListener output. Same sources, caps and clips the fight uses, so if it is silent
+    /// on the Quest the output path is the problem, not the effort tuning. One log line per tier change
+    /// ("[StrikeFitBreath] TEST ..."): adb logcat -s Unity | grep StrikeFitBreath.</summary>
+    public IEnumerator HardwareTest(float secondsPerTier = 5f)
+    {
+        if (hardwareTesting) yield break;
+        hardwareTesting = true;
+        Tier shown = Tier.Calm;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            var src = pass == 0 ? breathingSource : fastSource;
+            Tier t = pass == 0 ? Tier.Medium : Tier.High;
+            float cap = pass == 0 ? maxVolume : fastMaxVolume;
+            if (src == null || src.clip == null)
+            {
+                HardwareTestStatus = $"TEST {t}: no {(pass == 0 ? "heavy" : "fast")} source / clip";
+                Debug.Log("[StrikeFitBreath] TEST tier " + t + " NO SOURCE");
+                continue;
+            }
+            shown = t; tier = t;
+            exertion01 = pass == 0 ? 0.5f : 1f;
+            mediumVolume = pass == 0 ? cap : 0f; fastVolume = pass == 1 ? cap : 0f;
+            src.volume = cap; src.Play();
+            Debug.Log($"[StrikeFitBreath] TEST tier {t} exertion {exertion01:0.00} heavyVol {mediumVolume:0.00} fastVol {fastVolume:0.00} clip {src.clip.name} playing {src.isPlaying} listenerPause {AudioListener.pause} listenerVolume {AudioListener.volume:0.00}");
+            double sum = 0; long n = 0; float end = Time.realtimeSinceStartup + secondsPerTier; int lastShown = int.MinValue;
+            while (Time.realtimeSinceStartup < end)
+            {
+                for (int ch = 0; ch < 2; ch++)
+                {
+                    AudioListener.GetOutputData(probeBuf, ch);
+                    for (int i = 0; i < probeBuf.Length; i++) sum += probeBuf[i] * probeBuf[i];
+                    n += probeBuf.Length;
+                }
+                float db = n > 0 ? (float)(10.0 * System.Math.Log10(System.Math.Max(sum / n, 1e-12))) : -120f;
+                int key = Mathf.RoundToInt(db);
+                if (key != lastShown)
+                {
+                    lastShown = key;
+                    HardwareTestStatus = $"TEST {t.ToString().ToUpperInvariant()}  effort {exertion01:0.00}  heavy {mediumVolume:0.00}  fast {fastVolume:0.00}  out {db:0} dBFS";
+                }
+                yield return null;
+            }
+            LastMeasuredDb = n > 0 ? (float)(10.0 * System.Math.Log10(System.Math.Max(sum / n, 1e-12))) : -120f;
+            Debug.Log($"[StrikeFitBreath] TEST tier {t} done: listener RMS {LastMeasuredDb:0.0} dBFS ({(LastMeasuredDb > -60f ? "output present" : "NO OUTPUT")})");
+            src.Stop(); src.volume = 0f; mediumVolume = fastVolume = 0f;
+        }
+        tier = Tier.Calm; exertion01 = 0f;
+        HardwareTestStatus = $"TEST done: last tier {shown}, listener RMS {LastMeasuredDb:0} dBFS";
+        hardwareTesting = false;
+    }
 
     // ───────────────────────── self-test (Development builds, before the battle) ─────────────────────────
     private bool selfTesting;

@@ -267,6 +267,33 @@ public static partial class Level3DualAxeBuilder
         var rushClip = Attack("Atk_Rush", FromToIdle(idleHold, rush, 0.18f, 0.45f), log, new Vector2(0.95f, 1.40f));
         rushClip.travel = new Vector2(0.18f, 0.98f);
 
+        // --- New in this pass. No unused Mixamo clip fits (the project's only unused attack clip is the Level 1 sword-and-shield
+        //     slash, a one-handed cut), so these three are new COMPOSITIONS of the mocap the boss already uses. ---
+        // 15. Twin Cyclone (heavy, phase 2+): the whirlwind's spin twice. Same wind-up, then a second, faster turn before the recovery.
+        var whirlRaw = HumanoidTrack.DualWield(SP, SP.Mirror(), 0f, t => 0f);
+        var cycA = whirlRaw.Retime(new Vector2(0f, 0f), new Vector2(0.65f, 0.90f), new Vector2(0.85f, 1.133f), new Vector2(1.45f, 1.80f));
+        var cycB = whirlRaw.Retime(new Vector2(0f, 1.00f), new Vector2(0.60f, 1.87f), new Vector2(1.10f, 1.87f));
+        var cyclone = cycA.Concat(cycB, 0.18f);
+        Attack("Atk_TwinCyclone", FromToIdle(idleHold, cyclone), log, new Vector2(0.70f, 1.15f), new Vector2(1.55f, 2.10f)).frontMost = true;
+
+        // 16. Twin Overhead Chain (combo, 2 hits): both axes slam down, are snatched back up and slam again, faster.
+        var cleaveRaw = HumanoidTrack.DualWield(D, D.Mirror(), 0f, t => 0.5f);
+        var ovA = cleaveRaw.Retime(new Vector2(0f, 0f), new Vector2(0.50f, 0.43f), new Vector2(0.75f, 0.60f), new Vector2(0.95f, 0.85f), new Vector2(1.20f, 1.15f));
+        var ovB = cleaveRaw.Retime(new Vector2(0f, 0.40f), new Vector2(0.30f, 0.60f), new Vector2(0.48f, 0.85f), new Vector2(1.60f, 2.27f));
+        var chain2 = ovA.Concat(ovB, 0.30f);
+        Attack("Atk_OverheadChain", FromToIdle(idleHold, chain2), log, new Vector2(0.80f, 1.10f), new Vector2(1.45f, 1.80f));
+
+        // 17. Lunge Strike (heavy, ranged-row: the player 1.8-3.0 m away): a short brace, two quick strides at the player and the
+        //     crossing double sweep on arrival. The shorter, closer cousin of the Brute Rush.
+        var runShort = RJ.Retime(new Vector2(0f, 0f), new Vector2(0.50f, 0.50f));
+        var crockedShort = crossRaw.Hold(0.70f, runShort.length);
+        var runShortArmed = runShort.Override(crockedShort, p => HumanoidTrack.LeftArm(p) || HumanoidTrack.RightArm(p));
+        var braceShort = runShortArmed.Hold(0f, 0.28f);
+        var lungeStrike = crossRaw.Retime(new Vector2(0f, 0.70f), new Vector2(0.22f, 0.983f), new Vector2(1.40f, 2.40f));
+        var lunge = braceShort.Concat(runShortArmed, 0.10f).Concat(lungeStrike, 0.12f);
+        var lungeClip = Attack("Atk_LungeStrike", FromToIdle(idleHold, lunge, 0.18f, 0.45f), log, new Vector2(0.62f, 1.00f));
+        lungeClip.travel = new Vector2(0.14f, 0.58f);
+
         AssetDatabase.SaveAssets();
         return log.ToString();
     }
@@ -305,7 +332,7 @@ public static partial class Level3DualAxeBuilder
     static AnimationClip Clip(string name) => AssetDatabase.LoadAssetAtPath<AnimationClip>($"{AnimDir}/{name}.anim");
 
     // ======================================================================= controller
-    public static readonly string[] AttackStates = { "Atk_AltChops", "Atk_CrossSwing", "Atk_TwinHack", "Atk_ReapFlurry", "Atk_TwinWhirl", "Atk_TwinCleave", "Atk_LeapCleave", "Atk_GroundSlam", "Atk_RendStrike", "Atk_SpinReap", "Atk_BackChop", "Atk_AxeThrow", "Atk_TwinHurl", "Atk_Rush" };
+    public static readonly string[] AttackStates = { "Atk_AltChops", "Atk_CrossSwing", "Atk_TwinHack", "Atk_ReapFlurry", "Atk_TwinWhirl", "Atk_TwinCleave", "Atk_LeapCleave", "Atk_GroundSlam", "Atk_RendStrike", "Atk_SpinReap", "Atk_BackChop", "Atk_AxeThrow", "Atk_TwinHurl", "Atk_Rush", "Atk_TwinCyclone", "Atk_OverheadChain", "Atk_LungeStrike" };
 
     public static string BuildController()
     {
@@ -580,6 +607,12 @@ public static partial class Level3DualAxeBuilder
         glow.calmColor = BodyGlow;
         glow.glowLightCalm = 0.12f; glow.glowLightEnraged = 1.8f; // at rest the skin keeps its own maroon; enraged it burns red
         wp.hitStopSeconds = 0.09f; wp.hapticAmplitude = 0.8f; wp.hapticSeconds = 0.12f; wp.bodyGlow = glow;
+        // Phase-shift power-up ripple: a ground ring quad (radius 1 at scale 1) that MonsterGlow grows and fades; off until a phase break.
+        var rippleT = Child(root.transform, "PowerUpRipple", new Vector3(0f, 0.035f, 0f));
+        rippleT.gameObject.AddComponent<MeshFilter>().sharedMesh = Level3Builder.GroundQuad();
+        var rippleR = rippleT.gameObject.AddComponent<MeshRenderer>(); rippleR.sharedMaterial = L3Mat("M_L3_RuneCircle");
+        rippleR.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; rippleR.receiveShadows = false; rippleR.enabled = false;
+        glow.rippleRenderer = rippleR;
 
         // Thrown axes: burning, trailing, whirring in 3D, caught back on the clip's catch frame.
         var thrower = root.AddComponent<MonsterAxeThrow>();
@@ -884,6 +917,9 @@ public static partial class Level3DualAxeBuilder
             Row("Hurled Axe", MonsterAI.AttackCategory.Standard, "Atk_AxeThrow", 1.3f, 0f, 10f, 8f, 5f, 5f, std, standardCue, single),
             Row("Twin Hurl", MonsterAI.AttackCategory.Combo, "Atk_TwinHurl", 1.0f, 0f, 0f, 9f, 10f, 6f, std, standardCue, single),
             Row("Brute Rush", MonsterAI.AttackCategory.Heavy, "Atk_Rush", 1.5f, 70f, 8f, 10f, 10f, 4f, big, heavyCue, dbl),
+            Row("Twin Cyclone", MonsterAI.AttackCategory.Heavy, "Atk_TwinCyclone", 1.4f, 180f, 0f, 12f, 12f, 7f, big, heavyCue, heavy),
+            Row("Twin Overhead Chain", MonsterAI.AttackCategory.Combo, "Atk_OverheadChain", 1.1f, 40f, 0f, 12f, 12f, 6f, big, heavyCue, heavy),
+            Row("Lunge Strike", MonsterAI.AttackCategory.Heavy, "Atk_LungeStrike", 1.4f, 70f, 8f, 9f, 9f, 5f, big, heavyCue, dbl),
         };
         table[0].followUpArcs = new[] { 55f };
         table[3].followUpArcs = new[] { 60f, 70f };
@@ -908,6 +944,13 @@ public static partial class Level3DualAxeBuilder
             t.recover = Mathf.Max(0.3f, Spec(t.animatorState).length - t.catchTime - 0.1f) ;
             t.followUpArcs = new float[0];
         }
+        table[14].maxHpFraction = 0.66f;                  // Twin Cyclone: phase 2+
+        table[14].followUpArcs = new[] { 180f };
+        table[15].maxHpFraction = 0.66f; table[15].fireVfx = true;   // Twin Overhead Chain: phase 2+
+        table[15].followUpArcs = new[] { 40f };
+        var lungeRow = table[16];
+        lungeRow.rangedKind = MonsterAI.RangedKind.Rush; lungeRow.minRange = 1.8f; lungeRow.maxRange = 3.0f;
+        lungeRow.travelWindow = Spec("Atk_LungeStrike").travel;
         var rush = table[13];
         rush.rangedKind = MonsterAI.RangedKind.Rush; rush.minRange = 2.6f; rush.maxRange = 5.5f;
         rush.travelWindow = Spec("Atk_Rush").travel;

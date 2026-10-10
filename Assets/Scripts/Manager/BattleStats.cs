@@ -12,6 +12,10 @@ public static class BattleStats
 {
     static int tieredSwings;
     static float tierWeightSum;
+    // Distinct 60 s buckets of the fight that contain a landed swing (the daily-goal "active minutes"; same definition as the
+    // backend: minute = floor(seconds since the session began / 60) of each hit). 128 minutes in two bit masks, no allocation.
+    static ulong minutesLow, minutesHigh;
+    static int activeMinutes;
 
     /// <summary>Realtime (Time.realtimeSinceStartup) the current battle began.</summary>
     public static float StartedAt { get; private set; }
@@ -19,6 +23,8 @@ public static class BattleStats
     public static float DamageTaken { get; private set; }
     public static int TieredSwings => tieredSwings;
     public static float AverageTierWeight => tieredSwings > 0 ? tierWeightSum / tieredSwings : 0f;
+    /// <summary>Minutes of this fight with at least one landed swing.</summary>
+    public static int ActiveMinutes => activeMinutes;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void Hook()
@@ -28,6 +34,7 @@ public static class BattleStats
         PlayerHealth.DamageTaken -= OnDamage;
         PlayerHealth.DamageTaken += OnDamage;
         tieredSwings = 0; tierWeightSum = 0f; PeakSwingSpeed = 0f; DamageTaken = 0f;
+        minutesLow = minutesHigh = 0; activeMinutes = 0;
     }
 
     public static void Begin(float startedAtRealtime)
@@ -37,6 +44,7 @@ public static class BattleStats
         tierWeightSum = 0f;
         PeakSwingSpeed = 0f;
         DamageTaken = 0f;
+        minutesLow = minutesHigh = 0; activeMinutes = 0;
     }
 
     /// <summary>Running calorie estimate at <paramref name="nowRealtime"/>. False until a swing with a tier has landed
@@ -54,6 +62,13 @@ public static class BattleStats
         var bm = BattleManager.Instance;
         if (bm == null || !bm.IsBattleActive) return; // the same gate BattleManager.RegisterSuccessfulHit applies to telemetry
         if (speed > PeakSwingSpeed) PeakSwingSpeed = speed;
+        int minute = Mathf.Max(0, Mathf.FloorToInt((Time.realtimeSinceStartup - StartedAt) / 60f));
+        if (minute < 128)
+        {
+            ulong bit = 1UL << (minute & 63);
+            ref ulong mask = ref (minute < 64 ? ref minutesLow : ref minutesHigh);
+            if ((mask & bit) == 0) { mask |= bit; activeMinutes++; }
+        }
         var xp = XPManager.Instance;
         if (xp == null) return;
         float w = FitnessEstimateConfig.TierWeight(xp.GetSwingTier(speed)); // same tier name the hit event carries

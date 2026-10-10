@@ -17,7 +17,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class PlayerNamePicker : MonoBehaviour
+public partial class PlayerNamePicker : MonoBehaviour
 {
     public static PlayerNamePicker Instance;
 
@@ -94,6 +94,7 @@ public class PlayerNamePicker : MonoBehaviour
     void OnDestroy()
     {
         if (Instance == this) Instance = null;
+        OnDestroyGoal();
     }
 
     void Start()
@@ -159,6 +160,8 @@ public class PlayerNamePicker : MonoBehaviour
 
         startButton.SetActive(false);
         if (changeButton != null) changeButton.SetActive(false);
+        HideGoalButton();
+        goalStepOpen = false;
         ShowList();
         RefreshFromBackend();
     }
@@ -177,7 +180,15 @@ public class PlayerNamePicker : MonoBehaviour
         PlayerNameStore.MarkUsed(used);
 
         ClosePanel();
+        Debug.Log($"[PlayerNamePicker] Playing as '{used}'");
 
+        // The daily goal step (PlayerNamePicker.Goal.cs): after the name, before Start. Never blocks on the network.
+        if (BeginGoalStep(used)) return;
+        ShowStartButton(used);
+    }
+
+    void ShowStartButton(string used)
+    {
         if (startButton != null)
         {
             startButton.SetActive(true);
@@ -185,7 +196,7 @@ public class PlayerNamePicker : MonoBehaviour
                 startLabel.text = $"{startLabelOriginal}\n<size=22>as {Short(used, 22)}</size>";
         }
         if (changeButton != null) changeButton.SetActive(true);
-        Debug.Log($"[PlayerNamePicker] Playing as '{used}'");
+        ShowGoalButton();
     }
 
     // Headset put back on (e.g. handed to the next player): give them the full countdown again.
@@ -197,8 +208,11 @@ public class PlayerNamePicker : MonoBehaviour
     void HandleBattleStarted()
     {
         picking = false;
+        goalStepOpen = false;
         ClosePanel();
         if (changeButton != null) changeButton.SetActive(false);
+        HideGoalButton();
+        DailyGoal.BattleStarted();
     }
 
     void OnDisable()

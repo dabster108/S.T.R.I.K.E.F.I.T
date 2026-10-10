@@ -32,6 +32,10 @@ public class MonsterAnimator : MonoBehaviour
     [Tooltip("When true, logs which attack trigger was fired. Keep OFF for builds.")]
     public bool verboseAttackLogs = false;
 
+    /// <summary>A variant of the Hit trigger for the next PlayState(Hit) (MonsterCosmetics: HitLeft / HitRight / HitHeavy). Consumed
+    /// once; ignored when the controller has no such trigger, so Levels 2 and 3 always play the plain Hit.</summary>
+    [System.NonSerialized] public string NextHitTrigger;
+
     private MaterialPropertyBlock mpb;
     private Color baseColor = Color.white;
     private MonsterAnimState lastState;
@@ -67,7 +71,9 @@ public class MonsterAnimator : MonoBehaviour
                         SafeSetTrigger(attackTrigger);
                         break;
                     case MonsterAnimState.Hit:
-                        SafeSetTrigger(hitTrigger);
+                        if (!string.IsNullOrEmpty(NextHitTrigger) && HasTrigger(NextHitTrigger)) SafeSetTrigger(NextHitTrigger);
+                        else SafeSetTrigger(hitTrigger);
+                        NextHitTrigger = null;
                         break;
                     case MonsterAnimState.Death:
                         SafeSetTrigger(deathTrigger);

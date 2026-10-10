@@ -93,6 +93,10 @@ export const api = {
   feedbackAnalytics: () => request("/api/analytics/feedback"),
   // Level, title, streak (with freeze), weekly goal and badges. Day boundaries follow the viewer's time zone.
   playerAchievements: (name) => request(`/api/players/${enc(name)}/achievements${qs({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`),
+  // Daily goal (no ?tz=: the goal day is the API's default day, the same one the headset uses).
+  playerGoalToday: (name) => request(`/api/players/${enc(name)}/goal/today`, { timeoutMs: 20000 }),
+  playerGoals: (name, days = 14) => request(`/api/players/${enc(name)}/goals${qs({ days })}`, { timeoutMs: 20000 }),
+  setPlayerGoal: (name, body) => request(`/api/players/${enc(name)}/goal`, { method: "PUT", body, timeoutMs: 20000 }),
   playerInsights: (name) => request(`/api/players/${enc(name)}/insights`),
   playerChecklist: (name) => request(`/api/players/${enc(name)}/checklist`),
   exportUrl: (kind, filters) => `${API_BASE}/api/export/${kind}.csv${qs(filters)}`,

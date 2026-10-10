@@ -21,6 +21,7 @@ import { BarChart, CompareBars, LEVEL_COLORS, Legend, LineChart, TierBar } from 
 import { CalorieEstimate, EstimateNote, ExertionChart, LevelIntensityChart, PersonalBests, SwingTierChart, VsAverage } from "../components/fitness/Fitness.jsx";
 import PlayerEngagement from "../components/fitness/Engagement.jsx";
 import { AchievementsSection } from "../components/fitness/Achievements.jsx";
+import { DailyGoalCard } from "../components/fitness/DailyGoal.jsx";
 import { InsightsCard } from "../components/fitness/Insights.jsx";
 import FirstRunChecklist from "../components/players/FirstRunChecklist.jsx";
 
@@ -288,6 +289,9 @@ export default function PlayerView() {
 
           <SectionRule index="01" title="Progress" className="mt-10" />
           <div className="mt-4">
+            <DailyGoalCard name={name} />
+          </div>
+          <div className="mt-6">
             <AchievementsSection name={name} latestSessionId={p.sessions.find((x) => x.status !== "live")?.id} />
           </div>
           <div className="mt-6">

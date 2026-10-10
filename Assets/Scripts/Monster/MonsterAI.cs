@@ -905,9 +905,14 @@ public class MonsterAI : MonoBehaviour
         return c == AttackCategory.Heavy || c == AttackCategory.IdleSlam || c == AttackCategory.Special;
     }
 
+    /// <summary>Optional gate (DragonHazard): while it returns true the must-dodge (unblockable) rows cannot be chosen, so a dragon's
+    /// fire strip and the boss's own dodge-only attack never overlap.</summary>
+    [System.NonSerialized] public System.Func<bool> mustDodgeGate;
+
     bool IsEligible(AttackDefinition a, float hp, float stillFor, bool ignoreCooldown)
     {
         if (a == null || string.IsNullOrEmpty(a.animatorTrigger)) return false;
+        if (a.unblockable && mustDodgeGate != null && mustDodgeGate()) return false;
         if (a.rangedKind != RangedKind.None) return false; // ranged rows: ChooseRanged only
         if (hp > a.maxHpFraction) return false;
         if (!ignoreCooldown && Time.time - a.lastUsedTime < a.cooldown) return false;

@@ -88,3 +88,25 @@ CREATE TABLE IF NOT EXISTS session_feedback (
   created_at  timestamptz NOT NULL DEFAULT now(),
   CHECK (enjoyment IS NOT NULL OR rpe IS NOT NULL)
 );
+
+-- ---------------------------------------------------------------------------
+-- Daily goals (one per player per local day). Additive and idempotent.
+-- goal_date is the player's LOCAL day (Asia/Kathmandu by default, the same constant the streak
+-- and achievements use). completed_at is set once and never cleared, so the bonus XP can only be
+-- awarded once per day. Target ranges are enforced by goals.js (TARGET_RANGE); the CHECKs here
+-- only keep the table sane.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS daily_goals (
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  player_name   text NOT NULL,
+  goal_date     date NOT NULL,
+  metric        text NOT NULL CHECK (metric IN ('kcal', 'fullSwings', 'activeMinutes', 'xp')),
+  target        double precision NOT NULL CHECK (target > 0),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  completed_at  timestamptz,
+  bonus_xp      integer NOT NULL DEFAULT 0,
+  UNIQUE (player_name, goal_date)
+);
+CREATE INDEX IF NOT EXISTS daily_goals_player_idx ON daily_goals (player_name, goal_date DESC);
+CREATE INDEX IF NOT EXISTS daily_goals_date_idx   ON daily_goals (goal_date);

@@ -227,6 +227,34 @@ const BADGES = [
     },
   },
   {
+    id: "goal_getter",
+    name: "Goal Getter",
+    description: "Meet your daily goal on 3 different days.",
+    target: 3,
+    check(ctx) {
+      const days = [...new Set(ctx.goalDays || [])].sort();
+      const current = days.length;
+      if (current < this.target) return locked({ current });
+      const day = days[this.target - 1];
+      const s = ctx.sessions.find((x) => ctx.days.get(x.id) === day) || ctx.sessions[ctx.sessions.length - 1];
+      return s ? hit(s, { current }) : { unlocked: true, unlockedAt: `${day}T00:00:00.000Z`, sessionId: null, current };
+    },
+  },
+  {
+    id: "goal_week",
+    name: "Goal Week",
+    description: "Meet your daily goal on 7 different days.",
+    target: 7,
+    check(ctx) {
+      const days = [...new Set(ctx.goalDays || [])].sort();
+      const current = days.length;
+      if (current < this.target) return locked({ current });
+      const day = days[this.target - 1];
+      const s = ctx.sessions.find((x) => ctx.days.get(x.id) === day) || ctx.sessions[ctx.sessions.length - 1];
+      return s ? hit(s, { current }) : { unlocked: true, unlockedAt: `${day}T00:00:00.000Z`, sessionId: null, current };
+    },
+  },
+  {
     id: "weekly_goal",
     name: "Weekly goal met",
     description: "Hit your weekly session goal.",
