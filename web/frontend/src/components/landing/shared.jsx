@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api.js";
 import { useReveal } from "../../hooks/motion.js";
 
-export const GITHUB = "https://github.com/dabster108/S.T.R.I.K.E.F.I.T";
+// The repo's actual name (git remote -v), not the project's display name — the old value here 404'd.
+export const GITHUB = "https://github.com/dabster108/vr-fitness-monster-battle";
 export const THESIS = "Design, Development, and Evaluation of a Virtual Reality-Based Gamified Fitness System";
 
 export const card = "rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]";

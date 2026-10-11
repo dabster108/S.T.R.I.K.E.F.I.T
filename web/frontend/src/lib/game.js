@@ -31,19 +31,27 @@ export const LEVELS = {
     hp: 800,
     swing: { min: 1.2, cap: 8, maxMul: 2.2, base: 11, weaponMul: 1.0, tiers: { light: 1.4, medium: 2.8, full: 4.6 }, xpHit: 15, xpFull: 40 },
   },
+  // Level 3 was still "planned" here from an earlier pass; it has since been built. Facts below are from
+  // Assets/Documentation/context.md line 14 and project_progress.md's 2026-10-02 / 2026-10-09 / 2026-10-10
+  // entries (as of 2026-10-11, tuning in progress). HP is the live value read from the running scene
+  // (MonsterHealth on Monster_Hard_TwinAxeBrute), which overrides the older 1500 default still in
+  // LevelManager.GetParams(Hard)'s code comment — the scene's own value is authoritative.
   Hard: {
     key: "Hard",
     number: 3,
     name: "Level 3",
     difficulty: "Hard",
-    weapons: "To be decided",
-    environment: "Old Seaport",
-    monster: "Hammer-wielding monster",
-    status: "planned",
+    weapons: "Mace, war flail or katana, picked up in the arena",
+    environment: "Old Sea Port dock arena (lighting escalates with the fight)",
+    monster: "Twin-Axe Brute",
+    status: "playable",
+    hp: 5600,
+    attacks: 14, // 11 melee incl. an unblockable slam + 3 ranged (Hurled Axe, Twin Hurl, Brute Rush), plus a defend row
+    phases: 3, // breaks at 66% and 33% HP; the 33% break also starts Enrage (faster attacks, shorter telegraphs)
   },
 };
 
-export const LEVEL_KEYS = ["Easy", "Medium"];
+export const LEVEL_KEYS = ["Easy", "Medium", "Hard"];
 export const levelName = (key) => LEVELS[key]?.name || key || "Unknown";
 export const levelShort = (key) => (LEVELS[key] ? `L${LEVELS[key].number}` : key || "?");
 

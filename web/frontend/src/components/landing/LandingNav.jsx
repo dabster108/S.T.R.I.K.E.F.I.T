@@ -81,6 +81,9 @@ export default function LandingNav({ live }) {
               {label}
             </a>
           ))}
+          <Link to="/monsters" className="nav-link rounded text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:text-[var(--accent)]">
+            Monsters
+          </Link>
         </nav>
         <div className="ml-auto flex items-center gap-2 lg:ml-0">
           <Link to="/dashboard/live" className={buttonClass("secondary", "md", "max-sm:hidden")}>
@@ -119,6 +122,9 @@ export default function LandingNav({ live }) {
               {label}
             </a>
           ))}
+          <Link to="/monsters" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]">
+            Monsters
+          </Link>
           <Link to="/dashboard/live" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] sm:hidden">
             Watch Live
           </Link>

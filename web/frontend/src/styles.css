@@ -778,6 +778,55 @@
   }
 }
 
+/* Monster portrait: coloured aura behind the figure (slow pulse), a pulsing drop-shadow outline, and a
+   hover/tap tilt + glow boost. Colours come from --mp-aura / --mp-core / --mp-outline, set inline per level
+   (lib/monsters.js MONSTER_GLOW). --mp-intensity (0..1, default 1) scales both; Live Arena ties it to HP. */
+.monster-portrait {
+  position: relative;
+  isolation: isolate;
+}
+.monster-portrait::before {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--mp-core) 70%, transparent) 0%, color-mix(in srgb, var(--mp-aura) 55%, transparent) 42%, transparent 72%);
+  opacity: calc(0.35 + 0.35 * var(--mp-intensity, 1));
+  animation: mp-pulse 3.6s ease-in-out infinite;
+  transition: opacity 0.4s var(--ease-out);
+  filter: blur(2px);
+}
+.monster-portrait:hover::before,
+.monster-portrait:focus-within::before {
+  opacity: calc(0.55 + 0.45 * var(--mp-intensity, 1));
+}
+.monster-portrait img {
+  filter: drop-shadow(0 0 calc(6px + 10px * var(--mp-intensity, 1)) color-mix(in srgb, var(--mp-outline) 75%, transparent));
+  animation: mp-outline 3.6s ease-in-out infinite;
+  transition: filter 0.3s var(--ease-out), transform 0.3s var(--ease-out);
+}
+.monster-portrait:hover img,
+.monster-portrait:focus-within img {
+  filter: drop-shadow(0 0 calc(10px + 16px * var(--mp-intensity, 1)) color-mix(in srgb, var(--mp-outline) 90%, transparent));
+}
+.monster-portrait canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+}
+@keyframes mp-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+@keyframes mp-outline {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
 /* bento micro-animations; paused until the card is on screen */
 .bento:not(.is-visible) *,
 .bento:not(.is-visible) *::before,
@@ -1185,6 +1234,8 @@
   .skeleton::after,
   .empty-orbit,
   .status-live,
+  .monster-portrait::before,
+  .monster-portrait img,
   [class*="anim-"] {
     animation: none !important;
   }

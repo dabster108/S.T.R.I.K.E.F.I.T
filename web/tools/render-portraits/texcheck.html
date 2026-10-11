@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body>
+<script type="importmap">{ "imports": { "three": "/node_modules/three/build/three.module.js", "three/addons/": "/node_modules/three/examples/jsm/" } }</script>
+<script type="module">
+import * as THREE from "three";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
+const p = new URLSearchParams(location.search);
+window.__tex = null;
+new FBXLoader().load(p.get("model"), (obj) => {
+  let mesh; obj.traverse((o) => { if (o.isMesh && !mesh) mesh = o; });
+  const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+  const img = mat.map.image;
+  const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+  const ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0);
+  const samples = [];
+  for (const [fx, fy] of [[0.5,0.5],[0.3,0.3],[0.5,0.1],[0.1,0.9],[0.9,0.1]]) {
+    const d = ctx.getImageData(Math.floor(img.width*fx), Math.floor(img.height*fy), 1, 1).data;
+    samples.push([fx, fy, ...d]);
+  }
+  window.__tex = { w: img.width, h: img.height, samples, src: img.src?.slice(0,60) };
+});
+</script></body></html>
