@@ -1,0 +1,38 @@
+{
+  "level1": {
+    "width": 1600,
+    "height": 2000,
+    "aspect": 0.8,
+    "placeholder": "data:image/webp;base64,UklGRrwBAABXRUJQVlA4WAoAAAAQAAAAFwAAHQAAQUxQSCwBAAANX6AgABmG/o3ZX4mISPDVD0nStlVO9YFVxOH/k6oeB9pyrCFZwHUF6pyeQIZegcwcCe0GctuA56w4ov9BYPuylH//xwkEk7HG55YAZmP7m6GOJYCtXcxNyGOJ0diF6+VbOpYWefO0sUK95tOpmvV2qQcgnc6HWb9baBD507+RVk8bgU77fD1BL3r2ZMTxdOhmZiogpMgtejLMHcGnGBSEASnlowJAahiQYmAjhB86lXLu2GmiSUIoWT1aLf2rmrymPayddiF6YB/JGPn2nTz7FGbayljiPQ0Bomdf64Q0XunRyNRaZCEUu7mop/EWDFq5O1lOrUJ57Za9LK3tY+oets+9LLnUQ1bueesQYzkdC623Syvi20/9LZ3bOQ2o1E77+7WbAkCqLbCbCwBWUDggagAAADAEAJ0BKhgAHgA+7WqrT6mmI6IwGAgBMB2JYwClrBVFkJx6/428paoiAAD+78kkOa16bZNloRnuR8/Fl6qwKq6M+5iRWEhdQsrQ6cG7qbo1xSTiiXxkyJ0vCWatteaPYt6cHdW0TcIKAAA=",
+    "webp480": "/monsters/level1-480.webp",
+    "avif480": "/monsters/level1-480.avif",
+    "webp960": "/monsters/level1-960.webp",
+    "avif960": "/monsters/level1-960.avif",
+    "webp1440": "/monsters/level1-1440.webp",
+    "avif1440": "/monsters/level1-1440.avif"
+  },
+  "level2": {
+    "width": 1600,
+    "height": 2000,
+    "aspect": 0.8,
+    "placeholder": "data:image/webp;base64,UklGRgACAABXRUJQVlA4WAoAAAAQAAAAFwAAHQAAQUxQSCgBAAANZ6CobSOmgz/dfm+CiIgEn1NVBbjZ9sZtfqqCXBHMpXQmlav0uUDOAa4NvAfUga6cTrRzlToWSOQskL0yRET/86GUYYj4d+gqzSMAAsopa00iKoA/cAZKGpVgpiEYo21aA6c8m8+zzW6IOaKd3T67zV/fKUY0e7o/1+F3l9OWwmq1eB32faS1Th5flmiHLmnU8ePtvKrbJqkqh8UBU4wpEqH0jiojdRRcWSdVwZlEkPE2j/CMjbDlqk409gaAy0zajhB8RcyM5jsVfMCw1kLbJOydGCOiMRZFcOBcUy5W2XvIV1oTOwP2kDS0NJs6awz0p++LcF6yZdTdb2+vb+YOQD3sd3S9XHgAqd13xex27gDZpK6TMD87AKCpWeeT2cwAIE212mnIAFZQOCCyAAAAEAUAnQEqGAAeAD7tZqZNqaYjIjAYDAEwHYlkAL/ti0tYJ6pRJavOlUEejmlB2B2gAAD+7pjG2mVXQ8xC2X7jowrksIFxvdr1qk1IDtYXRN6c8/L4BoFPCsakEHOm7yUu4+cGq0zHRkVQ4HRtp5igqo3ZaiiW5iEOt1TU+RiUR8cLheewCEU+mrDagTDMrK7vzAcYs5OatMk32wA/n4KtVqhdqp/OshgLMFEHyuRxDqAAAA==",
+    "webp480": "/monsters/level2-480.webp",
+    "avif480": "/monsters/level2-480.avif",
+    "webp960": "/monsters/level2-960.webp",
+    "avif960": "/monsters/level2-960.avif",
+    "webp1440": "/monsters/level2-1440.webp",
+    "avif1440": "/monsters/level2-1440.avif"
+  },
+  "level3": {
+    "width": 1600,
+    "height": 2000,
+    "aspect": 0.8,
+    "placeholder": "data:image/webp;base64,UklGRpoBAABXRUJQVlA4WAoAAAAQAAAAFwAAHQAAQUxQSBYBAAANuQpE9D80chvbdu1GXv3X6r37ZA/rQfHCYXywmAq3ABYQMQET8Czw3Au7+0s/fPd01e6u3P3TXN88PV289Mp57ZzlfoNFBrPxPsRL2DLsLpPBIAUkUDuDVw2uq431Vuw404zJcWUHHyGqmdLVRYQ3BGqmGXGPK9A/oYgLQxWFSiVGhwWQyicKVVoGqEQ+QRB3uZ2JEj5ghONypItpIninRVmPYVczjvAZA8qRw0UTY+x/GuC0G84UsNukJYIElJYPETQQIOyG+CBRNIQd6SA9ktEUwKYnkweBYhhAd0NoWZBxCNlwhwFbYC8LbW3IYEecjVsZsYA0jNtkYzYMMgBph8Q041ZuAxIMoAABMzYEcgRCyCAlAVZQOCBeAAAAkAMAnQEqGAAeAD7tbK9QqaYkIqgKqTAdiWcAxNgYjLgGnJqxgAD+8CKzpU6UlvMhDwZ+aqOkNDcwKt0kvSwp2ooZs76HDvUlVMC17lu505HBATEXGa6IrJQlUIAAAA==",
+    "webp480": "/monsters/level3-480.webp",
+    "avif480": "/monsters/level3-480.avif",
+    "webp960": "/monsters/level3-960.webp",
+    "avif960": "/monsters/level3-960.avif",
+    "webp1440": "/monsters/level3-1440.webp",
+    "avif1440": "/monsters/level3-1440.avif"
+  }
+}

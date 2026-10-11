@@ -3,34 +3,32 @@ import { Link } from "react-router-dom";
 import { wakeStore } from "../../lib/api.js";
 import { useConnection } from "../../live/LiveProvider.jsx";
 import Icon from "../ui/Icon.jsx";
+import Tooltip from "../ui/Tooltip.jsx";
 import { Brand } from "./Sidebar.jsx";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
-// Only shown while something is wrong; a healthy connection needs no badge
-// (the sidebar's Connection item carries the steady-state dot).
-const PROBLEMS = {
-  connecting: { label: "Connecting…", cls: "text-[var(--warn-ink)]" },
-  reconnecting: { label: "Reconnecting…", cls: "text-[var(--warn-ink)]" },
-  offline: { label: "Server offline", cls: "text-[var(--bad)]" },
+// The one place backend reachability shows at all: a small dot, always present, never text on
+// its own. Hover or focus for the word; nothing interrupts the page while it changes state.
+// useConnection() reports the raw stream state (connected | connecting | reconnecting | offline).
+const DOT = {
+  connected: { cls: "bg-[var(--good)]", label: "Connected" },
+  connecting: { cls: "bg-[var(--warn)] status-live", label: "Connecting…" },
+  reconnecting: { cls: "bg-[var(--warn)] status-live", label: "Reconnecting…" },
+  offline: { cls: "bg-[var(--bad)]", label: "Server offline" },
 };
 
-function ConnectionNotice() {
+function ConnectionDot() {
   const { connection } = useConnection();
   const waking = useSyncExternalStore(wakeStore.subscribe, wakeStore.isWaking);
-  const problem = PROBLEMS[connection];
+  const d = DOT[connection] || DOT.offline;
+  const label = waking ? "Waking the server (up to a minute)" : d.label;
   return (
-    <div role="status" aria-live="polite">
-      {problem && (
-        <Link
-          to="/dashboard/connection"
-          className={`fade-in inline-flex items-center gap-1.5 text-xs font-semibold hover:underline ${problem.cls}`}
-        >
-          <Icon name={connection === "offline" ? "offline" : "loader"} className={`h-3.5 w-3.5 ${connection === "offline" ? "" : "animate-spin motion-reduce:animate-none"}`} />
-          {waking ? "Waking the server (up to a minute)" : problem.label}
-        </Link>
-      )}
-    </div>
+    <Tooltip label={label} side="bottom">
+      <Link to="/dashboard/connection" aria-label={`Backend: ${label}`} className="press flex h-8 w-8 items-center justify-center rounded-lg hover:bg-[var(--surface-muted)]">
+        <span className={`h-2 w-2 rounded-full ${d.cls}`} aria-hidden />
+      </Link>
+    </Tooltip>
   );
 }
 
@@ -77,7 +75,7 @@ export default function Topbar({ onMenu, onSearch }) {
         </div>
         <PaletteTrigger onSearch={onSearch} />
         <div className="ml-auto flex items-center gap-2">
-          <ConnectionNotice />
+          <ConnectionDot />
           <button type="button" onClick={onMenu} aria-label="Open menu" className="press rounded-lg p-2 text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] lg:hidden">
             <Icon name="menu" className="h-5 w-5" />
           </button>

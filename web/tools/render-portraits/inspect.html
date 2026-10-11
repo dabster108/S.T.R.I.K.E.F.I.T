@@ -1,0 +1,44 @@
+<!doctype html>
+<!-- Local-only inspection page: loads one FBX and reports its bones, meshes and embedded animation clips to
+     window.__report, so the Node driver can decide which clip (if any) to pose each monster with. -->
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<script type="importmap">
+{ "imports": { "three": "/node_modules/three/build/three.module.js", "three/addons/": "/node_modules/three/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
+
+const params = new URLSearchParams(location.search);
+const url = params.get("url");
+window.__report = null;
+window.__error = null;
+
+new FBXLoader().load(url, async (obj) => {
+  await new Promise((r) => setTimeout(r, 1500)); // let any async texture decode finish
+  const bones = [];
+  const meshes = [];
+  obj.traverse((o) => {
+    if (o.isBone) bones.push(o.name);
+    if (o.isMesh || o.isSkinnedMesh) {
+      const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+      meshes.push({
+        name: o.name, skinned: !!o.isSkinnedMesh, vertices: o.geometry?.attributes?.position?.count || 0,
+        materials: mats.map((m) => ({ name: m.name, color: m.color ? m.color.getHexString() : null, hasMap: !!m.map, mapSize: m.map?.image ? `${m.map.image.width || m.map.image.videoWidth || "?"}x${m.map.image.height || m.map.image.videoHeight || "?"}` : null, mapCtor: m.map?.image?.constructor?.name || null, hasEmissiveMap: !!m.emissiveMap })),
+      });
+    }
+  });
+  window.__report = {
+    url,
+    boneCount: bones.length,
+    bones,
+    meshes,
+    animations: (obj.animations || []).map((a) => ({ name: a.name, duration: a.duration, tracks: a.tracks.length })),
+    bbox: (() => { const b = new THREE.Box3().setFromObject(obj); return { min: b.min.toArray(), max: b.max.toArray() }; })(),
+  };
+}, undefined, (err) => { window.__error = String(err); });
+</script>
+</body>
+</html>

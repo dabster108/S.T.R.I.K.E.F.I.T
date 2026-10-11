@@ -1,0 +1,155 @@
+<!doctype html>
+<!-- Local-only render page. Loads one monster FBX (its own embedded texture), optionally borrows a pose
+     from a second FBX whose skeleton uses the same Mixamo bone names, samples one frame, lights it with a
+     soft key + rim light, and hands back a transparent PNG as a data URL for the Node driver to save.
+     Query params: model, poseModel (optional), poseClip ("self" or a clip name), t (0..1 of clip duration),
+     w, h (output pixels), camY (camera height, 0..1 of figure height), camZ (camera distance, metres), fov. -->
+<html>
+<head><meta charset="utf-8"><style>html,body{margin:0;background:transparent}</style></head>
+<body>
+<script type="importmap">
+{ "imports": { "three": "/node_modules/three/build/three.module.js", "three/addons/": "/node_modules/three/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
+
+const p = new URLSearchParams(location.search);
+const W = Number(p.get("w") || 1600), H = Number(p.get("h") || 2000);
+window.__dataUrl = null;
+window.__error = null;
+window.__meta = null;
+
+function load(url) {
+  return new Promise((res, rej) => new FBXLoader().load(url, res, undefined, rej));
+}
+
+async function main() {
+  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.setClearColor(0x000000, 0);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.35;
+  renderer.shadowMap.enabled = false;
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const model = await load(p.get("model"));
+  scene.add(model);
+  // Embedded FBX textures keep decoding after the loader's onLoad fires (image stays null for a beat);
+  // wait for every map on every material to report a real, non-zero-size image before the one render call.
+  async function waitForTextures(root) {
+    const maps = [];
+    root.traverse((o) => { if (o.isMesh && o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { if (m.map) maps.push(m.map); }); });
+    const ready = () => maps.every((t) => t.image && (t.image.width || t.image.videoWidth));
+    const t0 = performance.now();
+    while (!ready() && performance.now() - t0 < 8000) await new Promise((r) => setTimeout(r, 50));
+    maps.forEach((t) => { t.needsUpdate = true; });
+    return maps.length;
+  }
+  const mapsLoaded = await waitForTextures(model);
+  const unlit = p.get("unlit") === "1";
+  model.traverse((o) => {
+    if (o.isMesh) {
+      o.frustumCulled = false;
+      if (o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach((m) => {
+          m.side = THREE.FrontSide;
+          if (unlit) {
+            const dbg = p.get("dbg") || "map";
+            if (dbg === "map") o.material = new THREE.MeshBasicMaterial({ map: m.map, toneMapped: false });
+            else if (dbg === "red") o.material = new THREE.MeshBasicMaterial({ color: 0xff2222, toneMapped: false });
+            else if (dbg === "normal") o.material = new THREE.MeshNormalMaterial();
+            window.__dbgInfo = { hasUV: !!o.geometry.attributes.uv, uvCount: o.geometry.attributes.uv ? o.geometry.attributes.uv.count : 0, mapColorSpace: m.map ? m.map.colorSpace : null, mapFlipY: m.map ? m.map.flipY : null };
+          }
+        });
+      }
+    }
+  });
+
+  // Pose: either the model's own embedded clip, or one borrowed from a second FBX with matching bone names.
+  let mixer = null;
+  const poseClipName = p.get("poseClip") || "self";
+  let clip = null;
+  let manualPose = false;
+  if (poseClipName === "self") {
+    clip = model.animations?.[p.get("clipIndex") ? Number(p.get("clipIndex")) : 0] || null;
+  } else if (p.get("poseModel")) {
+    const poseObj = await load(p.get("poseModel"));
+    clip = poseObj.animations?.[0] || null;
+  }
+  if (poseClipName === "manual") {
+    manualPose = true;
+    const bone = (name) => { let f = null; model.traverse((o) => { if (o.isBone && o.name === name) f = o; }); return f; };
+    const prefix = p.get("bonePrefix") || "mixamorig";
+    const set = (name, x, y, z) => { const b = bone(prefix + name); if (b) b.rotation.set(x, y, z); };
+    // Lower the T-pose arms into a relaxed ready stance, bend the elbows, widen the legs, a slight forward lean.
+    set("LeftArm", 0, 0, Number(p.get("armZ") || 1.05));
+    set("RightArm", 0, 0, -Number(p.get("armZ") || 1.05));
+    set("LeftForeArm", 0, Number(p.get("foreY") || 0.35), 0);
+    set("RightForeArm", 0, -Number(p.get("foreY") || 0.35), 0);
+    set("LeftUpLeg", 0, 0, Number(p.get("legZ") || 0.1));
+    set("RightUpLeg", 0, 0, -Number(p.get("legZ") || 0.1));
+    set("Spine", Number(p.get("leanX") || 0.05), 0, 0);
+    model.updateMatrixWorld(true);
+  }
+  let clipDuration = 0;
+  if (clip) {
+    clipDuration = clip.duration;
+    mixer = new THREE.AnimationMixer(model);
+    const action = mixer.clipAction(clip);
+    action.play();
+    const t = Math.max(0, Math.min(1, Number(p.get("t") || 0.3)));
+    mixer.setTime(t * clip.duration);
+  }
+
+  // Frame the figure: bounding box after the pose is applied.
+  const box = new THREE.Box3().setFromObject(model);
+  const size = new THREE.Vector3(); box.getSize(size);
+  const center = new THREE.Vector3(); box.getCenter(center);
+  const figureHeight = size.y;
+  const pad = Number(p.get("pad") || 1.2); // headroom margin around the tightest fit
+  const camYFrac = Number(p.get("camY") || 0.52);
+  const aspect = W / H;
+  const fov = Number(p.get("fov") || 32);
+  const camera = new THREE.PerspectiveCamera(fov, aspect, 1, figureHeight * 20 + 100);
+  const halfV = (fov * Math.PI) / 360;
+  const halfH = Math.atan(Math.tan(halfV) * aspect);
+  const horizExtent = Math.max(size.x, size.z) / 2;
+  // "bust" framing fits only the top slice of the figure (chest and up) and deliberately lets a T-pose's
+  // horizontal arms run off the sides, like a character-select close-up, instead of backing off to fit them.
+  const bust = p.get("frame") === "bust";
+  const bustFraction = Number(p.get("bustFraction") || 0.5);
+  const vExtent = bust ? (figureHeight * bustFraction) / 2 : figureHeight / 2;
+  const distV = vExtent * pad / Math.tan(halfV);
+  const distH = horizExtent * pad / Math.tan(halfH);
+  const dist = Number(p.get("distOverride")) || (bust ? distV : Math.max(distV, distH));
+  const camHeight = bust ? box.min.y + figureHeight * (1 - bustFraction / 2) : box.min.y + figureHeight * camYFrac;
+  const az = ((Number(p.get("az") || 0)) * Math.PI) / 180;
+  camera.position.set(center.x + Math.sin(az) * dist, camHeight, center.z + Math.cos(az) * dist);
+  camera.lookAt(center.x, bust ? camHeight : box.min.y + figureHeight * 0.48, center.z);
+
+  // Lighting: soft key (warm, 3/4 front) + cool rim (behind, separates the silhouette from a transparent
+  // background) + a faint fill so the shadow side never reads as pure black.
+  const key = new THREE.DirectionalLight(0xfff2e0, 3.6);
+  key.position.set(center.x - figureHeight * 0.6, box.max.y + figureHeight * 0.5, center.z + figureHeight * 0.9);
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0xbfe0ff, 2.8);
+  rim.position.set(center.x + figureHeight * 0.5, box.max.y + figureHeight * 0.2, center.z - figureHeight * 1.1);
+  scene.add(rim);
+  const fill = new THREE.AmbientLight(0xffffff, 0.85);
+  scene.add(fill);
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x1a1a2a, 0.5);
+  scene.add(hemi);
+
+  renderer.render(scene, camera);
+  window.__dataUrl = renderer.domElement.toDataURL("image/png");
+  window.__meta = { figureHeight, clipDuration, clipName: clip?.name || null, camDist: dist, boxMin: box.min.toArray(), boxMax: box.max.toArray(), mapsLoaded };
+}
+main().catch((e) => { window.__error = String(e && e.stack || e); });
+</script>
+</body>
+</html>

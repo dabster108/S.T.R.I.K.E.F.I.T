@@ -9,6 +9,7 @@ import { LiveProvider } from "./live/LiveProvider.jsx";
 const DashboardApp = lazy(() => import("./DashboardApp.jsx"));
 const BroadcastView = lazy(() => import("./views/BroadcastView.jsx"));
 const FeedbackView = lazy(() => import("./views/FeedbackView.jsx"));
+const MonstersView = lazy(() => import("./views/MonstersView.jsx"));
 
 function DashboardFallback() {
   return (
@@ -48,6 +49,14 @@ export default function App() {
         element={
           <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
             <FeedbackView />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/monsters"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <MonstersView />
           </Suspense>
         }
       />

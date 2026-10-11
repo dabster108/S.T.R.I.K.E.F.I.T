@@ -7,6 +7,7 @@ import Problem from "../components/landing/Problem.jsx";
 import HowItWorks from "../components/landing/HowItWorks.jsx";
 import GameplayShowcase from "../components/landing/GameplayShowcase.jsx";
 import Levels from "../components/landing/Levels.jsx";
+import Monsters from "../components/landing/Monsters.jsx";
 import Combat from "../components/landing/Combat.jsx";
 import LiveNumbers from "../components/landing/LiveNumbers.jsx";
 import Thesis from "../components/landing/Thesis.jsx";
@@ -37,6 +38,7 @@ export default function Landing() {
         <HowItWorks />
         <GameplayShowcase />
         <Levels />
+        <Monsters />
         <Combat />
         <LiveNumbers />
         <Thesis />

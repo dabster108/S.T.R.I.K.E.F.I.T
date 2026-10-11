@@ -43,13 +43,13 @@ export function Footer() {
   return (
     <footer className="border-t border-[var(--border)] bg-[var(--surface)]">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 pb-10 pt-14 sm:grid-cols-2 sm:px-6 lg:grid-cols-12">
-        <div className="sm:col-span-2 lg:col-span-5">
+        <div className="sm:col-span-2 lg:col-span-4">
           <Brand />
           <p className="measure-tight mt-4 text-sm font-medium leading-relaxed text-[var(--muted)]">
             A research prototype at Softwarica College. Every number on this site comes from real sessions recorded by the game.
           </p>
         </div>
-        <nav aria-label="Sections" className="lg:col-span-3">
+        <nav aria-label="Sections" className="lg:col-span-2">
           <p className={head}>On this page</p>
           <ol className="space-y-2 text-sm">
             {SECTIONS.map(([id, label], i) => (
@@ -60,6 +60,12 @@ export function Footer() {
                 </a>
               </li>
             ))}
+            <li className="flex items-baseline gap-3">
+              <span className="t-index w-5 text-[var(--muted)]">{String(SECTIONS.length + 1).padStart(2, "0")}</span>
+              <Link to="/monsters" className={link}>
+                Monsters
+              </Link>
+            </li>
           </ol>
         </nav>
         <nav aria-label="Dashboard" className="lg:col-span-2">
@@ -84,6 +90,16 @@ export function Footer() {
           <a href={GITHUB} target="_blank" rel="noreferrer" className={`${link} inline-flex items-center gap-1.5 text-sm`}>
             <Icon name="github" className="h-4 w-4" /> GitHub
           </a>
+        </div>
+        <div className="lg:col-span-2">
+          <p className={head}>Credits</p>
+          <p className="measure-tight text-xs font-medium leading-relaxed text-[var(--muted)]">
+            Gridness Studios, Adobe Mixamo, and the sound and weapon packs listed in full on{" "}
+            <a href={`${GITHUB}/blob/main/docs/CREDITS.md`} target="_blank" rel="noreferrer" className={link}>
+              CREDITS.md
+            </a>
+            .
+          </p>
         </div>
       </div>
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] px-4 py-5 text-xs font-semibold text-[var(--muted)] sm:px-6">

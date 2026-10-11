@@ -85,7 +85,7 @@ const PAGES = [
     icon: "server",
     title: "Connection",
     what: "Whether the backend is reachable, a round-trip test of the live channel, the headset setup and the API reference.",
-    how: "Open it whenever the top bar says Connecting, Reconnecting or Server offline.",
+    how: "Open it whenever the dot by the search bar turns amber or red, or to set up a headset.",
   },
 ];
 
@@ -105,7 +105,7 @@ const KEYS = [
 ];
 
 const HELP = [
-  ["The top bar says “Waking the server”", "The hosted backend sleeps when idle. It can take up to a minute to answer; the page fills in on its own when it does."],
+  ["The dot by the search bar is amber or red", "The hosted backend sleeps when idle and can take up to a minute to wake; hover the dot for the reason. The page fills in on its own once it answers."],
   ["A fight I played isn't listed", "If the headset's Wi-Fi dropped, the game keeps playing but that fight isn't recorded. Check the Connection page before the next one."],
   ["A player shows up twice", "Names must match exactly, including spaces and capitals, so “player 1” and “Player 1” are two players. Merging isn't supported: a rename onto a name that already exists is refused."],
   ["A rename is refused", "Players in a live fight can't be renamed, because the headset keeps reporting under the old name. Rename after the fight ends."],
@@ -126,6 +126,9 @@ function StepNo({ n }) {
 
 function TierTable() {
   const tiers = ["tap", "light", "medium", "full"];
+  // Level 3's weapons (mace / flail / katana) don't share one set of verified thresholds yet, so it
+  // is left out of this table rather than guessing; the swing count still works in the headset.
+  const keys = LEVEL_KEYS.filter((k) => LEVELS[k].swing);
   const range = (s, t) => {
     const from = { tap: s.min, light: s.tiers.light, medium: s.tiers.medium, full: s.tiers.full }[t];
     const to = { tap: s.tiers.light, light: s.tiers.medium, medium: s.tiers.full }[t];
@@ -140,7 +143,7 @@ function TierTable() {
             <th scope="col" className="t-kicker px-5 py-3 font-bold">
               Tier
             </th>
-            {LEVEL_KEYS.map((k) => (
+            {keys.map((k) => (
               <th key={k} scope="col" className="px-5 py-3">
                 <span className="flex items-center gap-2 text-xs font-bold text-[var(--ink)]">
                   {LEVELS[k].name} <LevelBadge level={k} />
@@ -154,7 +157,7 @@ function TierTable() {
             <th scope="row" className="px-5 py-3 font-semibold text-[var(--muted)]">
               {TIER_LABEL.none}
             </th>
-            {LEVEL_KEYS.map((k) => (
+            {keys.map((k) => (
               <td key={k} className="readout px-5 py-3 font-bold text-[var(--muted)]">
                 under {LEVELS[k].swing.min.toFixed(1)} m/s
               </td>
@@ -165,7 +168,7 @@ function TierTable() {
               <th scope="row" className={`px-5 py-3 font-semibold ${t === "full" ? "text-[var(--accent-strong)]" : "text-[var(--ink-secondary)]"}`}>
                 {TIER_LABEL[t]}
               </th>
-              {LEVEL_KEYS.map((k) => (
+              {keys.map((k) => (
                 <td key={k} className="readout px-5 py-3 font-bold text-[var(--ink)]">
                   {range(LEVELS[k].swing, t)} m/s
                 </td>
