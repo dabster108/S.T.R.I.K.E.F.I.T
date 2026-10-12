@@ -33,7 +33,6 @@ const CompareView = lazy(() => import("./views/CompareView.jsx"));
 const AnalyticsView = lazy(() => import("./views/AnalyticsView.jsx"));
 const EngagementView = lazy(() => import("./views/EngagementView.jsx"));
 const ExportView = lazy(() => import("./views/ExportView.jsx"));
-const SettingsView = lazy(() => import("./views/SettingsView.jsx"));
 const GuideView = lazy(() => import("./views/GuideView.jsx"));
 
 const RANGE_KEY = "vrfitness.range";
@@ -50,7 +49,6 @@ const TITLES = {
   analytics: "Analytics",
   engagement: "Engagement",
   export: "Export",
-  connection: "Connection",
   guide: "User guide",
 };
 const SKELETONS = {
@@ -146,7 +144,7 @@ function Dashboard() {
   }, []);
 
   // Pages that load their own data don't need to wait for the telemetry snapshot.
-  const needsTelemetry = ["", "sessions", "leaderboard", "players", "connection"].includes(section);
+  const needsTelemetry = ["", "sessions", "leaderboard", "players"].includes(section);
   const Fallback = SKELETONS[section] || GenericSkeleton;
   const overview = <DashboardView sessions={filtered} allSessions={t.sessions} events={t.events} range={range} onRange={setRange} openSession={openSession} />;
 
@@ -158,8 +156,8 @@ function Dashboard() {
       >
         Skip to content
       </a>
-      <Sidebar connection={t.connection} liveCount={liveCount} collapsed={collapsed} onToggle={toggleSidebar} />
-      <MobileNav open={menuOpen} onClose={() => setMenuOpen(false)} liveCount={liveCount} connection={t.connection} />
+      <Sidebar liveCount={liveCount} collapsed={collapsed} onToggle={toggleSidebar} />
+      <MobileNav open={menuOpen} onClose={() => setMenuOpen(false)} liveCount={liveCount} />
 
       <div className="min-w-0 lg:pl-[var(--sb)]">
         <Topbar onMenu={() => setMenuOpen(true)} onSearch={() => setPaletteOpen(true)} />
@@ -186,10 +184,6 @@ function Dashboard() {
                   <Route path="engagement" element={<EngagementView />} />
                   <Route path="export" element={<ExportView />} />
                   <Route path="guide" element={<GuideView />} />
-                  <Route
-                    path="connection"
-                    element={<SettingsView connection={t.connection} health={t.health} checkHealth={t.checkHealth} pingRoundTrip={t.pingRoundTrip} refresh={t.refresh} toast={push} />}
-                  />
                   <Route path="*" element={overview} />
                 </Routes>
               </Suspense>
