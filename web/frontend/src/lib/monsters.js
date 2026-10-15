@@ -69,3 +69,12 @@ export const MONSTER_TIPS = {
 };
 
 export const MONSTER_LABEL = { Easy: "Easy", Medium: "Medium", Hard: "Hard, final boss" };
+
+// The guardians' weapons: Assets/Documentation/context.md, the level table ("Monster weapon" column). Level 1: a sword,
+// Level 2: a two-handed axe, Level 3: two axes, one per hand.
+export const MONSTER_WEAPON = { Easy: "Sword", Medium: "Two-handed axe", Hard: "Two axes, one per hand" };
+
+// Which of MONSTER_TIPS (above, themselves taken from the design notes) the story page shows as a guardian's habits.
+// Indexes, so the wording stays in one place. Everything about how they fight is "tuning in progress".
+export const GUARDIAN_HABITS = { Easy: [0, 1], Medium: [2, 1], Hard: [0, 2] };
+export const TUNING_NOTE = "Habits as the game is built today; tuning in progress.";
