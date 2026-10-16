@@ -3008,3 +3008,94 @@ Moved from the README's Levels section because the README no longer lists per-at
 
 ### Design and development process (README text, 2026-09-29)
 Iterative build, verify, headset-test loop: design the level's fantasy and difficulty target; build on the shared combat scripts; verify in the editor through the Unity MCP server (real UI raycast at Start, real hit detection at known swing speeds, Animator sampled at each damage frame, 1,000-pick attack-selection simulations); test on Quest 2 anything that depends on real hands or movement; record findings, including wrong earlier claims, in this file. Problems this caught that code review alone had missed: a Start button with no click listener, a UI canvas facing away from the player, a 40-second timer that declared Victory with the monster at full health, animator transitions that could cancel attacks mid-swing, and a monster weapon collider that existed only on an unused scene copy.
+
+---
+
+## 2026-10-16: controller mapping and pause menu (branch `pause-menu`; checkpoint commit `e2baf82` before it)
+
+Unity only (web untouched). Everything below was proved in the Editor through Unity MCP in Play mode with every `SessionReporter` pointed at `http://127.0.0.1:1` (set in memory BEFORE Play, so the wake ping and the relay connect never saw production: the wake ping logged "Cannot connect to destination host"; the relay streamer was switched off; scenes loaded during a run got the same lock from a `sceneLoaded` hook before their `Start`). Production `/api/health` read before and after every run: 62 sessions, 13,745 events, 0 live, 0 stream clients, unchanged. The telemetry test used a local sink on `127.0.0.1:4555` (logs the POSTs, forwards nothing). Nothing was saved from those test edits (scenes on disk are untouched apart from the module swap below); the real `StrikeFit.PlayerNames` PlayerPrefs value was restored after the runs.
+
+### Part 1A: controller audit (before)
+
+| Context | Laser | Click / buttons | Left controller | Findings |
+|---|---|---|---|---|
+| Menu (`MainMenu`) | `ControllerLaserPointer` under the RIGHT anchor; `UIRayOrigin` also right; L1 / menu cyan URP Unlit, "on when hit target" | `OVRInputModule.joyPadClickButton = PrimaryIndexTrigger` read with `Controller.Active` | **its trigger also clicked** (Active = whichever controller pressed last) | right-stick scroll on; Story slides advanced on either trigger |
+| Name list, keyboard, rename confirm, goal panel, Start | same | same; **B** (right) started the fight whenever `PlayerNamePicker.BlocksStart` was false, which is only "name list open": B on the goal panel started the fight | left trigger clicked | A and B had no "back" at all |
+| Fight | hidden: `StartBattle` switched the old laser object off | no UI; B (right) = nothing; both thumbsticks = debug readout, both grips 3 s = debug gate (Development builds) | weapons in both hands, no laser | the laser was never switched back on |
+| Victory / Defeat | **hidden** (nothing re-enabled it); the UI ray still worked, so the player aimed blind | trigger click; **A = retry via virtual `Button.One` with `Active`: right A OR left X** | left trigger and left X acted | Play Again / Level Select / Exit buttons fine, just no visible beam |
+
+Conflicts found: (1) either trigger clicked while the laser was on the right hand; (2) left X retried; (3) B started the fight from the goal panel; (4) the laser disappeared on the end panels; (5) the beam was a physics raycast over every layer (`hitLayers = -1`), so a weapon collider could shorten it; its start point also differed per scene (`RightControllerAnchor` in the menu and Level 1, `RightHandAnchor` in Levels 2 and 3); (6) the right stick scrolled panels. **Root cause of the click and retry conflicts:** `Controller.Active` resolves to the most recently used controller, and the "Primary" virtual buttons map to that controller's button, so the SDK defaults answer for both hands. Scene setting `joyPadClickButton` cannot fix it (a `Secondary*` button maps to nothing for a single active controller), so the module is subclassed.
+
+### Part 1B: what it is now (ControlSettings asset, default right-handed)
+
+| | Before | After |
+|---|---|---|
+| Laser | right; hidden after Start for good | right hand (or the hand in PlayerPrefs `StrikeFit.UiHand`; no hand setting existed before); line ends on the UI hit, reticle on the hit; shown whenever a panel is open (menu, name panels, goal, Victory / Defeat, pause), never in a running fight; drawn with the scene's old laser material, so no shader lookup (laser shader check below) |
+| Click | either trigger | the pointing hand's trigger, button-down, debounced 0.25 s (`StrikeFitInputModule`, `ControllerInput`) |
+| Left controller | clicked, X retried | no laser, no click, no retry; `leftLaser` toggle (default off) lets its trigger move the laser; `leftMenuButtonPauses` toggle (default off) makes the Menu button pause |
+| B | start only | start (before the fight; the B press that starts a fight cannot also pause it), **pause / resume in a fight**, back one panel in menus (the top menu does nothing) |
+| A | A or left X retried | right A only (pointing hand's A when swapped) |
+| Right stick | scrolled UI | nothing in UI |
+| Haptics | none in UI | tick on hover, firmer tick on click, on the pointing hand |
+| Hint | none | "B: pause" for 5 s at the start of the first fight of each launch |
+
+`ControlSettings` (`Resources/ControlSettings.asset`) holds a toggle for every new behaviour (`mappingEnabled` master, `leftLaser`, `leftMenuButtonPauses`, `hapticTick`, `pauseEnabled`, `autoPause`, `confirmDestructive`, `showPauseHint`, `logEvents`). The four scenes changed by one line pair each (the `EventSystem`'s module script reference, same serialized values). Weapons never block or trigger UI: the cursor takes the module's UI hit, not a physics raycast.
+
+### Part 2: the pause system
+
+- `GamePause` owns the flag (only `PauseMenu` can set it). Pausing = `GamePause` + `Time.timeScale = 0` + `AudioListener.pause`; the level music (`BackgroundMusic`) keeps playing at 40 % (`ignoreListenerPause` on, volume x 0.4, both restored); UI tones are synthesised clips on a source that ignores the pause. Haptics are cut on pause (`CombatFeedback.StopAllHaptics` + both controllers).
+- **Systems that test the flag themselves** (Update still runs at time scale 0): `HitDetection` (no sweep, no queue, history wiped every paused frame), `PlayerCombat` (swing speeds read 0, previous poses kept current), `WeaponSwingAudio`, `PlayerExertionAudio` (effort and tier hold, hand history restarts), `MonsterAI`, `MonsterDefense`, `MonsterPersonalSpace`, `MonsterAxeFlames`, `WeaponSurfaceProxy`, `FlailChainSim` (re-seeds), `CombatFeedback` (no new pulse), `PlayerLowHealthFeedback`, `PlayerDamageVignette`, `ArenaMoodController` (these three run on real time). `MonsterHealth.TakeDamage` and `PlayerHealth.TakeDamage` return early while paused.
+- **Time audit** (every `Time.deltaTime`, `Time.time`, `WaitForSeconds`, unscaled use): scaled-time code (monster AI, animators, entrances, `RoundManager`'s timer, XP combo window, particles, damage numbers, `WaitForSeconds` coroutines) freezes by itself; verified. Divisions by `deltaTime` (swing velocity in `HitDetection`, `PlayerCombat`, `PlayerExertionAudio`, `WeaponSwingAudio`, `MonsterAxeFlames`) all clamp at 1e-4, which would have read a 5 cm hand move as 500 m/s at time scale 0; they are now skipped while paused. Real-time waits are fine (`WaitForSecondsRealtime` in the hit-stop, the victory delay, the weak-point buzz; `ExitConfirmPanel` and the pause Exit flush wait on `unscaledDeltaTime`; request timeouts are native). Changed: the guards above; nothing used `WaitForSeconds` for a request or the quit flush. `GameStateManager.GameState.Pause` (sets time scale 0) is unused and was left alone.
+- **Resume** restores time scale 1, listener, music, haptics and `GamePause`, and calls `ResetSweepHistory` on every weapon. **Always restored** on Restart, Level Select, Exit, scene loads (`SceneFlow` already sets 1) and in `PauseMenu.OnDestroy`.
+- **Auto-pause** (`autoPause`, default on): `OVRManager.HMDUnmounted`, `HMDLost`, `VrFocusLost` and `OnApplicationPause(true)`. The SDK also exposes `HMDMounted`, `HMDAcquired`, `VrFocusAcquired`, `InputFocusLost` / `Acquired`, `TrackingLost` / `Acquired`; the mounted / acquired ones are not used, so it never auto-resumes.
+- **Panel:** world-space canvas, 1.8 m ahead at eye height (yaw only), then fixed; "Paused", level and player, Resume / Restart / Level Select / Exit Game, Restart / Level Select / Exit ask "This ends the current fight. Continue?" once; B resumes or backs out of the confirm (Y when the buttons were swapped to the left hand); double clicks blocked; one AudioListener, rig, EventSystem, SessionReporter after a round trip.
+
+### Part 3: session data
+
+- **How duration, active time and kcal were computed:** the game measured `Time.realtimeSinceStartup - sessionStartedAt` (so a pause would have counted) and sent it as `t` on every event and `durationSec` in the result; kcal = the formula in `FitnessEstimateConfig` on that elapsed time, running in the HUD and sent as live `kcal`; active minutes = 60 s buckets of hits (`BattleStats`). The backend never derives duration from timestamps (`duration_sec` comes from the result's `durationSec` or the live `t`; `started_at` / `ended_at` are stored but not subtracted anywhere), and recomputes kcal from `durationSec` + tiers.
+- **Now** all of those read `GamePause.ActiveRealtime` (realtime minus paused time), so `t`, `durationSec`, kcal, the in-game daily-goal line (`DailyGoal`) and active minutes stand still while paused. (There is no challenge progress in the game; challenges are web only.)
+- **Events:** `pause` / `resume` (payload `t`, `pausedSeconds`, `cause`, plus the usual state), one keep-alive `pause` (message "Still paused") every 20 s while paused, no HP snapshots while paused. Result payload gains `pausedSeconds`; `startedAt` is now the true wall-clock start (pauses included). Local-sink run (8 s play, 27 s pause, 4 s play, 4 s pause, 5 s play, Restart from the pause menu): hp snapshots at t 8.066, 9.078 (no gap); events `pause t=8.117 pausedSeconds=0.002`, `pause "Still paused" t=8.117 pausedSeconds=20.003`, `resume t=8.117 pausedSeconds=27.22`, ...; final POST `status finished, outcome abandoned, durationSec 20.041, pausedSeconds 42.448, notes "restart from pause"`, with `endedAt - startedAt` = 62.49 s = 20.04 + 42.45.
+- **Abandoned today:** the game never sent one. The backend's sweeper marks a live session `finished / abandoned` after 60 s without events (`LIVE_TIMEOUT_MS`), and a later non-final event revives it (`server.js` around line 359). Analytics count "finished or abandoned" sessions, leave abandoned runs out of win rate and best-run picks (`analytics.js`, `engage.js`), and daily goals read finished / abandoned sessions (`goalsStore.js`). Restart, Level Select and Exit now send the final session themselves (`BattleManager.AbandonFight`: outcome `abandoned`, `status finished`, flushed before the scene changes; a plain POST with that outcome is accepted: `resolveStatus` takes the explicit `status`).
+- **Backend change I need (not done, `web/` untouched):** none for correctness. Optional, in this order: (1) store `pausedSeconds`: a `paused_sec` column in `schema.sql`, `columns.js` (`["pausedSeconds","paused_sec"]`), `normalizeSession` / `SESSION_API_SELECT` in `server.js`, shown on the session page; (2) show a PAUSED chip on the Live Arena from `liveState.lastEvent.type === "pause"` (already in the live state) instead of an idle-looking card; (3) labels and icons for the `pause` / `resume` event types in the event feed; (4) optionally let the sweeper wait longer while the last event is a pause (the 20 s keep-alive already stays under the 60 s limit).
+
+### Part 5: verification evidence
+
+| Check | Result |
+|---|---|
+| Pause during a fight, Levels 1 / 2 / 3 | time scale 0, `Time.time`, monster position, animator state and normalised time, lights, particle count, round timer, HP, score identical across a 3 s pause |
+| Swing both weapons through the monster while paused (0.9 m per editor frame, 41 frames Level 1 hammers, 248 frames Level 3 katanas) | 0 `HitLanded`, 0 `SwingTooSlow`, 0 `WeaponClashed`, damage 0, swing speed 0; the same driver unpaused: 3 hits, 4 clashes, 99 damage (control) |
+| Resume | time scale 1, listener and music restored (0.032 -> 0.08), no phantom hit or damage, laser hidden again |
+| Pause during the Level 2 drop and the Level 3 rise | frozen (lights, animator, position, particles identical); the entrance completes after the resume |
+| Restart / Level Select / Exit from the pause menu (real laser ray + trigger path) | each abandons the fight, time scale 1 and listener unpaused in the next scene, one listener / rig / EventSystem / reporter, no `PauseMenu` in the menu; Exit stops Play mode (the Editor's `Application.Quit`) |
+| Auto-pause | the real `OVRManager` static events raised by reflection: `HMDUnmounted`, `VrFocusLost`, `HMDLost` pause with their cause; `HMDMounted`, `VrFocusAcquired` do not resume; `autoPause` off = no pause |
+| B path | injected through `ControllerInput` (the code the real button uses): pause, resume, back out of the confirm, the starting B does not pause, left Y does nothing, right B does nothing after a hand swap, left trigger does not click, left X does not retry, right A retries |
+| Menu / panels | B on Home: nothing; level page, name list, keyboard, scoreboard, exit confirm: one step back each; goal panel -> name list (an edited existing goal -> its summary). The Story page is not in the current `MainMenu.unity` (no Story button), so its B handler (skip) is untested |
+| Per-frame cost (Editor Mono, 20,000 direct calls each, no allocation anywhere) | playing: `PauseMenu.Update` 0.032 us, `ControllerMapping.Update` 0.013 us, `UiLaser.LateUpdate` 0.075 us, `StrikeFitInputModule.Process` 15.5 us (the stock module's UI raycast plus the hover test), `HitDetection.Update` 0.136 us, `PlayerCombat.Update` 0.667 us; paused: 0.031 / 0.013 / 0.229 / 19.95 / 0.055 / 0.112 us; **0 bytes per call in every case** (the pause panel is built once on the first pause) |
+| Android | `PlayerBuildInterface.CompilePlayerScripts(Android)`: 91 assemblies, `Assembly-CSharp.dll` built, no errors. Laser shaders: Level 1 / menu use URP Unlit (referenced by the scenes' own laser materials); Levels 2 / 3 use `Sprites/Default` (in Graphics Settings' always-included list). The new laser copies that material, so no `Shader.Find` and nothing new to include |
+| Headset log | `adb logcat -s Unity:I | grep StrikeFitPause` (lines `paused`, `resumed`, `leaving` with cause, level, player, paused total) and `grep StrikeFitControls` (pointing hand changes) |
+
+### DO NOT REGRESS (re-checked at the end)
+
+| Item | How |
+|---|---|
+| Starts in MainMenu; menu buttons; level select | build scene 0 is `MainMenu`; Play from it: Start Game -> level cards -> Play loads Level 1 with mapping + pause present; Change Name, Scoreboard, Exit confirm clicked with the real ray |
+| Victory / Defeat panels | a real `OnTakeDamage` kill and a lethal player hit: panels show with the laser, Play Again (click) reloads, Level Select (click) returns to the menu, Exit confirm opens and B closes it, A (right) retries, left X does not |
+| Laser in the menu, name picker, goal panel | clicks on `Name_*`, `Metric_*` panels, `Start Game`, `New player`; B back from the goal panel |
+| Clash / parry | `ClashVerification clash` on Level 3: 72 rows, 397 passes, 386 weapon-first, 386 clashes detected, **0 bypass** (weapon first, no clash, body hit) |
+| Zone guards | `ClashVerification zones` (fresh Play, AI on): 31 of 31 probe swings detected, 4 guards raised, 15 monster attacks, uptime 9 % (a first run showed 0 guards because the `clash` job leaves the monster AI disabled in the same Play session: a harness artifact, rerun fresh) |
+| Weapon surface proxy, hit-stop, blood, haptics, breathing | Level 1 fight with the swing driver: proxy peak offset 0.350 and 50 ticks, hit-stops 2, blood bursts 11, clash sparks 1, haptic pulses 59, swings counted by the exertion audio; none stuck after a pause / resume |
+| Entrances | see Part 5 |
+| No post-processing, no new realtime shadows or lights, no per-frame allocation, no `FindObject` in `Update` | nothing of the kind added (light count 7 / 12 identical paused and playing; the new objects are unlit line / mesh / uGUI); allocation measured above; `FindObjectsByType` only at construction, pause and resume |
+| `SessionReporter` production URL, wake ping, 5 s timeouts, silent failure | untouched code paths (`git diff`: only the clock, pause events, `pausedSeconds`, `SessionPausedSeconds`, keep-alive); the dead-port runs showed the wake ping and every request failing silently |
+
+### Needs a headset (ranked) and known gaps
+
+1. A physical **B** press pausing / resuming and the 0.25 s debounce feel; right A retry; the "B: pause" hint's position and size.
+2. **Right trigger only** on Quest: confirm the left trigger never clicks. The stock module also OR-ed `Input.GetMouseButtonDown(0)` on Android; the subclass does not read the mouse at all, so confirm nothing else clicks.
+3. **Auto-pause** on a real headset: take it off, open the Quest system menu, remove / re-mount (`OnApplicationPause` too); it must stay paused until B.
+4. Pause panel readability at 1.8 m and where it sits (raycast sorting against the HUD canvas), the laser line and reticle on every panel.
+5. Haptic ticks (hover, click) and the pause cutting rumble.
+6. Music at 40 % while paused, the pause / click tones' loudness.
+7. **Exit Game** closing the app on Quest (`Application.Quit` still untested on a device).
+8. Frame time on the device while paused and playing (the numbers above are Editor Mono, not Quest).
+9. Not built or not changed: the Story page is absent from `MainMenu.unity`; the right-hand setting has no in-game switch (set it with `ControllerMapping.SetHand` or PlayerPrefs `StrikeFit.UiHand`); `GameState.Pause` is still unused.

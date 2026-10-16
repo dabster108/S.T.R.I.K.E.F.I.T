@@ -78,6 +78,16 @@ public class StoryPanel : MonoBehaviour
         if (torches != null) torches.SetActive(false);
     }
 
+    // B skips the story (same as the Skip button) and returns to the menu home.
+    bool BackHandler()
+    {
+        if (!Playing) return false;
+        Finish("skipped (B)");
+        return true;
+    }
+
+    void OnDestroy() { UiBack.Remove(BackHandler); }
+
     static void AddTrigger(EventTrigger t, EventTriggerType type, System.Action action)
     {
         var e = new EventTrigger.Entry { eventID = type };
@@ -99,6 +109,7 @@ public class StoryPanel : MonoBehaviour
         if (story.slides.Length == 0) { MenuLog.Event("story: no slides in Resources/story.json"); return; }
         menu.ShowPage(page, "story (" + reason + ")");
         Playing = true;
+        UiBack.Push(BackHandler);
         startedAt = Time.unscaledTime;
         skipHovered = false;
         if (torches != null) torches.SetActive(torchFlicker);
@@ -135,8 +146,11 @@ public class StoryPanel : MonoBehaviour
             if (glow != null) glow.canvasRenderer.SetAlpha(k);
         }
 
-        bool next = triggerAdvances && !skipHovered && Time.unscaledTime - startedAt > triggerGraceSeconds &&
-                    (OVRInput.GetDown(OVRInput.RawButton.RIndexTrigger) || OVRInput.GetDown(OVRInput.RawButton.LIndexTrigger));
+        // The pointing hand's trigger advances (right by default); with the mapping off either trigger does, as before.
+        bool trig = ControllerMapping.Active
+            ? ControllerInput.Down(Pad.Trigger, ControllerMapping.PointHand)
+            : OVRInput.GetDown(OVRInput.RawButton.RIndexTrigger) || OVRInput.GetDown(OVRInput.RawButton.LIndexTrigger);
+        bool next = triggerAdvances && !skipHovered && Time.unscaledTime - startedAt > triggerGraceSeconds && trig;
         if (next) MenuLog.Event("story next (trigger)");
         if (next || slideTime >= len)
         {
@@ -150,6 +164,7 @@ public class StoryPanel : MonoBehaviour
     {
         if (!Playing) return;
         Playing = false;
+        UiBack.Remove(BackHandler);
         PlayerPrefs.SetInt(SeenKey, 1);
         PlayerPrefs.Save();
         if (torchLight != null) { torchLight.enabled = false; torchLight.intensity = baseIntensity; }

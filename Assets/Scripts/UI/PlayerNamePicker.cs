@@ -107,10 +107,38 @@ public partial class PlayerNamePicker : MonoBehaviour
     {
         Instance = this;
         picking = true; // closed from the first frame; Start builds the panel or falls back to the default
+        // Levels: B goes back from the keyboard / the rename confirm / the goal panel. In the menu the page's own back asks GoBack.
+        if (!menuMode) UiBack.Push(GoBack);
+    }
+
+    /// <summary>
+    /// B: one panel back. Rename confirm -> keyboard; keyboard -> name list; menu name list -> menu home; the daily-goal panel (an
+    /// existing goal being edited) -> its summary, otherwise -> the name list. The name list of a level has nothing before it (a name
+    /// is needed to play), so it returns false. Nothing is left open on a false return.
+    /// </summary>
+    public bool GoBack()
+    {
+        if (this == null || !isActiveAndEnabled) return false;
+        if (renameInFlight) return true;                                  // wait for the backend's answer
+        if (renameConfirmOpen) { CloseRenameConfirm(); RefreshKeyboard(); return true; }
+        if (picking)
+        {
+            if (mode != Mode.List) { CancelKeyboard(); return true; }
+            if (menuMode) { CloseFromMenu(); return true; }
+            return false;
+        }
+        if (goalStepOpen)
+        {
+            if (goalEditing && DailyGoal.HasGoal && DailyGoal.Player == goalPlayer) { goalEditing = false; ShowGoalPanel(); return true; }
+            OpenPanel(autoSelect: false);                                 // the same path as the Change name button
+            return true;
+        }
+        return false;
     }
 
     void OnDestroy()
     {
+        UiBack.Remove(GoBack);
         if (Instance == this) Instance = null;
         OnDestroyGoal();
     }

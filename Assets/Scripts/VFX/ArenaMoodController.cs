@@ -83,6 +83,7 @@ public class ArenaMoodController : MonoBehaviour
 
     void Update()
     {
+        if (GamePause.IsPaused) return;   // the mood blends on real time; it holds while paused
         Mood target = storm; CurrentMoodName = "storm";
         var m = battle != null ? battle.ActiveMonster : null;
         if (victory || (m != null && !m.isAlive)) { target = cleared; CurrentMoodName = "cleared"; }

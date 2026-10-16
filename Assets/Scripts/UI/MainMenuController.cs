@@ -86,6 +86,22 @@ public class MainMenuController : MonoBehaviour
         }
         if (playButton != null) playButton.onClick.AddListener(OnPlay);
         if (levelBackButton != null) levelBackButton.onClick.AddListener(() => Back("levels"));
+        UiBack.Push(MenuBack);
+    }
+
+    void OnDestroy() { UiBack.Remove(MenuBack); }
+
+    /// <summary>B: one panel back. The name keyboard / list closes first, any other page returns to the home column, and the
+    /// home column (the top menu) does nothing. The exit confirm has its own handler and is asked before this one.</summary>
+    bool MenuBack()
+    {
+        if (this == null || !isActiveAndEnabled) return false;
+        if (confirm != null && (confirm.IsOpen || confirm.Quitting)) return false;   // ExitConfirmPanel's handler owns this press
+        if (loading || SceneFlow.Busy) return true;                                  // a scene is loading: swallow the press
+        if (CurrentPage == null || CurrentPage == homePage) return false;
+        if (CurrentPage == namePage && namePicker != null && namePicker.GoBack()) return true;
+        Back(CurrentPage == levelPage ? "levels" : CurrentPage == namePage ? "change name" : CurrentPage.name);
+        return true;
     }
 
     void Start()

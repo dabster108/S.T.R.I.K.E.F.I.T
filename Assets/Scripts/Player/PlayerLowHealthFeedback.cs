@@ -53,6 +53,7 @@ public class PlayerLowHealthFeedback : MonoBehaviour
 
     void Update()
     {
+        if (GamePause.IsPaused) return;   // vignette and heartbeat hold (they run on real time)
         bool active = BattleManager.Instance != null && BattleManager.Instance.IsBattleActive && health != null && !health.IsDead;
         float target = 0f;
         if (active && health.maxHealth > 0f)

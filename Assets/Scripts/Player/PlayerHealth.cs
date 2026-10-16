@@ -70,7 +70,7 @@ public class PlayerHealth : MonoBehaviour
     /// <param name="unblockable">Dodge-only attacks (Level 3 slam): skip every block reduction, take the full amount.</param>
     public void TakeDamage(float amount, bool unblockable)
     {
-        if (IsDead) return;
+        if (IsDead || GamePause.IsPaused) return;   // a paused fight deals no damage, whatever called this
         if (BattleManager.Instance != null && !BattleManager.Instance.IsBattleActive)
             return;
 

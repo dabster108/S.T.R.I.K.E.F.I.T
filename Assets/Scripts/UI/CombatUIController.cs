@@ -738,7 +738,7 @@ public class CombatUIController : MonoBehaviour
             effortFillImage.color = TierColor(tier);
             EffortHudRedraws++;
         }
-        bool has = BattleStats.TryGetKcal(Time.realtimeSinceStartup, out float kcal);
+        bool has = BattleStats.TryGetKcal(GamePause.ActiveRealtime, out float kcal);
         int tenths = has ? Mathf.RoundToInt(kcal * 10f) : 0;
         if (has != shownHasKcal || tenths != shownKcalTenths)
         {
@@ -904,7 +904,7 @@ public class CombatUIController : MonoBehaviour
         if (panel == null) return;
         var rep = SessionReporter.Instance;
         string player = rep != null && !string.IsNullOrEmpty(rep.sessionPlayerName) ? rep.sessionPlayerName : "";
-        float now = Time.realtimeSinceStartup;
+        float now = GamePause.ActiveRealtime;
         var sb = resultSb;
         sb.Clear();
 

@@ -48,9 +48,21 @@ public class ExitConfirmPanel : MonoBehaviour
         return c;
     }
 
+    // B = No while the confirm is open (UiBack asks the newest handler first, so this runs before any page's own back).
+    bool BackHandler()
+    {
+        if (!IsOpen) return false;
+        if (Quitting) return true;
+        Hide();
+        return true;
+    }
+
+    void OnDisable() { UiBack.Remove(BackHandler); }
+
     public void Show()
     {
         if (Quitting || SceneFlow.Busy) return;
+        UiBack.Push(BackHandler);
         message.text = question;
         yesButton.interactable = noButton.interactable = true;
         SetLocked(true);
@@ -62,6 +74,7 @@ public class ExitConfirmPanel : MonoBehaviour
     {
         if (Quitting) return;
         if (gameObject.activeSelf) MenuLog.Event("exit confirm: No");
+        UiBack.Remove(BackHandler);
         gameObject.SetActive(false);
         SetLocked(false);
     }

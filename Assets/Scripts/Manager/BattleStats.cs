@@ -17,7 +17,7 @@ public static class BattleStats
     static ulong minutesLow, minutesHigh;
     static int activeMinutes;
 
-    /// <summary>Realtime (Time.realtimeSinceStartup) the current battle began.</summary>
+    /// <summary>GamePause.ActiveRealtime (realtime without paused time) when the current battle began.</summary>
     public static float StartedAt { get; private set; }
     public static float PeakSwingSpeed { get; private set; }
     public static float DamageTaken { get; private set; }
@@ -62,7 +62,7 @@ public static class BattleStats
         var bm = BattleManager.Instance;
         if (bm == null || !bm.IsBattleActive) return; // the same gate BattleManager.RegisterSuccessfulHit applies to telemetry
         if (speed > PeakSwingSpeed) PeakSwingSpeed = speed;
-        int minute = Mathf.Max(0, Mathf.FloorToInt((Time.realtimeSinceStartup - StartedAt) / 60f));
+        int minute = Mathf.Max(0, Mathf.FloorToInt((GamePause.ActiveRealtime - StartedAt) / 60f));   // fight clock: pauses are not minutes
         if (minute < 128)
         {
             ulong bit = 1UL << (minute & 63);

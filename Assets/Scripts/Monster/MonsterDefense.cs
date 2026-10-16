@@ -389,6 +389,7 @@ public class MonsterDefense : MonoBehaviour
 
     void Update()
     {
+        if (GamePause.IsPaused) return;   // no guard reaction to the player's hands while paused
         if (!FightActive()) { pendingGuardAt = -1f; return; }
         if (fightStart < 0f)
         {

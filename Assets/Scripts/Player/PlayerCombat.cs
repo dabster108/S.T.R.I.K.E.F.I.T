@@ -525,6 +525,19 @@ public class PlayerCombat : MonoBehaviour
 
     void UpdateSwingVelocity()
     {
+        if (GamePause.IsPaused)
+        {
+            // Hands keep moving while the game is paused (time scale 0 would turn that into a huge speed). Report no swing, and keep
+            // the previous poses current so the first frame after a resume measures one normal frame of motion.
+            if (weaponTransform != null) { lastWeaponPos = weaponTransform.position; lastWeaponRot = weaponTransform.rotation; }
+            if (offhandWeaponTransform != null) lastOffhandWeaponPos = offhandWeaponTransform.position;
+            smoothedVelocity = Vector3.zero;
+            smoothedOffhandVelocity = Vector3.zero;
+            CurrentSwingSpeed = 0f;
+            CurrentOffhandSwingSpeed = 0f;
+            CurrentAngularSpeed = 0f;
+            return;
+        }
         Vector3 controllerVel = OVRInput.GetLocalControllerVelocity(swingController);
         float ovrSpeed = controllerVel.magnitude;
 

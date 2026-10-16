@@ -164,6 +164,7 @@ public class MonsterAxeFlames : MonoBehaviour
 
     void Update()
     {
+        if (GamePause.IsPaused) return;   // blade speed divides by deltaTime, which is 0 at time scale 0
         using (Marker.Auto())
         {
             bool alive = controller == null || controller.isAlive;

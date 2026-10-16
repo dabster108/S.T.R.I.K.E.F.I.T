@@ -3676,9 +3676,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 486742335}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8f1a9a1d119a5944aacfb87d1ec283a2, type: 3}
+  m_Script: {fileID: 11500000, guid: 78ac0b8d9945446b1992adbf14956ed5, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Oculus.VR::UnityEngine.EventSystems.OVRInputModule
+  m_EditorClassIdentifier: Assembly-CSharp::StrikeFitInputModule
   m_SendPointerHoverToParent: 1
   rayTransform: {fileID: 177791893}
   m_Cursor: {fileID: 0}

@@ -226,6 +226,13 @@ public class PlayerExertionAudio : MonoBehaviour
     void Update()
     {
         if (selfTesting || hardwareTesting) return;
+        if (GamePause.IsPaused)
+        {
+            // Effort, tier and volumes hold; the hand history restarts after the resume (no velocity from a pre-pause position).
+            hasHandPos[0] = hasHandPos[1] = false;
+            handVelocity[0] = handVelocity[1] = Vector3.zero;
+            return;
+        }
         float dt = Time.deltaTime;
         bool battleActive = BattleManager.Instance != null && BattleManager.Instance.IsBattleActive;
         if (!battleActive)
