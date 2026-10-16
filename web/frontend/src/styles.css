@@ -1270,3 +1270,46 @@
     transform: none;
   }
 }
+
+/* ---- engagement pass: live cheers, tour spotlight, calm mode (transform and opacity only) ---- */
+/* a cheer icon rises and fades over the live card / broadcast video (Reactions.jsx) */
+@keyframes reaction-float {
+  0% { transform: translate3d(-50%, 0, 0) scale(0.6); opacity: 0; }
+  15% { transform: translate3d(-50%, -12px, 0) scale(1.1); opacity: 1; }
+  100% { transform: translate3d(-50%, -120px, 0) scale(0.9); opacity: 0; }
+}
+.reaction-float {
+  animation: reaction-float 1.6s var(--ease-out) both;
+}
+/* the tour spotlight glides between targets */
+.tour-spot {
+  transition: transform var(--dur) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reaction-float { display: none; }
+  .tour-spot { transition: none; }
+}
+/* Calm mode (header menu; hooks/motion.js sets <html data-calm>): confetti, tilt, portrait glow pulses and floating
+   cheers off, the same static result as reduced motion. The JS side (useReducedMotion) already skips confetti, tilt
+   and embers; these rules cover what CSS animates on its own. */
+:root[data-calm] .confetti-piece,
+:root[data-calm] .reaction-float {
+  display: none;
+}
+:root[data-calm] .monster-portrait::before,
+:root[data-calm] .monster-portrait img {
+  animation: none !important;
+}
+:root[data-calm] .tilt {
+  transform: none !important;
+}
+:root[data-calm] .tour-spot {
+  transition: none;
+}
+
+/* Landing hero blobs: their `top` was a percentage of the hero's height, which changes as web fonts and portraits load,
+   so the (blurred, decorative) blobs counted as a layout shift (Lighthouse CLS ~0.19). Fixed offsets, same look at
+   the usual hero height (about 17 / 25 / -7 rem). Declared here so Hero.jsx stays untouched. */
+#top .blob-b { top: 17rem; }
+#top .blob-c { top: 25rem; }
+#top .blob:not(.blob-b):not(.blob-c) { top: -7rem; }

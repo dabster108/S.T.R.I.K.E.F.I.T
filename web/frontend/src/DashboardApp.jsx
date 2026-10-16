@@ -8,6 +8,7 @@ import { MobileNav, Sidebar } from "./components/layout/Sidebar.jsx";
 import Topbar from "./components/layout/Topbar.jsx";
 import CommandPalette from "./components/layout/CommandPalette.jsx";
 import { ToastStack, useToasts } from "./components/ui/Toasts.jsx";
+import { shouldAutoStart, TOUR_EVENT } from "./components/onboarding/tourState.js";
 import {
   AnalyticsSkeleton,
   CompareSkeleton,
@@ -34,6 +35,8 @@ const AnalyticsView = lazy(() => import("./views/AnalyticsView.jsx"));
 const EngagementView = lazy(() => import("./views/EngagementView.jsx"));
 const ExportView = lazy(() => import("./views/ExportView.jsx"));
 const GuideView = lazy(() => import("./views/GuideView.jsx"));
+const StoryView = lazy(() => import("./views/StoryView.jsx"));
+const Tour = lazy(() => import("./components/onboarding/Tour.jsx"));
 
 const RANGE_KEY = "vrfitness.range";
 const SIDEBAR_KEY = "strikefit.sidebar";
@@ -105,6 +108,16 @@ function Dashboard() {
   );
 
   const t = useTelemetry({ onSession });
+
+  // Guided tour: once on a first visit to the Overview, and whenever the header's Guide menu asks for it.
+  const [touring, setTouring] = useState(false);
+  useEffect(() => {
+    const open = () => setTouring(true);
+    window.addEventListener(TOUR_EVENT, open);
+    if (section === "" && shouldAutoStart()) open();
+    return () => window.removeEventListener(TOUR_EVENT, open);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Every rename, from this tab or any other, confirms once here.
   useLiveMessages((type, payload) => {
@@ -184,6 +197,7 @@ function Dashboard() {
                   <Route path="engagement" element={<EngagementView />} />
                   <Route path="export" element={<ExportView />} />
                   <Route path="guide" element={<GuideView />} />
+                  <Route path="story" element={<Suspense fallback={<GenericSkeleton />}><StoryView /></Suspense>} />
                   <Route path="*" element={overview} />
                 </Routes>
               </Suspense>
@@ -198,6 +212,11 @@ function Dashboard() {
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      {touring && !t.loading && (
+        <Suspense fallback={null}>
+          <Tour onClose={() => setTouring(false)} />
+        </Suspense>
+      )}
       <ToastStack toasts={toasts} onDismiss={dismiss} />
     </div>
   );

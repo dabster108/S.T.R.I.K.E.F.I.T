@@ -7,6 +7,7 @@ import { useApi } from "../../hooks/useApi.js";
 import { useElementWidth } from "../charts/useElementWidth.js";
 import Button from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
+import ShareChallenge from "../engage/ShareChallenge.jsx";
 
 // A shareable 1080 x 1350 recap of one session. Everything on it comes from the stored session,
 // its events, the player's other sessions and their unlocked badges; a number that doesn't exist is
@@ -250,6 +251,7 @@ export default function RecapPanel({ data }) {
             Share
           </Button>
         )}
+        <ShareChallenge sessionId={s.id} playerName={s.playerName} level={levelName(s.level)} size="md" />
       </div>
       {note && (
         <p role="alert" className="mt-3 flex items-center justify-center gap-2 text-sm font-semibold text-[var(--bad)]">

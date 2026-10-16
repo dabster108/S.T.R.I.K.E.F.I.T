@@ -10,6 +10,7 @@ const DashboardApp = lazy(() => import("./DashboardApp.jsx"));
 const BroadcastView = lazy(() => import("./views/BroadcastView.jsx"));
 const FeedbackView = lazy(() => import("./views/FeedbackView.jsx"));
 const MonstersView = lazy(() => import("./views/MonstersView.jsx"));
+const ChallengeView = lazy(() => import("./views/ChallengeView.jsx"));
 
 function DashboardFallback() {
   return (
@@ -49,6 +50,26 @@ export default function App() {
         element={
           <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
             <FeedbackView />
+          </Suspense>
+        }
+      />
+      {/* /watch: the same public broadcast page under a friendlier name (cheers included) */}
+      <Route
+        path="/watch"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <LiveProvider>
+              <BroadcastView />
+            </LiveProvider>
+          </Suspense>
+        }
+      />
+      {/* "Challenge a friend": public, reads one stored session by id */}
+      <Route
+        path="/challenge/:sessionId"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <ChallengeView />
           </Suspense>
         }
       />

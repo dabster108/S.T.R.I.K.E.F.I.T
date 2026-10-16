@@ -13,6 +13,7 @@ import { FigureStrip } from "../components/ui/StatTile.jsx";
 import Icon from "../components/ui/Icon.jsx";
 import { BarChart } from "../components/charts/Charts.jsx";
 import PlayerEngagement from "../components/fitness/Engagement.jsx";
+import { SiteCalendar } from "../components/engage/Calendar.jsx";
 
 function SiteSection({ site }) {
   const days = site.sessionsPerDay;
@@ -88,6 +89,7 @@ export default function EngagementView() {
       />
 
       <SectionRule index="01" title="All players" />
+      <SiteCalendar />
       {site.data?.engagement ? (
         <SiteSection site={site.data.engagement} />
       ) : site.error ? (

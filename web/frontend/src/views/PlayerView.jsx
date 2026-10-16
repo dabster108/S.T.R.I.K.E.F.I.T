@@ -24,6 +24,10 @@ import { AchievementsSection } from "../components/fitness/Achievements.jsx";
 import { DailyGoalCard } from "../components/fitness/DailyGoal.jsx";
 import { InsightsCard } from "../components/fitness/Insights.jsx";
 import FirstRunChecklist from "../components/players/FirstRunChecklist.jsx";
+import { ChallengesCard, useChallenges } from "../components/engage/Challenges.jsx";
+import { JourneyStrip, NextStepCard } from "../components/engage/Mastery.jsx";
+import { WeekCard } from "../components/engage/WeekCard.jsx";
+import { PlayerCalendar } from "../components/engage/Calendar.jsx";
 
 const LEVELS = [
   { id: "all", label: "All levels" },
@@ -131,6 +135,29 @@ function LivePanel({ name, latest, estimate, progress }) {
       </div>
       {progress && progress.latestSessionId === latest.id && <VsAverage progress={progress} />}
     </Card>
+  );
+}
+
+// Challenges, next step and the journey strip share one challenges request and one achievements request.
+function EngagePanel({ name }) {
+  const challenges = useChallenges(name);
+  const ach = useApi(() => api.playerAchievements(name), [name]);
+  const refresh = useThrottledCallback(ach.reload, 4000);
+  useLiveMessages((type, payload) => (payload?.playerName === name || payload?.session?.playerName === name) && ["session_finished", "challenge_done", "goal_met"].includes(type) && refresh());
+  const mastery = ach.data && ach.data.playerName === name ? ach.data.mastery : null;
+  return (
+    <div className="space-y-6">
+      <div className="grid items-start gap-6 xl:grid-cols-12">
+        <div className="min-w-0 xl:col-span-8">
+          <ChallengesCard name={name} state={challenges} />
+        </div>
+        <div className="xl:col-span-4">
+          <NextStepCard name={name} mastery={mastery} challenges={challenges.data} />
+        </div>
+      </div>
+      {ach.error && !mastery ? null : <JourneyStrip mastery={mastery} />}
+      <WeekCard name={name} />
+    </div>
   );
 }
 
@@ -290,6 +317,9 @@ export default function PlayerView() {
           <SectionRule index="01" title="Progress" className="mt-10" />
           <div className="mt-4">
             <DailyGoalCard name={name} />
+          </div>
+          <div className="mt-6">
+            <EngagePanel name={name} />
           </div>
           <div className="mt-6">
             <AchievementsSection name={name} latestSessionId={p.sessions.find((x) => x.status !== "live")?.id} />
@@ -458,7 +488,10 @@ export default function PlayerView() {
               </Link>
             }
           />
-          <div className="mt-4">{engagement.data?.playerName === name ? <PlayerEngagement data={engagement.data} /> : null}</div>
+          <div className="mt-4">
+            <PlayerCalendar name={name} />
+          </div>
+          <div className="mt-6">{engagement.data?.playerName === name ? <PlayerEngagement data={engagement.data} /> : null}</div>
 
           <SectionRule index="06" title="History" className="mt-12" />
           <Card className="mt-4 overflow-hidden">

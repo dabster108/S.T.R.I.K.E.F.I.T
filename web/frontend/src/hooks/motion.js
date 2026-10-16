@@ -2,15 +2,62 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const query = "(prefers-reduced-motion: reduce)";
 const hasWindow = typeof window !== "undefined";
-export const prefersReducedMotion = () => hasWindow && window.matchMedia(query).matches;
+const osReduced = () => hasWindow && window.matchMedia(query).matches;
+
+// Calm mode (header menu): turns off confetti, tilt, embers and floating reactions. It defaults ON when the OS asks for
+// reduced motion; an explicit choice is kept in localStorage. Everything that already honours prefers-reduced-motion
+// through useReducedMotion() honours calm mode too, and <html data-calm> lets CSS do the same.
+const CALM_KEY = "strikefit.calm";
+const calmListeners = new Set();
+function readCalm() {
+  try {
+    const v = localStorage.getItem(CALM_KEY);
+    if (v === "1") return true;
+    if (v === "0") return false;
+  } catch {
+    /* storage blocked: fall back to the OS setting */
+  }
+  return osReduced();
+}
+let calm = hasWindow ? readCalm() : false;
+const applyCalm = () => hasWindow && document.documentElement.toggleAttribute("data-calm", calm);
+applyCalm();
+export const calmStore = {
+  get: () => calm,
+  set(next) {
+    calm = Boolean(next);
+    try {
+      localStorage.setItem(CALM_KEY, calm ? "1" : "0");
+    } catch {
+      /* private mode: the choice lasts for this page only */
+    }
+    applyCalm();
+    calmListeners.forEach((l) => l());
+  },
+  subscribe(l) {
+    calmListeners.add(l);
+    return () => calmListeners.delete(l);
+  },
+};
+export function useCalmMode() {
+  const [value, setValue] = useState(calm);
+  useEffect(() => calmStore.subscribe(() => setValue(calm)), []);
+  return [value, calmStore.set];
+}
+
+export const prefersReducedMotion = () => osReduced() || calm;
 
 export function useReducedMotion() {
   const [reduced, setReduced] = useState(prefersReducedMotion);
   useEffect(() => {
     const m = window.matchMedia(query);
-    const on = () => setReduced(m.matches);
+    const on = () => setReduced(prefersReducedMotion());
     m.addEventListener("change", on);
-    return () => m.removeEventListener("change", on);
+    const off = calmStore.subscribe(on);
+    return () => {
+      m.removeEventListener("change", on);
+      off();
+    };
   }, []);
   return reduced;
 }

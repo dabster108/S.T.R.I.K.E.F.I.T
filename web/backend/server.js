@@ -16,6 +16,9 @@ const feedbackCore = require("./feedbackCore");
 const progression = require("./progression");
 const goals = require("./goals");
 const goalsStore = require("./goalsStore");
+const engage = require("./engage");
+const engageStore = require("./engageStore");
+const activityFeed = require("./activityFeed");
 
 const PORT = Number(process.env.PORT) || 4000;
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
@@ -408,6 +411,7 @@ async function sweepStaleSessions() {
     broadcastSession("finished", session, liveState);
     io.emit("session", session);
     await evaluateGoalAfter(session);
+    await evaluateEngagementAfter(session);
   }
 }
 
@@ -567,12 +571,29 @@ async function evaluateGoalAfter(session) {
     console.error("[goals] evaluation failed:", err.message);
   }
 }
+// Challenges (added with the engagement pass): after a session finished, record any challenge it completed (idempotent)
+// and announce challenge_done; the activity feed is rebuilt. Never throws, like the goal evaluation above.
+function broadcastChallenges(list) {
+  for (const c of list) {
+    stream.broadcast("challenge_done", { playerName: c.playerName, key: c.key, id: c.id, title: c.title, period: c.period, periodStart: c.periodStart, completedAt: c.completedAt, bonusXp: c.bonusXp }, c.playerName);
+  }
+  if (list.length) activityFeed.invalidate();
+}
+async function evaluateEngagementAfter(session) {
+  try {
+    await engageStore.evaluateForSession(session, broadcastChallenges);
+  } catch (err) {
+    console.error("[challenges] evaluation failed:", err.message);
+  }
+  activityFeed.invalidate();
+}
 app.put("/api/players/:name/goal", route(async (req, res) => {
   if (!goalLimiter.allow(req.ip)) return res.status(429).json({ ok: false, error: "Too many goal changes from this connection. Try again in a few minutes." });
   const out = await goalsStore.setGoal(String(req.params.name), req.body, { tz: req.query.tz });
   if (out.status >= 400) return res.status(out.status).json(out.body);
   await broadcastGoal("goal_set", out.goal);
   if (out.completedNow) await broadcastGoal("goal_met", out.goal);
+  if (out.completedNow) activityFeed.invalidate();
   res.status(out.status).json(out.body);
 }));
 
@@ -586,6 +607,95 @@ app.get("/api/players/:name/goals", route(async (req, res) => {
   const n = goals.validateName(req.params.name);
   if (!n.ok) return res.status(400).json({ ok: false, error: n.error });
   res.json(await goalsStore.history(n.value, req.query.days, { tz: req.query.tz }));
+}));
+
+// ---------------------------------------------------------------------------
+// Engagement (added): challenges, calendar, weekly recap, best run, public challenge page, activity feed, live reactions.
+// Additions only; every route validates the name and uses parameterised queries (engageStore.js).
+// ---------------------------------------------------------------------------
+function nameOr400(req, res) {
+  const n = goals.validateName(req.params.name);
+  if (!n.ok) res.status(400).json({ ok: false, error: n.error });
+  return n.ok ? n.value : null;
+}
+
+// Today's 3 daily challenges and this week's 1, progress computed on read; a met challenge is recorded here too (defensive).
+app.get("/api/players/:name/challenges", route(async (req, res) => {
+  const name = nameOr400(req, res);
+  if (!name) return;
+  res.json(await engageStore.challengeState(name, { onCompleted: broadcastChallenges }));
+}));
+
+app.get("/api/players/:name/challenges/history", route(async (req, res) => {
+  const name = nameOr400(req, res);
+  if (!name) return;
+  res.json(await engageStore.challengeHistory(name, req.query.days));
+}));
+
+// GitHub-style calendar: sessions and estimated kcal per local day, last ?weeks= (default 26, max 53).
+app.get("/api/players/:name/calendar", route(async (req, res) => {
+  const name = nameOr400(req, res);
+  if (!name) return;
+  res.json(await engageStore.calendar(name, req.query.weeks));
+}));
+app.get("/api/calendar", route(async (req, res) => {
+  res.json(await engageStore.calendar(null, req.query.weeks));
+}));
+
+// "Your week": ?week=last for last week, anything else this week so far. Monday to Sunday, local time zone constant.
+app.get("/api/players/:name/week", route(async (req, res) => {
+  const name = nameOr400(req, res);
+  if (!name) return;
+  res.json(await engageStore.week(name, req.query.week === "last" ? 1 : 0));
+}));
+
+// The best run on a level (highest score; ?before=<sessionId> = only runs that started before that one), with its swing
+// speed and monster HP samples for the replay ghost.
+app.get("/api/players/:name/best", route(async (req, res) => {
+  const name = nameOr400(req, res);
+  if (!name) return;
+  const level = typeof req.query.level === "string" ? req.query.level.trim() : "";
+  if (!level || level.length > 20 || /[\u0000-\u001f\u007f]/.test(level)) return res.status(400).json({ ok: false, error: "level is required" });
+  const before = typeof req.query.before === "string" && req.query.before.length <= 100 ? req.query.before : null;
+  res.json(await engageStore.best(name, level, before));
+}));
+
+// Public "Challenge a friend" page: one stored session (no events), and whether a typed name has beaten its score.
+app.get("/api/challenge/:sessionId", route(async (req, res) => {
+  const out = await engageStore.challengeCard(String(req.params.sessionId));
+  res.status(out.status).json(out.body);
+}));
+app.get("/api/challenge/:sessionId/check", route(async (req, res) => {
+  const out = await engageStore.challengeCheck(String(req.params.sessionId), req.query.name);
+  res.status(out.status).json(out.body);
+}));
+
+// Activity feed: names and event types only, newest first, at most 20.
+app.get("/api/activity", route(async (req, res) => {
+  res.json(await activityFeed.feed(req.query.limit));
+}));
+
+// Audience cheers on a live fight: validated, rate limited (per IP 1 per 2 s with a burst of 5, and 10 per second in
+// total), never stored, broadcast as an SSE "reaction". REACTIONS_ENABLED=false switches it off. The headset does not
+// receive them yet.
+const REACTIONS_ON = engage.reactionsEnabled();
+const reactPerIp = engage.createBucket(engage.REACTION_LIMITS.perIp);
+const reactGlobal = engage.createBucket(engage.REACTION_LIMITS.global);
+app.get("/api/live/reactions", (_req, res) => {
+  res.json({ ok: true, enabled: REACTIONS_ON, kinds: engage.REACTION_KINDS, limits: engage.REACTION_LIMITS, stored: false });
+});
+app.post("/api/live/react", route(async (req, res) => {
+  if (!REACTIONS_ON) return res.status(503).json({ ok: false, error: "Reactions are switched off." });
+  const v = engage.validateReaction(req.body);
+  if (!v.ok) return res.status(400).json({ ok: false, error: v.error });
+  if (!reactPerIp.take(req.ip)) return res.status(429).json({ ok: false, error: "Easy there: one cheer every 2 seconds." });
+  if (!reactGlobal.take()) return res.status(429).json({ ok: false, error: "Lots of cheers right now. Try again in a moment." });
+  const { rows } = await query("SELECT player_name, status FROM sessions WHERE id = $1", [v.value.sessionId]);
+  if (!rows.length) return res.status(404).json({ ok: false, error: "Session not found" });
+  if (rows[0].status !== "live") return res.status(409).json({ ok: false, error: "That fight is not live." });
+  const payload = { sessionId: v.value.sessionId, kind: v.value.kind, playerName: rows[0].player_name, at: new Date().toISOString() };
+  stream.broadcast("reaction", payload, rows[0].player_name);
+  res.status(202).json({ ok: true, ...payload });
 }));
 
 // Plain-language insights (insights.js): only sentences with enough data behind them; the rest listed with their minimum.
@@ -636,6 +746,12 @@ app.patch("/api/players/:name", route(async (req, res) => {
     await client.query(
       `UPDATE daily_goals g SET player_name = $2 WHERE g.player_name = $1
        AND NOT EXISTS (SELECT 1 FROM daily_goals x WHERE x.player_name = $2 AND x.goal_date = g.goal_date)`,
+      [oldName, newName]
+    );
+    // Challenge completions follow the name the same way (a key the new name already holds keeps that row).
+    await client.query(
+      `UPDATE challenge_completions c SET player_name = $2 WHERE c.player_name = $1
+       AND NOT EXISTS (SELECT 1 FROM challenge_completions x WHERE x.player_name = $2 AND x.challenge_key = c.challenge_key)`,
       [oldName, newName]
     );
     return { sessions: sessions.rowCount, events: events.rowCount };
@@ -791,6 +907,7 @@ app.post("/api/sessions", route(async (req, res) => {
   else broadcastSession(wasLive || !before ? "finished" : "updated", session, liveState);
   if (event) stream.broadcast("event_created", event, event.playerName);
   if (session.status === "finished") await evaluateGoalAfter(session);
+  if (session.status === "finished") await evaluateEngagementAfter(session);
 
   console.log(`[session] ${session.playerName} ${session.level} ${session.status}/${session.outcome} score=${session.score}`);
   res.status(updated ? 200 : 201).json({ ok: true, updated, session, stats });
@@ -818,6 +935,7 @@ app.post("/api/events", route(async (req, res) => {
     if (c.kind === "finished") io.emit("session", c.session);
   }
   for (const c of changes) if (c.kind === "finished") await evaluateGoalAfter(c.session);
+  for (const c of changes) if (c.kind === "finished") await evaluateEngagementAfter(c.session);
 
   if (isBatch) return res.status(201).json({ ok: true, count: events.length, events });
   res.status(201).json({ ok: true, event: events[0] });
@@ -869,6 +987,9 @@ app.delete("/api/sessions", route(async (_req, res) => {
   res.json({ ok: true, message: "Cleared sessions and events" });
 }));
 
+// Public scoreboard shared by the headset menu and the web Leaderboard page (added; rule in leaderboard.js).
+require("./leaderboardRoute").mount(app, { query, route });
+
 app.use("/api", (_req, res) => {
   res.status(404).json({ ok: false, error: "Unknown API route" });
 });
@@ -911,6 +1032,7 @@ async function prepareDatabase() {
   await reloadLiveActivity();
   console.log(`  Database: Postgres connected, schema up to date (${liveActivity.size} live session(s))`);
   goalsStore.refreshPresets(goals.safeZone(goals.DEFAULT_TZ)).catch(() => {});   // warm the goal preset cache (silent failure)
+  engageStore.refreshMedianRows().then(() => activityFeed.warm()).catch(() => {}); // warm the challenge targets and the feed
 }
 
 // Migrate first so no request can see the old schema; if Postgres is down the
@@ -932,6 +1054,8 @@ ready.then(() => server.listen(PORT, "0.0.0.0", () => {
   console.log("  POST   /api/sessions | /api/events (single or batch) | /api/sessions/:id/feedback");
   console.log("  PATCH  /api/players/:name  { newName }");
   console.log("  PUT    /api/players/:name/goal  { metric, target } | GET /api/players/:name/goal/today | /api/players/:name/goals?days=30");
+  console.log("  GET    /api/players/:name/{challenges,challenges/history,calendar,week,best} | /api/calendar | /api/activity");
+  console.log("  GET    /api/challenge/:sessionId[/check?name=] | /api/live/reactions | POST /api/live/react { sessionId, kind }");
   console.log("  DELETE /api/sessions | /api/sessions/:id");
   if (fs.existsSync(FRONTEND_DIST)) console.log(`  Dashboard: http://localhost:${PORT}/`);
 }));

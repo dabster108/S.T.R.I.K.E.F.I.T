@@ -243,7 +243,9 @@ function dropped() {
   reconnectTimer = setTimeout(connect, delay);
 }
 
-const TYPES = ["hello", "heartbeat", "session_started", "session_updated", "session_finished", "event_created", "session_deleted", "player_renamed", "feedback_saved"];
+// goal_set / goal_met were broadcast by the server but never subscribed here, so the goal card's live refresh never fired;
+// challenge_done and reaction arrived with the engagement pass.
+const TYPES = ["hello", "heartbeat", "session_started", "session_updated", "session_finished", "event_created", "session_deleted", "player_renamed", "feedback_saved", "goal_set", "goal_met", "challenge_done", "reaction"];
 
 function connect() {
   // Only ever one connection: a pending backoff retry and a tab refocus can both land here.

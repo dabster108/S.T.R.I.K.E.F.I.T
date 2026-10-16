@@ -22,6 +22,8 @@ import { CalorieEstimate, EstimateNote, ExertionChart, SwingTierChart } from "..
 import { NewPbChip, PersonalBestsHeld } from "../components/fitness/Achievements.jsx";
 import RatingForm, { RatingSummary } from "../components/feedback/RatingForm.jsx";
 import RecapPanel from "../components/recap/RecapCard.jsx";
+import ShareChallenge from "../components/engage/ShareChallenge.jsx";
+import { ghostSummary, valueAt } from "../lib/engage.js";
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const P = (e) => (e.payload && typeof e.payload === "object" && !Array.isArray(e.payload) ? e.payload : {});
@@ -40,7 +42,48 @@ function timed(events, startedAt) {
     .sort((a, b) => a.t - b.t);
 }
 
-function Replay({ events, duration, live }) {
+// "vs your best earlier run on this level": the readout under the scrubber and the summary line.
+function GhostLine({ best, session, events, t, show, onToggle }) {
+  if (!best) return null;
+  if (best.loading && !best.data) return <p className="mt-2 text-xs font-medium text-[var(--muted)]">Looking for your best earlier run on this level…</p>;
+  const b = best.data;
+  if (!b || best.error) return <p className="mt-2 text-xs font-medium text-[var(--muted)]">The comparison with an earlier run isn't available right now.</p>;
+  if (!b.best) return <p className="mt-2 text-xs font-medium text-[var(--muted)]">No earlier run on {levelName(session.level)} to compare with yet.</p>;
+  if (b.reason === "no_events") {
+    return <p className="mt-2 text-xs font-medium text-[var(--muted)]">Your best earlier run on {levelName(session.level)} (score {formatNumber(b.best.score)}) has no swing or health samples, so there is no curve to compare.</p>;
+  }
+  const hits = events.filter((e) => e.type === "hit" && isNum(P(e).swingSpeed)).map((e) => ({ t: e.t, speed: P(e).swingSpeed }));
+  const hpNow = events.filter((e) => isNum(P(e).monsterHp) && P(e).monsterMaxHp > 0).map((e) => ({ t: e.t, f: P(e).monsterHp / P(e).monsterMaxHp }));
+  const summary = ghostSummary({ durationSec: session.durationSec, outcome: session.outcome, hits }, b);
+  const pct = (f) => (isNum(f) ? `${Math.round(f * 100)}%` : "—");
+  const speed = (v) => (isNum(v) ? `${v.toFixed(1)} m/s` : "—");
+  return (
+    <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-bold text-[var(--ink)]">
+          vs your best earlier run on {levelName(session.level)}{" "}
+          <Link to={`/dashboard/session/${encodeURIComponent(b.best.id)}`} className="press rounded font-semibold text-[var(--accent)] hover:underline">
+            (score {formatNumber(b.best.score)}, {formatDateTime(b.best.startedAt)})
+          </Link>
+        </p>
+        <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[var(--ink-secondary)]">
+          <input type="checkbox" checked={show} onChange={onToggle} className="h-4 w-4 accent-[var(--accent)]" /> Show on the chart
+        </label>
+      </div>
+      {summary && <p className="mt-1 text-sm font-bold text-[var(--ink-secondary)]">{summary}.</p>}
+      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4" aria-live="off">
+        <div><dt className="font-semibold text-[var(--muted)]">At {clock(t)}, monster (this run)</dt><dd className="font-extrabold tabular-nums text-[var(--ink)]">{pct(valueAt(hpNow, t, "f"))}</dd></div>
+        <div><dt className="font-semibold text-[var(--muted)]">Monster (best run)</dt><dd className="font-extrabold tabular-nums text-[var(--ink)]">{pct(valueAt(b.samples.hp, t, "f"))}</dd></div>
+        <div><dt className="font-semibold text-[var(--muted)]">Last swing (this run)</dt><dd className="font-extrabold tabular-nums text-[var(--ink)]">{speed(valueAt(hits, t, "speed"))}</dd></div>
+        <div><dt className="font-semibold text-[var(--muted)]">Last swing (best run)</dt><dd className="font-extrabold tabular-nums text-[var(--ink)]">{speed(valueAt(b.samples.hits, t, "speed"))}</dd></div>
+      </dl>
+    </div>
+  );
+}
+
+function Replay({ events, duration, live, best = null, session = null }) {
+  const [showGhost, setShowGhost] = useState(true);
+  const ghost = showGhost && best?.data?.best && !best.data.reason ? { hits: best.data.samples.hits, hp: best.data.samples.hp, duration: best.data.best.durationSec } : null;
   const reduced = useReducedMotion();
   const [t, setT] = useState(duration);
   const [playing, setPlaying] = useState(false);
@@ -136,6 +179,7 @@ function Replay({ events, duration, live }) {
           ))}
           <li className="ml-auto hidden font-medium text-[var(--muted)] sm:block">Arrow keys move 1 s, Shift for 5 s</li>
         </ul>
+        {session && <GhostLine best={best} session={session} events={events} t={Math.min(t, duration)} show={showGhost} onToggle={() => setShowGhost((v) => !v)} />}
       </div>
 
       <div className="mt-5">
@@ -144,6 +188,7 @@ function Replay({ events, duration, live }) {
           events={events}
           duration={duration}
           t={Math.min(t, duration)}
+          ghost={ghost}
           onSeek={(v) => {
             setPlaying(false);
             seek(v);
@@ -203,6 +248,8 @@ export default function SessionDetailView({ onDeleted }) {
     return [...m.entries()].sort((a, b) => b[1].used - a[1].used);
   }, [events]);
   const telemetry = events.some((e) => !["session_start", "session_complete"].includes(e.type));
+  // The replay ghost: this player's best run on this level that started before this one.
+  const best = useApi(() => (s && telemetry ? api.playerBest(s.playerName, s.level, s.id) : Promise.resolve(null)), [s?.id, s?.playerName, telemetry]);
 
   const remove = async () => {
     setBusy(true);
@@ -251,6 +298,7 @@ export default function SessionDetailView({ onDeleted }) {
           s && (
             <>
               <NewPbChip records={data?.personalBestsSet} />
+              {s.status !== "live" && <ShareChallenge sessionId={s.id} playerName={s.playerName} level={levelName(s.level)} />}
               {s.status === "live" ? <LiveChip /> : <OutcomeBadge outcome={s.outcome} />}
               <Button variant="danger" icon="trash" onClick={() => setConfirm(true)}>
                 Delete
@@ -351,7 +399,7 @@ export default function SessionDetailView({ onDeleted }) {
             <>
               <Card className="overflow-hidden">
                 <CardHeader title="Timeline replay" subtitle="Step through the fight: health at the chosen moment, and everything that had happened by then" />
-                <Replay events={events} duration={duration} live={s.status === "live"} />
+                <Replay events={events} duration={duration} live={s.status === "live"} best={best} session={s} />
               </Card>
 
               <div className="grid gap-6 xl:grid-cols-2">
