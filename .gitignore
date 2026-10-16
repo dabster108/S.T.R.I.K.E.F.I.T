@@ -136,3 +136,6 @@ web/frontend/node_modules/
 web/frontend/dist/
 npm-debug.log*
 web/tools/render-portraits/node_modules/
+
+# Logs anywhere in the tree (render-portraits wrote a tracked server.log)
+*.log

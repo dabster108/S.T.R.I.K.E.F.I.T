@@ -1,0 +1,6 @@
+# README media must be stored as ordinary files, not Git LFS pointers (the root rules for *.png and *.jpg
+# would otherwise route them to LFS). Nothing here is large enough to need it.
+* -filter -diff -merge
+*.gif binary
+*.png binary
+*.jpg binary
