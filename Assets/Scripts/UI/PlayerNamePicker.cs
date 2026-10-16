@@ -5,6 +5,10 @@
 //          An in-panel laser keyboard adds a new player or renames the current one (the rename is sent
 //          to the backend so the history moves with it). The name goes to SessionReporter for the next
 //          battle's requests.
+//          Main menu mode (menuMode): the same list and keyboard open from the menu's Change Name button
+//          (OpenFromMenu), with a Back button; choosing a name only stores it (PlayerPrefs + reporter) and
+//          returns to the menu: no Start button, no auto-pick, no goal step. A rename asks first
+//          ("This renames all your past sessions", confirmRename) in every scene.
 // Dependencies: SessionReporter (every backend request), PlayerNameStore (PlayerPrefs), BattleManager,
 //               CombatCanvas/StartBattleUIButton (cloned as the template for every button and key, so
 //               they use the exact raycast/click setup the laser already uses).
@@ -30,6 +34,15 @@ public partial class PlayerNamePicker : MonoBehaviour
     public float autoSelectSeconds = 10f;
     [Tooltip("Scene path of the Start button to gate and clone.")]
     public string startButtonPath = "CombatCanvas/StartBattleUIButton";
+
+    [Header("Main menu mode")]
+    [Tooltip("On (main menu only): opens from OpenFromMenu, shows a Back button, and choosing a name just stores it. " +
+             "No Start button, no auto-pick, no goal step. Off: the level-scene picker, unchanged.")]
+    public bool menuMode;
+    [Tooltip("Menu mode: the (hidden) button cloned for every key and button. Its parent is the area the panel fills.")]
+    public Button templateButton;
+    [Tooltip("Ask \"This renames all your past sessions\" before a rename is sent to the backend.")]
+    public bool confirmRename = true;
 
     enum Mode { List, NewPlayer, Rename }
     enum Shift { Off, Once, Caps }
@@ -78,6 +91,11 @@ public partial class PlayerNamePicker : MonoBehaviour
     Text keyboardTitle;
     GameObject shiftKey;
 
+    // Main menu mode.
+    System.Action<string> menuClosed;
+    bool renameConfirmOpen;
+    GameObject renameConfirm;
+
     GameObject startButton;
     Text startLabel;
     string startLabelOriginal;
@@ -100,6 +118,19 @@ public partial class PlayerNamePicker : MonoBehaviour
     void Start()
     {
         if (presetNames == null || presetNames.Length == 0) presetNames = new[] { SessionReporter.DefaultPlayerName };
+
+        if (menuMode)
+        {
+            // Nothing opens by itself in the menu: the Change Name button calls OpenFromMenu.
+            picking = false;
+            if (templateButton != null)
+            {
+                startButton = templateButton.gameObject;
+                startLabel = startButton.GetComponentInChildren<Text>(true);
+                startButton.SetActive(false);
+            }
+            return;
+        }
 
         // Remembered across app restarts (PlayerPrefs), so the same person keeps their name by default.
         string remembered = PlayerNameStore.LastUsed;
@@ -158,7 +189,7 @@ public partial class PlayerNamePicker : MonoBehaviour
             defaultIsGuess = false;
         }
 
-        startButton.SetActive(false);
+        if (startButton != null) startButton.SetActive(false);
         if (changeButton != null) changeButton.SetActive(false);
         HideGoalButton();
         goalStepOpen = false;
@@ -166,8 +197,49 @@ public partial class PlayerNamePicker : MonoBehaviour
         RefreshFromBackend();
     }
 
+    /// <summary>
+    /// Main menu: opens the name list (remembered name highlighted, no countdown). closed(name) runs once when the panel
+    /// closes: the chosen name, or null after Back.
+    /// </summary>
+    public void OpenFromMenu(System.Action<string> closed)
+    {
+        if (!menuMode || startButton == null) { closed?.Invoke(null); return; }
+        menuClosed = closed;
+        string remembered = PlayerNameStore.LastUsed;
+        defaultIsGuess = string.IsNullOrEmpty(remembered);
+        defaultName = defaultIsGuess ? presetNames[0] : remembered;
+        currentName = null;
+        OpenPanel(autoSelect: false);
+    }
+
+    void CloseFromMenu()
+    {
+        if (renameInFlight || renameConfirmOpen) return;
+        picking = false;
+        mode = Mode.List;
+        ClosePanel();
+        var done = menuClosed;
+        menuClosed = null;
+        done?.Invoke(null);
+    }
+
     void Choose(string name)
     {
+        if (menuMode)
+        {
+            picking = false;
+            autoSelectArmed = false;
+            mode = Mode.List;
+            string stored = SessionReporter.Instance != null ? SessionReporter.Instance.SetPlayerName(name) : SessionReporter.CleanName(name);
+            currentName = stored;
+            PlayerNameStore.MarkUsed(stored);
+            ClosePanel();
+            var done = menuClosed;
+            menuClosed = null;
+            done?.Invoke(stored);
+            return;
+        }
+
         picking = false;
         autoSelectArmed = false;
         mode = Mode.List;
@@ -346,6 +418,8 @@ public partial class PlayerNamePicker : MonoBehaviour
         FitText(rename, 18, 28);
 
         statusText = MakeLabel(rt, "Countdown", "", 24, new Vector2(0f, -218f), new Vector2(860f, 60f));
+        if (menuMode)
+            MakeButton(rt, "BackButton", "Back", new Vector2(-365f, 205f), new Vector2(150f, 64f), ChangeColor, 30, CloseFromMenu);
         ShowStatus();
     }
 
@@ -455,7 +529,7 @@ public partial class PlayerNamePicker : MonoBehaviour
 
     void TypeChar(char c)
     {
-        if (renameInFlight) return;
+        if (renameInFlight || renameConfirmOpen) return;
         note = null;
         if (typed.Length >= SessionReporter.MaxPlayerNameLength)
         {
@@ -480,7 +554,7 @@ public partial class PlayerNamePicker : MonoBehaviour
 
     void Backspace()
     {
-        if (renameInFlight) return;
+        if (renameInFlight || renameConfirmOpen) return;
         note = null;
         if (typed.Length > 0) typed = typed.Substring(0, typed.Length - 1);
         if (typed.Length == 0 && shift == Shift.Off) shift = Shift.Once;
@@ -490,14 +564,14 @@ public partial class PlayerNamePicker : MonoBehaviour
     // Off -> next letter only -> caps lock -> off.
     void CycleShift()
     {
-        if (renameInFlight) return;
+        if (renameInFlight || renameConfirmOpen) return;
         shift = shift == Shift.Off ? Shift.Once : shift == Shift.Once ? Shift.Caps : Shift.Off;
         RefreshKeyboard();
     }
 
     void CancelKeyboard()
     {
-        if (renameInFlight) return;
+        if (renameInFlight || renameConfirmOpen) return;
         note = null;
         ShowList();
         if (renameUnanswered)
@@ -510,7 +584,7 @@ public partial class PlayerNamePicker : MonoBehaviour
 
     void SubmitKeyboard()
     {
-        if (renameInFlight) return;
+        if (renameInFlight || renameConfirmOpen) return;
         string name = typed.Trim();
         if (name.Length == 0)
         {
@@ -531,7 +605,66 @@ public partial class PlayerNamePicker : MonoBehaviour
             RefreshKeyboard();
             return;
         }
+        if (confirmRename)
+        {
+            ShowRenameConfirm(renameTarget, name);
+            return;
+        }
         SendRename(renameTarget, name);
+    }
+
+    // "Rename X to Y? This renames all your past sessions." over the keyboard; nothing behind it is clickable meanwhile.
+    void ShowRenameConfirm(string oldName, string newName)
+    {
+        var parent = panel != null ? (RectTransform)panel.transform : null;
+        if (parent == null) { SendRename(oldName, newName); return; }
+        CloseRenameConfirm();
+        renameConfirmOpen = true;
+        RefreshKeyboard();
+
+        var blocker = new GameObject("RenameConfirm", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        var brt = (RectTransform)blocker.transform;
+        brt.SetParent(parent, false);
+        brt.anchorMin = Vector2.zero;
+        brt.anchorMax = Vector2.one;
+        brt.offsetMin = brt.offsetMax = Vector2.zero;
+        var bimg = blocker.GetComponent<Image>();
+        bimg.color = new Color(0f, 0f, 0f, 0.55f);
+        bimg.raycastTarget = true; // the keys behind it never take the laser
+        renameConfirm = blocker;
+
+        var box = new GameObject("Box", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        var boxRt = (RectTransform)box.transform;
+        boxRt.SetParent(brt, false);
+        boxRt.anchorMin = boxRt.anchorMax = new Vector2(0.5f, 0.5f);
+        boxRt.sizeDelta = new Vector2(720f, 300f);
+        box.GetComponent<Image>().color = new Color(0.09f, 0.1f, 0.16f, 1f); // opaque: the keys behind must not read through
+
+        MakeLabel(boxRt, "Message", $"Rename \"{Short(oldName, 18)}\" to \"{Short(newName, 18)}\"?", 34, new Vector2(0f, 82f), new Vector2(680f, 50f));
+        MakeLabel(boxRt, "Warning", "This renames all your past sessions.", 30, new Vector2(0f, 28f), new Vector2(680f, 44f));
+        MakeButton(boxRt, "ConfirmRenameButton", "Rename", new Vector2(-160f, -72f), new Vector2(260f, 84f), ActionColor, 34, () =>
+        {
+            CloseRenameConfirm();
+            if (menuMode) MenuLog.Event($"rename confirmed '{oldName}' -> '{newName}'");
+            SendRename(oldName, newName);
+        });
+        MakeButton(boxRt, "CancelRenameButton", "Cancel", new Vector2(160f, -72f), new Vector2(260f, 84f), ChangeColor, 34, () =>
+        {
+            CloseRenameConfirm();
+            if (menuMode) MenuLog.Event("rename cancelled at the confirm");
+            RefreshKeyboard();
+        });
+    }
+
+    void CloseRenameConfirm()
+    {
+        renameConfirmOpen = false;
+        if (renameConfirm != null)
+        {
+            renameConfirm.SetActive(false);
+            Destroy(renameConfirm);
+        }
+        renameConfirm = null;
     }
 
     // "dikshanta" typed while "Dikshanta" exists: play as the existing player rather than splitting the history.
@@ -562,6 +695,7 @@ public partial class PlayerNamePicker : MonoBehaviour
             if (this == null) return;
             renameInFlight = false;
             if (!picking) return; // panel closed meanwhile (cannot happen while it blocks Start)
+            if (menuMode) MenuLog.Event($"rename '{oldName}' -> '{newName}': {result.status} (HTTP {result.httpStatus})");
 
             switch (result.status)
             {
@@ -615,7 +749,7 @@ public partial class PlayerNamePicker : MonoBehaviour
         }
 
         foreach (var b in keyButtons)
-            if (b != null) b.interactable = !renameInFlight;
+            if (b != null) b.interactable = !renameInFlight && !renameConfirmOpen;
     }
 
     // ─────────────────────────── UI (built from the scene's Start button) ───────────────────────────
@@ -640,6 +774,8 @@ public partial class PlayerNamePicker : MonoBehaviour
 
     void ClosePanel()
     {
+        renameConfirmOpen = false;
+        renameConfirm = null; // a child of the panel: destroyed with it
         if (panel != null)
         {
             panel.SetActive(false); // Destroy is deferred to the end of the frame; stop raycasts now

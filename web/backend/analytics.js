@@ -12,6 +12,8 @@ const feedback = require("./feedback");
 const insightsRules = require("./insights");
 const goalsStore = require("./goalsStore");
 const goalsRules = require("./goals");
+const engage = require("./engage");
+const engageStore = require("./engageStore");
 
 const LEVEL_ORDER = ["Easy", "Medium", "Hard"];
 const TIERS = ["tap", "light", "medium", "full"];
@@ -399,7 +401,12 @@ async function playerAchievements(name, { tz, goal } = {}) {
   const totalXp = sessions.reduce((a, s) => a + (Number(s.xp) || 0), 0);
 
   // Daily goals: the days this player met their goal, and the bonus XP those earned (NEW fields below; level / streak unchanged).
-  const goalMet = await goalsStore.metSummary(name).catch(() => ({ days: [], bonusXp: 0 }));
+  // Challenges and mastery (added with the engagement pass): completion bonuses and per-level stars, also NEW fields only.
+  const [goalMet, challengeDone, masteryFacts] = await Promise.all([
+    goalsStore.metSummary(name).catch(() => ({ days: [], bonusXp: 0 })),
+    engageStore.completionSummary(name).catch(() => ({ count: 0, bonusXp: 0 })),
+    engageStore.loadFacts({ player: name }).catch(() => null),
+  ]);
   const badges = progression.evaluateBadges({
     sessions, summaryById, comboById, hurtById, maxHpById, eventSessions, days, streak,
     weeklyTarget: target, thisWeekSessions: weekly.sessionsThisWeek, goalDays: goalMet.days,
@@ -424,6 +431,18 @@ async function playerAchievements(name, { tz, goal } = {}) {
     levelWithGoals: progression.levelFromXp(totalXp + goalMet.bonusXp),
     goalStreak: { ...goalsRules.goalStreak(goalMet.days, today), rule: "Consecutive days on which the daily goal was met (no freeze)." },
     goalsMet: goalMet.days.length,
+    // Added with daily / weekly challenges: their one-off bonus XP, and XP / level with every bonus (sessions + goals + challenges).
+    challengeBonusXp: challengeDone.bonusXp,
+    challengesCompleted: challengeDone.count,
+    totalXpWithBonuses: Math.round(totalXp + goalMet.bonusXp + challengeDone.bonusXp),
+    levelWithBonuses: progression.levelFromXp(totalXp + goalMet.bonusXp + challengeDone.bonusXp),
+    // Added: three stars per level (engage.MASTERY). null if the facts query failed.
+    mastery: masteryFacts
+      ? (() => {
+          const levels = engage.mastery(masteryFacts);
+          return { levels, starsEarned: levels.reduce((a, l) => a + l.starsEarned, 0), starsTotal: levels.length * 3, note: engage.MASTERY_NOTE };
+        })()
+      : null,
   };
 }
 

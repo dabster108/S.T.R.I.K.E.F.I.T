@@ -1,9 +1,13 @@
 import { useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import LandingNav from "../components/landing/LandingNav.jsx";
 import { FinalCta, Footer } from "../components/landing/FinalCta.jsx";
 import { Kicker, Reveal } from "../components/landing/shared.jsx";
 import MonsterPortrait from "../components/ui/MonsterPortrait.jsx";
+import { Stars } from "../components/engage/Mastery.jsx";
+import { api } from "../lib/api.js";
+import { shortName } from "../lib/engage.js";
+import { useApi } from "../hooks/useApi.js";
 import Icon from "../components/ui/Icon.jsx";
 import { LEVELS, LEVEL_KEYS } from "../lib/game.js";
 import { MONSTER_GLOW, MONSTER_LABEL, MONSTER_TIPS } from "../lib/monsters.js";
@@ -19,7 +23,28 @@ function Fact({ label, value }) {
 
 // One full section per monster. Facts come straight from lib/game.js (the LEVELS table, which cites
 // context.md / project_progress.md); tips come from MONSTER_TIPS, written from the same design docs.
-function MonsterSection({ levelKey, index }) {
+// A player's mastery stars for this monster (when a player is picked above).
+function PlayerStars({ entry, player }) {
+  if (!entry) return null;
+  return (
+    <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 shadow-[var(--shadow-card)]">
+      <p className="flex flex-wrap items-center gap-2 text-sm font-bold text-[var(--ink)]">
+        {shortName(player, 24)}: <Stars stars={entry.stars} size="h-5 w-5" label={`${entry.starsEarned} of 3 stars`} />
+        <span className="text-xs font-semibold text-[var(--muted)]">{entry.played ? `${entry.wins} win${entry.wins === 1 ? "" : "s"} in ${entry.played} fight${entry.played === 1 ? "" : "s"}` : "not fought yet"}</span>
+      </p>
+      <ul className="mt-1.5 space-y-0.5 text-xs font-medium text-[var(--ink-secondary)]">
+        {entry.stars.map((st) => (
+          <li key={st.id} className="flex items-start gap-1.5">
+            <Icon name={st.earned ? "check" : "target"} className={`mt-px h-3.5 w-3.5 shrink-0 ${st.earned ? "text-[var(--good)]" : "text-[var(--muted)]"}`} />
+            {st.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function MonsterSection({ levelKey, index, mastery = null, player = "" }) {
   const l = LEVELS[levelKey];
   const glow = MONSTER_GLOW[levelKey];
     const facts = [
@@ -45,6 +70,7 @@ function MonsterSection({ levelKey, index }) {
             <p className="mt-2 text-sm font-bold" style={{ color: glow.outline }}>
               {glow.name} glow
             </p>
+            <PlayerStars entry={mastery?.levels.find((l) => l.level === levelKey)} player={player} />
           </Reveal>
           <Reveal delay={100}>
             <dl className="mt-8 grid gap-x-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)] sm:grid-cols-2">
@@ -70,10 +96,23 @@ function MonsterSection({ levelKey, index }) {
   );
 }
 
+// Optional ?player=: show that player's mastery stars on each monster.
+function usePlayerMastery() {
+  const [params, setParams] = useSearchParams();
+  const player = params.get("player") || "";
+  const players = useApi(() => api.players().catch(() => []), []);
+  const ach = useApi(() => (player ? api.playerAchievements(player) : Promise.resolve(null)), [player]);
+  const mastery = ach.data && ach.data.playerName === player ? ach.data.mastery : null;
+  const names = (players.data || []).map((p) => p.playerName).sort((x, y) => x.localeCompare(y));
+  const choose = (v) => setParams(v ? { player: v } : {}, { replace: true });
+  return { player, mastery, names, choose };
+}
+
 export default function MonstersView() {
   useEffect(() => {
     document.title = "Monsters · STRIKEFIT";
   }, []);
+  const { player, mastery, names, choose } = usePlayerMastery();
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
       <a
@@ -105,8 +144,27 @@ export default function MonstersView() {
             </a>
           ))}
         </nav>
+        {names.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold text-[var(--ink-secondary)]">
+            <label htmlFor="stars-player">Show stars for</label>
+            <select
+              id="stars-player"
+              value={player}
+              onChange={(e) => choose(e.target.value)}
+              className="max-w-[16rem] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm font-semibold text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-ring)]"
+            >
+              <option value="">No player</option>
+              {names.map((n) => (
+                <option key={n} value={n}>
+                  {shortName(n, 28)}
+                </option>
+              ))}
+            </select>
+            {player && mastery && <span className="text-xs text-[var(--muted)]">{mastery.starsEarned} of {mastery.starsTotal} stars · {mastery.note}</span>}
+          </div>
+        )}
         {LEVEL_KEYS.map((k, i) => (
-          <MonsterSection key={k} levelKey={k} index={i} />
+          <MonsterSection key={k} levelKey={k} index={i} mastery={player ? mastery : null} player={player} />
         ))}
       </main>
       <FinalCta />

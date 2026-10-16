@@ -7,6 +7,8 @@ import { useDocTitle } from "../hooks/useDocTitle.js";
 import Icon from "../components/ui/Icon.jsx";
 import { useBroadcast } from "../hooks/useBroadcast.js";
 import { LiveOverlay } from "../components/live/LiveHud.jsx";
+import { ReactionBar, ReactionLayer } from "../components/live/Reactions.jsx";
+import { useLiveIds, useLiveSession } from "../live/LiveProvider.jsx";
 
 // strikefit.vercel.app/broadcast — the headset's view, live. Opening the page is the
 // trigger: it connects to the signaling relay and asks the game for video, so nobody
@@ -47,6 +49,31 @@ function Stat({ label, value }) {
   );
 }
 
+// Cheers for the fight on the video (the first live fight, the same one LiveOverlay shows): the bar under the player,
+// the floating icons and counter over it.
+function useFirstFight() {
+  const ids = useLiveIds();
+  const entry = useLiveSession(ids[0] || "__none__");
+  return entry && entry.session.status === "live" ? entry.session : null;
+}
+function CheerBar() {
+  const fight = useFirstFight();
+  if (!fight) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5">
+      <p className="text-sm font-semibold text-[var(--ink-secondary)]">
+        Cheering for <span className="font-bold text-[var(--ink)]">{fight.playerName}</span>
+        <span className="ml-1 text-xs font-medium text-[var(--muted)]">(shown here and on the dashboard, not in the headset yet)</span>
+      </p>
+      <ReactionBar sessionId={fight.id} />
+    </div>
+  );
+}
+function CheerLayer() {
+  const fight = useFirstFight();
+  return fight ? <ReactionLayer sessionId={fight.id} tone="overlay" /> : null;
+}
+
 // Player, status and stream health. Shared by the public page and the dashboard page.
 function BroadcastPanel({ room, header }) {
   const { phase, headsetOnline, error, stream, stats, retry } = useBroadcast(room);
@@ -78,6 +105,7 @@ function BroadcastPanel({ room, header }) {
       <div ref={frame} className="relative mt-5 aspect-video w-full overflow-hidden rounded-[var(--radius-xl)] bg-[var(--blue-900)] shadow-[var(--shadow-card)]">
         <video ref={video} autoPlay playsInline muted className={`h-full w-full object-contain ${live ? "" : "invisible"}`} />
         {live && <LiveOverlay />}
+        {live && <CheerLayer />}
         {live ? (
           <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-[var(--bad)] px-2 py-1 text-xs font-extrabold tracking-wider text-white">
             <span className="h-1.5 w-1.5 rounded-full bg-white status-live" aria-hidden /> LIVE
@@ -96,6 +124,8 @@ function BroadcastPanel({ room, header }) {
           </div>
         )}
       </div>
+
+      <CheerBar />
 
       {error && (
         <p className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-[var(--bad-soft)] px-4 py-3 text-sm font-semibold text-[var(--bad)]">

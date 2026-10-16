@@ -18,6 +18,8 @@ import LevelBreakdown from "../components/compare/LevelBreakdown.jsx";
 import RoundEffort from "../components/compare/RoundEffort.jsx";
 import ActivityCard from "../components/compare/ActivityCard.jsx";
 import BestsCard from "../components/compare/BestsCard.jsx";
+import { rivalry, shortName } from "../lib/engage.js";
+import { levelName } from "../lib/game.js";
 
 const speed = (v) => `${v.toFixed(1)} m/s`;
 const pct = (r) => (isNum(r) ? r * 100 : null);
@@ -185,6 +187,45 @@ function Section({ index, title, children }) {
   );
 }
 
+// Rivalry: who holds the higher best score on each level both (or either) have fought, and the overall best-score gap.
+function RivalryCard({ a, b, pa, pb }) {
+  const r = rivalry(pa, pb);
+  if (!r || !r.levels.length) return null;
+  const who = (k) => shortName(k === "a" ? a : b, 20);
+  const lead = r.winsA === r.winsB ? "Level wins are level" : `${who(r.winsA > r.winsB ? "a" : "b")} leads ${Math.max(r.winsA, r.winsB)} to ${Math.min(r.winsA, r.winsB)} on levels`;
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader title="Rivalry" subtitle={`${lead}${r.ties ? ` (${r.ties} tied)` : ""} · by best score per level`} />
+      <ul className="divide-y divide-[var(--border)]">
+        {r.levels.map((l) => (
+          <li key={l.level} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-3 text-sm">
+            <span className="min-w-0">
+              <span className="block font-bold text-[var(--ink)]">{levelName(l.level)}</span>
+              <span className="block truncate text-xs font-semibold text-[var(--muted)]">
+                {who("a")} {l.a === null ? "not played" : formatNumber(l.a)} · {who("b")} {l.b === null ? "not played" : formatNumber(l.b)}
+              </span>
+            </span>
+            <span className="text-right text-xs font-bold">
+              {l.winner === "tie" ? (
+                <span className="text-[var(--muted)]">Tied</span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[var(--ink)]">
+                  <Icon name="trophy" className="h-3.5 w-3.5 text-amber-500" /> {who(l.winner)}
+                  {l.gap !== null && <span className="font-semibold text-[var(--muted)]">by {formatNumber(l.gap)}</span>}
+                </span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="border-t border-[var(--border)] px-5 py-3 text-xs font-semibold text-[var(--ink-secondary)]">
+        Best score overall: {who("a")} {formatNumber(r.bestGap.a)} vs {who("b")} {formatNumber(r.bestGap.b)}
+        {r.bestGap.leader === "tie" ? " (level)" : `, a gap of ${formatNumber(r.bestGap.gap)}`}.
+      </p>
+    </Card>
+  );
+}
+
 function PlayersCompare({ a, b, setParam, names }) {
   const pa = useApi(() => (a ? api.player(a) : Promise.resolve(null)), [a]);
   const pb = useApi(() => (b ? api.player(b) : Promise.resolve(null)), [b]);
@@ -240,6 +281,7 @@ function PlayersCompare({ a, b, setParam, names }) {
       ) : (
         <div key={`${a}|${b}`} className="space-y-10">
           <Section index="01" title="Head to head">
+            <RivalryCard a={a} b={b} pa={da} pb={db} />
             <div className="grid gap-6 xl:grid-cols-12">
               <DiffCard className="xl:col-span-7" title="Effort" subtitle="How hard they swing when they play" a={a} b={b} rows={effort} />
               <DiffCard className="xl:col-span-5" title="Engagement and results" subtitle="How much they play, and how it goes" a={a} b={b} rows={engagement} />

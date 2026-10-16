@@ -14,7 +14,9 @@ const MARKS = [
 ];
 const clock = (s) => `${String(Math.floor(Math.max(0, s) / 60)).padStart(2, "0")}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, "0")}`;
 
-export default function SwingTimeline({ events, duration, t, onSeek }) {
+// ghost (optional): another run of the same level, { hits: [{ t, speed, tier }], hp: [{ t, f }], duration }, drawn faint
+// on the same time axis (both start at 00:00) and the same speed scale.
+export default function SwingTimeline({ events, duration, t, onSeek, ghost = null }) {
   const [ref, width] = useElementWidth();
   const hits = events.filter((e) => e.type === "hit" && isNum(P(e).swingSpeed));
   const hp = events.filter((e) => isNum(P(e).monsterHp) && isNum(P(e).monsterMaxHp) && P(e).monsterMaxHp > 0);
@@ -26,7 +28,8 @@ export default function SwingTimeline({ events, duration, t, onSeek }) {
   const pad = { t: 22, r: 44, b: 22, l: 40 };
   const iw = Math.max(10, width - pad.l - pad.r);
   const ih = height - pad.t - pad.b;
-  const d = Math.max(0.1, duration);
+  const d = Math.max(0.1, duration, ghost?.duration || 0);
+  // The speed axis follows this run (as before); a faster ghost swing is drawn clipped at the top edge.
   const vMax = Math.max(4, Math.ceil(Math.max(0, ...hits.map((e) => P(e).swingSpeed))));
   const sx = (x) => pad.l + (Math.min(d, Math.max(0, x)) / d) * iw;
   const sv = (v) => pad.t + ih - (Math.min(vMax, v) / vMax) * ih;
@@ -34,7 +37,7 @@ export default function SwingTimeline({ events, duration, t, onSeek }) {
   const hpPath = hp.map((e, i) => `${i ? "H" : "M"}${sx(e.t)}${i ? `V${sh(P(e).monsterHp / P(e).monsterMaxHp)}` : `,${sh(P(e).monsterHp / P(e).monsterMaxHp)}`}`).join("");
   const seekAt = (clientX, el) => {
     const r = el.getBoundingClientRect();
-    onSeek(Math.min(d, Math.max(0, ((clientX - r.left - pad.l) / iw) * d)));
+    onSeek(Math.min(Math.max(0.1, duration), Math.max(0, ((clientX - r.left - pad.l) / iw) * d)));
   };
   const present = MARKS.filter((m) => marks.some((e) => e.type === m.type));
   return (
@@ -43,7 +46,7 @@ export default function SwingTimeline({ events, duration, t, onSeek }) {
         width={width}
         height={height}
         role="img"
-        aria-label={`Swing speed and monster health over ${clock(d)}: ${hits.length} hits with a speed, ${marks.length} markers`}
+        aria-label={`Swing speed and monster health over ${clock(d)}: ${hits.length} hits with a speed, ${marks.length} markers${ghost ? `; best earlier run drawn faint (${ghost.hits.length} hits)` : ""}`}
         className="block cursor-crosshair touch-none select-none"
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -76,6 +79,19 @@ export default function SwingTimeline({ events, duration, t, onSeek }) {
           const lane = MARKS.indexOf(m);
           return <rect key={e.id} x={sx(e.t) - 1} y={2 + lane * 4} width={2} height={4} className={`${m.cls} ${e.t <= t ? "" : "opacity-35"}`} />;
         })}
+        {/* the ghost run, faint, under this run */}
+        {ghost && ghost.hp.length > 1 && (
+          <path
+            d={ghost.hp.map((g, i) => `${i ? "H" : "M"}${sx(g.t)}${i ? `V${sh(g.f)}` : `,${sh(g.f)}`}`).join("")}
+            fill="none"
+            stroke="var(--hp-monster)"
+            strokeWidth={1.5}
+            strokeDasharray="4 3"
+            opacity={0.4}
+          />
+        )}
+        {ghost &&
+          ghost.hits.map((g, i) => <circle key={`g${i}`} cx={sx(g.t)} cy={sv(g.speed)} r={2.6} fill="none" stroke="var(--muted)" strokeWidth={1.2} opacity={0.55} />)}
         {/* monster HP */}
         {hp.length > 1 && <path d={hpPath} fill="none" stroke="var(--hp-monster)" strokeWidth={2} />}
         {/* swing speed per hit */}
@@ -92,6 +108,15 @@ export default function SwingTimeline({ events, duration, t, onSeek }) {
         <li className="inline-flex items-center gap-1.5">
           <span className="h-[2px] w-4 bg-[var(--hp-monster)]" aria-hidden /> Monster HP
         </li>
+        {ghost && (
+          <li className="inline-flex items-center gap-1.5 text-[var(--muted)]">
+            <svg width="16" height="8" aria-hidden>
+              <circle cx="4" cy="4" r="2.6" fill="none" stroke="var(--muted)" strokeWidth="1.2" />
+              <line x1="9" x2="16" y1="4" y2="4" stroke="var(--hp-monster)" strokeDasharray="3 2" opacity="0.5" />
+            </svg>
+            Best earlier run (faint)
+          </li>
+        )}
         {present.map((m) => (
           <li key={m.type} className="inline-flex items-center gap-1.5">
             <svg width="6" height="8" aria-hidden>

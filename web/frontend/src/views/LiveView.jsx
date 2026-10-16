@@ -7,6 +7,7 @@ import { LiveSkeleton } from "../components/ui/Skeletons.jsx";
 import Button from "../components/ui/Button.jsx";
 import EventList, { collapseRepeats } from "../components/sessions/EventList.jsx";
 import { LiveArenaCard, LiveChip } from "../components/live/LiveFight.jsx";
+import ActivityFeed from "../components/engage/ActivityFeed.jsx";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -81,6 +82,8 @@ export default function LiveView() {
               </Card>
             )}
           </div>
+          <SectionRule title="Milestones · all players" className="mt-8" />
+          <ActivityFeed className="mt-4" limit={10} title="Activity" />
         </section>
 
         <section aria-labelledby="feed-title" className="xl:sticky xl:top-20 xl:col-span-5">

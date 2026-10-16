@@ -26,15 +26,29 @@ export function weekStart(date) {
   return d;
 }
 
-/** Best finished run per player, highest score first. */
+// The ranking rule of GET /api/leaderboard (web/backend/leaderboard.js), which the headset scoreboard uses too: score high to
+// low; equal scores: the faster run (no duration = slowest), then the one finished first, then the name. The backend test
+// test/leaderboard.test.js checks that this copy and the server agree on the same fixture.
+const runSecs = (s) => (num(s.durationSec) > 0 ? num(s.durationSec) : Infinity);
+const runEnd = (s) => new Date(s.endedAt || s.startedAt || 0).getTime() || 0;
+export function compareRuns(a, b) {
+  return (
+    (num(b.score) || 0) - (num(a.score) || 0) ||
+    (runSecs(a) === runSecs(b) ? 0 : runSecs(a) < runSecs(b) ? -1 : 1) ||
+    runEnd(a) - runEnd(b) ||
+    String(a.playerName).localeCompare(String(b.playerName))
+  );
+}
+
+/** Best finished, scored run per player (the leaderboard rule), best first. */
 export function bestPerPlayer(sessions) {
   const best = new Map();
   for (const s of sessions) {
-    if (!finished(s)) continue;
+    if (!finished(s) || !(num(s.score) > 0)) continue;
     const cur = best.get(s.playerName);
-    if (!cur || (num(s.score) || 0) > (num(cur.score) || 0)) best.set(s.playerName, s);
+    if (!cur || compareRuns(s, cur) < 0) best.set(s.playerName, s);
   }
-  return [...best.values()].sort((a, b) => (num(b.score) || 0) - (num(a.score) || 0));
+  return [...best.values()].sort(compareRuns);
 }
 
 /** Sessions of the board's pool. board: "weekly" | "alltime" | "level" (with level). */

@@ -1,6 +1,6 @@
 # Fitness Monster Battle (VR) — Project Context
 
-Last updated: **2026-10-10, main menu / SceneFlow, WeaponSurfaceProxy, Level 2 landing tremor, DragonHazard (off), boss glow-ups and 3 new attacks (see project_progress.md)**
+Last updated: **2026-10-16, web engagement pass (challenges, calendar, mastery stars, challenge a friend, replay ghost, feed, cheers, tour, calm mode; see the last section and project_progress.md). Unity: unchanged since 2026-10-10 (main menu / SceneFlow, WeaponSurfaceProxy, Level 2 landing tremor, DragonHazard off, boss glow-ups and 3 new attacks).**
 
 ## Overview
 
@@ -140,3 +140,11 @@ All per-level combat numbers live in `Editor/CombatTuning.cs` (monster prefab va
 - **Level 1 animations:** `Monster/MonsterCosmetics.cs` on `Monster_Easy_HipHop` (idle variants, taunt, directional / heavy hit, chest sway; a toggle each), built by `Editor/Level1AnimationSetup.cs` (idempotent: rewrites the prefab's tuned values, so re-run it after changing defaults), states IdleB / IdleC / Taunt / HitLeft / HitRight / HitHeavy in `Monster_L1_Sword.controller`. Gameplay numbers untouched. `MonsterController.SecondsUntilAttackReady` is read-only.
 - **Harnesses (Editor, MCP-driven):** `BreathingVerification` (menu | level), `GoalVerification` (goal | pending; points the reporter at `http://localhost:4010` at runtime only), `Level1AnimationVerification` (fight | calm | hits).
 - **Traps:** serialized prefab values outlive script default changes; `XPManager.GetSwingTier` returns upper case; the baseline hit return-to-idle timer is 0.35 s; MCP `code` runs C# 6 (no local functions).
+
+---
+
+## Web engagement pass, 2026-10-16 (branch `web-engagement`, web only; details in project_progress.md)
+
+- **Backend (`web/backend`)**: `challenges.js` (config array, deterministic date-seeded rotation in the Asia/Kathmandu constant, median-scaled targets with labelled fallbacks, safety caps `SAFETY_CAPS`), `engage.js` (session facts, `MASTERY` stars "tuning in progress", calendar grid, week summary, best-run pick, reaction token buckets), `engageStore.js` (SQL), `activityFeed.js`, table `challenge_completions` (`UNIQUE (player_name, challenge_key)`; bonus XP once). Routes: `/api/players/:name/{challenges,challenges/history,calendar,week,best}`, `/api/calendar`, `/api/activity`, `/api/challenge/:sessionId[/check]`, `/api/live/reactions`, `POST /api/live/react`; SSE `challenge_done`, `reaction`; env `REACTIONS_ENABLED`. New achievements fields: `challengeBonusXp`, `challengesCompleted`, `totalXpWithBonuses`, `levelWithBonuses`, `mastery`.
+- **Frontend (`web/frontend`)**: `components/engage/` (Challenges, Calendar, WeekCard, Mastery, ActivityFeed, ShareChallenge), `components/live/Reactions.jsx`, `components/onboarding/` (Tour, tourState), `views/ChallengeView.jsx` (`/challenge/:sessionId`), route `/watch`, Calm mode in `hooks/motion.js` + header Guide menu, `lib/engage.js` (+ tests).
+- **Traps**: `INSERT ... ON CONFLICT DO NOTHING` is the only idempotency guard for completions, and deleting a session does not delete them; the activity feed re-derives badges, so only recently active players show badge rows; a "best earlier run" must be a decided fight with a score (abandoned runs have score 0); `innerText` honours CSS `text-transform` (tour tests); the headset still cannot see cheers.

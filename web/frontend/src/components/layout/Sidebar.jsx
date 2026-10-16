@@ -14,6 +14,7 @@ export const NAV = [
   { to: "/dashboard/analytics", label: "Analytics", icon: "analytics" },
   { to: "/dashboard/engagement", label: "Engagement", icon: "calendar" },
   { to: "/dashboard/export", label: "Export", icon: "download" },
+  { to: "/dashboard/story", label: "Story", icon: "sparkles" },
 ];
 
 const isActive = (item, pathname) => (item.end ? pathname === item.to || pathname === `${item.to}/` : pathname.startsWith(item.to));

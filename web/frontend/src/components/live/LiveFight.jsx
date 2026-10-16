@@ -7,6 +7,7 @@ import { useTween } from "../../hooks/motion.js";
 import { LevelBadge, OutcomeBadge } from "../ui/Badge.jsx";
 import Icon from "../ui/Icon.jsx";
 import { LiveHud } from "./LiveHud.jsx";
+import { ReactionBar, ReactionLayer } from "./Reactions.jsx";
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const TIER_TONE = { full: "text-[var(--accent-strong)]", medium: "text-[var(--accent)]", light: "text-[var(--ink-secondary)]", tap: "text-[var(--muted)]" };
@@ -168,11 +169,12 @@ export const LiveArenaCard = memo(function LiveArenaCard({ id, compact = false }
 
   return (
     <article
-      className={`flash-in min-w-0 overflow-hidden rounded-2xl border bg-[var(--surface)] shadow-[var(--shadow-card)] transition-[opacity,border-color] duration-500 ${
+      className={`flash-in relative min-w-0 overflow-hidden rounded-2xl border bg-[var(--surface)] shadow-[var(--shadow-card)] transition-[opacity,border-color] duration-500 ${
         live ? "live-pulse border-[var(--accent-ring)]" : "border-[var(--border)] opacity-80"
       } ${compact ? "p-4" : "p-5"}`}
       aria-label={`${session.playerName}, ${levelName(session.level)}`}
     >
+      <ReactionLayer sessionId={session.id} />
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-extrabold text-white shadow-[var(--shadow-glow)]">
@@ -217,6 +219,7 @@ export const LiveArenaCard = memo(function LiveArenaCard({ id, compact = false }
       </dl>
 
       {!compact && <LiveHud id={id} />}
+      {!compact && <ReactionBar sessionId={session.id} live={live} className="mt-3 border-t border-[var(--border)] pt-3" />}
 
       {!compact && (
         <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-3 text-xs">

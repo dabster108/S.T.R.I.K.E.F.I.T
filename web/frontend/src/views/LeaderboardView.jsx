@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { levelRank } from "../lib/derive.js";
-import { MIN_HITS_FOR_EFFORT, MIN_IMPROVED_SESSIONS, bestPerPlayer, boardPool, mostImproved, youVsLastWeek } from "../lib/leaderboard.js";
+import { MIN_HITS_FOR_EFFORT, MIN_IMPROVED_SESSIONS, bestPerPlayer, boardPool, compareRuns, mostImproved, youVsLastWeek } from "../lib/leaderboard.js";
+import { api } from "../lib/api.js";
 import { formatDuration, formatNumber, formatRelative } from "../lib/format.js";
 import { levelName } from "../lib/game.js";
 import { useCountUp } from "../hooks/motion.js";
@@ -79,6 +80,27 @@ function Podium({ entries, openSession }) {
   );
 }
 
+// GET /api/leaderboard: the board the headset shows. Rows come back session-shaped so the views below need no changes; null
+// while loading or when the server is unreachable (the caller then ranks the loaded sessions with the same rule).
+const fromBoardRow = (r) => ({ id: r.sessionId, playerName: r.name, score: r.score, level: r.level, outcome: r.outcome, durationSec: r.durationSec, endedAt: r.date });
+function useServerBoard(level, limit, enabled, refreshKey) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let live = true;
+    api
+      .leaderboard({ level, limit })
+      .then((d) => live && setRows((d.rows || []).map(fromBoardRow)))
+      .catch(() => live && setRows(null));
+    return () => {
+      live = false;
+    };
+  }, [level, limit, enabled, refreshKey]);
+  return enabled ? rows : null;
+}
+
+const RULE_NOTE = "Ranked by best score per level";
+
 const signed = (v, digits = 0) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v).toFixed(digits)}`;
 
 // One player's week against the week before (finished fights, best and average score).
@@ -111,34 +133,40 @@ function YouVsLastWeek({ sessions }) {
   );
 }
 
-// Top runs per level, side by side (best run per player in each level).
+// Top runs per level, side by side: the server's level boards (the headset's L1 / L2 / L3 tabs), or the same rule locally.
 function PerLevel({ sessions, openSession }) {
   const levels = [...new Set(sessions.map((s) => s.level))].sort((a, b) => levelRank(a) - levelRank(b));
   if (!levels.length) return null;
   return (
     <div className="stagger grid gap-6 lg:grid-cols-3">
-      {levels.map((l) => {
-        const top = bestPerPlayer(sessions.filter((s) => s.level === l)).slice(0, 5);
-        return (
-          <Card key={l} className="overflow-hidden">
-            <CardHeader title={levelName(l)} subtitle={`Best run per player · ${top.length} shown`} actions={<LevelBadge level={l} />} />
-            <ol className="divide-y divide-[var(--border)]">
-              {top.map((s, i) => (
-                <li key={s.id}>
-                  <button type="button" onClick={() => openSession(s.id)} className="press flex w-full items-center gap-3 px-5 py-2.5 text-left hover:bg-[var(--surface-muted)]">
-                    <span className="t-index w-6 text-[var(--muted)]">{String(i + 1).padStart(2, "0")}</span>
-                    <span className="min-w-0 flex-1 truncate font-bold text-[var(--ink)]">{s.playerName}</span>
-                    <span className="font-extrabold tabular-nums text-[var(--ink)]">
-                      <Score value={s.score} />
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </Card>
-        );
-      })}
+      {levels.map((l) => (
+        <PerLevelCard key={l} level={l} sessions={sessions} openSession={openSession} />
+      ))}
     </div>
+  );
+}
+
+function PerLevelCard({ level, sessions, openSession }) {
+  const server = useServerBoard(level, 5, true, sessions.length);
+  const local = useMemo(() => bestPerPlayer(sessions.filter((s) => s.level === level)).slice(0, 5), [sessions, level]);
+  const top = server || local;
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader title={levelName(level)} subtitle={`${RULE_NOTE} · ${top.length} shown`} actions={<LevelBadge level={level} />} />
+      <ol className="divide-y divide-[var(--border)]">
+        {top.map((s, i) => (
+          <li key={s.id}>
+            <button type="button" onClick={() => openSession(s.id)} className="press flex w-full items-center gap-3 px-5 py-2.5 text-left hover:bg-[var(--surface-muted)]">
+              <span className="t-index w-6 text-[var(--muted)]">{String(i + 1).padStart(2, "0")}</span>
+              <span className="min-w-0 flex-1 truncate font-bold text-[var(--ink)]">{s.playerName}</span>
+              <span className="font-extrabold tabular-nums text-[var(--ink)]">
+                <Score value={s.score} />
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </Card>
   );
 }
 
@@ -205,13 +233,16 @@ export default function LeaderboardView({ sessions, openSession }) {
     [sessions]
   );
 
-  const ranked = useMemo(() => {
+  // All time, best per player, any outcome = exactly the headset's scoreboard (GET /api/leaderboard). Every other filter is
+  // ranked here from the loaded sessions with the same rule (lib/leaderboard.js compareRuns).
+  const serverBoard = board === "alltime" && mode === "best" && outcome === "all";
+  const server = useServerBoard(level, 100, serverBoard, sessions.length);
+  const local = useMemo(() => {
     const pool = boardPool(sessions, board === "weekly" ? "weekly" : "alltime").filter((s) => (level === "all" || s.level === level) && (outcome === "all" || s.outcome === outcome));
-    const sorted = [...pool].sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0) || (a.durationSec || 1e9) - (b.durationSec || 1e9));
-    if (mode === "all") return sorted.slice(0, 50);
-    const seen = new Set();
-    return sorted.filter((s) => !seen.has(s.playerName) && seen.add(s.playerName));
+    if (mode === "all") return [...pool].filter((s) => s.status !== "live").sort(compareRuns).slice(0, 50);
+    return bestPerPlayer(pool);
   }, [sessions, mode, level, outcome, board]);
+  const ranked = server || local;
 
   const podium = PODIUM.map((p) => ({ ...p, s: ranked[p.place - 1] })).filter((p) => p.s);
   const top = Math.max(1, Number(ranked[0]?.score) || 0);
@@ -226,7 +257,7 @@ export default function LeaderboardView({ sessions, openSession }) {
       <PageHeader
         eyebrow="Rankings"
         title="Leaderboard"
-        description="Highest scores across all recorded battles. Ties go to the faster run. This week starts on Monday."
+        description={`${RULE_NOTE}, the same board the headset shows. Ties go to the faster run. This week starts on Monday.`}
         actions={
           board === "weekly" || board === "alltime" ? (
             <>

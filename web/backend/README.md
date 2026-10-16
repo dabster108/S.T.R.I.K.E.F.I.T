@@ -152,3 +152,20 @@ endpoint doesn't support it.
 
 `npm run simulate -- --url <api> [--player NAME] [--level Easy|Medium] [--seconds 30] [--keep]`
 plays a fake fight the way Unity does. It deletes its session at the end unless `--keep` is passed.
+
+## Engagement routes (added with the web-engagement pass)
+
+All additions; no existing route or field changed. Names are validated like the daily-goal routes (1-40 characters, no control characters). Days and weeks use the same time zone constant as the streak and goals (`Asia/Kathmandu`), weeks run Monday to Sunday.
+
+| Route | What it returns |
+| --- | --- |
+| `GET /api/players/:name/challenges` | 3 daily + 1 weekly challenge with progress, target, target source (`data` / `fallback` / `fixed`), rest-day note |
+| `GET /api/players/:name/challenges/history?days=30` | completions with their bonus XP (max 90 days) |
+| `GET /api/players/:name/calendar?weeks=26` / `GET /api/calendar` | sessions and estimated kcal per local day (max 53 weeks) |
+| `GET /api/players/:name/week[?week=last]` | the week's totals and "vs previous week" (only when that week had a session) |
+| `GET /api/players/:name/best?level=Easy&before=<sessionId>` | highest-score earlier run on a level with its swing and monster HP samples |
+| `GET /api/challenge/:sessionId`, `/check?name=` | the public challenge page's data |
+| `GET /api/activity?limit=20` | milestones, names and event types only |
+| `GET /api/live/reactions`, `POST /api/live/react` | cheers (validated, rate limited, never stored; SSE `reaction`) |
+
+Table `challenge_completions` is created by `schema.sql` on boot. `REACTIONS_ENABLED=false` (Render environment) switches cheers off. To add a challenge, append one object to `CHALLENGES` in `challenges.js` (the comment above the array lists the fields); every target is clamped to `SAFETY_CAPS`.

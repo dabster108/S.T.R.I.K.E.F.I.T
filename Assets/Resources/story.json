@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "title": "The story",
+  "slideSeconds": 7,
+  "slides": [
+    {
+      "id": "guardians",
+      "text": "Three guardians remain. The Gatekeeper, in the dungeon halls. The Crimson Warden, in the vaults below. The Harbor Tyrant, at the edge of the sea."
+    },
+    {
+      "id": "effort",
+      "text": "A tap will not wake them. A swing thrown with everything you have will. Strike true."
+    },
+    {
+      "id": "pulse",
+      "text": "Your pulse is the only light. Keep it burning."
+    }
+  ],
+  "levels": [
+    {
+      "level": 1,
+      "key": "Easy",
+      "scene": "Level1_Easy",
+      "guardian": "The Gatekeeper",
+      "intro": "He guards the first hall. He is slow, and he is testing you."
+    },
+    {
+      "level": 2,
+      "key": "Medium",
+      "scene": "Level2_Medium",
+      "guardian": "The Crimson Warden",
+      "intro": "Faster, and he watches where you strike. Vary your swings."
+    },
+    {
+      "level": 3,
+      "key": "Hard",
+      "scene": "Level3_Hard",
+      "guardian": "The Harbor Tyrant",
+      "intro": "The last guardian. Choose your weapon. Do not stand still."
+    }
+  ]
+}

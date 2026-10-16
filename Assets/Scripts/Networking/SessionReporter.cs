@@ -131,6 +131,20 @@ public class SessionReporter : MonoBehaviour
     void Start()
     {
         if (wakeBackendOnLoad) WakeBackend();
+        else WakeDone = true;
+    }
+
+    /// <summary>The wake-up ping finished (answered, failed or timed out), or was never sent. Background fetches that should not
+    /// race a cold start (the menu scoreboard) wait for this.</summary>
+    public bool WakeDone { get; private set; }
+    /// <summary>Raised once when WakeDone becomes true (ok = the backend answered).</summary>
+    public event Action<bool> WakeFinished;
+
+    void FinishWake(bool ok)
+    {
+        if (WakeDone) return;
+        WakeDone = true;
+        WakeFinished?.Invoke(ok);
     }
 
     // Render's free tier sleeps when idle; this starts the cold boot while the player is still on the
@@ -148,6 +162,7 @@ public class SessionReporter : MonoBehaviour
         catch (Exception e)
         {
             Debug.LogWarning($"[SessionReporter] Wake-up ping not sent ({e.Message}). Backend: {baseUrl}");
+            FinishWake(false);
             return;
         }
 
@@ -156,11 +171,13 @@ public class SessionReporter : MonoBehaviour
         op.completed += _ =>
         {
             float secs = Time.realtimeSinceStartup - sentAt;
-            if (req.result == UnityWebRequest.Result.Success)
+            bool ok = req.result == UnityWebRequest.Result.Success;
+            if (ok)
                 Debug.Log($"[SessionReporter] Backend awake: GET {url} → {req.responseCode} in {secs:0.0}s");
             else
                 Debug.LogWarning($"[SessionReporter] Wake-up ping failed after {secs:0.0}s ({req.error}); gameplay continues offline-safe.");
             req.Dispose();
+            if (this != null) FinishWake(ok);
         };
     }
 
@@ -372,6 +389,33 @@ public class SessionReporter : MonoBehaviour
                 done(result);
             });
     }
+
+    // ─────────────────────────── Leaderboard (menu scoreboard, result rank line) ───────────────────────────
+
+    /// <summary>
+    /// GET /api/leaderboard?level=&limit=&player=[&score=&durationSec=] with the 5 s request timeout. Calls back with ok and the
+    /// raw JSON body (the caller parses and caches it). Never blocks anything; failure is ok = false.
+    /// level: "all", "Easy", "Medium" or "Hard". run score / duration: a fight just finished (0 = none).
+    /// </summary>
+    public void FetchLeaderboard(string level, int limit, string player, int runScore, float runDurationSec, Action<bool, string> done)
+    {
+        var q = new StringBuilder("/api/leaderboard?level=");
+        q.Append(Uri.EscapeDataString(string.IsNullOrEmpty(level) ? "all" : level)).Append("&limit=").Append(limit);
+        if (!string.IsNullOrEmpty(player)) q.Append("&player=").Append(Uri.EscapeDataString(player));
+        if (runScore > 0)
+        {
+            q.Append("&score=").Append(runScore);
+            if (runDurationSec > 0f) q.Append("&durationSec=").Append(Mathf.RoundToInt(runDurationSec));
+        }
+        SendNow(UnityWebRequest.kHttpVerbGET, ApiUrl(q.ToString()), null, requestTimeoutSeconds, "leaderboard",
+            (answered, code, body, error) => done(answered && code == 200, answered && code == 200 ? body : null));
+    }
+
+    /// <summary>The last result handed to the network in this scene (score, real-time duration, level key).</summary>
+    public bool HasLastResult { get; private set; }
+    public int LastResultScore { get; private set; }
+    public float LastResultDurationSec { get; private set; }
+    public string LastResultLevel { get; private set; }
 
     // GET /api/players/:name -> personalBests. Only the three records the result panel compares are read.
     [Serializable] class BestEntry { public float value; }
@@ -648,6 +692,11 @@ public class SessionReporter : MonoBehaviour
         JStr("source", "unity");
         JStr("notes", notes ?? "");
         sb.Append('}');
+
+        HasLastResult = true;
+        LastResultScore = score;
+        LastResultDurationSec = duration;
+        LastResultLevel = level;
 
         // Events first so the result arrives after the last hit.
         MoveBufferToRequests();

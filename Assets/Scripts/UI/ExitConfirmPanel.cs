@@ -3,7 +3,7 @@
 //          holds to the network (SessionReporter.FlushNow), waits for those requests to finish for at most flushWaitSeconds
 //          (real time, never stalls on a dead network), then closes the app: Application.Quit() on a device (Quest returns to
 //          Home), stops Play mode in the Editor. One press only; nothing else on the canvas is clickable while it is open.
-// Dependencies: SessionReporter (optional), SceneFlow.QuitNow, MenuUi
+// Dependencies: SessionReporter (optional), SceneFlow.QuitNow, MenuUi, MenuLog
 // Attach to: built by ExitConfirmPanel.Build under a world-space canvas
 
 using System.Collections;
@@ -61,6 +61,7 @@ public class ExitConfirmPanel : MonoBehaviour
     public void Hide()
     {
         if (Quitting) return;
+        if (gameObject.activeSelf) MenuLog.Event("exit confirm: No");
         gameObject.SetActive(false);
         SetLocked(false);
     }
@@ -74,6 +75,7 @@ public class ExitConfirmPanel : MonoBehaviour
     public void Yes()
     {
         if (Quitting) return;   // blocks a double click
+        MenuLog.Event("exit confirm: Yes (quitting)");
         StartCoroutine(QuitRoutine());
     }
 

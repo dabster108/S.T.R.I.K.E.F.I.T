@@ -8,7 +8,9 @@
 // Types: hello, heartbeat, session_started, session_updated, session_finished,
 // event_created, session_deleted, player_renamed ({ oldName, newName, sessions, events }),
 // feedback_saved ({ sessionId, playerName, level, enjoyment, rpe }),
-// goal_set / goal_met ({ playerName, date, metric, target, completedAt, bonusXp }).
+// goal_set / goal_met ({ playerName, date, metric, target, completedAt, bonusXp }),
+// challenge_done ({ playerName, key, id, title, period, periodStart, completedAt, bonusXp }),
+// reaction ({ sessionId, kind, playerName, at }; audience cheers, never stored).
 
 const HEARTBEAT_MS = 15_000;
 const RETRY_MS = 3_000;

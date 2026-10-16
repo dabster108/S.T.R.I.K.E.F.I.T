@@ -110,3 +110,27 @@ CREATE TABLE IF NOT EXISTS daily_goals (
 );
 CREATE INDEX IF NOT EXISTS daily_goals_player_idx ON daily_goals (player_name, goal_date DESC);
 CREATE INDEX IF NOT EXISTS daily_goals_date_idx   ON daily_goals (goal_date);
+
+-- ---------------------------------------------------------------------------
+-- Challenge completions (daily and weekly challenges, challenges.js). Additive and idempotent.
+-- Progress is computed on read from sessions and events; a row is stored only when a challenge is completed, because
+-- its bonus XP must be awarded exactly once. challenge_key = challenge id + '@' + the LOCAL start date of its period
+-- (day, or the Monday of the week; Asia/Kathmandu, the streak / goal constant). UNIQUE(player_name, challenge_key) plus
+-- INSERT ... ON CONFLICT DO NOTHING makes the award idempotent. title / description / target are a snapshot for history.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS challenge_completions (
+  id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  player_name    text NOT NULL,
+  challenge_key  text NOT NULL,
+  challenge_id   text NOT NULL,
+  period         text NOT NULL CHECK (period IN ('daily', 'weekly')),
+  period_start   date NOT NULL,
+  title          text NOT NULL DEFAULT '',
+  description    text NOT NULL DEFAULT '',
+  target         double precision,
+  completed_at   timestamptz NOT NULL DEFAULT now(),
+  bonus_xp       integer NOT NULL DEFAULT 0 CHECK (bonus_xp >= 0),
+  UNIQUE (player_name, challenge_key)
+);
+CREATE INDEX IF NOT EXISTS challenge_completions_player_idx ON challenge_completions (player_name, completed_at DESC);
+CREATE INDEX IF NOT EXISTS challenge_completions_completed_idx ON challenge_completions (completed_at DESC);

@@ -78,6 +78,8 @@ export const api = {
   live: (player) => request(`/api/live${qs({ player })}`),
   players: () => request("/api/players").then((d) => d.players || []),
   player: (name) => request(`/api/players/${enc(name)}`),
+  // Public scoreboard, the same endpoint and rule the headset menu uses (level: all | Easy | Medium | Hard).
+  leaderboard: ({ level = "all", limit = 10, player } = {}) => request(`/api/leaderboard${qs({ level, limit, player })}`, { timeoutMs: 15000 }),
   playerEngagement: (name) => request(`/api/players/${enc(name)}/engagement${qs({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`),
   // Returns the renamed player's profile (same shape as player()).
   renamePlayer: (name, newName) => request(`/api/players/${enc(name)}`, { method: "PATCH", body: { newName }, timeoutMs: 20000 }),
@@ -99,6 +101,19 @@ export const api = {
   setPlayerGoal: (name, body) => request(`/api/players/${enc(name)}/goal`, { method: "PUT", body, timeoutMs: 20000 }),
   playerInsights: (name) => request(`/api/players/${enc(name)}/insights`),
   playerChecklist: (name) => request(`/api/players/${enc(name)}/checklist`),
+  // Engagement (challenges, calendar, weekly recap, best run, public challenge page, activity feed, live cheers).
+  // Day and week boundaries are the API's fixed local zone (the streak / goal constant), so no ?tz= is sent.
+  playerChallenges: (name) => request(`/api/players/${enc(name)}/challenges`, { timeoutMs: 20000 }),
+  playerChallengeHistory: (name, days = 30) => request(`/api/players/${enc(name)}/challenges/history${qs({ days })}`, { timeoutMs: 20000 }),
+  playerCalendar: (name, weeks = 26) => request(`/api/players/${enc(name)}/calendar${qs({ weeks })}`),
+  siteCalendar: (weeks = 26) => request(`/api/calendar${qs({ weeks })}`),
+  playerWeek: (name, which = "this") => request(`/api/players/${enc(name)}/week${qs({ week: which === "last" ? "last" : undefined })}`),
+  playerBest: (name, level, before) => request(`/api/players/${enc(name)}/best${qs({ level, before })}`),
+  challengeCard: (sessionId) => request(`/api/challenge/${enc(sessionId)}`, { timeoutMs: 30000 }),
+  challengeCheck: (sessionId, name) => request(`/api/challenge/${enc(sessionId)}/check${qs({ name })}`, { timeoutMs: 20000 }),
+  activity: (limit = 20) => request(`/api/activity${qs({ limit })}`),
+  reactionsStatus: () => request("/api/live/reactions", { quiet: true, timeoutMs: 15000 }),
+  react: (sessionId, kind) => request("/api/live/react", { method: "POST", body: { sessionId, kind }, quiet: true, timeoutMs: 8000 }),
   exportUrl: (kind, filters) => `${API_BASE}/api/export/${kind}.csv${qs(filters)}`,
   streamUrl: () => `${API_BASE}/api/stream`,
 };

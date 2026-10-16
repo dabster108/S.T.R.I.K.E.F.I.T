@@ -20,6 +20,8 @@ import LevelBars from "../components/charts/LevelBars.jsx";
 import { SessionList } from "../components/sessions/SessionCards.jsx";
 import CalorieInsights from "../components/fitness/CalorieInsights.jsx";
 import EventList from "../components/sessions/EventList.jsx";
+import { OverviewChallenges } from "../components/engage/Challenges.jsx";
+import ActivityFeed from "../components/engage/ActivityFeed.jsx";
 
 const link = "press rounded text-xs font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline";
 
@@ -216,6 +218,7 @@ export default function DashboardView({ sessions, allSessions, events, range, on
 
   return (
     <div>
+      <div data-tour="overview">
       <PageHeader
         eyebrow="Dashboard"
         title="Performance overview"
@@ -226,6 +229,7 @@ export default function DashboardView({ sessions, allSessions, events, range, on
         }
         actions={<SegmentedControl label="Time range" options={RANGES} value={range} onChange={onRange} />}
       />
+      </div>
 
       <div className="mt-6">
         <PlayingNow />
@@ -294,14 +298,23 @@ export default function DashboardView({ sessions, allSessions, events, range, on
         <GoalsMetToday />
       </div>
 
-      {/* 02: site-wide calorie insights */}
-      <SectionRule index="02" title="Calorie insights · all players" className="mt-12" />
+      {/* 02: today's challenges (per player) and the activity feed (everyone) */}
+      <SectionRule index="02" title="Today · challenges and activity" className="mt-12" />
+      <div className="mt-4 grid items-start gap-6 xl:grid-cols-12">
+        <div className="min-w-0 xl:col-span-7">
+          <OverviewChallenges />
+        </div>
+        <ActivityFeed className="xl:col-span-5" />
+      </div>
+
+      {/* 03: site-wide calorie insights */}
+      <SectionRule index="03" title="Calorie insights · all players" className="mt-12" />
       <div className="mt-4">
         <CalorieInsights />
       </div>
 
       {/* 03: the primary chart with one supporting panel */}
-      <SectionRule index="03" title="Score and outcomes" className="mt-12" />
+      <SectionRule index="04" title="Score and outcomes" className="mt-12" />
       <div className="mt-4 grid gap-6 xl:grid-cols-12">
         <Card className="overflow-hidden xl:col-span-8">
           <CardHeader
@@ -330,13 +343,13 @@ export default function DashboardView({ sessions, allSessions, events, range, on
       </div>
 
       {/* 03: fixed 14-day window, independent of the range filter */}
-      <SectionRule index="04" title="Last 14 days · every level" className="mt-12" />
+      <SectionRule index="05" title="Last 14 days · every level" className="mt-12" />
       <div className="mt-4">
         <ActivityCards />
       </div>
 
       {/* 04: totals as a ledger, then levels and records side by side at different widths */}
-      <SectionRule index="05" title="Combat" className="mt-12" />
+      <SectionRule index="06" title="Combat" className="mt-12" />
       <FigureStrip
         className="mt-4"
         items={[
@@ -369,7 +382,7 @@ export default function DashboardView({ sessions, allSessions, events, range, on
 
       {/* 05 */}
       <SectionRule
-        index="06"
+        index="07"
         title="Recent"
         className="mt-12"
         aside={
