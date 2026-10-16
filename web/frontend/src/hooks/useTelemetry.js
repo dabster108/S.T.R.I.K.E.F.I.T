@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { api } from "../lib/api.js";
 import { liveStore, startLive } from "../live/liveStore.js";
+import { shouldRefetchOnConnect } from "../lib/startup.js";
 
 const HEALTH_INTERVAL_MS = 15000;
 const MAX_EVENTS = 300;
@@ -26,16 +27,23 @@ export function useTelemetry({ onSession, onConnectionChange } = {}) {
   callbacks.current = { onSession, onConnectionChange };
   const pingWaiters = useRef(new Map());
 
+  const loadedOk = useRef(false);
+  const refreshing = useRef(false);
+  const everLive = useRef(false);
+
   const refresh = useCallback(async () => {
+    refreshing.current = true;
     try {
       const [s, e] = await Promise.all([api.sessions(), api.events(MAX_EVENTS)]);
       setSessions(s.filter((x) => x.status !== "live"));
       setEvents(e.filter((ev) => !HIDDEN_TYPES.has(ev.type)));
       setLoadError(null);
       setLastUpdate(new Date().toISOString());
+      loadedOk.current = true;
     } catch (err) {
       setLoadError(err.message);
     } finally {
+      refreshing.current = false;
       setLoading(false);
     }
   }, []);
@@ -105,8 +113,12 @@ export function useTelemetry({ onSession, onConnectionChange } = {}) {
     if (prev === connection) return;
     callbacks.current.onConnectionChange?.(connection, prev);
     if (connection === "live" && prev !== "live") {
-      refresh();
-      checkHealth();
+      // Not on the very first connect while the first load is running: that repeated the same five requests ~1 s later.
+      if (shouldRefetchOnConnect({ prev, everLive: everLive.current, loadedOk: loadedOk.current, refreshing: refreshing.current })) {
+        refresh();
+        checkHealth();
+      }
+      everLive.current = true;
     }
   }, [connection, refresh, checkHealth]);
 

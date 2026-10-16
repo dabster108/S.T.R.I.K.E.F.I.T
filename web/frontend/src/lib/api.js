@@ -1,5 +1,7 @@
 // Thin client for web/backend. Empty base = same origin (Vite dev proxy, or the
 // backend serving the built dashboard). Set VITE_API_URL to point elsewhere (Vercel -> Render).
+import { createCoalescer } from "./inflight.js";
+
 export const API_BASE = (import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
 
 // Render's free tier sleeps; a cold start can take up to a minute. Any request
@@ -23,8 +25,15 @@ export const wakeStore = {
   isWaking: () => wake.slow > 0,
 };
 
+// GETs that are already in flight are shared (lib/inflight.js): the same URL asked for twice at once is one request.
+const coalesce = createCoalescer();
+function request(path, opts = {}) {
+  if ((opts.method || "GET") !== "GET") return send(path, opts);
+  return coalesce(path, () => send(path, opts));
+}
+
 // quiet: never reported to the wake store (the public landing page shows no server state).
-async function request(path, { method = "GET", body, timeoutMs = 75000, quiet = false } = {}) {
+async function send(path, { method = "GET", body, timeoutMs = 75000, quiet = false } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let slow = false;
