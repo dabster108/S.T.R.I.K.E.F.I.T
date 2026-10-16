@@ -2,9 +2,11 @@
 
 # S.T.R.I.K.E.F.I.T
 
-**Design, Development, and Evaluation of a Virtual Reality-Based Gamified Fitness System**
+### Design, Development, and Evaluation of a Virtual Reality-Based Gamified Fitness System
 
-A Meta Quest 2 combat game where damage depends on how fast you swing, with a web dashboard that records every fight.
+*Applying Immersive Virtual Reality and Gamification Techniques to Deliver Interactive, Movement-Based Gameplay Experiences to Promote Physical Activity and Long-Term Fitness Engagement Among Young Adults Aged 18-24*
+
+A fitness game that only rewards you when you actually move like you mean it.
 
 [Live site](https://strikefit.vercel.app) · [Dashboard](https://strikefit.vercel.app/dashboard) · [Story](https://strikefit.vercel.app/story) · [Web docs](web/README.md) · [Credits](docs/CREDITS.md)
 
@@ -455,8 +457,6 @@ VR-Gamification-Fitness/
 ## Who it is for
 
 This project was built as an undergraduate thesis at **Softwarica College**, under the supervision of **Manoj Shrestha**, examining how gamified, movement-based VR gameplay affects physical activity levels and long-term engagement with fitness among young adults aged 18 to 24. It is aimed at researchers studying motivation in exergames, VR users looking for a more physically demanding alternative to gesture-matching fitness titles, and young adults who find traditional exercise routines difficult to stick with.
-
-*Applying Immersive Virtual Reality and Gamification Techniques to Deliver Interactive, Movement-Based Gameplay Experiences to Promote Physical Activity and Long-Term Fitness Engagement Among Young Adults Aged 18 to 24.*
 
 ---
 
