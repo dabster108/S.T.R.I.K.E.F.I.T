@@ -2,12 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useLocation, useNavigate } from "react-router-dom";
 import Icon from "../ui/Icon.jsx";
 import Button from "../ui/Button.jsx";
-import { markTourDone } from "./tourState.js";
 import { placePopover, scrollDelta } from "../../lib/tourLayout.js";
 
-// First-visit guided tour: five steps, a spotlight on each target, skippable at any point, fully keyboard driven
-// (Enter / Right = next, Left = back, Esc = skip; focus stays in the dialog). Only the "done" flag is stored
-// (localStorage). The Guide button in the header menu reopens it. The spotlight moves with transform only.
+// Guided tour: five steps, a spotlight on each target, skippable at any point, fully keyboard driven
+// (Right = next, Left = back, Esc = close; Tab stays inside the dialog; focus returns to where it was). Closing it any way
+// (Done, Skip, X, Esc, a click outside) calls onClose; the "seen" flag is saved by the app shell, and only because
+// onOpened has fired (see DashboardApp). The Guide button in the header menu reopens it. The spotlight moves with transform only.
 
 const STEPS = [
   { path: "/dashboard", target: '[data-tour="overview"]', title: "Overview", text: "The headline numbers for every fight, today's goals and challenges, and recent activity from all players." },
@@ -25,7 +25,7 @@ function findTarget(selector) {
 
 const CARD_H_GUESS = 236; // until the popover has been measured
 
-export default function Tour({ onClose }) {
+export default function Tour({ onClose, onOpened }) {
   const [i, setI] = useState(0);
   const [rect, setRect] = useState(null);
   const [cardH, setCardH] = useState(CARD_H_GUESS);
@@ -35,10 +35,18 @@ export default function Tour({ onClose }) {
   const navigate = useNavigate();
   const step = STEPS[i];
 
-  const close = useCallback(() => {
-    markTourDone();
-    onClose();
-  }, [onClose]);
+  const close = useCallback(() => onClose(), [onClose]);
+
+  // The tour is really on screen from here on (the shell saves the flag only after this has fired). Remember what had
+  // focus (the Guide button, or the page) and give it back when the tour goes away.
+  useEffect(() => {
+    const opener = document.activeElement;
+    onOpened?.();
+    return () => {
+      if (opener && opener !== document.body && document.contains(opener) && typeof opener.focus === "function") opener.focus({ preventScroll: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (location.pathname !== step.path) navigate(step.path);
@@ -55,44 +63,59 @@ export default function Tour({ onClose }) {
     return () => window.removeEventListener("resize", on);
   }, []);
 
-  // Find the target once the page has settled, scroll it into a readable place ONCE (a target taller than the viewport
-  // used to be re-scrolled every frame and never measured), then keep it measured while the page scrolls or resizes.
+  // Follow the target until the page has settled. The target can sit deep in a page that is still growing (charts and lists
+  // loading), so one scroll is not enough: scroll it into a readable place (instant, never the page's smooth scrolling),
+  // keep measuring every frame, correct again if the layout moved it, and stop once it has been still for ~20 frames.
+  // A ResizeObserver restarts that when the page height changes later. Corrections are bounded.
   useLayoutEffect(() => {
     let raf = 0;
     let tries = 0;
-    let scrolled = false;
+    let corrections = 0;
+    let quiet = 0;
+    let lastY = -1;
     const read = (el) => {
       const r = el.getBoundingClientRect();
       return { x: r.left - PAD, y: r.top - PAD, w: r.width + PAD * 2, h: r.height + PAD * 2 };
     };
-    const measure = () => {
+    const put = (next) => setRect((cur) => (cur && cur.x === next.x && cur.y === next.y && cur.w === next.w && cur.h === next.h ? cur : next));
+    const tick = () => {
       const el = findTarget(step.target);
       if (!el) {
-        if (tries++ < 30) raf = requestAnimationFrame(measure);
+        if (tries++ < 30) raf = requestAnimationFrame(tick);
         else setRect(null);
         return;
       }
       const r = read(el);
-      if (!scrolled) {
-        scrolled = true;
-        const dy = scrollDelta({ y: r.y, h: r.h, vh: window.innerHeight, cardH });
-        if (dy) {
-          window.scrollBy({ top: dy, behavior: "auto" });
-          raf = requestAnimationFrame(measure); // one frame for the scroll to land
-          return;
-        }
-      }
-      setRect(read(el));
+      const scrolling = window.scrollY !== lastY;
+      lastY = window.scrollY;
+      const dy = scrollDelta({ y: r.y, h: r.h, vh: window.innerHeight, cardH });
+      if (dy && corrections < 10 && !scrolling) {
+        corrections++;
+        quiet = 0;
+        window.scrollBy({ top: dy, behavior: "instant" });
+      } else if (!dy && !scrolling) quiet++;
+      else quiet = 0;
+      put(r);
+      if (quiet < 20 && tries++ < 300) raf = requestAnimationFrame(tick);
     };
-    measure();
+    tick();
+    const restart = () => {
+      cancelAnimationFrame(raf);
+      quiet = 0;
+      tries = 0;
+      raf = requestAnimationFrame(tick);
+    };
     const again = () => {
       const el = findTarget(step.target);
-      if (el) setRect(read(el));
+      if (el) put(read(el));
     };
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(restart);
+    ro?.observe(document.documentElement);
     window.addEventListener("resize", again);
     window.addEventListener("scroll", again, { passive: true });
     return () => {
       cancelAnimationFrame(raf);
+      ro?.disconnect();
       window.removeEventListener("resize", again);
       window.removeEventListener("scroll", again);
     };
@@ -131,7 +154,9 @@ export default function Tour({ onClose }) {
   // Below the target when it fits, else above, else docked at the bottom with the spotlight clipped to what is visible
   // above the sheet (tall targets on phones); centred when there is no target (e.g. the sidebar is hidden on a phone).
   const cardW = Math.min(360, size.w - 32);
-  const pos = placePopover({ rect, vw: size.w, vh: size.h, cardW, cardH });
+  // A target that is not on screen (still being scrolled to, or hidden) gets no spotlight: the popover is centred instead.
+  const onScreen = rect && rect.y < size.h && rect.y + rect.h > 0 && rect.x < size.w && rect.x + rect.w > 0;
+  const pos = placePopover({ rect: onScreen ? rect : null, vw: size.w, vh: size.h, cardW, cardH });
   const spot = pos.spot;
 
   return (
@@ -154,11 +179,20 @@ export default function Tour({ onClose }) {
         aria-modal="true"
         aria-labelledby="tour-title"
         aria-describedby="tour-text"
+        data-tour-dialog
         className="fade-in fixed rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-lift)]"
         data-mode={pos.mode}
         style={{ width: cardW, top: pos.top, left: pos.left }}
       >
-        <p className="t-kicker">
+        <button
+          type="button"
+          onClick={close}
+          aria-label="Close tour"
+          className="press absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
+        >
+          <Icon name="x" className="h-4 w-4" />
+        </button>
+        <p className="t-kicker pr-8">
           Guide · step {i + 1} of {STEPS.length}
         </p>
         <h2 id="tour-title" className="mt-1.5 flex items-center gap-2 text-lg font-extrabold tracking-tight text-[var(--ink)]">

@@ -8,7 +8,7 @@ import { MobileNav, Sidebar } from "./components/layout/Sidebar.jsx";
 import Topbar from "./components/layout/Topbar.jsx";
 import CommandPalette from "./components/layout/CommandPalette.jsx";
 import { ToastStack, useToasts } from "./components/ui/Toasts.jsx";
-import { shouldAutoStart, TOUR_EVENT } from "./components/onboarding/tourState.js";
+import { anotherModalOpen, AUTO_START_DELAY_MS, hasSeenTour, markTourSeen, TOUR_EVENT, tourAutoStartAllowed } from "./components/onboarding/tourState.js";
 import {
   AnalyticsSkeleton,
   CompareSkeleton,
@@ -109,14 +109,30 @@ function Dashboard() {
 
   const t = useTelemetry({ onSession });
 
-  // Guided tour: once on a first visit to the Overview, and whenever the header's Guide menu asks for it.
+  // Guided tour. It starts by itself only when the visitor is on the Overview, has not seen it, and nothing else is open;
+  // it waits AUTO_START_DELAY_MS so the page has painted, and re-checks all of that when the wait is over. The header's
+  // Guide button always opens it (replays never change the flag). The "seen" flag is saved when the tour closes any way
+  // (Done, Skip, X, Esc, click outside), but only if it really opened (tourOpened), never for a start that did not happen.
   const [touring, setTouring] = useState(false);
+  const tourOpened = useRef(false);
+  const overlayOpen = useRef(false);
+  overlayOpen.current = paletteOpen || menuOpen;
   useEffect(() => {
     const open = () => setTouring(true);
     window.addEventListener(TOUR_EVENT, open);
-    if (section === "" && shouldAutoStart()) open();
     return () => window.removeEventListener(TOUR_EVENT, open);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!tourAutoStartAllowed({ pathname, seen: hasSeenTour(), modalOpen: false })) return undefined;
+    const timer = setTimeout(() => {
+      if (tourAutoStartAllowed({ pathname: window.location.pathname, seen: hasSeenTour(), modalOpen: overlayOpen.current || anotherModalOpen() })) setTouring(true);
+    }, AUTO_START_DELAY_MS);
+    return () => clearTimeout(timer); // leaving the Overview inside the wait cancels it
+  }, [pathname]);
+  const closeTour = useCallback(() => {
+    setTouring(false);
+    if (tourOpened.current) markTourSeen();
+    tourOpened.current = false;
   }, []);
 
   // Every rename, from this tab or any other, confirms once here.
@@ -214,7 +230,7 @@ function Dashboard() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       {touring && !t.loading && (
         <Suspense fallback={null}>
-          <Tour onClose={() => setTouring(false)} />
+          <Tour onClose={closeTour} onOpened={() => (tourOpened.current = true)} />
         </Suspense>
       )}
       <ToastStack toasts={toasts} onDismiss={dismiss} />

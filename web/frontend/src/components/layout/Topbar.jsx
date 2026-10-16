@@ -97,6 +97,7 @@ function HeaderMenu() {
             className="press flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-[var(--surface-muted)]"
             onClick={() => {
               setOpen(false);
+              button.current?.focus(); // the menu item is about to disappear: the tour gives focus back to the Guide button
               openTour();
             }}
           >

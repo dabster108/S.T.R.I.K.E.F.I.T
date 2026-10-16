@@ -11,6 +11,7 @@ const BroadcastView = lazy(() => import("./views/BroadcastView.jsx"));
 const FeedbackView = lazy(() => import("./views/FeedbackView.jsx"));
 const MonstersView = lazy(() => import("./views/MonstersView.jsx"));
 const ChallengeView = lazy(() => import("./views/ChallengeView.jsx"));
+const StoryPublicView = lazy(() => import("./views/StoryPublicView.jsx"));
 
 function DashboardFallback() {
   return (
@@ -70,6 +71,15 @@ export default function App() {
         element={
           <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
             <ChallengeView />
+          </Suspense>
+        }
+      />
+      {/* the story and the three guardians, public (the same page as /dashboard/story) */}
+      <Route
+        path="/story"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <StoryPublicView />
           </Suspense>
         }
       />
