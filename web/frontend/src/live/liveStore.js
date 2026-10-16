@@ -7,6 +7,8 @@
 // the connection state) so an event only re-renders what it changed.
 
 import { api } from "../lib/api.js";
+import { shouldResync } from "../lib/startup.js";
+import { bindPageLifecycle } from "../lib/pagelife.js";
 
 const FEED_MAX = 250;
 const POLL_MS = 3000;
@@ -190,7 +192,9 @@ function handle(type, payload) {
   for (const l of listeners.message) l(type, payload);
 }
 
+let lastResyncAt = 0;
 async function resync({ seedFeed }) {
+  lastResyncAt = Date.now();
   try {
     const [live, events] = await Promise.all([api.live(), seedFeed ? api.events({ limit: 80 }) : Promise.resolve(null)]);
     applySnapshot(live.sessions || []);
@@ -202,7 +206,13 @@ async function resync({ seedFeed }) {
 
 function startPolling() {
   if (pollTimer) return;
+  // A tick that is still waiting on a slow server must not be joined by the next one every 3 s: stacked polls used up
+  // the browser's six connections and starved the page's own requests.
+  let ticking = false;
   const tick = async () => {
+    if (ticking) return;
+    ticking = true;
+    lastResyncAt = Date.now();
     try {
       const [live, events] = await Promise.all([api.live(), api.events({ limit: 30 })]);
       applySnapshot(live.sessions || []);
@@ -210,6 +220,8 @@ function startPolling() {
       if (state.connection === "offline") setConnection("reconnecting", "polling");
     } catch {
       setConnection("offline", "polling");
+    } finally {
+      ticking = false;
     }
   };
   tick();
@@ -272,8 +284,9 @@ function connect() {
     stopPolling();
     setConnection("connected", "stream");
     armWatchdog();
-    // Anything that happened while we were away arrives via the snapshot.
-    resync({ seedFeed: wasPolling || state.feed.length === 0 });
+    // Anything that happened while we were away arrives via the snapshot. The very first open comes about a second
+    // after startLive() fetched one, so it is not fetched twice (startup.js).
+    if (shouldResync({ wasPolling, sinceLastMs: Date.now() - lastResyncAt, ready: state.ready })) resync({ seedFeed: wasPolling || state.feed.length === 0 });
   };
   es.onerror = () => {
     // EventSource retries by itself, but not after an HTTP/CORS failure, and
@@ -298,9 +311,30 @@ export function announceRename(change) {
   handle("player_renamed", change);
 }
 
+// Lets go of the stream and the polling when the page is hidden for good or parked in the back/forward cache.
+function releaseConnections() {
+  clearTimeout(reconnectTimer);
+  clearTimeout(watchdog);
+  stopPolling();
+  if (es) {
+    es.close();
+    es = null;
+  }
+}
+
 export function startLive() {
   if (started) return;
   started = true;
+  // A cached page must not keep its event stream open (it starved the next page of connections, see lib/pagelife.js);
+  // when the browser restores it, reconnect (the open handler fetches a fresh snapshot).
+  bindPageLifecycle(window, {
+    onHide: releaseConnections,
+    onShow: () => {
+      attempt = 0;
+      setConnection("connecting", "stream");
+      connect();
+    },
+  });
   resync({ seedFeed: true }); // first paint shouldn't wait for the stream
   connect();
   // Coming back to a backgrounded tab: reconnect immediately instead of waiting out the backoff.

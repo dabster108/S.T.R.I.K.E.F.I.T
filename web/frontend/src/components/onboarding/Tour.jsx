@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Icon from "../ui/Icon.jsx";
 import Button from "../ui/Button.jsx";
 import { markTourDone } from "./tourState.js";
+import { placePopover, scrollDelta } from "../../lib/tourLayout.js";
 
 // First-visit guided tour: five steps, a spotlight on each target, skippable at any point, fully keyboard driven
 // (Enter / Right = next, Left = back, Esc = skip; focus stays in the dialog). Only the "done" flag is stored
@@ -22,9 +23,13 @@ function findTarget(selector) {
   return [...document.querySelectorAll(selector)].find(visible) || null;
 }
 
+const CARD_H_GUESS = 236; // until the popover has been measured
+
 export default function Tour({ onClose }) {
   const [i, setI] = useState(0);
   const [rect, setRect] = useState(null);
+  const [cardH, setCardH] = useState(CARD_H_GUESS);
+  const [size, setSize] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
   const dialog = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -39,10 +44,27 @@ export default function Tour({ onClose }) {
     if (location.pathname !== step.path) navigate(step.path);
   }, [step.path, location.pathname, navigate]);
 
-  // Measure the target (after the page settles), keep it measured on scroll / resize.
+  // The popover's real height drives where it can go (the text length changes per step and per width).
+  useLayoutEffect(() => {
+    if (dialog.current) setCardH(Math.round(dialog.current.getBoundingClientRect().height) || CARD_H_GUESS);
+  }, [i, rect, size.w]);
+
+  useEffect(() => {
+    const on = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+
+  // Find the target once the page has settled, scroll it into a readable place ONCE (a target taller than the viewport
+  // used to be re-scrolled every frame and never measured), then keep it measured while the page scrolls or resizes.
   useLayoutEffect(() => {
     let raf = 0;
     let tries = 0;
+    let scrolled = false;
+    const read = (el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.left - PAD, y: r.top - PAD, w: r.width + PAD * 2, h: r.height + PAD * 2 };
+    };
     const measure = () => {
       const el = findTarget(step.target);
       if (!el) {
@@ -50,20 +72,22 @@ export default function Tour({ onClose }) {
         else setRect(null);
         return;
       }
-      const r = el.getBoundingClientRect();
-      if (r.top < 64 || r.bottom > window.innerHeight - 40) {
-        el.scrollIntoView({ block: "center", behavior: "auto" });
-        raf = requestAnimationFrame(measure);
-        return;
+      const r = read(el);
+      if (!scrolled) {
+        scrolled = true;
+        const dy = scrollDelta({ y: r.y, h: r.h, vh: window.innerHeight, cardH });
+        if (dy) {
+          window.scrollBy({ top: dy, behavior: "auto" });
+          raf = requestAnimationFrame(measure); // one frame for the scroll to land
+          return;
+        }
       }
-      setRect({ x: r.left - PAD, y: r.top - PAD, w: r.width + PAD * 2, h: r.height + PAD * 2 });
+      setRect(read(el));
     };
     measure();
     const again = () => {
       const el = findTarget(step.target);
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      setRect({ x: r.left - PAD, y: r.top - PAD, w: r.width + PAD * 2, h: r.height + PAD * 2 });
+      if (el) setRect(read(el));
     };
     window.addEventListener("resize", again);
     window.addEventListener("scroll", again, { passive: true });
@@ -72,6 +96,8 @@ export default function Tour({ onClose }) {
       window.removeEventListener("resize", again);
       window.removeEventListener("scroll", again);
     };
+    // cardH is read once per step; re-running on every height change would scroll again
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.target, location.pathname]);
 
   // Focus the dialog on each step; keep Tab inside it.
@@ -102,25 +128,20 @@ export default function Tour({ onClose }) {
     }
   };
 
-  // Popover below the target when it fits, else above; centred when there is no target (e.g. sidebar hidden on a phone).
-  const vw = typeof window === "undefined" ? 1024 : window.innerWidth;
-  const vh = typeof window === "undefined" ? 768 : window.innerHeight;
-  const cardW = Math.min(360, vw - 32);
-  let pos;
-  if (rect) {
-    const below = rect.y + rect.h + 12;
-    const top = below + 220 < vh ? below : Math.max(16, rect.y - 12 - 220);
-    const left = Math.min(vw - cardW - 16, Math.max(16, rect.x + (rect.w > cardW ? 0 : rect.w / 2 - cardW / 2)));
-    pos = { top, left };
-  } else pos = { top: Math.max(16, vh / 2 - 120), left: (vw - cardW) / 2 };
+  // Below the target when it fits, else above, else docked at the bottom with the spotlight clipped to what is visible
+  // above the sheet (tall targets on phones); centred when there is no target (e.g. the sidebar is hidden on a phone).
+  const cardW = Math.min(360, size.w - 32);
+  const pos = placePopover({ rect, vw: size.w, vh: size.h, cardW, cardH });
+  const spot = pos.spot;
 
   return (
     <div className="fixed inset-0 z-[60]" onKeyDown={onKey}>
       {/* the dim layer with a hole: a box-shadow around the spotlight box, moved with transform only */}
-      {rect ? (
+      {spot ? (
         <div
           className="tour-spot pointer-events-none fixed left-0 top-0 rounded-xl"
-          style={{ width: rect.w, height: rect.h, transform: `translate3d(${rect.x}px, ${rect.y}px, 0)`, boxShadow: "0 0 0 9999px rgb(17 24 39 / 0.55)", outline: "2px solid var(--accent-ring)" }}
+          data-mode={pos.mode}
+          style={{ width: spot.w, height: spot.h, transform: `translate3d(${spot.x}px, ${spot.y}px, 0)`, boxShadow: "0 0 0 9999px rgb(17 24 39 / 0.55)", outline: "2px solid var(--accent-ring)" }}
           aria-hidden
         />
       ) : (
@@ -134,6 +155,7 @@ export default function Tour({ onClose }) {
         aria-labelledby="tour-title"
         aria-describedby="tour-text"
         className="fade-in fixed rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-lift)]"
+        data-mode={pos.mode}
         style={{ width: cardW, top: pos.top, left: pos.left }}
       >
         <p className="t-kicker">
