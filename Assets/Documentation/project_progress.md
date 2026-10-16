@@ -2976,3 +2976,35 @@ Branch `web-guide-story` was cut from `web-engagement` after a checkpoint commit
 - `MONSTER_TIPS.Medium[0]` says the Level 2 monster "picks from seven attacks"; context.md says a 10-attack table. Not shown on the story page.
 - `/story` is not linked from the landing nav or footer (not asked for); `/dashboard/story` is in the sidebar.
 
+
+---
+
+## 2026-10-16: status, known limitations and roadmap moved out of the README (branch `repo-cleanup-readme`)
+
+The README was rewritten as a project page. Its "Current status and known limitations" and "Future prospects" sections were removed there and are kept here, word for word, so nothing is lost. They were written on 2026-09-29 and **parts are out of date**; the notes after each block say what later entries changed.
+
+### Current status and known limitations (README text, 2026-09-29)
+- **Level 1** is complete and has been tested on Quest 2 hardware. Issues found during testing, including UI input wiring, audio routing and animator transition gaps, were fixed through on-device testing rather than assumed correct from code alone.
+- **Level 2** is rebuilt and fully playable in the editor (start, fight, victory, defeat and replay all verified), but still needs a headset pass to confirm sword grip feel, real swing speeds, the fairness of the dodge window, the B button, and that the monster renders correctly on Quest.
+- **Level 3** is a scene shell. It will reuse the same systems with a new environment, monster and attack set.
+- **Balance** values are development defaults, not yet the result of playtesting.
+- **Level 2 content gaps:** the original axe and sword texture files are missing, so these use hand-made materials. All available axe attack clips are one-handed, so the monster's left hand lets go during wide swings. There is no dedicated block animation and no real monster vocal sound.
+- **No biometric tracking** such as heart rate or calorie estimation is implemented yet.
+
+Changed since then (see the entries above): Level 3 is built and playable (twin-axe brute, 14 attacks, three phases, weapon pickup); the web dashboard now shows **estimated** calories (a MET-based estimate from fight length and swing strength, not a measurement); heart rate is still not measured. Whether Level 2 and Level 3 have had a full headset pass is not recorded in this file, so treat the headset-test limitations as open. Level 2 monster HP is 800 in `web/frontend/src/lib/game.js` but 680 in the running scene (see the 2026-10-16 "Found, not changed" notes).
+
+### Future prospects (README text, 2026-09-29)
+- Headset-test and balance Level 2, then build Level 3 with a distinct attack set for the hammer-wielding monster in the seaport.
+- Connect the levels into one progression (menu → Level 1 → Level 2 → Level 3 → results) instead of separate builds.
+- Rebalance health, damage and cooldown values using real playtesting data.
+- Add heart-rate or exertion estimates from swing data to the dashboard.
+- Evaluate whether the velocity-linked damage system measurably increases physical exertion and session engagement compared to a standard, binary hit-detection exergame, which is the central question this thesis sets out to answer.
+- Study long-term engagement: whether players return across multiple sessions, and what that suggests about the format's potential for sustained fitness habits.
+
+Changed since then: Level 3 now exists and a main menu scene (`MainMenu`) connects the levels. The evaluation and long-term engagement items are still open.
+
+### Level 2 attack table (README text, 2026-09-29)
+Moved from the README's Levels section because the README no longer lists per-attack detail. Selection rules at the time: the same attack is never picked twice in a row, a heavy attack is guaranteed after four light ones, heavy attacks become roughly twice as common near death, the gap between attacks shortens as the monster is hurt, and the left hand stays on the axe haft through IK except during wide swings. Attacks listed then: Horizontal Sweep (70° arc), Diagonal Slash, Backhand Cut, Twin Strike (2 hits), Whirlwind Spin (180° arc), Executioner Slam (idle only), Leaping Cleave (forced once at 40% HP, then an 8 s cooldown). Later entries describe a larger table (10 attacks in `context.md`); the number in `MONSTER_TIPS.Medium[0]` ("seven") is stale.
+
+### Design and development process (README text, 2026-09-29)
+Iterative build, verify, headset-test loop: design the level's fantasy and difficulty target; build on the shared combat scripts; verify in the editor through the Unity MCP server (real UI raycast at Start, real hit detection at known swing speeds, Animator sampled at each damage frame, 1,000-pick attack-selection simulations); test on Quest 2 anything that depends on real hands or movement; record findings, including wrong earlier claims, in this file. Problems this caught that code review alone had missed: a Start button with no click listener, a UI canvas facing away from the player, a 40-second timer that declared Victory with the monster at full health, animator transitions that could cancel attacks mid-swing, and a monster weapon collider that existed only on an unused scene copy.
