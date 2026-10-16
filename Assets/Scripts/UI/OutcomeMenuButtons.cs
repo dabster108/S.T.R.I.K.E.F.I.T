@@ -4,7 +4,7 @@
 //          and disappears with them; the A-button retry, the stats and the "Rate this session" line are untouched. The panels
 //          are lifted a little so the row stays inside the canvas. One click only (SceneFlow blocks a second load), and a
 //          pressed button greys out. Everything is rebuilt by the scene reload, so nothing carries over.
-// Dependencies: CombatUIController (victoryPanel / defeatPanel), SceneFlow, ExitConfirmPanel, MenuUi
+// Dependencies: CombatUIController (victoryPanel / defeatPanel), SceneFlow, ExitConfirmPanel, MenuUi, OutcomeRankLine
 // Attach to: CombatCanvas (each level scene)
 
 using UnityEngine;
@@ -22,6 +22,8 @@ public class OutcomeMenuButtons : MonoBehaviour
     public Color playAgainColor = new Color(0.12f, 0.55f, 0.25f, 0.95f);
     public Color levelSelectColor = new Color(0.2f, 0.35f, 0.6f, 0.95f);
     public Color exitColor = new Color(0.45f, 0.45f, 0.5f, 0.95f);
+    [Tooltip("\"Rank on this level: #N\" under the buttons (GET /api/leaderboard once per result, 5 s timeout; hidden if it fails).")]
+    public bool showRankLine = true;
 
     [Header("Runtime (read-only)")]
     public Button[] built;
@@ -63,6 +65,11 @@ public class OutcomeMenuButtons : MonoBehaviour
         var again = MenuUi.MakeButton(row, "PlayAgainButton", "Play Again", fontSize, playAgainColor, new Vector2(x0, -18f), buttonSize);
         var select = MenuUi.MakeButton(row, "LevelSelectButton", "Level Select", fontSize, levelSelectColor, new Vector2(0f, -18f), buttonSize);
         var exit = MenuUi.MakeButton(row, "ExitGameButton", "Exit Game", fontSize, exitColor, new Vector2(-x0, -18f), buttonSize);
+        if (showRankLine)
+        {
+            var line = MenuUi.Label(row, "RankLine", "", 26, new Color(1f, 0.88f, 0.45f), TextAnchor.MiddleCenter, new Vector2(0f, -76f), new Vector2(panelWidth, 32f), FontStyle.Bold);
+            line.gameObject.AddComponent<OutcomeRankLine>().label = line;
+        }
         again.onClick.AddListener(() => Pressed(again, group, SceneFlow.PlayAgain()));
         select.onClick.AddListener(() => Pressed(select, group, SceneFlow.LevelSelect()));
         buttons.Add(again); buttons.Add(select); buttons.Add(exit);

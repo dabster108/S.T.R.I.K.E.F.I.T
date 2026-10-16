@@ -1,10 +1,13 @@
 // MenuSceneBuilder.cs
 // Purpose: Builds Assets/Scenes/MainMenu.unity from the Level 1 scene's own rig (OVRCameraRig with its laser pointer,
 //          EventSystem + OVRInputModule, OVRRaycaster canvas), strips every battle-only part, and adds the menu: STRIKEFIT title,
-//          Level 1 / 2 / 3 cards (one line each + a "Loading..." label), Exit Game with a confirm panel. Also adds the
+//          home column and pages (see Layout below), Exit Game with a confirm panel. Also adds the
 //          OutcomeMenuButtons component to the three level scenes and sets Build Settings (MainMenu 0, Level 1-3, all enabled,
 //          Results listed but disabled). Idempotent: Build() rewrites MainMenu.unity from scratch.
-//          Environment: a dark floor and one thin ring, unlit materials, no lights, no shadows, no post-processing.
+//          Environment: a dark floor and one thin ring, unlit materials, static (batched), no lights, no shadows, no
+//          post-processing. Layout (2026-10-15): rig at 1.6 m like the levels (EyeLevel origin), one column on a dark panel
+//          (Start Game, Change Name, [Scoreboard], [Story], Exit Game, "Playing as"), a level page (select, then Play) and the
+//          name picker page, each with Back.
 // Dependencies: MenuUi, MainMenuController, ExitConfirmPanel, OutcomeMenuButtons, SessionReporter
 // Attach to: nothing (menu: Tools/Menu/Build Main Menu And Wire Scenes, or over Unity MCP)
 
@@ -59,7 +62,10 @@ public static class MenuSceneBuilder
                 if (tr != null && tr.name == name) { Object.DestroyImmediate(tr.gameObject); break; }
         var breathing = GameObject.Find("PlayerBreathingAudio");
         if (breathing != null) Object.DestroyImmediate(breathing);
-        rig.transform.position = Vector3.zero; rig.transform.rotation = Quaternion.identity;
+        // EyeLevel tracking origin (same as the levels): the eyes start at the rig's own height, so the rig must stand where the
+        // eyes are (1.6 m, the levels' value). At y = 0 the eyes were on the floor plane: the menu hung 0.65-2.45 m above them
+        // and the floor was edge-on (the "menu cut off / blank environment" bug on the Quest).
+        rig.transform.position = new Vector3(0f, 1.6f, 0f); rig.transform.rotation = Quaternion.identity;
 
         // Dark, flat, no skybox, solid-colour cameras (no post-processing is enabled anywhere).
         var bg = new Color(0.015f, 0.015f, 0.03f);
@@ -93,6 +99,9 @@ public static class MenuSceneBuilder
         return m;
     }
 
+    // Static: batched with each other, never move; no shadows anywhere.
+    const StaticEditorFlags EnvFlags = StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic;
+
     static void BuildEnvironment()
     {
         var root = new GameObject("MenuEnvironment");
@@ -120,7 +129,25 @@ public static class MenuSceneBuilder
         var ir = inner.GetComponent<MeshRenderer>();
         ir.sharedMaterial = floor.GetComponent<MeshRenderer>().sharedMaterial;
         ir.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; ir.receiveShadows = false;
+        foreach (var t in root.GetComponentsInChildren<Transform>(true)) GameObjectUtility.SetStaticEditorFlags(t.gameObject, EnvFlags);
     }
+
+    // ───────────────────────── the menu canvas ─────────────────────────
+    // World-space, 2.5 m in front of the eyes, centre 0.18 m below eye level (rig at 1.6 m, EyeLevel origin = eyes at 1.6 m).
+    // 1200 x 800 units at 2 mm per unit = 2.4 x 1.6 m: +-25.6 deg across, -21.4 to +13.9 deg up, inside the Quest's view without
+    // turning the head. Legacy Text cap height = 0.716 x font size x 2 mm: font 24 = 3.4 cm, 46 = 6.6 cm.
+    public const float CanvasScale = 0.002f;
+    public static readonly Vector2 CanvasSize = new Vector2(1200f, 800f);
+    public static readonly Vector3 CanvasPosition = new Vector3(0f, 1.42f, 2.5f);
+    public static readonly Color PagePanel = new Color(0.03f, 0.035f, 0.07f, 0.9f);
+    public static readonly Color StartColor = new Color(0.1f, 0.42f, 0.3f, 0.96f);
+    public static readonly Color NameColor = new Color(0.2f, 0.35f, 0.6f, 0.96f);
+    public static readonly Color ScoreColor = new Color(0.36f, 0.2f, 0.58f, 0.96f);
+    public static readonly Color StoryColor = new Color(0.55f, 0.36f, 0.12f, 0.96f);
+    public static readonly Color ExitColor = new Color(0.45f, 0.45f, 0.5f, 0.96f);
+    public static readonly Color BackColor = new Color(0.25f, 0.25f, 0.3f, 0.96f);
+    public static readonly Color HintColor = new Color(0.62f, 0.66f, 0.78f);
+    public static readonly Color[] LevelColors = { new Color(0.1f, 0.42f, 0.3f, 0.96f), new Color(0.36f, 0.2f, 0.58f, 0.96f), new Color(0.58f, 0.16f, 0.16f, 0.96f) };
 
     static void BuildCanvas()
     {
@@ -128,53 +155,217 @@ public static class MenuSceneBuilder
         canvasGo.name = "MenuCanvas";
         var rt = (RectTransform)canvasGo.transform;
         for (int i = rt.childCount - 1; i >= 0; i--) Object.DestroyImmediate(rt.GetChild(i).gameObject);
-        rt.sizeDelta = new Vector2(1000f, 720f);
-        rt.position = new Vector3(0f, 1.55f, 2.5f);
+        var outcome = canvasGo.GetComponent<OutcomeMenuButtons>();   // copied with the Level 1 canvas; the menu has no fight panels
+        if (outcome != null) Object.DestroyImmediate(outcome);
+        rt.sizeDelta = CanvasSize;
+        rt.position = CanvasPosition;
         rt.rotation = Quaternion.identity;
-        rt.localScale = Vector3.one * 0.0025f;   // 2.5 m wide at 2.5 m
+        rt.localScale = Vector3.one * CanvasScale;
         var box = canvasGo.GetComponent<BoxCollider>();
         if (box == null) box = canvasGo.AddComponent<BoxCollider>();
-        box.center = Vector3.zero; box.size = new Vector3(1000f, 720f, 4f);   // the laser beam stops on the menu
+        box.center = Vector3.zero; box.size = new Vector3(CanvasSize.x, CanvasSize.y, 4f);   // the laser beam stops on the menu
         var oldGroup = canvasGo.GetComponent<CanvasGroup>();
         if (oldGroup != null) Object.DestroyImmediate(oldGroup);
 
-        var backdrop = MenuUi.Panel(rt, "Backdrop", Vector2.zero, new Vector2(1000f, 720f), new Color(0.03f, 0.03f, 0.06f, 0.9f));
-        backdrop.raycastTarget = false;
         // Everything clickable lives under Content, which has its own CanvasGroup: the confirm panel is a sibling of it, so
         // locking Content while the confirm is open does not lock the confirm's own buttons.
         var content = MenuUi.Rect(rt, "Content", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
         var group = content.gameObject.AddComponent<CanvasGroup>();
-        MenuUi.Label(content, "Title", "STRIKEFIT", 120, Color.white, TextAnchor.MiddleCenter, new Vector2(0f, 292f), new Vector2(900f, 140f), FontStyle.Bold);
-        MenuUi.Label(content, "Subtitle", "Choose your fight", 40, new Color(0.7f, 0.75f, 0.9f), TextAnchor.MiddleCenter, new Vector2(0f, 212f), new Vector2(900f, 56f));
 
-        string[] titles = { "LEVEL 1\nEASY", "LEVEL 2\nMEDIUM", "LEVEL 3\nHARD" };
-        string[] lines =
+        var systems = new GameObject("MenuSystems");
+        var mc = systems.AddComponent<MainMenuController>();
+        mc.content = group;
+
+        var homeButtons = new System.Collections.Generic.List<HomeButton>();
+        homeButtons.Add(new HomeButton("StartGameButton", "Start Game", StartColor));
+        homeButtons.Add(new HomeButton("ChangeNameButton", "Change Name", NameColor));
+        homeButtons.Add(new HomeButton("ScoreboardButton", "Scoreboard", ScoreColor));
+        homeButtons.Add(new HomeButton("StoryButton", "Story", StoryColor));
+        homeButtons.Add(new HomeButton("ExitGameButton", "Exit Game", ExitColor));
+        var built = BuildHome(content, mc, homeButtons);
+        mc.startGameButton = built["StartGameButton"];
+        mc.changeNameButton = built["ChangeNameButton"];
+        mc.exitButton = built["ExitGameButton"];
+
+        BuildLevelPage(content, mc);
+        BuildNamePage(content, mc, systems);
+        BuildScoreboardPage(content, mc, built["ScoreboardButton"], systems);
+        BuildStoryPage(content, mc, built["StoryButton"], systems);
+
+        var pages = new System.Collections.Generic.List<GameObject>();
+        for (int i = 0; i < content.childCount; i++) pages.Add(content.GetChild(i).gameObject);
+        mc.pages = pages.ToArray();
+        mc.confirm = ExitConfirmPanel.Build(rt, new[] { group }, new Vector2(600f, 280f), 48);
+    }
+
+    /// <summary>A home-column button: object name, label, colour.</summary>
+    public struct HomeButton
+    {
+        public string name, label; public Color color;
+        public HomeButton(string n, string l, Color c) { name = n; label = l; color = c; }
+    }
+
+    /// <summary>An empty page root covering the canvas (pages are siblings under Content; one is shown at a time).</summary>
+    public static RectTransform PageRoot(RectTransform content, string name)
+    {
+        var page = MenuUi.Rect(content, name, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+        return page;
+    }
+
+    // One clean vertical column on a dark semi-opaque panel: title, "Playing as", the buttons, a hint. Positions are computed (no
+    // layout group), so nothing can collapse at runtime.
+    static System.Collections.Generic.Dictionary<string, Button> BuildHome(RectTransform content, MainMenuController mc, System.Collections.Generic.List<HomeButton> buttons)
+    {
+        const float width = 600f, btnW = 520f, btnH = 92f, gap = 14f, titleH = 112f, nameH = 46f, hintH = 34f, pad = 26f;
+        int n = buttons.Count;
+        float h = pad + titleH + 6f + nameH + 22f + n * btnH + (n - 1) * gap + 20f + hintH + pad;
+        var page = PageRoot(content, "HomePage");
+        var panel = MenuUi.Panel(page, "Panel", Vector2.zero, new Vector2(width, h), PagePanel);
+        panel.raycastTarget = false;
+        float y = h * 0.5f - pad - titleH * 0.5f;
+        MenuUi.Label(page, "Title", "STRIKEFIT", 96, Color.white, TextAnchor.MiddleCenter, new Vector2(0f, y), new Vector2(width - 20f, titleH), FontStyle.Bold);
+        y -= titleH * 0.5f + 6f + nameH * 0.5f;
+        mc.playingAsLabel = MenuUi.Label(page, "PlayingAs", "Playing as", 34, new Color(0.85f, 0.88f, 1f), TextAnchor.MiddleCenter, new Vector2(0f, y), new Vector2(width - 30f, nameH));
+        y -= nameH * 0.5f + 22f + btnH * 0.5f;
+        var result = new System.Collections.Generic.Dictionary<string, Button>();
+        foreach (var b in buttons)
         {
-            "Dual hammers vs a sword brute in a torch-lit dungeon.",
-            "Dual swords vs a night vampire with a two-handed axe.",
-            "Grab a weapon on the docks and face the Twin-Axe Brute.",
-        };
-        Color[] colors = { new Color(0.1f, 0.42f, 0.3f, 0.96f), new Color(0.36f, 0.2f, 0.58f, 0.96f), new Color(0.58f, 0.16f, 0.16f, 0.96f) };
+            result[b.name] = MenuUi.MakeButton(page, b.name, b.label, 46, b.color, new Vector2(0f, y), new Vector2(btnW, btnH));
+            y -= btnH + gap;
+        }
+        y += btnH + gap;                          // back to the last button's centre
+        y -= btnH * 0.5f + 20f + hintH * 0.5f;
+        MenuUi.Label(page, "Hint", "Point with the right controller, pull the trigger", 24, HintColor, TextAnchor.MiddleCenter, new Vector2(0f, y), new Vector2(width - 20f, hintH));
+        mc.homePage = page.gameObject;
+        return result;
+    }
+
+    static readonly string[] CardTitles = { "LEVEL 1\nEASY", "LEVEL 2\nMEDIUM", "LEVEL 3\nHARD" };
+    static readonly string[] CardLines =
+    {
+        "Dual hammers vs a sword brute in a torch-lit dungeon.",
+        "Dual swords vs a night vampire with a two-handed axe.",
+        "Grab a weapon on the docks and face the Twin-Axe Brute.",
+    };
+
+    /// <summary>Optional one-line text per level card (the story's level intro), filled by a later feature; null = none.</summary>
+    public static string[] CardIntroLines;
+
+    // Start Game: the three level cards. A card click selects it (yellow frame), Play starts it, Back returns home.
+    static void BuildLevelPage(RectTransform content, MainMenuController mc)
+    {
+        var page = PageRoot(content, "LevelPage");
+        var panel = MenuUi.Panel(page, "Panel", Vector2.zero, new Vector2(1120f, 770f), PagePanel);
+        panel.raycastTarget = false;
+        MenuUi.Label(page, "Title", "Choose your fight", 52, Color.white, TextAnchor.MiddleCenter, new Vector2(0f, 330f), new Vector2(1000f, 70f), FontStyle.Bold);
         string[] scenes = { SceneFlow.Level1, SceneFlow.Level2, SceneFlow.Level3 };
         var cards = new MainMenuController.LevelCard[3];
         for (int i = 0; i < 3; i++)
         {
-            float x = (i - 1) * 320f;
-            var b = MenuUi.MakeButton(content, "Level" + (i + 1) + "Button", "", 40, colors[i], new Vector2(x, -2f), new Vector2(300f, 360f));
-            var label = b.GetComponentInChildren<Text>();
-            Object.DestroyImmediate(label.gameObject);
-            MenuUi.Label(b.transform, "Title", titles[i], 46, Color.white, TextAnchor.MiddleCenter, new Vector2(0f, 112f), new Vector2(276f, 120f), FontStyle.Bold);
-            MenuUi.Label(b.transform, "Description", lines[i], 31, new Color(0.92f, 0.94f, 1f), TextAnchor.UpperCenter, new Vector2(0f, -42f), new Vector2(270f, 190f));
-            var status = MenuUi.Label(b.transform, "Status", "", 34, new Color(1f, 0.9f, 0.45f), TextAnchor.MiddleCenter, new Vector2(0f, -156f), new Vector2(276f, 46f), FontStyle.Bold);
-            cards[i] = new MainMenuController.LevelCard { scene = scenes[i], button = b, status = status };
+            float x = (i - 1) * 350f;
+            var b = MenuUi.MakeButton(page, "Level" + (i + 1) + "Button", "", 40, LevelColors[i], new Vector2(x, 40f), new Vector2(320f, 430f));
+            Object.DestroyImmediate(b.GetComponentInChildren<Text>().gameObject);
+            var frame = MenuUi.Rect(b.transform, "SelectedFrame", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            var gold = new Color(1f, 0.85f, 0.3f, 1f);
+            const float t = 9f;
+            Edge(frame, "Top", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -t), Vector2.zero, gold);
+            Edge(frame, "Bottom", new Vector2(0f, 0f), new Vector2(1f, 0f), Vector2.zero, new Vector2(0f, t), gold);
+            Edge(frame, "Left", new Vector2(0f, 0f), new Vector2(0f, 1f), Vector2.zero, new Vector2(t, 0f), gold);
+            Edge(frame, "Right", new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(-t, 0f), Vector2.zero, gold);
+            frame.gameObject.SetActive(false);
+            MenuUi.Label(b.transform, "Title", CardTitles[i], 44, Color.white, TextAnchor.MiddleCenter, new Vector2(0f, 145f), new Vector2(296f, 110f), FontStyle.Bold);
+            MenuUi.Label(b.transform, "Description", CardLines[i], 29, new Color(0.92f, 0.94f, 1f), TextAnchor.UpperCenter, new Vector2(0f, 22f), new Vector2(290f, 124f));
+            if (CardIntroLines != null && i < CardIntroLines.Length && !string.IsNullOrEmpty(CardIntroLines[i]))
+                MenuUi.Label(b.transform, "Intro", CardIntroLines[i], 25, new Color(1f, 0.92f, 0.7f), TextAnchor.UpperCenter, new Vector2(0f, -98f), new Vector2(290f, 112f), FontStyle.Italic);
+            var status = MenuUi.Label(b.transform, "Status", "", 32, new Color(1f, 0.9f, 0.45f), TextAnchor.MiddleCenter, new Vector2(0f, -184f), new Vector2(296f, 44f), FontStyle.Bold);
+            cards[i] = new MainMenuController.LevelCard { scene = scenes[i], button = b, status = status, selectedFrame = frame.gameObject };
         }
-        var exit = MenuUi.MakeButton(content, "ExitGameButton", "Exit Game", 40, new Color(0.45f, 0.45f, 0.5f, 0.96f), new Vector2(0f, -240f), new Vector2(320f, 84f));
-        MenuUi.Label(content, "Hint", "Point with the right controller and pull the trigger", 26, new Color(0.6f, 0.64f, 0.75f), TextAnchor.MiddleCenter, new Vector2(0f, -318f), new Vector2(900f, 36f));
-        var confirm = ExitConfirmPanel.Build(rt, new[] { group }, new Vector2(560f, 260f), 48);
+        mc.levels = cards;
+        mc.levelBackButton = MenuUi.MakeButton(page, "LevelBackButton", "Back", 42, BackColor, new Vector2(-370f, -312f), new Vector2(260f, 90f));
+        mc.playButton = MenuUi.MakeButton(page, "PlayButton", "Select a level", 46, StartColor, new Vector2(150f, -312f), new Vector2(480f, 96f));
+        mc.playLabel = mc.playButton.GetComponentInChildren<Text>();
+        mc.playButton.interactable = false;
+        mc.levelPage = page.gameObject;
+        page.gameObject.SetActive(false);
+    }
 
-        var systems = new GameObject("MenuSystems");
-        var mc = systems.AddComponent<MainMenuController>();
-        mc.levels = cards; mc.exitButton = exit; mc.confirm = confirm; mc.content = group;
+    // Scoreboard: title, rule note, tabs All / L1 / L2 / L3, a header and 10 pre-built rows, then Back, "Your best" and the
+    // status line. Rows are 42 units (8.4 cm) high; row text 28-30 pt (cap 4.0-4.3 cm at 2.5 m).
+    static void BuildScoreboardPage(RectTransform content, MainMenuController mc, Button open, GameObject systems)
+    {
+        var page = PageRoot(content, "ScoreboardPage");
+        var panel = MenuUi.Panel(page, "Panel", Vector2.zero, new Vector2(1120f, 770f), PagePanel);
+        panel.raycastTarget = false;
+        MenuUi.Label(page, "Title", "Scoreboard", 50, Color.white, TextAnchor.MiddleCenter, new Vector2(0f, 338f), new Vector2(1000f, 60f), FontStyle.Bold);
+        MenuUi.Label(page, "Rule", "Ranked by best score per level", 24, HintColor, TextAnchor.MiddleCenter, new Vector2(0f, 292f), new Vector2(1000f, 32f));
+        var sp = systems.AddComponent<ScoreboardPanel>();
+        sp.menu = mc; sp.page = page.gameObject; sp.openButton = open;
+        string[] tabNames = { "All", "L1", "L2", "L3" };
+        sp.tabs = new Button[4];
+        for (int i = 0; i < 4; i++)
+            sp.tabs[i] = MenuUi.MakeButton(page, "Tab" + tabNames[i], tabNames[i], 36, sp.tabColor, new Vector2(-330f + i * 220f, 232f), new Vector2(200f, 70f));
+
+        var grey = new Color(0.62f, 0.66f, 0.78f);
+        MenuUi.Label(page, "HeadRank", "#", 24, grey, TextAnchor.MiddleCenter, new Vector2(-490f, 172f), new Vector2(60f, 30f));
+        MenuUi.Label(page, "HeadName", "Player", 24, grey, TextAnchor.MiddleLeft, new Vector2(-180f, 172f), new Vector2(560f, 30f));
+        MenuUi.Label(page, "HeadScore", "Score", 24, grey, TextAnchor.MiddleRight, new Vector2(180f, 172f), new Vector2(160f, 30f));
+        MenuUi.Label(page, "HeadLevel", "Level", 24, grey, TextAnchor.MiddleCenter, new Vector2(330f, 172f), new Vector2(100f, 30f));
+        MenuUi.Label(page, "HeadDate", "Date", 24, grey, TextAnchor.MiddleCenter, new Vector2(470f, 172f), new Vector2(150f, 30f));
+
+        var knob = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
+        sp.rows = new ScoreboardPanel.RowView[10];
+        for (int i = 0; i < 10; i++)
+        {
+            var row = MenuUi.Centred(page, "Row" + (i + 1), new Vector2(0f, 128f - i * 44f), new Vector2(1080f, 42f));
+            var bg = row.gameObject.AddComponent<Image>(); bg.color = Color.clear; bg.raycastTarget = false;
+            var medal = MenuUi.Centred(row, "Medal", new Vector2(-490f, 0f), new Vector2(40f, 40f)).gameObject.AddComponent<Image>();
+            medal.sprite = knob; medal.raycastTarget = false;
+            var v = new ScoreboardPanel.RowView
+            {
+                root = row.gameObject, background = bg, medal = medal,
+                rank = MenuUi.Label(row, "Rank", "", 28, Color.white, TextAnchor.MiddleCenter, new Vector2(-490f, 0f), new Vector2(60f, 40f), FontStyle.Bold),
+                name = MenuUi.Label(row, "Name", "", 30, Color.white, TextAnchor.MiddleLeft, new Vector2(-180f, 0f), new Vector2(560f, 40f)),
+                score = MenuUi.Label(row, "Score", "", 30, Color.white, TextAnchor.MiddleRight, new Vector2(180f, 0f), new Vector2(160f, 40f), FontStyle.Bold),
+                date = MenuUi.Label(row, "Date", "", 26, new Color(0.8f, 0.83f, 0.92f), TextAnchor.MiddleCenter, new Vector2(470f, 0f), new Vector2(150f, 40f)),
+            };
+            v.name.horizontalOverflow = HorizontalWrapMode.Overflow;   // names are capped at 20 characters by the server
+            v.chip = MenuUi.Centred(row, "Chip", new Vector2(330f, 0f), new Vector2(80f, 34f)).gameObject.AddComponent<Image>();
+            v.chip.raycastTarget = false;
+            v.chipText = MenuUi.Label(v.chip.transform, "ChipText", "", 24, Color.white, TextAnchor.MiddleCenter, Vector2.zero, new Vector2(80f, 34f), FontStyle.Bold);
+            row.gameObject.SetActive(false);
+            sp.rows[i] = v;
+        }
+        sp.messageText = MenuUi.Label(page, "Message", "Loading scores...", 36, new Color(0.9f, 0.92f, 1f), TextAnchor.MiddleCenter, new Vector2(0f, -40f), new Vector2(1000f, 60f));
+        sp.backButton = MenuUi.MakeButton(page, "ScoreboardBackButton", "Back", 42, BackColor, new Vector2(-420f, -332f), new Vector2(220f, 84f));
+        sp.youText = MenuUi.Label(page, "YourBest", "", 30, new Color(1f, 0.88f, 0.45f), TextAnchor.MiddleLeft, new Vector2(110f, -314f), new Vector2(640f, 40f), FontStyle.Bold);
+        sp.statusText = MenuUi.Label(page, "Status", "", 24, HintColor, TextAnchor.MiddleLeft, new Vector2(110f, -354f), new Vector2(640f, 32f));
+        page.gameObject.SetActive(false);
+    }
+
+    static void Edge(RectTransform parent, string name, Vector2 aMin, Vector2 aMax, Vector2 offMin, Vector2 offMax, Color c)
+    {
+        var e = MenuUi.Rect(parent, name, aMin, aMax, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+        e.offsetMin = offMin; e.offsetMax = offMax;
+        var img = e.gameObject.AddComponent<Image>();
+        img.color = c; img.raycastTarget = false;
+    }
+
+    // Change Name: the level scenes' PlayerNamePicker in menu mode. It fills PickerArea (the same 900 x 500 layout it has on the
+    // fight canvas) and clones the hidden template button for every key, exactly as it clones the Start button in a level.
+    static void BuildNamePage(RectTransform content, MainMenuController mc, GameObject systems)
+    {
+        var page = PageRoot(content, "NamePage");
+        var area = MenuUi.Centred(page, "PickerArea", new Vector2(0f, 20f), new Vector2(900f, 520f));
+        var template = MenuUi.MakeButton(area, "PickerTemplate", "", 30, NameColor, Vector2.zero, new Vector2(200f, 60f));
+        template.gameObject.SetActive(false);
+        var picker = systems.AddComponent<PlayerNamePicker>();
+        picker.menuMode = true;
+        picker.templateButton = template;
+        picker.confirmRename = true;
+        picker.autoSelectSeconds = 0f;
+        mc.namePicker = picker;
+        mc.namePage = page.gameObject;
+        page.gameObject.SetActive(false);
     }
 
     /// <summary>Breathing hardware test (Development builds, hidden until both grips are held 3 s): the same PlayerExertionAudio the
@@ -185,13 +376,54 @@ public static class MenuSceneBuilder
         BreathingSetup.ApplyTo(ex);
         ex.selfTestInDevBuild = false;
         var canvas = GameObject.Find("MenuCanvas").transform;
-        var panel = MenuUi.Panel(canvas, "BreathingTestPanel", new Vector2(345f, 285f), new Vector2(290f, 150f), new Color(0.05f, 0.1f, 0.08f, 0.97f));
+        var panel = MenuUi.Panel(canvas, "BreathingTestPanel", new Vector2(452f, 312f), new Vector2(290f, 150f), new Color(0.05f, 0.1f, 0.08f, 0.97f));
         MenuUi.Label(panel.transform, "Title", "DEBUG: breathing", 22, new Color(0.75f, 1f, 0.8f), TextAnchor.MiddleCenter, new Vector2(0f, 56f), new Vector2(270f, 30f), FontStyle.Bold);
         var button = MenuUi.MakeButton(panel.transform, "TestBreathingButton", "Test breathing", 26, new Color(0.12f, 0.4f, 0.3f, 0.98f), new Vector2(0f, 14f), new Vector2(250f, 52f));
         var readout = MenuUi.Label(panel.transform, "Readout", "", 18, new Color(0.85f, 0.95f, 0.88f), TextAnchor.UpperCenter, new Vector2(0f, -42f), new Vector2(270f, 66f));
         var systems = GameObject.Find("MenuSystems");
         var bt = systems.AddComponent<BreathingTestPanel>();
         bt.panel = panel.gameObject; bt.testButton = button; bt.readout = readout; bt.secondsPerTier = 5f;
+    }
+
+    // Story: full dark panel, warm title "The Legend", slide text on a fading CanvasGroup (1 s cross-fade, no mesh rebuild),
+    // slide counter, Skip button, a warm point light for the torch flicker (off; StoryPanel.torchFlicker enables it while playing).
+    // The glow Graphic behind the text pulses with the light at < 1 Hz so nothing flashes faster than 2 Hz (comfort rule).
+    static void BuildStoryPage(RectTransform content, MainMenuController mc, Button open, GameObject systems)
+    {
+        var page = PageRoot(content, "StoryPage");
+        var panel = MenuUi.Panel(page, "Panel", Vector2.zero, new Vector2(1120f, 770f), new Color(0.008f, 0.01f, 0.018f, 0.98f));
+        panel.raycastTarget = false;
+        MenuUi.Label(page, "Title", "The Legend", 44, new Color(0.9f, 0.72f, 0.35f), TextAnchor.MiddleCenter, new Vector2(0f, 328f), new Vector2(900f, 56f), FontStyle.Bold);
+
+        // Glow: a faint warm circle behind the slide text; StoryPanel drives its alpha with the torch light.
+        var glowRt = MenuUi.Centred(page, "TextGlow", new Vector2(0f, -10f), new Vector2(920f, 460f));
+        var glowImg = glowRt.gameObject.AddComponent<Image>();
+        glowImg.color = new Color(0.85f, 0.65f, 0.25f, 0.08f); glowImg.raycastTarget = false;
+
+        // SlideGroup: its CanvasGroup fades only the text (not the page or glow).
+        var sgRt = MenuUi.Centred(page, "SlideGroup", new Vector2(0f, -10f), new Vector2(980f, 460f));
+        var sg = sgRt.gameObject.AddComponent<CanvasGroup>();
+        sg.blocksRaycasts = false;
+        var slideText = MenuUi.Label(sgRt, "SlideText", "", 44, new Color(0.97f, 0.97f, 1f), TextAnchor.MiddleCenter, Vector2.zero, new Vector2(940f, 440f));
+        slideText.lineSpacing = 1.25f;
+
+        var counter = MenuUi.Label(page, "Counter", "1 / 3", 26, new Color(0.75f, 0.78f, 0.88f), TextAnchor.MiddleRight, new Vector2(492f, 316f), new Vector2(220f, 34f));
+        var skipBtn = MenuUi.MakeButton(page, "SkipButton", "Skip", 38, BackColor, new Vector2(398f, -322f), new Vector2(200f, 76f));
+
+        // Point light for the flicker effect (warm orange; off by default; no shadows).
+        var lightGo = new GameObject("StoryTorchLight");
+        lightGo.transform.position = new Vector3(0f, 2.4f, 2.2f);
+        var lt = lightGo.AddComponent<Light>();
+        lt.type = LightType.Point; lt.range = 9f; lt.intensity = 1.4f;
+        lt.color = new Color(1f, 0.7f, 0.3f); lt.shadows = LightShadows.None; lt.enabled = false;
+
+        var sp = systems.AddComponent<StoryPanel>();
+        sp.menu = mc; sp.page = page.gameObject; sp.openButton = open;
+        sp.skipButton = skipBtn; sp.slideText = slideText; sp.slideGroup = sg;
+        sp.counterText = counter; sp.glow = glowImg; sp.torchLight = lt;
+        sp.torches = null;   // no mesh torches; the point light alone handles the atmosphere
+
+        page.gameObject.SetActive(false);
     }
 
     static void BuildSystems()
@@ -216,9 +448,12 @@ public static class MenuSceneBuilder
             var c = canvas.GetComponent<OutcomeMenuButtons>();
             if (c == null) c = canvas.AddComponent<OutcomeMenuButtons>();
             c.buttonsEnabled = true; c.panelLift = 0.08f; c.prompt = "Play again?";
+            var intro = canvas.GetComponent<LevelIntroLine>();
+            if (intro == null) intro = canvas.AddComponent<LevelIntroLine>();
+            intro.showIntroLine = true;
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
-            log.AppendLine($"{path}: OutcomeMenuButtons on CombatCanvas");
+            log.AppendLine($"{path}: OutcomeMenuButtons + LevelIntroLine on CombatCanvas");
         }
         return log.ToString();
     }
