@@ -61,6 +61,18 @@ public class MainMenuController : MonoBehaviour
     [Tooltip("Change Name opens the laser keyboard name picker. Off: the button is hidden.")]
     public bool changeNameEnabled = true;
 
+    [Header("Story Mode / Guardians")]
+    public Button storyModeButton;
+    public Button guardiansButton;
+    public StoryModePanel storyMode;
+    public GuardiansPanel guardians;
+
+    /// <summary>The page the menu opens on when it loads (a story run's "Story menu" opens Story Mode). Reset after use.</summary>
+    public enum StartPage { Home, StoryMode }
+    public static StartPage PageOnLoad = StartPage.Home;
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetPageOnLoad() { PageOnLoad = StartPage.Home; }
+
     public GameObject CurrentPage { get; private set; }
     /// <summary>Raised after a page is shown (its root).</summary>
     public event Action<GameObject> PageShown;
@@ -110,7 +122,13 @@ public class MainMenuController : MonoBehaviour
         string name = PlayerNameStore.LastUsed;
         if (!string.IsNullOrEmpty(name) && SessionReporter.Instance != null) SessionReporter.Instance.SetPlayerName(name);
         RefreshPlayingAs();
-        if (homePage != null) ShowPage(homePage, null);
+        // Back in the menu = no story run in progress (Story Mode / Continue start a new one). An app restart never resumes a
+        // chapter by itself.
+        StoryProgress.EndRun("menu loaded");
+        var first = PageOnLoad;
+        PageOnLoad = StartPage.Home;
+        if (first == StartPage.StoryMode && storyMode != null) { if (homePage != null) ShowPage(homePage, null); storyMode.Open(); }
+        else if (homePage != null) ShowPage(homePage, null);
         MenuLog.Event($"menu loaded, playing as '{(string.IsNullOrEmpty(name) ? "(none)" : name)}'");
     }
 

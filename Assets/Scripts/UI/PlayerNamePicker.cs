@@ -103,6 +103,22 @@ public partial class PlayerNamePicker : MonoBehaviour
     GameObject changeButton;
     Text statusText;
 
+    /// <summary>Story Mode: the chapter card is up, so the picker does not open (and the countdown does not run) until
+    /// ReleaseHold. Start stays blocked meanwhile (picking is true from Awake).</summary>
+    public static bool HoldOpen;
+    bool deferredOpen;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetHold() { HoldOpen = false; }
+
+    /// <summary>The chapter card closed: open the picker the way Start would have.</summary>
+    public static void ReleaseHold()
+    {
+        HoldOpen = false;
+        var p = Instance;
+        if (p != null && p.deferredOpen) { p.deferredOpen = false; p.OpenPanel(autoSelect: true); }
+    }
+
     void Awake()
     {
         Instance = this;
@@ -180,6 +196,12 @@ public partial class PlayerNamePicker : MonoBehaviour
             BattleManager.Instance.OnBattleStarted += HandleBattleStarted;
 
         BuildChangeButton();
+        if (HoldOpen)
+        {
+            deferredOpen = true;                        // ReleaseHold opens it
+            startButton.SetActive(false);
+            return;
+        }
         OpenPanel(autoSelect: true);
     }
 

@@ -1,6 +1,6 @@
 # Fitness Monster Battle (VR) — Project Context
 
-Last updated: **2026-10-16, controller mapping and pause menu (branch `pause-menu`, last section); web engagement pass (challenges, calendar, mastery stars, challenge a friend, replay ghost, feed, cheers, tour, calm mode; see the last section and project_progress.md). Unity: unchanged since 2026-10-10 (main menu / SceneFlow, WeaponSurfaceProxy, Level 2 landing tremor, DragonHazard off, boss glow-ups and 3 new attacks).**
+Last updated: **2026-10-17, Story Mode and Guardians (branch `story-mode`, last section); 2026-10-16, controller mapping and pause menu (branch `pause-menu`, last section); web engagement pass (challenges, calendar, mastery stars, challenge a friend, replay ghost, feed, cheers, tour, calm mode; see the last section and project_progress.md). Unity: unchanged since 2026-10-10 (main menu / SceneFlow, WeaponSurfaceProxy, Level 2 landing tremor, DragonHazard off, boss glow-ups and 3 new attacks).**
 
 ## Overview
 
@@ -159,4 +159,14 @@ All per-level combat numbers live in `Editor/CombatTuning.cs` (monster prefab va
 - **Pause semantics:** `Time.timeScale` 0 + `AudioListener.pause` + `GamePause.IsPaused` tested directly by `HitDetection`, `PlayerCombat`, `WeaponSwingAudio`, `PlayerExertionAudio`, `MonsterAI`, `MonsterDefense`, `MonsterPersonalSpace`, `MonsterAxeFlames`, `WeaponSurfaceProxy`, `CombatFeedback`, `FlailChainSim`, `PlayerLowHealthFeedback`, `PlayerDamageVignette`, `ArenaMoodController`; `MonsterHealth.TakeDamage` and `PlayerHealth.TakeDamage` return early while paused. The level music keeps playing at 40 %. Session durations, kcal and active minutes use `GamePause.ActiveRealtime` (real time minus paused time).
 - **Session data:** new events `pause` / `resume` (with `pausedSeconds`, `cause`), a slow keep-alive `pause` event every 20 s while paused, no HP snapshots while paused, the final session carries `pausedSeconds`, and Restart / Level Select / Exit send outcome `abandoned` (`BattleManager.AbandonFight`).
 - **Headset logging:** `adb logcat -s Unity:I | grep StrikeFitPause` (pause / resume / leaving), `grep StrikeFitControls` (pointing hand).
+
+---
+
+## Story Mode and Guardians (2026-10-17, branch `story-mode`; details and evidence in project_progress.md)
+
+- **Shared content:** `content/story.json` (source of truth) now also holds `guardians` (level, id, name, weapon, lore, tips) and `interludes` (afterLevel1, afterLevel2, ending[], defeat); `node content/sync-story.js` validates it (3 guardians, ASCII only) and copies it plus `content/guardians/level{1,2,3}.png` to `Assets/Resources` and `web/frontend/src/content`. Unity reads it with `StoryContent` (+ `GuardianFor`), the web with `lib/story.js`.
+- **Menu:** Story Mode, Start Game (free play, unchanged), Guardians, Scoreboard, Change Name, Exit Game (two-column grid); `Tools > Story > Apply` rebuilds `MainMenu.unity` (portrait import + `MenuSceneBuilder`). Pages: `StoryModePanel` (Continue / New Story / Watch intro), `StoryPanel` (the 3-slide intro, now with an `onFinished` callback), `GuardiansPanel` (`lockUntilCleared`, default off).
+- **Story run:** `StoryProgress` (PlayerPrefs `StrikeFit.Story.*`: chapters cleared per player, run flag; the menu load clears the flag). `StoryDirector` (created by `BattleManager.Awake` only when a run is active and the scene is the run's next chapter) + `StoryStage` (chapter card, interludes, ending, "Story complete"); the end panels read "Continue story" / "Story menu" / "Retry" in a run (`OutcomeMenuButtons`); `PlayerNamePicker.HoldOpen` keeps the picker closed until Begin; `StoryDirector.BlocksPause` keeps the pause menu closed on cards and slides. Free play creates none of it.
+- **Telemetry:** `SessionReporter.SessionMode` ("story" / "free") goes out with the session start (and the `session_start` event payload).
+- **Logging:** `adb logcat -s Unity:I | grep StrikeFitStory`.
 

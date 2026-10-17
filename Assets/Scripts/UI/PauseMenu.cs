@@ -149,6 +149,7 @@ public class PauseMenu : MonoBehaviour
     public bool CanPause()
     {
         if (bm == null || !bm.IsBattleActive || Busy || SceneFlow.Busy || GamePause.IsPaused) return false;
+        if (StoryDirector.BlocksPause) return false;   // a chapter card, interlude or slide is open
         return Time.frameCount != bm.BattleStartFrame;
     }
 
@@ -309,6 +310,7 @@ public class PauseMenu : MonoBehaviour
         openClip = Tone("PauseOpen", 420f, 640f, 0.16f);
         closeClip = Tone("PauseClose", 640f, 420f, 0.16f);
         clickClip = Tone("PauseClick", 880f, 880f, 0.05f);
+        MenuUi.DrawOnTop(root);   // the monster stands about 1.5-1.8 m away: the panel must not disappear behind it
         root.SetActive(false);
     }
 
@@ -451,6 +453,7 @@ public class PauseMenu : MonoBehaviour
         hintRoot.transform.position = head.position + fwd * 1.5f + Vector3.down * 0.42f;
         hintRoot.transform.rotation = Quaternion.LookRotation(fwd, Vector3.up);
         hintText = MenuUi.Label(rt, "Text", HintLine("pause"), 52, new Color(1f, 1f, 1f, 0.95f), TextAnchor.MiddleCenter, Vector2.zero, new Vector2(500f, 90f), FontStyle.Bold);
+        MenuUi.DrawOnTop(hintRoot);
         hintEndsAt = Time.unscaledTime + Mathf.Max(1f, ControlSettings.Current.pauseHintSeconds);
     }
 

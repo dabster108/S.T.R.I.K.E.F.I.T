@@ -40,3 +40,10 @@ test("existing fields are untouched by the additions (readers that ignore unknow
   assert.equal(story.levels[1].guardian, "The Crimson Warden");
   assert.equal(story.slideSeconds, 7);
 });
+
+test("guardian portraits: three PNGs, 1024 px at most, under 6 MB together, and the game copies are byte-identical", () => {
+  assert.deepEqual(sync.validatePortraits(), []);
+  const total = sync.PORTRAITS.reduce((a, p) => a + fs.statSync(p.from).size, 0);
+  assert.ok(total < 6 * 1024 * 1024, `portraits ${total} bytes`);
+  for (const p of sync.PORTRAITS) assert.ok(fs.readFileSync(p.from).equals(fs.readFileSync(p.to)), p.to);
+});

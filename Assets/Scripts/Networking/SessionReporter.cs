@@ -119,6 +119,9 @@ public class SessionReporter : MonoBehaviour
 
     const float WeakSwingRepeatWindow = 0.35f;
     public const string DefaultPlayerName = "Player 1";
+    /// <summary>"story" or "free": set by BattleManager / StoryDirector for the scene, sent with the session start (new field, the
+    /// backend ignores it on the session row and keeps it in the stored session_start event payload).</summary>
+    public static string SessionMode = "free";
     public const int MaxPlayerNameLength = 40; // backend limit (PATCH /api/players/:name)
 
     void Awake()
@@ -740,6 +743,7 @@ public class SessionReporter : MonoBehaviour
         JStr("playerName", sessionPlayerName);
         JStr("level", CurrentLevel());
         JStr("status", "live");
+        JStr("mode", SessionMode);
         JStr("startedAt", DateTime.UtcNow.AddSeconds(-(GamePause.ActiveRealtime - sessionStartedAt + SessionPausedSeconds)).ToString("o"));
         JStr("source", "unity");
         AppendStateFields(BattleManager.Instance != null ? BattleManager.Instance.CurrentScore : 0);
@@ -748,6 +752,7 @@ public class SessionReporter : MonoBehaviour
 
         Begin("session_start", $"{sessionPlayerName} started {LevelLabel(CurrentLevel())}");
         Str("level", CurrentLevel());
+        Str("mode", SessionMode);
         AppendState(BattleManager.Instance != null ? BattleManager.Instance.CurrentScore : 0);
         End();
         FlushGoalSet();

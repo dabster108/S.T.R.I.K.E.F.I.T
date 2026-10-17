@@ -102,9 +102,14 @@ public class StoryPanel : MonoBehaviour
         Play("first launch");
     }
 
-    public void Play(string reason)
+    System.Action finished;
+
+    /// <summary>Plays the slides. onFinished (optional) runs when they end or are skipped instead of returning to the menu home
+    /// (Story Mode: the intro of a new story, then Chapter 1; Watch intro: back to the Story Mode page).</summary>
+    public void Play(string reason, System.Action onFinished = null)
     {
         if (!storyEnabled || Playing || menu == null || (reason == "button" && menu.Blocked)) return;
+        finished = onFinished;
         story = StoryContent.Load();
         if (story.slides.Length == 0) { MenuLog.Event("story: no slides in Resources/story.json"); return; }
         menu.ShowPage(page, "story (" + reason + ")");
@@ -171,6 +176,8 @@ public class StoryPanel : MonoBehaviour
         if (torches != null) torches.SetActive(false);
         if (ambient != null) ambient.Stop();
         MenuLog.Event($"story {how} at slide {index + 1} after {Time.unscaledTime - startedAt:0.0}s");
-        menu.ShowHome();
+        var cb = finished;
+        finished = null;
+        if (cb != null) cb(); else menu.ShowHome();
     }
 }

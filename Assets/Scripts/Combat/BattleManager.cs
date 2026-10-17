@@ -61,6 +61,12 @@ public class BattleManager : MonoBehaviour
         if (FindAnyObjectByType<PlayerNamePicker>() == null)
             gameObject.AddComponent<PlayerNamePicker>();
 
+        // Story Mode: when a story run is active and this scene is its chapter, the director adds the chapter card, the
+        // interludes and the story end-panel buttons. Free play never creates it. The session start says which mode it is.
+        SessionReporter.SessionMode = "free";
+        if (StoryDirector.ShouldRun(out _) && FindAnyObjectByType<StoryDirector>() == null)
+            gameObject.AddComponent<StoryDirector>();
+
         // Pause menu (every level; ControlSettings.pauseEnabled). Created here like the name picker, so no scene needs a copy.
         if (ControlSettings.Current.pauseEnabled && FindAnyObjectByType<PauseMenu>() == null)
             gameObject.AddComponent<PauseMenu>();
