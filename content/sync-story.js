@@ -26,6 +26,22 @@ function validate(story) {
   (story.levels || []).forEach((l, i) => {
     for (const f of ["guardian", "intro", "scene"]) if (!l || typeof l[f] !== "string" || !l[f].trim()) errors.push(`levels[${i}].${f} missing`);
   });
+  // Guardians (lore cards, Guardians screen) and interludes (story-run text between the fights).
+  const guardians = story.guardians || [];
+  if (guardians.length !== 3) errors.push("guardians: exactly 3");
+  guardians.forEach((g, i) => {
+    for (const f of ["id", "name", "weapon", "lore"]) if (!g || typeof g[f] !== "string" || !g[f].trim()) errors.push(`guardians[${i}].${f} missing`);
+    if (!g || ![1, 2, 3].includes(g.level)) errors.push(`guardians[${i}].level must be 1, 2 or 3`);
+    if (!g || !Array.isArray(g.tips) || g.tips.length < 1 || g.tips.some((t) => typeof t !== "string" || !t.trim())) errors.push(`guardians[${i}].tips: at least one text`);
+    const lv = (story.levels || []).find((l) => l && g && l.level === g.level);
+    if (lv && g && lv.guardian !== g.name) errors.push(`guardians[${i}].name "${g.name}" differs from levels[].guardian "${lv.guardian}"`);
+  });
+  const it = story.interludes || {};
+  for (const f of ["afterLevel1", "afterLevel2", "defeat"]) if (typeof it[f] !== "string" || !it[f].trim()) errors.push(`interludes.${f} missing`);
+  if (!Array.isArray(it.ending) || it.ending.length < 1 || it.ending.some((t) => typeof t !== "string" || !t.trim())) errors.push("interludes.ending: at least one text");
+  // Plain ASCII everywhere: the Quest font has no glyph for curly quotes or dashes (a box is shown instead).
+  const nonAscii = (JSON.stringify(story).match(/[^\x00-\x7e]/g) || []);
+  if (nonAscii.length) errors.push(`non-ASCII characters in the story: ${[...new Set(nonAscii)].map((c) => "U+" + c.codePointAt(0).toString(16)).join(", ")}`);
   return errors;
 }
 
