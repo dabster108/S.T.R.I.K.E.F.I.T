@@ -49,32 +49,6 @@ export const MONSTER_GLOW = {
   Hard: { name: "Orange-red, electric blue", aura: "#ff5a36", core: "#ffd166", outline: "#ff2d2d", ember: "#4fd6ff" },
 };
 
-// "How to beat it": from the real guard / attack-table design in context.md, not invented.
-export const MONSTER_TIPS = {
-  Easy: [
-    "Attacks are slow and clearly telegraphed — wait for the wind-up instead of swinging early.",
-    "It raises its guard from time to time; a guarded hit does no damage, so keep swinging at an open side.",
-    "This is the easiest fight on purpose: use it to find a swing speed that reaches “full power” before moving on.",
-  ],
-  Medium: [
-    "It picks from seven attacks and varies them, including a twin-strike combo and a leaping cleave — don't expect a single pattern to repeat.",
-    "Below 40% health it is forced into its special attack once; expect a harder opening right after.",
-    "Its guard remembers your last few swings and leans toward blocking a repeated angle, so vary your swing direction rather than always striking the same side.",
-  ],
-  Hard: [
-    "Two axes, 14 attacks: 11 melee (including an unblockable ground slam that must be dodged, not blocked) and 3 thrown from range.",
-    "Three phases: it gets faster and its telegraphs get shorter after 66% and again after 33% health, and the last phase is enraged.",
-    "Like Level 2, its guard adapts to a repeated swing angle or side — and after three blocks in a row the next swing is guaranteed to land.",
-  ],
-};
+// "How to beat it" (tips) and the lore now live in the shared content/story.json (guardians[]), read through lib/story.js.
 
 export const MONSTER_LABEL = { Easy: "Easy", Medium: "Medium", Hard: "Hard, final boss" };
-
-// The guardians' weapons: Assets/Documentation/context.md, the level table ("Monster weapon" column). Level 1: a sword,
-// Level 2: a two-handed axe, Level 3: two axes, one per hand.
-export const MONSTER_WEAPON = { Easy: "Sword", Medium: "Two-handed axe", Hard: "Two axes, one per hand" };
-
-// Which of MONSTER_TIPS (above, themselves taken from the design notes) the story page shows as a guardian's habits.
-// Indexes, so the wording stays in one place. Everything about how they fight is "tuning in progress".
-export const GUARDIAN_HABITS = { Easy: [0, 1], Medium: [2, 1], Hard: [0, 2] };
-export const TUNING_NOTE = "Habits as the game is built today; tuning in progress.";

@@ -3153,3 +3153,20 @@ The lore and the three interlude lines are story text (no mechanic claimed), lef
 4. A physical trigger as "next" off the buttons, and Skip with a real laser.
 5. Audio at the story points (there is none new: no sound was added), the pause menu after a story scene change on the device.
 6. Known: the story intro is 3 slides; the Defeat panel still shows the old "Press A to Retry" line (A retries the same chapter in a run); the ending Skip button was not clicked separately; `OpenXRPackageSettings.asset` keeps being rewritten by Unity and is not part of the commit.
+
+## 2026-10-17: website story polish and performance (branch `web-story-polish`, frontend only; backend, database and Unity untouched)
+Deploy: Vercel only. No APK change comes from this branch.
+
+### What changed
+- **Shared story content:** `/story`, `/monsters` and the landing page read lore, weapons and tips from `content/story.json` (via `web/frontend/src/content`, synced by `content/sync-story.js`); `lib/monsters.js` no longer holds its own copies. `components/story/StoryRun.jsx` ("How a story run works") is on `/story`.
+- **Landing:** Story Mode section (the three guardians with the Unity portraits), "How to play in 60 seconds", FAQ (five answers from the repo), section numbers 01-08, a footer link to `/story`.
+- **Dashboard:** Overview "Highlights" (best run, longest win streak, most played level; computed in `lib/highlights.js`, 6 unit tests, honest empty state), the "?" keyboard shortcuts overlay (also a footer button), skeletons for the overview header, "Latest activity" and the first-steps card, route transition 0.22 s / 6 px, Calm mode and `prefers-reduced-motion` switch the new motion off.
+- **Performance:** react-select moved into `ui/Select.jsx` and loaded lazily (overview challenges picker, player level filter); landing below-the-fold sections moved to `views/LandingRest.jsx` (loads after first paint and idle, at once for `#section` links, nav clicks and scroll; the nav re-observes the sections); hero kicker and intro rise without starting at opacity 0 (`.rise`); `useTelemetry` shows the page when the sessions arrive and fills "Latest activity" when the events arrive (`eventsReady`).
+
+### Lighthouse 12.8.2, headless Brave, local build served with brotli, local throwaway backend with simulated sessions (not production)
+Mobile (simulated slow 4G), before -> after: landing 88 -> 99 (LCP 2.84 -> 1.76 s, CLS 0 -> 0.007, TBT 0 -> 2 ms); monsters 96 -> 97; story 98 -> 99; overview 84 -> 96 (LCP 4.43 -> 2.69 s); live 91 -> 93; player 69 -> 84 (CLS 0.298 -> 0.018, LCP 4.28 -> 4.45 s). Desktop 99-100 everywhere (player 92 -> 99). Initial JS (entry chunk) 133.9 -> 85.8 KB gzip (target: no more than +5 KB). INP is a field metric and was not measured.
+Not reached: Player mobile 84 (LCP 4.5 s: the header text waits for the player's data and the lazy dashboard chunks); Live mobile 93 / LCP 3.06 s. Landing, the page the targets were set for, meets all four.
+
+### Verified (CDP, Brave headless, 390 / 768 / 1440)
+Landing, `/story`, `/monsters`, Overview rendered at all three widths: 0 console errors, no horizontal scroll; `#levels`, `#faq-title`, `#thesis` links and a nav click land on their section with the section marked current; "?" opens the overlay, Esc closes it; with `prefers-reduced-motion` the hero and page transitions run at ~0 ms. `npm test`: 54 pass; `npm run build` clean.
+Not verified: a real phone, Safari, the production API (only read-only checks were ever allowed and none were needed).

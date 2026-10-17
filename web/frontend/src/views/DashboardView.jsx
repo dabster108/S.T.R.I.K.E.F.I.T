@@ -12,7 +12,7 @@ import { LevelBadge } from "../components/ui/Badge.jsx";
 import { formatDuration, formatNumber, formatPercent, formatRelative } from "../lib/format.js";
 import { Card, CardHeader, PageHeader, SectionRule } from "../components/ui/Card.jsx";
 import { SegmentedControl } from "../components/ui/Controls.jsx";
-import { EmptyState } from "../components/ui/Feedback.jsx";
+import { EmptyState, Skeleton } from "../components/ui/Feedback.jsx";
 import StatTile, { FigureStrip } from "../components/ui/StatTile.jsx";
 import ScoreTrendChart from "../components/charts/ScoreTrendChart.jsx";
 import OutcomeSplit from "../components/charts/OutcomeSplit.jsx";
@@ -22,6 +22,7 @@ import CalorieInsights from "../components/fitness/CalorieInsights.jsx";
 import EventList from "../components/sessions/EventList.jsx";
 import { OverviewChallenges } from "../components/engage/Challenges.jsx";
 import ActivityFeed from "../components/engage/ActivityFeed.jsx";
+import Highlights from "../components/engage/Highlights.jsx";
 
 const link = "press rounded text-xs font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline";
 
@@ -187,7 +188,7 @@ function RecordRow({ label, session, value, onOpen, lead = false }) {
   );
 }
 
-export default function DashboardView({ sessions, allSessions, events, range, onRange, openSession }) {
+export default function DashboardView({ sessions, allSessions, events, eventsReady = true, range, onRange, openSession }) {
   const stats = useMemo(() => summarize(sessions), [sessions]);
   const levels = useMemo(() => byLevel(sessions), [sessions]);
   const recs = useMemo(() => records(sessions), [sessions]);
@@ -234,6 +235,11 @@ export default function DashboardView({ sessions, allSessions, events, range, on
       <div className="mt-6">
         <PlayingNow />
       </div>
+
+      {/* Highlights: best run, longest win streak, most played level (all recorded fights, whatever the range above) */}
+      <section aria-label="Highlights" className="mt-6">
+        <Highlights sessions={allSessions} openSession={openSession} />
+      </section>
 
       {/* 01: one lead figure, then three tiles of different widths */}
       <SectionRule index="01" title={`Headline · ${rangeLabel}`} className="mt-8" />
@@ -411,7 +417,13 @@ export default function DashboardView({ sessions, allSessions, events, range, on
               </Link>
             }
           />
-          {events.length ? (
+          {!eventsReady ? (
+            <div className="space-y-3 p-5" aria-hidden="true">
+              {Array.from({ length: 6 }, (_, i) => (
+                <Skeleton key={i} className="h-9 w-full" />
+              ))}
+            </div>
+          ) : events.length ? (
             <EventList events={events.slice(0, 6)} dense />
           ) : (
             <EmptyState icon="live" title="Quiet for now" description="Session starts, hits and results stream in here." />

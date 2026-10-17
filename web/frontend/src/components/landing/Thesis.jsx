@@ -14,7 +14,7 @@ export default function Thesis() {
     <section id="thesis" aria-labelledby="thesis-title" className="border-t border-[var(--border)] bg-[var(--surface)]">
       <div className="mx-auto max-w-6xl px-4 pb-24 pt-28 sm:px-6 lg:pb-28 lg:pt-40">
         <Reveal>
-          <Kicker index="07">About the thesis · research question</Kicker>
+          <Kicker index="08">About the thesis · research question</Kicker>
         </Reveal>
 
         {/* the question is the loudest thing in the section, set as a pull quote on an accent rule */}

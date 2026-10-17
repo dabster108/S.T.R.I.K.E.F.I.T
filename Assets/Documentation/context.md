@@ -170,3 +170,8 @@ All per-level combat numbers live in `Editor/CombatTuning.cs` (monster prefab va
 - **Telemetry:** `SessionReporter.SessionMode` ("story" / "free") goes out with the session start (and the `session_start` event payload).
 - **Logging:** `adb logcat -s Unity:I | grep StrikeFitStory`.
 
+
+## Website story polish (2026-10-17, branch `web-story-polish`; frontend only, details in project_progress.md)
+- `/story`, `/monsters` and the landing page read guardians, lore and tips from `content/story.json` (synced copy in `web/frontend/src/content`); landing has Story Mode, "How to play in 60 seconds" and FAQ; Overview has Highlights (`lib/highlights.js`); "?" opens the shortcuts overlay.
+- Performance structure to keep: react-select only through `ui/Select.jsx` (lazy); landing sections below the hero live in `views/LandingRest.jsx` (lazy, anchors need it mounted); `useTelemetry` exposes `eventsReady`. Landing mobile Lighthouse 99 / LCP 1.76 s on a local build.
+- Deploy: Vercel only. Unity and the APK are unaffected.

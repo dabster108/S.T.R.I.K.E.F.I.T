@@ -4,7 +4,8 @@ import { formatNumber } from "../lib/format.js";
 import { useApi } from "../hooks/useApi.js";
 import { useLiveMessages } from "../live/LiveProvider.jsx";
 import { Card, PageHeader } from "../components/ui/Card.jsx";
-import { Select, inputClass } from "../components/ui/Controls.jsx";
+import { inputClass } from "../components/ui/Controls.jsx";
+import { Select } from "../components/ui/Select.jsx";
 import Button from "../components/ui/Button.jsx";
 import Icon from "../components/ui/Icon.jsx";
 

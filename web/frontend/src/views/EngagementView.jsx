@@ -6,7 +6,7 @@ import { formatNumber } from "../lib/format.js";
 import { useApi } from "../hooks/useApi.js";
 import { useLiveMessages } from "../live/LiveProvider.jsx";
 import { Card, CardHeader, PageHeader, SectionRule } from "../components/ui/Card.jsx";
-import { Select } from "../components/ui/Controls.jsx";
+import { Select } from "../components/ui/Select.jsx";
 import { EmptyState } from "../components/ui/Feedback.jsx";
 import { GenericSkeleton } from "../components/ui/Skeletons.jsx";
 import { FigureStrip } from "../components/ui/StatTile.jsx";

@@ -1,11 +1,13 @@
 // StoryView — /dashboard/story, and the public /story (standalone, inside the landing nav and footer).
 // The game lore: the three atmospheric slides from content/story.json, then the three guardians
-// (components/story/Guardians.jsx: portrait, intro line from the same file, weapon, habits).
+// (components/story/Guardians.jsx: cards that work as tabs, one detail view with lore, weapon, arena and tips), then how a story run
+// works in the headset (components/story/StoryRun.jsx).
 // Read-only; no backend calls. The source of truth is content/story.json (sync-story.js).
 
-import story from "../content/story.json";
+import story from "../lib/story.js";
 import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
 import Guardians from "../components/story/Guardians.jsx";
+import StoryRun from "../components/story/StoryRun.jsx";
 
 function SlideCard({ slide, index }) {
   const shade = [
@@ -56,6 +58,9 @@ export default function StoryView({ standalone = false }) {
 
       {/* ── Guardians: one per screen on desktop, stacked cards on phones ── */}
       <Guardians />
+
+      {/* ── How a story run works in the headset ── */}
+      <StoryRun />
 
       {/* ── Source note (developer-facing: not on the public page) ── */}
       {!standalone && (

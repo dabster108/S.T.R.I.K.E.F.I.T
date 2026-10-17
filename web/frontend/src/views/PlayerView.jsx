@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { levelName } from "../lib/game.js";
@@ -6,7 +6,9 @@ import { formatDuration, formatNumber, formatPercent, formatRelative, formatShor
 import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useFeed, useLiveForPlayer, useLiveMessages } from "../live/LiveProvider.jsx";
 import { Card, CardHeader, PageHeader, SectionRule } from "../components/ui/Card.jsx";
-import { SegmentedControl, Select } from "../components/ui/Controls.jsx";
+import { SegmentedControl } from "../components/ui/Controls.jsx";
+// react-select loads after the page (the level filter is at the bottom of the history card).
+const Select = lazy(() => import("../components/ui/Select.jsx").then((m) => ({ default: m.Select })));
 import { EmptyState } from "../components/ui/Feedback.jsx";
 import { PlayerSkeleton } from "../components/ui/Skeletons.jsx";
 import { LevelBadge, OutcomeBadge } from "../components/ui/Badge.jsx";
@@ -501,7 +503,9 @@ export default function PlayerView() {
               actions={
                 <>
                   <SegmentedControl label="Outcome" options={OUTCOMES} value={outcome} onChange={setOutcome} />
-                  <Select label="Level" value={level} onChange={setLevel} options={LEVELS} />
+                  <Suspense fallback={<div className="h-9 w-36 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)]" aria-hidden="true" />}>
+                    <Select label="Level" value={level} onChange={setLevel} options={LEVELS} />
+                  </Suspense>
                 </>
               }
             />
