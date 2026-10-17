@@ -150,6 +150,7 @@ public class MonsterPersonalSpace : MonoBehaviour
 
     void LateUpdate()
     {
+        if (GamePause.IsPaused) return;   // the monster is not pushed around by the player's head while paused
         LastPush = 0f;
         if (!clampEnabled || capsules == null || capsules.Length == 0) return;
         ResolvePlayer();

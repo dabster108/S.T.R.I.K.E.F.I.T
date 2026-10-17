@@ -10,7 +10,8 @@ import { shortName } from "../lib/engage.js";
 import { useApi } from "../hooks/useApi.js";
 import Icon from "../components/ui/Icon.jsx";
 import { LEVELS, LEVEL_KEYS } from "../lib/game.js";
-import { MONSTER_GLOW, MONSTER_LABEL, MONSTER_TIPS } from "../lib/monsters.js";
+import { MONSTER_GLOW, MONSTER_LABEL } from "../lib/monsters.js";
+import { guardianForKey } from "../lib/story.js";
 
 function Fact({ label, value }) {
   return (
@@ -22,7 +23,8 @@ function Fact({ label, value }) {
 }
 
 // One full section per monster. Facts come straight from lib/game.js (the LEVELS table, which cites
-// context.md / project_progress.md); tips come from MONSTER_TIPS, written from the same design docs.
+// context.md / project_progress.md); the lore and tips are read from the shared content/story.json (guardians[]), the same text
+// the headset's Guardians screen and chapter cards show.
 // A player's mastery stars for this monster (when a player is picked above).
 function PlayerStars({ entry, player }) {
   if (!entry) return null;
@@ -47,6 +49,7 @@ function PlayerStars({ entry, player }) {
 function MonsterSection({ levelKey, index, mastery = null, player = "" }) {
   const l = LEVELS[levelKey];
   const glow = MONSTER_GLOW[levelKey];
+  const guardian = guardianForKey(levelKey);
     const facts = [
     ["Fights", `${l.name} · ${l.monster}`],
     ["Weapons", l.weapons],
@@ -70,6 +73,16 @@ function MonsterSection({ levelKey, index, mastery = null, player = "" }) {
             <p className="mt-2 text-sm font-bold" style={{ color: glow.outline }}>
               {glow.name} glow
             </p>
+            {guardian && (
+              <p className="mt-2 text-sm font-semibold text-[var(--ink-secondary)]">
+                The guardian: <span className="font-extrabold text-[var(--ink)]">{guardian.name}</span>
+              </p>
+            )}
+            {guardian?.lore && (
+              <blockquote className="measure mt-5 border-l-4 pl-4 text-base font-medium italic leading-relaxed text-[var(--ink-secondary)]" style={{ borderColor: glow.outline }}>
+                {guardian.lore}
+              </blockquote>
+            )}
             <PlayerStars entry={mastery?.levels.find((l) => l.level === levelKey)} player={player} />
           </Reveal>
           <Reveal delay={100}>
@@ -82,7 +95,7 @@ function MonsterSection({ levelKey, index, mastery = null, player = "" }) {
           <Reveal delay={180}>
             <h3 className="mt-10 text-lg font-extrabold tracking-tight text-[var(--ink)]">How to beat it</h3>
             <ol className="mt-4 space-y-3">
-              {MONSTER_TIPS[levelKey].map((tip, i) => (
+              {(guardian?.tips ?? []).map((tip, i) => (
                 <li key={tip} className="flex gap-3 text-[0.95rem] font-medium leading-relaxed text-[var(--ink-secondary)]">
                   <span className="t-index mt-0.5 w-5 shrink-0 text-[var(--accent-strong)]">{i + 1}</span>
                   <span>{tip}</span>

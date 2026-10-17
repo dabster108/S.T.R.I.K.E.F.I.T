@@ -103,14 +103,58 @@ public partial class PlayerNamePicker : MonoBehaviour
     GameObject changeButton;
     Text statusText;
 
+    /// <summary>Story Mode: the chapter card is up, so the picker does not open (and the countdown does not run) until
+    /// ReleaseHold. Start stays blocked meanwhile (picking is true from Awake).</summary>
+    public static bool HoldOpen;
+    bool deferredOpen;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetHold() { HoldOpen = false; }
+
+    /// <summary>The chapter card closed: open the picker the way Start would have.</summary>
+    public static void ReleaseHold()
+    {
+        HoldOpen = false;
+        var p = Instance;
+        if (p != null && p.deferredOpen) { p.deferredOpen = false; p.OpenPanel(autoSelect: true); }
+    }
+
     void Awake()
     {
         Instance = this;
         picking = true; // closed from the first frame; Start builds the panel or falls back to the default
+        // Levels: B goes back from the keyboard / the rename confirm / the goal panel. In the menu the page's own back asks GoBack.
+        if (!menuMode) UiBack.Push(GoBack);
+    }
+
+    /// <summary>
+    /// B: one panel back. Rename confirm -> keyboard; keyboard -> name list; menu name list -> menu home; the daily-goal panel (an
+    /// existing goal being edited) -> its summary, otherwise -> the name list. The name list of a level has nothing before it (a name
+    /// is needed to play), so it returns false. Nothing is left open on a false return.
+    /// </summary>
+    public bool GoBack()
+    {
+        if (this == null || !isActiveAndEnabled) return false;
+        if (renameInFlight) return true;                                  // wait for the backend's answer
+        if (renameConfirmOpen) { CloseRenameConfirm(); RefreshKeyboard(); return true; }
+        if (picking)
+        {
+            if (mode != Mode.List) { CancelKeyboard(); return true; }
+            if (menuMode) { CloseFromMenu(); return true; }
+            return false;
+        }
+        if (goalStepOpen)
+        {
+            if (goalEditing && DailyGoal.HasGoal && DailyGoal.Player == goalPlayer) { goalEditing = false; ShowGoalPanel(); return true; }
+            OpenPanel(autoSelect: false);                                 // the same path as the Change name button
+            return true;
+        }
+        return false;
     }
 
     void OnDestroy()
     {
+        UiBack.Remove(GoBack);
         if (Instance == this) Instance = null;
         OnDestroyGoal();
     }
@@ -152,6 +196,12 @@ public partial class PlayerNamePicker : MonoBehaviour
             BattleManager.Instance.OnBattleStarted += HandleBattleStarted;
 
         BuildChangeButton();
+        if (HoldOpen)
+        {
+            deferredOpen = true;                        // ReleaseHold opens it
+            startButton.SetActive(false);
+            return;
+        }
         OpenPanel(autoSelect: true);
     }
 

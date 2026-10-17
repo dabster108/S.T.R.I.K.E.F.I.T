@@ -99,7 +99,9 @@ public class SessionReporter : MonoBehaviour
     bool requestInFlight;
     float nextFlushTime;
     float nextSnapshotTime;
-    float sessionStartedAt;
+    float sessionStartedAt;   // GamePause.ActiveRealtime when the fight began: every duration below excludes paused time
+    float pausedAtBegin;      // GamePause.PausedSeconds when the fight began
+    float nextKeepAliveTime;  // while paused: when the next "still paused" event goes out (keeps the live session open)
     bool startPending;
     float lastFailureLogTime = -999f;
 
@@ -117,6 +119,9 @@ public class SessionReporter : MonoBehaviour
 
     const float WeakSwingRepeatWindow = 0.35f;
     public const string DefaultPlayerName = "Player 1";
+    /// <summary>"story" or "free": set by BattleManager / StoryDirector for the scene, sent with the session start (new field, the
+    /// backend ignores it on the session row and keeps it in the stored session_start event payload).</summary>
+    public static string SessionMode = "free";
     public const int MaxPlayerNameLength = 40; // backend limit (PATCH /api/players/:name)
 
     void Awake()
@@ -607,7 +612,8 @@ public class SessionReporter : MonoBehaviour
         currentSessionId = Guid.NewGuid().ToString("N");
         sessionPlayerName = CleanName(playerName);
         PlayerNameStore.RecordSession(sessionPlayerName, currentSessionId);
-        sessionStartedAt = Time.realtimeSinceStartup;
+        sessionStartedAt = GamePause.ActiveRealtime;
+        pausedAtBegin = GamePause.PausedSeconds;
         BattleStats.Begin(sessionStartedAt); // HUD kcal and the telemetry share this start time
         hitCount = 0;
         sessionOpen = true;
@@ -619,7 +625,7 @@ public class SessionReporter : MonoBehaviour
         // StartBattle calls this before it spawns the monster and sets HP, so the live session is
         // posted on the next Update with the real starting values.
         startPending = true;
-        nextSnapshotTime = Time.realtimeSinceStartup + snapshotInterval;
+        nextSnapshotTime = GamePause.ActiveRealtime + snapshotInterval;
         if (verboseLogging) Debug.Log($"[SessionReporter] Session {currentSessionId} ({sessionPlayerName}) → {baseUrl}");
     }
 
@@ -648,6 +654,24 @@ public class SessionReporter : MonoBehaviour
         hasPendingSwing = false;
     }
 
+    /// <summary>Real seconds this fight has spent paused (0 when it never was).</summary>
+    public float SessionPausedSeconds => Mathf.Max(0f, GamePause.PausedSeconds - pausedAtBegin);
+    const float PauseKeepAliveSeconds = 20f;
+
+    /// <summary>Pause / resume through the normal event queue. "t" is the fight clock (it stands still while paused), so the live view
+    /// and the backend's duration never include the pause. pausedSeconds is the running total for this fight. Older backends store
+    /// the two new event types like any other and ignore pausedSeconds (it is not one of their live-state keys).</summary>
+    public void ReportPause(bool paused, string cause)
+    {
+        if (!Recording()) return;
+        if (paused) nextKeepAliveTime = Time.realtimeSinceStartup + PauseKeepAliveSeconds;
+        Begin(paused ? "pause" : "resume", cause == "keepalive" ? "Still paused" : paused ? "Paused" : "Resumed");
+        Num("pausedSeconds", SessionPausedSeconds);
+        Str("cause", cause ?? "");
+        AppendState(BattleManager.Instance != null ? BattleManager.Instance.CurrentScore : 0);
+        End();
+    }
+
     public void ReportSessionComplete(
         string outcome,
         int score,
@@ -661,7 +685,8 @@ public class SessionReporter : MonoBehaviour
         if (!sessionOpen) BeginSession();
         if (startPending) SendSessionStart();
 
-        float duration = Mathf.Max(0f, Time.realtimeSinceStartup - sessionStartedAt);
+        float duration = Mathf.Max(0f, GamePause.ActiveRealtime - sessionStartedAt);   // active time: no pause in it
+        float pausedSec = SessionPausedSeconds;
         if (sendLiveEvents)
         {
             Begin("hp", "Final state");
@@ -683,11 +708,12 @@ public class SessionReporter : MonoBehaviour
         JNum("hitCount", hitCount);
         JNum("tapCount", tapCount);
         JNum("durationSec", duration);
+        JNum("pausedSeconds", pausedSec);   // new, optional: the backend ignores unknown fields
         JNum("playerHpRemaining", playerHpRemaining);
         JNum("monsterHpRemaining", monsterHpRemaining);
         JNum("xp", XPManager.Instance != null ? XPManager.Instance.CurrentXP : 0);
         JNum("fullSwings", XPManager.Instance != null ? XPManager.Instance.FullSwings : 0);
-        JStr("startedAt", DateTime.UtcNow.AddSeconds(-duration).ToString("o"));
+        JStr("startedAt", DateTime.UtcNow.AddSeconds(-(duration + pausedSec)).ToString("o"));   // wall-clock start, pauses included
         JStr("endedAt", DateTime.UtcNow.ToString("o"));
         JStr("source", "unity");
         JStr("notes", notes ?? "");
@@ -717,7 +743,8 @@ public class SessionReporter : MonoBehaviour
         JStr("playerName", sessionPlayerName);
         JStr("level", CurrentLevel());
         JStr("status", "live");
-        JStr("startedAt", DateTime.UtcNow.AddSeconds(-(Time.realtimeSinceStartup - sessionStartedAt)).ToString("o"));
+        JStr("mode", SessionMode);
+        JStr("startedAt", DateTime.UtcNow.AddSeconds(-(GamePause.ActiveRealtime - sessionStartedAt + SessionPausedSeconds)).ToString("o"));
         JStr("source", "unity");
         AppendStateFields(BattleManager.Instance != null ? BattleManager.Instance.CurrentScore : 0);
         sb.Append('}');
@@ -725,6 +752,7 @@ public class SessionReporter : MonoBehaviour
 
         Begin("session_start", $"{sessionPlayerName} started {LevelLabel(CurrentLevel())}");
         Str("level", CurrentLevel());
+        Str("mode", SessionMode);
         AppendState(BattleManager.Instance != null ? BattleManager.Instance.CurrentScore : 0);
         End();
         FlushGoalSet();
@@ -858,13 +886,22 @@ public class SessionReporter : MonoBehaviour
 
     void Update()
     {
-        float now = Time.realtimeSinceStartup;
+        float now = Time.realtimeSinceStartup;      // the request pump runs on real time, paused or not
+        float active = GamePause.ActiveRealtime;     // the fight clock: stands still while paused
 
         if (sessionOpen && startPending) SendSessionStart();
 
-        if (Recording() && now >= nextSnapshotTime)
+        // No 1-second HP snapshots while paused; a slow "still paused" event keeps the live session from being swept as abandoned
+        // (the backend gives up on a live session after 60 s without events).
+        if (Recording() && GamePause.IsPaused && now >= nextKeepAliveTime)
         {
-            nextSnapshotTime = now + Mathf.Max(0.25f, snapshotInterval);
+            nextKeepAliveTime = now + PauseKeepAliveSeconds;
+            ReportPause(true, "keepalive");
+        }
+
+        if (Recording() && !GamePause.IsPaused && active >= nextSnapshotTime)
+        {
+            nextSnapshotTime = active + Mathf.Max(0.25f, snapshotInterval);
             Begin("hp", "HP snapshot");
             AppendState(BattleManager.Instance != null ? BattleManager.Instance.CurrentScore : 0);
             End();
@@ -971,7 +1008,7 @@ public class SessionReporter : MonoBehaviour
             sb.Append('"').Append(key).Append("\":").Append(FormatNum(value));
         }
 
-        if (includeTime) F("t", Time.realtimeSinceStartup - sessionStartedAt);
+        if (includeTime) F("t", GamePause.ActiveRealtime - sessionStartedAt);
         var ph = PlayerHealth.Instance;
         if (ph != null) { F("playerHp", ph.currentHealth); F("playerMaxHp", ph.maxHealth); }
         var mh = CurrentMonsterHealth();
@@ -986,7 +1023,7 @@ public class SessionReporter : MonoBehaviour
         var ex = PlayerExertionAudio.Instance;
         if (ex != null) F("effort", ex.Exertion01);
         // Running calorie estimate (est.): same formula as the backend, none until a swing with a tier has landed.
-        if (BattleStats.TryGetKcal(Time.realtimeSinceStartup, out float kcal)) F("kcal", kcal);
+        if (BattleStats.TryGetKcal(GamePause.ActiveRealtime, out float kcal)) F("kcal", kcal);
         var rm = RoundManager.Instance;
         if (rm != null && rm.roundActive) F("timeLeft", rm.GetSecondsRemaining());
         var pc = PlayerCombat.Instance;
@@ -1035,7 +1072,7 @@ public class SessionReporter : MonoBehaviour
         JStr("sessionId", currentSessionId ?? "");
         JStr("playerName", sessionPlayerName);
         JStr("message", message);
-        sb.Append(",\"payload\":{\"t\":").Append(FormatNum(Time.realtimeSinceStartup - sessionStartedAt));
+        sb.Append(",\"payload\":{\"t\":").Append(FormatNum(GamePause.ActiveRealtime - sessionStartedAt));
     }
 
     void End()

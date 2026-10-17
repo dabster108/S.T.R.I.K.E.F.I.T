@@ -7,6 +7,7 @@ import { LiveProvider, useLiveIds, useLiveMessages } from "./live/LiveProvider.j
 import { MobileNav, Sidebar } from "./components/layout/Sidebar.jsx";
 import Topbar from "./components/layout/Topbar.jsx";
 import CommandPalette from "./components/layout/CommandPalette.jsx";
+import ShortcutsOverlay, { isTypingTarget } from "./components/layout/ShortcutsOverlay.jsx";
 import { ToastStack, useToasts } from "./components/ui/Toasts.jsx";
 import { anotherModalOpen, AUTO_START_DELAY_MS, hasSeenTour, markTourSeen, TOUR_EVENT, tourAutoStartAllowed } from "./components/onboarding/tourState.js";
 import {
@@ -94,6 +95,7 @@ function Dashboard() {
   const [collapsed, setCollapsed] = useState(() => read(SIDEBAR_KEY, "0") === "1");
   const [menuOpen, setMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { toasts, push, dismiss } = useToasts();
   const liveCount = useLiveIds().length;
 
@@ -116,7 +118,7 @@ function Dashboard() {
   const [touring, setTouring] = useState(false);
   const tourOpened = useRef(false);
   const overlayOpen = useRef(false);
-  overlayOpen.current = paletteOpen || menuOpen;
+  overlayOpen.current = paletteOpen || menuOpen || shortcutsOpen;
   useEffect(() => {
     const open = () => setTouring(true);
     window.addEventListener(TOUR_EVENT, open);
@@ -166,6 +168,9 @@ function Dashboard() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((o) => !o);
+      } else if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingTarget(e.target)) {
+        e.preventDefault();
+        setShortcutsOpen((o) => !o);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -175,7 +180,7 @@ function Dashboard() {
   // Pages that load their own data don't need to wait for the telemetry snapshot.
   const needsTelemetry = ["", "sessions", "leaderboard", "players"].includes(section);
   const Fallback = SKELETONS[section] || GenericSkeleton;
-  const overview = <DashboardView sessions={filtered} allSessions={t.sessions} events={t.events} range={range} onRange={setRange} openSession={openSession} />;
+  const overview = <DashboardView sessions={filtered} allSessions={t.sessions} events={t.events} eventsReady={t.eventsReady} range={range} onRange={setRange} openSession={openSession} />;
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]" style={{ "--sb": collapsed ? "var(--sidebar-w-collapsed)" : "var(--sidebar-w)" }}>
@@ -222,12 +227,16 @@ function Dashboard() {
 
           <footer className="pt-10 text-center text-xs font-semibold text-[var(--muted)]">
             STRIKEFIT · VR combat telemetry · <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">Ctrl</kbd> +{" "}
-            <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">K</kbd> to jump anywhere
+            <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">K</kbd> to jump anywhere ·{" "}
+            <button type="button" onClick={() => setShortcutsOpen(true)} className="press rounded font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline">
+              <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">?</kbd> shortcuts
+            </button>
           </footer>
         </main>
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       {touring && !t.loading && (
         <Suspense fallback={null}>
           <Tour onClose={closeTour} onOpened={() => (tourOpened.current = true)} />

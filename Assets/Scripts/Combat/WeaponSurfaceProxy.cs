@@ -200,6 +200,7 @@ public class WeaponSurfaceProxy : MonoBehaviour
     // ───────────────────────── per frame ─────────────────────────
     void LateUpdate()
     {
+        if (GamePause.IsPaused) return;   // the drawn mesh holds its last offset; no sink ticks while paused
         if (weaponCol == null || !weaponCol.enabled) return;
         using (Marker.Auto())
         {

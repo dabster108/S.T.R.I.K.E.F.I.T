@@ -26,6 +26,9 @@ public class FlailChainSim : MonoBehaviour
     void LateUpdate()
     {
         if (anchor == null || ball == null) return;
+        // While paused the chain rests straight along the handle (it follows the hand rigidly) and is re-seeded every frame, so a
+        // resume starts from rest instead of from pause-time motion.
+        if (GamePause.IsPaused) initialised = false;
         float dt = Mathf.Clamp(Time.deltaTime, 0.0001f, 0.05f);
         Vector3 a = anchor.position;
         float half = chainLength * 0.5f;

@@ -264,6 +264,7 @@ public class HitDetection : MonoBehaviour
 
     void Update()
     {
+        if (GamePause.IsPaused) { HoldWhilePaused(); return; }
         // Estimate swing velocity from transform motion (works for kinematic held hammers)
         velocity = (transform.position - lastPosition) / Mathf.Max(Time.deltaTime, 0.0001f);
         lastPosition = transform.position;
@@ -284,8 +285,19 @@ public class HitDetection : MonoBehaviour
 
     static readonly ProfilerMarker SweepMarker = new ProfilerMarker("HitDetection.Sweep");
 
+    /// <summary>While paused the weapon still follows the hand, but its swing history is wiped every frame and nothing is queued, so the
+    /// first frame after a resume sees no motion (a swing measured across a pause can never register).</summary>
+    void HoldWhilePaused()
+    {
+        lastPosition = transform.position;
+        velocity = Vector3.zero;
+        pendingCount = 0;
+        if (selfValid) self.ResetHistory();
+    }
+
     void LateUpdate()
     {
+        if (GamePause.IsPaused) return;
         if (selfValid) self.Advance();
         if (sweptDetection && selfValid) { using (SweepMarker.Auto()) Sweep(); }
         ResolvePending();
@@ -311,6 +323,7 @@ public class HitDetection : MonoBehaviour
 
     void Enqueue(Collider other, Vector3 point, bool hasPoint, bool stay)
     {
+        if (GamePause.IsPaused) return;
         for (int i = 0; i < pendingCount; i++)
             if (pending[i].col == other) { if (!stay) pending[i].stay = false; return; } // one entry per collider per frame
         if (pendingCount >= pending.Length) return;

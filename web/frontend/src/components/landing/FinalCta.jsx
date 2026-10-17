@@ -66,6 +66,12 @@ export function Footer() {
                 Monsters
               </Link>
             </li>
+            <li className="flex items-baseline gap-3">
+              <span className="t-index w-5 text-[var(--muted)]">{String(SECTIONS.length + 2).padStart(2, "0")}</span>
+              <Link to="/story" className={link}>
+                Story and guardians
+              </Link>
+            </li>
           </ol>
         </nav>
         <nav aria-label="Dashboard" className="lg:col-span-2">

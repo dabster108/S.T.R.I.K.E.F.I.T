@@ -65,7 +65,7 @@ public static class DailyGoal
     {
         switch (metric)
         {
-            case "kcal": return BattleStats.TryGetKcal(Time.realtimeSinceStartup, out float k) ? k : 0f;
+            case "kcal": return BattleStats.TryGetKcal(GamePause.ActiveRealtime, out float k) ? k : 0f;
             case "fullSwings": return XPManager.Instance != null ? XPManager.Instance.FullSwings : 0f;
             case "activeMinutes": return BattleStats.ActiveMinutes;
             case "xp": return XPManager.Instance != null ? XPManager.Instance.CurrentXP : 0f;

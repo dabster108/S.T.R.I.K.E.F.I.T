@@ -54,7 +54,7 @@ public class MonsterHealth : MonoBehaviour
     /// <param name="style">Damage-number look (swing tier, blocked, resisted...).</param>
     public void TakeDamage(float amount, Vector3 hitPoint, CombatUIController.DamageStyle style)
     {
-        if (IsDead) return;
+        if (IsDead || GamePause.IsPaused) return;   // a paused fight deals no damage, whatever called this
 
         amount = Mathf.Max(0f, amount);
         currentHealth = Mathf.Max(0f, currentHealth - amount);

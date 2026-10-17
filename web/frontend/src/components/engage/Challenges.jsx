@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../lib/api.js";
 import { formatNumber, formatRelative } from "../../lib/format.js";
 import { shortName } from "../../lib/engage.js";
@@ -6,7 +6,8 @@ import { useApi, useThrottledCallback } from "../../hooks/useApi.js";
 import { useLiveMessages } from "../../live/LiveProvider.jsx";
 import { Card, CardHeader } from "../ui/Card.jsx";
 import { EmptyState, Skeleton } from "../ui/Feedback.jsx";
-import { Select } from "../ui/Controls.jsx";
+// react-select is a third of the dashboard's code: the overview shows this picker, but the card does not wait for it.
+const Select = lazy(() => import("../ui/Select.jsx").then((m) => ({ default: m.Select })));
 import Button from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
 import Confetti from "../ui/Confetti.jsx";
@@ -242,7 +243,13 @@ export function OverviewChallenges() {
       name={name}
       title="Today's challenges"
       showHistory={false}
-      picker={options.length ? <Select label="Player" value={name} onChange={choose} options={options} /> : null}
+      picker={
+        options.length ? (
+          <Suspense fallback={<div className="h-9 w-40 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)]" aria-hidden="true" />}>
+            <Select label="Player" value={name} onChange={choose} options={options} />
+          </Suspense>
+        ) : null
+      }
     />
   );
 }

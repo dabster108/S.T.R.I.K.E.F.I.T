@@ -453,6 +453,7 @@ public class MonsterAI : MonoBehaviour
     void Update()
     {
         if (controller == null || !controller.isAlive) return;
+        if (GamePause.IsPaused) return;   // no thinking, no new attack while paused
         if (defense == null) CheckReactiveDefend(); // MonsterDefense owns guards when present (one source of truth)
         if (busy || holdActions) return;
         if (Time.time < nextThinkTime) return;
@@ -537,6 +538,7 @@ public class MonsterAI : MonoBehaviour
 
     void LateUpdate()
     {
+        if (GamePause.IsPaused) return;
         if (controller == null || !controller.isAlive || busy || holdActions || !canMove) return;
         if (playerTarget == null) return;
         if (BattleManager.Instance != null && !BattleManager.Instance.IsBattleActive) return;

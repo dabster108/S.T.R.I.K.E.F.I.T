@@ -17,15 +17,20 @@ export const SECTIONS = [
 function useActiveSection() {
   const [active, setActive] = useState(null);
   useEffect(() => {
-    const els = SECTIONS.map(([id]) => document.getElementById(id)).filter(Boolean);
     const io = new IntersectionObserver(
       (items) => {
         for (const it of items) if (it.isIntersecting) setActive(it.target.id);
       },
       { rootMargin: "-45% 0px -50% 0px" }
     );
-    els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
+    // The sections below the first screen mount later (views/LandingRest.jsx): watch them once they exist.
+    const watch = () => SECTIONS.forEach(([id]) => { const el = document.getElementById(id); if (el) io.observe(el); });
+    watch();
+    window.addEventListener("landing:sections", watch);
+    return () => {
+      window.removeEventListener("landing:sections", watch);
+      io.disconnect();
+    };
   }, []);
   return active;
 }

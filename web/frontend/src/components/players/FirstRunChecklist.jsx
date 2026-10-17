@@ -5,6 +5,7 @@ import { useLiveMessages } from "../../live/LiveProvider.jsx";
 import { Card } from "../ui/Card.jsx";
 import Button from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
+import { Skeleton } from "../ui/Feedback.jsx";
 
 // First-run checklist (GET /api/players/:name/checklist). Every tick comes from the database; only "dismissed" is kept,
 // per player, in this browser's localStorage.
@@ -19,14 +20,31 @@ const isDismissed = (name) => {
 
 export default function FirstRunChecklist({ name }) {
   const [dismissed, setDismissed] = useState(() => isDismissed(name));
-  const { data, reload } = useApi(() => (dismissed ? Promise.resolve(null) : api.playerChecklist(name)), [name, dismissed]);
+  const { data, error, reload } = useApi(() => (dismissed ? Promise.resolve(null) : api.playerChecklist(name)), [name, dismissed]);
   const refresh = useThrottledCallback(reload, 4000);
   useLiveMessages((type, payload) => {
     if (dismissed) return;
     if ((type === "session_finished" || type === "feedback_saved") && (payload?.session?.playerName === name || payload?.playerName === name)) refresh();
   });
 
-  if (dismissed || !data || data.playerName !== name) return null;
+  if (dismissed || error) return null;
+  // Same box as the loaded card (header row + one row of steps), so the page below it does not jump when the data lands.
+  if (!data || data.playerName !== name) {
+    return (
+      <Card className="mt-6 overflow-hidden" aria-hidden="true">
+        <div className="flex min-h-[4.25rem] items-center px-5 py-4">
+          <Skeleton className="h-4 w-56" />
+        </div>
+        <div className="grid gap-px border-t border-[var(--border)] bg-[var(--border)] sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="flex min-h-[3.75rem] items-center bg-[var(--surface)] px-5 py-3">
+              <Skeleton className="h-4 w-32" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  }
   const dismiss = () => {
     try {
       localStorage.setItem(keyFor(name), "1");

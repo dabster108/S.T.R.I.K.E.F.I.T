@@ -45,6 +45,7 @@ public class WeaponSwingAudio : MonoBehaviour
     {
         if (PlayerCombat.Instance == null || audioSource == null || swingClips == null || swingClips.Length == 0) return;
         if (BattleManager.Instance != null && !BattleManager.Instance.IsBattleActive) return;
+        if (GamePause.IsPaused) { lastPos = transform.position; dir = Vector3.zero; aboveSince = -1f; return; }   // no whoosh while paused
 
         float speed = hand == Hand.Left
             ? PlayerCombat.Instance.CurrentOffhandSwingSpeed

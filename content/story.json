@@ -38,5 +38,50 @@
       "guardian": "The Harbor Tyrant",
       "intro": "The last guardian. Choose your weapon. Do not stand still."
     }
-  ]
+  ],
+  "guardians": [
+    {
+      "level": 1,
+      "id": "gatekeeper",
+      "name": "The Gatekeeper",
+      "weapon": "Sword",
+      "lore": "He has held the first hall longer than anyone remembers. He fights to test you, not to finish you.",
+      "tips": [
+        "Watch for the red flash before he swings.",
+        "Hit him between attacks. A hard swing makes him flinch."
+      ]
+    },
+    {
+      "level": 2,
+      "id": "warden",
+      "name": "The Crimson Warden",
+      "weapon": "Two-handed axe",
+      "lore": "Hunger made him patient. He watches how you swing and learns it.",
+      "tips": [
+        "Vary your swing direction. He is more likely to guard an angle you repeat.",
+        "Watch his flames flare before a heavy strike."
+      ]
+    },
+    {
+      "level": 3,
+      "id": "tyrant",
+      "name": "The Harbor Tyrant",
+      "weapon": "Twin axes",
+      "lore": "The sea gave him a crown of fire. It takes anyone who stands still.",
+      "tips": [
+        "Choose your weapon before he rises.",
+        "Move out of the glowing ground marker. His big slam cannot be blocked."
+      ]
+    }
+  ],
+  "interludes": {
+    "afterLevel1": "The first gate opens. Below, something is watching how you swing.",
+    "afterLevel2": "The vault falls silent. Ahead, the sea wind carries the smell of smoke.",
+    "ending": [
+      "The last guardian kneels. The arenas go quiet.",
+      "The Trials do not end with a victory. They end when you decide you are ready to rest.",
+      "Breathe. Your pulse is still burning."
+    ],
+    "defeat": "Rest. Breathe. The guardians will wait."
+  }
 }

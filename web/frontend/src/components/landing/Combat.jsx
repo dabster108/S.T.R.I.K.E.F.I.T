@@ -188,7 +188,7 @@ export default function Combat() {
   return (
     <section id="combat" aria-labelledby="combat-title" className="border-y border-[var(--border)] bg-[var(--surface-muted)]">
       <div className="mx-auto max-w-6xl px-4 pb-20 pt-24 sm:px-6 lg:pb-28 lg:pt-32">
-        <SectionHead id="combat-title" index="05" eyebrow="Combat" title="A monster that fights back" layout="split">
+        <SectionHead id="combat-title" index="06" eyebrow="Combat" title="A monster that fights back" layout="split">
           Hitting a target is a drill. Something that winds up, guards and swings at you makes you move.
         </SectionHead>
         <div className="mt-14 grid gap-4 md:grid-cols-2 lg:mt-16 lg:grid-cols-6">

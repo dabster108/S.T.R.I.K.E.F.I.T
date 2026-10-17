@@ -12,6 +12,24 @@ public static class MenuUi
 {
     public static Font BuiltinFont => Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
+    static Material onTop;
+
+    /// <summary>A panel that opens in the middle of an arena (pause, story cards and slides) must never be hidden behind the
+    /// monster or the player's weapons: every Graphic under <paramref name="root"/> gets one shared copy of the default UI material
+    /// with the depth test off (UI/Default is in the always-included shaders). Call after the panel is built.</summary>
+    public static void DrawOnTop(GameObject root)
+    {
+        if (root == null) return;
+        if (onTop == null)
+        {
+            var shader = Shader.Find("UI/Default");
+            if (shader == null) return;
+            onTop = new Material(shader) { name = "UI_OnTop" };
+            onTop.SetInt("unity_GUIZTestMode", (int)UnityEngine.Rendering.CompareFunction.Always);
+        }
+        foreach (var g in root.GetComponentsInChildren<Graphic>(true)) g.material = onTop;
+    }
+
     public static RectTransform Rect(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPos, Vector2 size)
     {
         var go = new GameObject(name, typeof(RectTransform));

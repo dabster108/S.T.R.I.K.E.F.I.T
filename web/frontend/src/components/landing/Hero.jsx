@@ -123,7 +123,7 @@ export default function Hero({ status }) {
 
       <div className="relative mx-auto grid max-w-6xl gap-16 px-4 pb-24 pt-12 sm:px-6 lg:grid-cols-12 lg:gap-8 lg:pb-28 lg:pt-20">
         <div className="lg:col-span-7">
-          <p className="fade-up flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="rise flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="t-kicker text-[var(--accent-strong)]">VR fitness research prototype</span>
             <span className="h-px w-10 bg-[var(--accent-ring)]" aria-hidden />
             <span className="t-kicker">Meta Quest 2</span>
@@ -144,7 +144,7 @@ export default function Hero({ status }) {
               </span>
             ))}
           </h1>
-          <p className="fade-up measure-tight mt-7 text-lg font-medium leading-relaxed text-[var(--ink-secondary)] sm:text-xl" style={{ "--d": "380ms" }}>
+          <p className="rise measure-tight mt-7 text-lg font-medium leading-relaxed text-[var(--ink-secondary)] sm:text-xl" style={{ "--d": "380ms" }}>
             STRIKEFIT is a VR combat game where damage comes from how fast you actually swing. Flick your wrist and nothing happens; put your body into it
             and the monster feels it.
           </p>

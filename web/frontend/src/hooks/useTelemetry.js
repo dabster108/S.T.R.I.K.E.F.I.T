@@ -18,6 +18,7 @@ export function useTelemetry({ onSession, onConnectionChange } = {}) {
   const [sessions, setSessions] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [eventsReady, setEventsReady] = useState(false);   // the (large) events list arrives after the sessions: the page shows without waiting for it
   const [loadError, setLoadError] = useState(null);
   const [health, setHealth] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
@@ -34,17 +35,25 @@ export function useTelemetry({ onSession, onConnectionChange } = {}) {
   const refresh = useCallback(async () => {
     refreshing.current = true;
     try {
-      const [s, e] = await Promise.all([api.sessions(), api.events(MAX_EVENTS)]);
+      // Both requests start together; the page is shown as soon as the sessions are in (the events list is about four times as
+      // big and only feeds "Latest activity").
+      const eventsRequest = api.events(MAX_EVENTS);
+      eventsRequest.catch(() => {});   // handled below, after the sessions
+      const s = await api.sessions();
       setSessions(s.filter((x) => x.status !== "live"));
-      setEvents(e.filter((ev) => !HIDDEN_TYPES.has(ev.type)));
-      setLoadError(null);
       setLastUpdate(new Date().toISOString());
       loadedOk.current = true;
+      setLoading(false);
+      const e = await eventsRequest;
+      setEvents(e.filter((ev) => !HIDDEN_TYPES.has(ev.type)));
+      setEventsReady(true);
+      setLoadError(null);
     } catch (err) {
       setLoadError(err.message);
     } finally {
       refreshing.current = false;
       setLoading(false);
+      setEventsReady(true);   // also after a failed request: the list then shows its empty state, not a skeleton forever
     }
   }, []);
 
@@ -140,5 +149,5 @@ export function useTelemetry({ onSession, onConnectionChange } = {}) {
     return { httpMs, socketMs: Math.round(performance.now() - t0), eventId: posted.event.id };
   }, []);
 
-  return { sessions, events, loading, loadError, connection, health, lastUpdate, refresh, checkHealth, pingRoundTrip };
+  return { sessions, events, eventsReady, loading, loadError, connection, health, lastUpdate, refresh, checkHealth, pingRoundTrip };
 }

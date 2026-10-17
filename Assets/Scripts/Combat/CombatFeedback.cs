@@ -183,9 +183,13 @@ public class CombatFeedback : MonoBehaviour
         Pulse(Hand.Right, amp, seconds, tailAmp, tailSeconds, freq, kind);
     }
 
+    /// <summary>Pause: cut every running pulse on both hands (new ones are refused while paused).</summary>
+    public void StopAllHaptics() { StopAll(); }
+
     void Pulse(Hand hand, float amp, float seconds, float tailAmp, float tailSeconds, float freq, string kind)
     {
         if (!haptics || amp <= 0f || seconds <= 0f) return;
+        if (GamePause.IsPaused) return;
         int h = hand == Hand.Left ? 0 : 1;
         float now = Time.unscaledTime;
         if (now < activeUntil[h] && amp < activeAmp[h] * replaceFraction) { PulsesSuppressed++; return; }

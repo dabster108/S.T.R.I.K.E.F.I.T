@@ -60,6 +60,16 @@ public class BattleManager : MonoBehaviour
         // Pre-battle name step (every level). Start stays hidden until a name is picked.
         if (FindAnyObjectByType<PlayerNamePicker>() == null)
             gameObject.AddComponent<PlayerNamePicker>();
+
+        // Story Mode: when a story run is active and this scene is its chapter, the director adds the chapter card, the
+        // interludes and the story end-panel buttons. Free play never creates it. The session start says which mode it is.
+        SessionReporter.SessionMode = "free";
+        if (StoryDirector.ShouldRun(out _) && FindAnyObjectByType<StoryDirector>() == null)
+            gameObject.AddComponent<StoryDirector>();
+
+        // Pause menu (every level; ControlSettings.pauseEnabled). Created here like the name picker, so no scene needs a copy.
+        if (ControlSettings.Current.pauseEnabled && FindAnyObjectByType<PauseMenu>() == null)
+            gameObject.AddComponent<PauseMenu>();
     }
 
     void OnEnable()
@@ -110,6 +120,7 @@ public class BattleManager : MonoBehaviour
         }
 
         outcomeHandled = false;
+        BattleStartFrame = Time.frameCount;
         CurrentScore = 0;
         TotalDamageDealt = 0f;
         IsBattleActive = true;
@@ -390,6 +401,24 @@ public class BattleManager : MonoBehaviour
         ReportSessionToBackend("defeat", reason);
     }
 
+    /// <summary>
+    /// Restart, Level Select or Exit during a fight: ends it as "abandoned". The final session (outcome "abandoned", the active
+    /// duration, pausedSeconds) is queued and handed to the network right now, before the caller changes the scene. Returns false
+    /// when there is no fight to abandon.
+    /// </summary>
+    public bool AbandonFight(string reason)
+    {
+        if (!IsBattleActive || outcomeHandled) return false;
+        outcomeHandled = true;
+        IsBattleActive = false;
+        if (RoundManager.Instance != null && RoundManager.Instance.roundActive)
+            RoundManager.Instance.ForceEndRound();
+        ReportSessionToBackend("abandoned", reason);
+        if (SessionReporter.Instance != null) SessionReporter.Instance.FlushNow();
+        Debug.Log($"[BattleManager] ABANDONED — {reason}, score {CurrentScore}");
+        return true;
+    }
+
     void ReportSessionToBackend(string outcome, string notes)
     {
         EnsureSessionReporter();
@@ -447,17 +476,26 @@ public class BattleManager : MonoBehaviour
         }
     }
 
+    /// <summary>Frame the current fight started on (the B press that started it must not also pause it).</summary>
+    public int BattleStartFrame { get; private set; } = -1;
+
+    static OVRInput.Controller ButtonHand => ControllerMapping.ButtonHand;
+
     void Update()
     {
         // Headset: B button on the right controller = start the battle (same as clicking Start with the laser).
-        if (!IsBattleActive && !outcomeHandled && OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch))
+        if (!IsBattleActive && !outcomeHandled && ControllerInput.Down(Pad.Two, ButtonHand))
         {
             StartBattleFromInspector();
             return;
         }
 
-        // Headset: A button = replay this level after Victory/Defeat (keyboard R below is editor-only).
-        if (!IsBattleActive && outcomeHandled && OVRInput.GetDown(OVRInput.Button.One))
+        // Headset: A button = replay this level after Victory/Defeat (keyboard R below is editor-only). Right A only: the stock
+        // virtual "Button.One" also fired on the LEFT X button.
+        bool retry = ControllerMapping.Active
+            ? ControllerInput.Down(Pad.One, ButtonHand)
+            : OVRInput.GetDown(OVRInput.Button.One);
+        if (!IsBattleActive && outcomeHandled && retry)
         {
             if (GameStateManager.Instance != null)
                 GameStateManager.Instance.ReloadCurrentLevel();

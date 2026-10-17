@@ -76,6 +76,7 @@ public class PlayerDamageVignette : MonoBehaviour
     void Update()
     {
         if (vignette == null) return;
+        if (GamePause.IsPaused) return;   // flash and pulse hold (they run on real time)
         // Honour the toggle live: with the flash off the old rect flash comes back.
         if (health != null && health.flashReplacedByVignette != edgeFlash) health.flashReplacedByVignette = edgeFlash;
 

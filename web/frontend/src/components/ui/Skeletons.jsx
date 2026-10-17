@@ -1,4 +1,5 @@
 import { Skeleton } from "./Feedback.jsx";
+import { PageHeader } from "./Card.jsx";
 
 // Loading placeholders shaped like each page, so nothing jumps when data lands.
 
@@ -102,7 +103,8 @@ export const OverviewSkeleton = () =>
   wrap(
     "Loading overview",
     <>
-      <Header />
+      {/* The real header (it is static text), so the largest paint is not waiting for the data. */}
+      <PageHeader eyebrow="Dashboard" title="Performance overview" description="How your players are doing across every battle." />
       <KpiRow />
       <div className="grid gap-6 xl:grid-cols-12">
         <ChartBox className="xl:col-span-8" />

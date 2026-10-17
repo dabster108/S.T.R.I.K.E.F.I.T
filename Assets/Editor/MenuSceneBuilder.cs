@@ -5,9 +5,10 @@
 //          OutcomeMenuButtons component to the three level scenes and sets Build Settings (MainMenu 0, Level 1-3, all enabled,
 //          Results listed but disabled). Idempotent: Build() rewrites MainMenu.unity from scratch.
 //          Environment: a dark floor and one thin ring, unlit materials, static (batched), no lights, no shadows, no
-//          post-processing. Layout (2026-10-15): rig at 1.6 m like the levels (EyeLevel origin), one column on a dark panel
-//          (Start Game, Change Name, [Scoreboard], [Story], Exit Game, "Playing as"), a level page (select, then Play) and the
-//          name picker page, each with Back.
+//          post-processing. Layout (2026-10-17): rig at 1.6 m like the levels (EyeLevel origin), a two-column grid on a dark
+//          panel (Story Mode | Start Game, Guardians | Scoreboard, Change Name | Exit Game, "Playing as" above), pages: Story
+//          Mode (Continue / New Story / Watch intro), the story slides, Guardians, level select, Scoreboard, name picker, each
+//          with Back.
 // Dependencies: MenuUi, MainMenuController, ExitConfirmPanel, OutcomeMenuButtons, SessionReporter
 // Attach to: nothing (menu: Tools/Menu/Build Main Menu And Wire Scenes, or over Unity MCP)
 
@@ -144,6 +145,7 @@ public static class MenuSceneBuilder
     public static readonly Color NameColor = new Color(0.2f, 0.35f, 0.6f, 0.96f);
     public static readonly Color ScoreColor = new Color(0.36f, 0.2f, 0.58f, 0.96f);
     public static readonly Color StoryColor = new Color(0.55f, 0.36f, 0.12f, 0.96f);
+    public static readonly Color GuardianColor = new Color(0.5f, 0.18f, 0.18f, 0.96f);
     public static readonly Color ExitColor = new Color(0.45f, 0.45f, 0.5f, 0.96f);
     public static readonly Color BackColor = new Color(0.25f, 0.25f, 0.3f, 0.96f);
     public static readonly Color HintColor = new Color(0.62f, 0.66f, 0.78f);
@@ -157,6 +159,8 @@ public static class MenuSceneBuilder
         for (int i = rt.childCount - 1; i >= 0; i--) Object.DestroyImmediate(rt.GetChild(i).gameObject);
         var outcome = canvasGo.GetComponent<OutcomeMenuButtons>();   // copied with the Level 1 canvas; the menu has no fight panels
         if (outcome != null) Object.DestroyImmediate(outcome);
+        var introLine = canvasGo.GetComponent<LevelIntroLine>();      // a level's pre-battle line: not in the menu
+        if (introLine != null) Object.DestroyImmediate(introLine);
         rt.sizeDelta = CanvasSize;
         rt.position = CanvasPosition;
         rt.rotation = Quaternion.identity;
@@ -176,21 +180,27 @@ public static class MenuSceneBuilder
         var mc = systems.AddComponent<MainMenuController>();
         mc.content = group;
 
+        // Reading order (left to right, top to bottom): the story first, free play next to it, Exit last.
         var homeButtons = new System.Collections.Generic.List<HomeButton>();
+        homeButtons.Add(new HomeButton("StoryModeButton", "Story Mode", StoryColor));
         homeButtons.Add(new HomeButton("StartGameButton", "Start Game", StartColor));
-        homeButtons.Add(new HomeButton("ChangeNameButton", "Change Name", NameColor));
+        homeButtons.Add(new HomeButton("GuardiansButton", "Guardians", GuardianColor));
         homeButtons.Add(new HomeButton("ScoreboardButton", "Scoreboard", ScoreColor));
-        homeButtons.Add(new HomeButton("StoryButton", "Story", StoryColor));
+        homeButtons.Add(new HomeButton("ChangeNameButton", "Change Name", NameColor));
         homeButtons.Add(new HomeButton("ExitGameButton", "Exit Game", ExitColor));
         var built = BuildHome(content, mc, homeButtons);
         mc.startGameButton = built["StartGameButton"];
         mc.changeNameButton = built["ChangeNameButton"];
         mc.exitButton = built["ExitGameButton"];
+        mc.storyModeButton = built["StoryModeButton"];
+        mc.guardiansButton = built["GuardiansButton"];
 
         BuildLevelPage(content, mc);
         BuildNamePage(content, mc, systems);
         BuildScoreboardPage(content, mc, built["ScoreboardButton"], systems);
-        BuildStoryPage(content, mc, built["StoryButton"], systems);
+        var intro = BuildStoryPage(content, mc, null, systems);   // the intro slides: opened from Story Mode (Watch intro, New Story)
+        BuildStoryModePage(content, mc, built["StoryModeButton"], systems, intro);
+        BuildGuardiansPage(content, mc, built["GuardiansButton"], systems);
 
         var pages = new System.Collections.Generic.List<GameObject>();
         for (int i = 0; i < content.childCount; i++) pages.Add(content.GetChild(i).gameObject);
@@ -212,13 +222,15 @@ public static class MenuSceneBuilder
         return page;
     }
 
-    // One clean vertical column on a dark semi-opaque panel: title, "Playing as", the buttons, a hint. Positions are computed (no
-    // layout group), so nothing can collapse at runtime.
+    // A two-column grid on a dark semi-opaque panel: title, "Playing as", three rows of two buttons, a hint. 1000 x 596 units
+    // (2.0 x 1.19 m at 2.5 m: about 44 x 27 degrees), so all six entries sit well inside the Quest's view without turning the
+    // head (a single column of six would be 1.83 m tall and push Exit Game under the view). Positions are computed (no layout
+    // group), so nothing can collapse at runtime.
     static System.Collections.Generic.Dictionary<string, Button> BuildHome(RectTransform content, MainMenuController mc, System.Collections.Generic.List<HomeButton> buttons)
     {
-        const float width = 600f, btnW = 520f, btnH = 92f, gap = 14f, titleH = 112f, nameH = 46f, hintH = 34f, pad = 26f;
-        int n = buttons.Count;
-        float h = pad + titleH + 6f + nameH + 22f + n * btnH + (n - 1) * gap + 20f + hintH + pad;
+        const float width = 1000f, btnW = 450f, btnH = 92f, gap = 14f, colGap = 30f, titleH = 112f, nameH = 46f, hintH = 34f, pad = 26f;
+        int rows = (buttons.Count + 1) / 2;
+        float h = pad + titleH + 6f + nameH + 22f + rows * btnH + (rows - 1) * gap + 20f + hintH + pad;
         var page = PageRoot(content, "HomePage");
         var panel = MenuUi.Panel(page, "Panel", Vector2.zero, new Vector2(width, h), PagePanel);
         panel.raycastTarget = false;
@@ -228,14 +240,17 @@ public static class MenuSceneBuilder
         mc.playingAsLabel = MenuUi.Label(page, "PlayingAs", "Playing as", 34, new Color(0.85f, 0.88f, 1f), TextAnchor.MiddleCenter, new Vector2(0f, y), new Vector2(width - 30f, nameH));
         y -= nameH * 0.5f + 22f + btnH * 0.5f;
         var result = new System.Collections.Generic.Dictionary<string, Button>();
-        foreach (var b in buttons)
+        float colX = (btnW + colGap) * 0.5f;
+        for (int i = 0; i < buttons.Count; i++)
         {
-            result[b.name] = MenuUi.MakeButton(page, b.name, b.label, 46, b.color, new Vector2(0f, y), new Vector2(btnW, btnH));
-            y -= btnH + gap;
+            var b = buttons[i];
+            float x = i % 2 == 0 ? -colX : colX;
+            float by = y - (i / 2) * (btnH + gap);
+            result[b.name] = MenuUi.MakeButton(page, b.name, b.label, 46, b.color, new Vector2(x, by), new Vector2(btnW, btnH));
         }
-        y += btnH + gap;                          // back to the last button's centre
+        y -= (rows - 1) * (btnH + gap);           // the last row's centre
         y -= btnH * 0.5f + 20f + hintH * 0.5f;
-        MenuUi.Label(page, "Hint", "Point with the right controller, pull the trigger", 24, HintColor, TextAnchor.MiddleCenter, new Vector2(0f, y), new Vector2(width - 20f, hintH));
+        MenuUi.Label(page, "Hint", "Point with the right controller, pull the trigger. B goes back.", 24, HintColor, TextAnchor.MiddleCenter, new Vector2(0f, y), new Vector2(width - 20f, hintH));
         mc.homePage = page.gameObject;
         return result;
     }
@@ -388,7 +403,7 @@ public static class MenuSceneBuilder
     // Story: full dark panel, warm title "The Legend", slide text on a fading CanvasGroup (1 s cross-fade, no mesh rebuild),
     // slide counter, Skip button, a warm point light for the torch flicker (off; StoryPanel.torchFlicker enables it while playing).
     // The glow Graphic behind the text pulses with the light at < 1 Hz so nothing flashes faster than 2 Hz (comfort rule).
-    static void BuildStoryPage(RectTransform content, MainMenuController mc, Button open, GameObject systems)
+    static StoryPanel BuildStoryPage(RectTransform content, MainMenuController mc, Button open, GameObject systems)
     {
         var page = PageRoot(content, "StoryPage");
         var panel = MenuUi.Panel(page, "Panel", Vector2.zero, new Vector2(1120f, 770f), new Color(0.008f, 0.01f, 0.018f, 0.98f));
@@ -410,19 +425,71 @@ public static class MenuSceneBuilder
         var counter = MenuUi.Label(page, "Counter", "1 / 3", 26, new Color(0.75f, 0.78f, 0.88f), TextAnchor.MiddleRight, new Vector2(492f, 316f), new Vector2(220f, 34f));
         var skipBtn = MenuUi.MakeButton(page, "SkipButton", "Skip", 38, BackColor, new Vector2(398f, -322f), new Vector2(200f, 76f));
 
-        // Point light for the flicker effect (warm orange; off by default; no shadows).
-        var lightGo = new GameObject("StoryTorchLight");
-        lightGo.transform.position = new Vector3(0f, 2.4f, 2.2f);
-        var lt = lightGo.AddComponent<Light>();
-        lt.type = LightType.Point; lt.range = 9f; lt.intensity = 1.4f;
-        lt.color = new Color(1f, 0.7f, 0.3f); lt.shadows = LightShadows.None; lt.enabled = false;
-
+        // No realtime light (the menu has none): the glow behind the text pulses slowly instead (StoryPanel, under 1 Hz).
         var sp = systems.AddComponent<StoryPanel>();
         sp.menu = mc; sp.page = page.gameObject; sp.openButton = open;
         sp.skipButton = skipBtn; sp.slideText = slideText; sp.slideGroup = sg;
-        sp.counterText = counter; sp.glow = glowImg; sp.torchLight = lt;
-        sp.torches = null;   // no mesh torches; the point light alone handles the atmosphere
+        sp.counterText = counter; sp.glow = glowImg; sp.torchLight = null;
+        sp.torches = null;
 
+        page.gameObject.SetActive(false);
+        return sp;
+    }
+
+    // Story Mode: title, progress line, Continue (two lines: "Continue / Chapter N: <guardian>", hidden without progress), New
+    // Story, Watch intro, Back, and a small "start over?" confirm in front of them.
+    static void BuildStoryModePage(RectTransform content, MainMenuController mc, Button open, GameObject systems, StoryPanel intro)
+    {
+        var page = PageRoot(content, "StoryModePage");
+        var panel = MenuUi.Panel(page, "Panel", Vector2.zero, new Vector2(900f, 680f), PagePanel);
+        panel.raycastTarget = false;
+        MenuUi.Label(page, "Title", "Story Mode", 60, new Color(0.9f, 0.72f, 0.35f), TextAnchor.MiddleCenter, new Vector2(0f, 270f), new Vector2(860f, 76f), FontStyle.Bold);
+        var status = MenuUi.Label(page, "Status", "", 30, new Color(0.85f, 0.88f, 1f), TextAnchor.MiddleCenter, new Vector2(0f, 208f), new Vector2(860f, 44f));
+        var buttons = MenuUi.Rect(page, "Buttons", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+        var group = buttons.gameObject.AddComponent<CanvasGroup>();
+        var cont = MenuUi.MakeButton(buttons, "ContinueButton", "Continue", 40, StartColor, new Vector2(0f, 100f), new Vector2(600f, 120f));
+        var contLabel = cont.GetComponentInChildren<Text>();
+        contLabel.fontSize = 34;   // two lines ("Continue" / "Chapter 3: The Harbor Tyrant") must fit the 600 x 120 button
+        var fresh = MenuUi.MakeButton(buttons, "NewStoryButton", "New Story", 44, StoryColor, new Vector2(0f, -38f), new Vector2(600f, 92f));
+        var watch = MenuUi.MakeButton(buttons, "WatchIntroButton", "Watch intro", 44, NameColor, new Vector2(0f, -144f), new Vector2(600f, 92f));
+        var back = MenuUi.MakeButton(buttons, "StoryModeBackButton", "Back", 42, BackColor, new Vector2(0f, -262f), new Vector2(300f, 84f));
+
+        var confirm = MenuUi.Panel(page, "NewStoryConfirm", Vector2.zero, new Vector2(700f, 300f), new Color(0.05f, 0.06f, 0.1f, 0.98f));
+        MenuUi.Label(confirm.transform, "Question", "Start a new story? Your chapters cleared go back to 0.", 38, Color.white, TextAnchor.MiddleCenter, new Vector2(0f, 60f), new Vector2(640f, 120f), FontStyle.Bold);
+        var yes = MenuUi.MakeButton(confirm.transform, "YesButton", "Yes", 40, new Color(0.65f, 0.15f, 0.15f, 0.97f), new Vector2(-150f, -80f), new Vector2(240f, 84f));
+        var no = MenuUi.MakeButton(confirm.transform, "NoButton", "No", 40, new Color(0.2f, 0.35f, 0.6f, 0.97f), new Vector2(150f, -80f), new Vector2(240f, 84f));
+        confirm.gameObject.SetActive(false);
+
+        var sm = systems.AddComponent<StoryModePanel>();
+        sm.menu = mc; sm.intro = intro; sm.page = page.gameObject; sm.openButton = open;
+        sm.continueButton = cont; sm.continueLabel = contLabel; sm.newStoryButton = fresh; sm.watchIntroButton = watch; sm.backButton = back;
+        sm.statusText = status; sm.confirm = confirm.gameObject; sm.confirmYes = yes; sm.confirmNo = no; sm.buttonsGroup = group;
+        mc.storyMode = sm;
+        page.gameObject.SetActive(false);
+    }
+
+    // Guardians: one card at a time, portrait left, text right, arrows and Back under it. Text 30-56 units (4.3-8.0 cm cap height).
+    static void BuildGuardiansPage(RectTransform content, MainMenuController mc, Button open, GameObject systems)
+    {
+        var page = PageRoot(content, "GuardiansPage");
+        var panel = MenuUi.Panel(page, "Panel", Vector2.zero, new Vector2(1120f, 770f), PagePanel);
+        panel.raycastTarget = false;
+        MenuUi.Label(page, "Title", "Guardians", 50, new Color(0.9f, 0.72f, 0.35f), TextAnchor.MiddleCenter, new Vector2(0f, 338f), new Vector2(900f, 60f), FontStyle.Bold);
+        var counter = MenuUi.Label(page, "Counter", "1 / 3", 28, HintColor, TextAnchor.MiddleRight, new Vector2(470f, 338f), new Vector2(140f, 40f));
+        var portraitRt = MenuUi.Centred(page, "Portrait", new Vector2(-300f, 20f), new Vector2(400f, 500f));
+        var portrait = portraitRt.gameObject.AddComponent<Image>();
+        portrait.preserveAspect = true; portrait.raycastTarget = false;
+        var name = MenuUi.Label(page, "Name", "", 52, Color.white, TextAnchor.MiddleLeft, new Vector2(200f, 250f), new Vector2(600f, 66f), FontStyle.Bold);
+        var weapon = MenuUi.Label(page, "Weapon", "", 28, HintColor, TextAnchor.MiddleLeft, new Vector2(200f, 200f), new Vector2(600f, 38f));
+        var lore = MenuUi.Label(page, "Lore", "", 32, new Color(0.94f, 0.95f, 1f), TextAnchor.UpperLeft, new Vector2(200f, 90f), new Vector2(600f, 170f));
+        var tips = MenuUi.Label(page, "Tips", "", 30, new Color(1f, 0.92f, 0.7f), TextAnchor.UpperLeft, new Vector2(200f, -110f), new Vector2(600f, 200f));
+        var prev = MenuUi.MakeButton(page, "PrevButton", "<", 52, NameColor, new Vector2(-380f, -300f), new Vector2(130f, 90f));
+        var next = MenuUi.MakeButton(page, "NextButton", ">", 52, NameColor, new Vector2(-220f, -300f), new Vector2(130f, 90f));
+        var back = MenuUi.MakeButton(page, "GuardiansBackButton", "Back", 42, BackColor, new Vector2(380f, -300f), new Vector2(240f, 84f));
+        var gp = systems.AddComponent<GuardiansPanel>();
+        gp.menu = mc; gp.page = page.gameObject; gp.openButton = open; gp.prevButton = prev; gp.nextButton = next; gp.backButton = back;
+        gp.portrait = portrait; gp.nameText = name; gp.weaponText = weapon; gp.loreText = lore; gp.tipsText = tips; gp.counterText = counter;
+        mc.guardians = gp;
         page.gameObject.SetActive(false);
     }
 
