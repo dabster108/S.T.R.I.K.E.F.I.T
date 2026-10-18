@@ -795,6 +795,51 @@ async function playerFade(name, last = 10) {
   return { playerName: name, last: n, average: effort.averageFade(fights.map((f) => f.fade)), fights };
 }
 
+// GET /api/players/:name/fingerprint -> five 0-100 axes (formulas in effort.js) over the player's last 10 finished fights that
+// have swing telemetry. Hits taken counts player_hurt ticks with damage, minus dragon fire (a hazard, not a monster attack).
+const FINGERPRINT_FIGHTS = 10;
+async function playerFingerprint(name) {
+  const { rows } = await query(
+    `SELECT s.id, s.level, s.outcome, s.duration_sec AS "durationSec", s.started_at AS "startedAt"
+     FROM sessions s
+     WHERE s.player_name = $1 AND s.status = 'finished'
+       AND EXISTS (SELECT 1 FROM events e WHERE e.session_ref = s.id AND e.type = 'hit' AND json_typeof(e.payload->'swingSpeed') = 'number')
+     ORDER BY s.started_at DESC, s.seq DESC LIMIT $2`,
+    [name, FINGERPRINT_FIGHTS]
+  );
+  if (!rows.length) {
+    const any = await query("SELECT 1 FROM sessions WHERE player_name = $1 LIMIT 1", [name]);
+    if (!any.rowCount) return null;
+  }
+  const ids = rows.map((r) => r.id);
+  const hitsBySession = await hitsForSessions(ids);
+  const counts = ids.length
+    ? (await query(
+        `SELECT session_ref AS id,
+                count(*) FILTER (WHERE type = 'monster_attack')::int AS attacks,
+                count(*) FILTER (WHERE type = 'player_hurt' AND json_typeof(payload->'amount') = 'number' AND (payload->>'amount')::float8 > 0
+                                   AND COALESCE(payload->>'attack', '') <> 'Dragon fire')::int AS hurt
+         FROM events WHERE session_ref = ANY($1) GROUP BY session_ref`,
+        [ids]
+      )).rows
+    : [];
+  const fades = rows.map((r) => effort.fade(hitsBySession.get(r.id), num(r.durationSec)));
+  const result = effort.fingerprint({
+    hits: ids.flatMap((id) => hitsBySession.get(id)),
+    fades,
+    hurt: counts.reduce((a, c) => a + c.hurt, 0),
+    attacks: counts.reduce((a, c) => a + c.attacks, 0),
+  });
+  return {
+    playerName: name,
+    fights: rows.length,
+    window: `The last ${FINGERPRINT_FIGHTS} finished fights with swing data${rows.length ? ` (${rows.length} found)` : ""}.`,
+    ...result,
+    averageFade: effort.averageFade(fades),
+    speedCap: SWING_CAP,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // CSV export
 // ---------------------------------------------------------------------------
@@ -866,6 +911,7 @@ module.exports = {
   sessionFitness,
   sessionFade,
   playerFade,
+  playerFingerprint,
   hitsForSessions,
   exportSessionsCsv,
   exportEventsCsv,

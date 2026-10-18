@@ -719,6 +719,13 @@ app.get("/api/players/:name/fade", route(async (req, res) => {
   res.json(out);
 }));
 
+// Effort fingerprint: five 0-100 axes from the player's recent fights (effort.js). Read-only.
+app.get("/api/players/:name/fingerprint", route(async (req, res) => {
+  const out = await analytics.playerFingerprint(String(req.params.name));
+  if (!out) return res.status(404).json({ ok: false, error: "Player not found" });
+  res.json(out);
+}));
+
 // Plain-language insights (insights.js): only sentences with enough data behind them; the rest listed with their minimum.
 app.get("/api/players/:name/insights", route(async (req, res) => {
   const result = await analytics.playerInsights(String(req.params.name));
