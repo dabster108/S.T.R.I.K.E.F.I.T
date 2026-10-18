@@ -1347,3 +1347,46 @@
   transition: none;
   transform: none;
 }
+
+/* Fight replay scrubber (components/effort/FightReplay.jsx): a native range input, so the keyboard works without any script. */
+.replay-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.5rem;
+  background: transparent;
+  cursor: pointer;
+}
+.replay-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+}
+.replay-range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+}
+.replay-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border-radius: 999px;
+  border: 3px solid var(--surface);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 1px 3px rgb(16 24 40 / 0.25);
+}
+.replay-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 3px solid var(--surface);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 1px 3px rgb(16 24 40 / 0.25);
+}
+.replay-range:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 999px;
+}

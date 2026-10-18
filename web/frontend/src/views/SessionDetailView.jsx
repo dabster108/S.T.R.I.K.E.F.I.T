@@ -27,6 +27,7 @@ import { ghostSummary, valueAt } from "../lib/engage.js";
 
 // Chart components load after the page, in their own chunks; the fixed-height skeleton keeps the layout from jumping.
 const FadePanel = lazy(() => import("../components/effort/FadePanel.jsx"));
+const FightReplay = lazy(() => import("../components/effort/FightReplay.jsx"));
 const FadeSkeleton = lazy(() => import("../components/effort/FadePanel.jsx").then((m) => ({ default: m.FadeSkeleton })));
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
@@ -410,6 +411,13 @@ export default function SessionDetailView({ onDeleted }) {
             </Card>
           ) : (
             <>
+              <Card className="overflow-hidden">
+                <CardHeader title="Fight replay" subtitle="The whole fight on one line: swings, monster attacks, clashes and damage taken. Press play or drag the slider" />
+                <Suspense fallback={<div style={{ minHeight: 520 }} aria-hidden><div className="skeleton m-5 h-[188px] rounded-xl" /></div>}>
+                  <FightReplay events={events} durationSec={duration} />
+                </Suspense>
+              </Card>
+
               <Card className="overflow-hidden">
                 <CardHeader title="Timeline replay" subtitle="Step through the fight: health at the chosen moment, and everything that had happened by then" />
                 <Replay events={events} duration={duration} live={s.status === "live"} best={best} session={s} />
