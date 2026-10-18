@@ -169,3 +169,18 @@ All additions; no existing route or field changed. Names are validated like the 
 | `GET /api/live/reactions`, `POST /api/live/react` | cheers (validated, rate limited, never stored; SSE `reaction`) |
 
 Table `challenge_completions` is created by `schema.sql` on boot. `REACTIONS_ENABLED=false` (Render environment) switches cheers off. To add a challenge, append one object to `CHALLENGES` in `challenges.js` (the comment above the array lists the fields); every target is clamped to `SAFETY_CAPS`.
+
+## Effort and Thesis Lab routes (additive, read-only `GET`)
+
+No existing route or response shape changed, and no schema change: everything is computed from the `sessions`, `events` and `session_feedback` rows already stored. The maths lives in `effort.js` (fade, fingerprint, pace curve, Pearson r, return rate), the win-rate rule in `outcomes.js`, the level list and the 8 m/s swing cap in `levels.js`.
+
+| Route | What it returns |
+| --- | --- |
+| `GET /api/sessions/:id/fade` | effort fade of one fight: average swing speed in the last third against the first third, the swing series, the level's full-power speed. `status: "insufficient"` with fewer than 6 swings |
+| `GET /api/players/:name/fade?last=10` | each of the player's last N finished fights with its fade, and their average |
+| `GET /api/players/:name/fingerprint` | five 0-100 axes (power, consistency, stamina, dodge, guard timing) with their formulas; an axis with no data is `null` |
+| `GET /api/players/:name/best-pace?level=1\|2\|3\|Easy\|Medium\|Hard` | the player's personal-best finished fight on that level as cumulative damage over time (the Live Arena ghost). `best: null` when there is none. Cached 60 s per player + level |
+| `GET /api/lab` | Thesis Lab: return rate within 1 / 3 / 7 days (with n), RPE against average swing speed (Pearson r from 8 pairs), level-by-level table. Cached 30 s |
+| `GET /api/lab/sessions.csv` | one row per session: player, level, outcome, score, hits, avg_swing, fade_pct, duration_sec, started_at. No IP or device information (none is stored) |
+
+**Win rate** is one rule everywhere: `victories / (victories + defeats)`, abandoned fights excluded and counted separately (`abandoned`). **Swing speeds** are stored raw by the game; every aggregate clamps them to the 8 m/s cap and `swingsOverCap` / `rawPeakSwingSpeed` report what was clamped.

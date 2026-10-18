@@ -1021,6 +1021,9 @@ require("./leaderboardRoute").mount(app, { query, route });
 // Ghost pace for the Live Arena: a player's personal-best fight on a level as cumulative damage over time (pace.js, cached 60 s).
 require("./pace").mount(app, { query });
 
+// Thesis Lab: return rate, RPE vs swing speed, level table, research CSV (lab.js). Read-only.
+require("./lab").mount(app, { route });
+
 app.use("/api", (_req, res) => {
   res.status(404).json({ ok: false, error: "Unknown API route" });
 });

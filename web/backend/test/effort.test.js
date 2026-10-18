@@ -141,3 +141,66 @@ test("every axis documents its formula", () => {
   assert.equal(effort.AXES.length, 5);
   for (const a of effort.AXES) assert.ok(a.formula.length > 10 && a.label);
 });
+
+// ---------------------------------------------------------------- Thesis Lab statistics
+
+test("pearson r: perfect, inverse, none, and undefined cases", () => {
+  assert.equal(effort.pearson([1, 2, 3, 4], [2, 4, 6, 8]), 1);
+  assert.equal(effort.pearson([1, 2, 3, 4], [8, 6, 4, 2]), -1);
+  assert.ok(Math.abs(effort.pearson([1, 2, 3, 4, 5], [2, 1, 4, 3, 5]) - 0.8) < 1e-9);
+  assert.equal(effort.pearson([1, 2, 3], [5, 5, 5]), null); // no spread in y
+  assert.equal(effort.pearson([1], [2]), null);
+  assert.equal(effort.pearson([], []), null);
+});
+
+test("RPE vs swing speed needs at least 8 paired points before it reports an r", () => {
+  const pts = (n) => Array.from({ length: n }, (_, i) => ({ rpe: 8 + i, avgSpeed: 2 + i * 0.5 }));
+  const seven = effort.rpeCorrelation(pts(7));
+  assert.equal(seven.status, "insufficient");
+  assert.equal(seven.r, null);
+  assert.equal(seven.n, 7);
+  const eight = effort.rpeCorrelation(pts(8));
+  assert.equal(eight.status, "ok");
+  assert.equal(eight.r, 1);
+  assert.equal(eight.minPairs, 8);
+  // points missing either value are not pairs
+  assert.equal(effort.rpeCorrelation([...pts(7), { rpe: 12, avgSpeed: null }, { rpe: null, avgSpeed: 3 }]).n, 7);
+  assert.equal(effort.rpeCorrelation([]).status, "insufficient");
+});
+
+const DAY = 864e5;
+const T0 = Date.parse("2026-10-01T10:00:00Z");
+const at = (days) => new Date(T0 + days * DAY).toISOString();
+
+test("return rate: second fight within 1, 3 and 7 days of the first", () => {
+  const sessions = [
+    { player: "a", startedAt: at(0) }, { player: "a", startedAt: at(0.5) }, // back the same day
+    { player: "b", startedAt: at(0) }, { player: "b", startedAt: at(2) }, // back after 2 days
+    { player: "c", startedAt: at(0) }, { player: "c", startedAt: at(6) }, // back after 6 days
+    { player: "d", startedAt: at(0) }, // never came back
+  ];
+  const r = effort.returnRates(sessions, T0 + 30 * DAY);
+  const w = Object.fromEntries(r.windows.map((x) => [x.days, x]));
+  assert.deepEqual([w[1].n, w[1].returned, w[1].ratePct], [4, 1, 25]);
+  assert.deepEqual([w[3].n, w[3].returned, w[3].ratePct], [4, 2, 50]);
+  assert.deepEqual([w[7].n, w[7].returned, w[7].ratePct], [4, 3, 75]);
+  assert.equal(r.players, 4);
+});
+
+test("return rate: a player whose first fight is too recent is not counted as 'did not return'", () => {
+  const sessions = [{ player: "old", startedAt: at(0) }, { player: "old", startedAt: at(1) }, { player: "new", startedAt: at(9) }];
+  const r = effort.returnRates(sessions, T0 + 10 * DAY); // "new" started 1 day ago: too early for the 3- and 7-day windows
+  const w = Object.fromEntries(r.windows.map((x) => [x.days, x]));
+  assert.equal(w[1].n, 2); // first fight at least 1 day old: old and new (exactly 1 day)
+  assert.equal(w[3].n, 1);
+  assert.equal(w[7].n, 1);
+  assert.equal(effort.returnRates([], T0).windows[0].ratePct, null);
+});
+
+test("return rate flags a small sample below 10 players", () => {
+  const nine = Array.from({ length: 9 }, (_, i) => ({ player: `p${i}`, startedAt: at(0) }));
+  assert.equal(effort.returnRates(nine, T0 + 30 * DAY).windows[0].smallSample, true);
+  const ten = Array.from({ length: 10 }, (_, i) => ({ player: `p${i}`, startedAt: at(0) }));
+  assert.equal(effort.returnRates(ten, T0 + 30 * DAY).windows[0].smallSample, false);
+  assert.equal(effort.SMALL_SAMPLE, 10);
+});
