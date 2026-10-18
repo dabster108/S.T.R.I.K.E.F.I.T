@@ -1018,6 +1018,9 @@ app.delete("/api/sessions", route(async (_req, res) => {
 // Public scoreboard shared by the headset menu and the web Leaderboard page (added; rule in leaderboard.js).
 require("./leaderboardRoute").mount(app, { query, route });
 
+// Ghost pace for the Live Arena: a player's personal-best fight on a level as cumulative damage over time (pace.js, cached 60 s).
+require("./pace").mount(app, { query });
+
 app.use("/api", (_req, res) => {
   res.status(404).json({ ok: false, error: "Unknown API route" });
 });

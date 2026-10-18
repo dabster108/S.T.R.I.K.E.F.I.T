@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { lazy, memo, Suspense, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useLiveMessages, useLiveSession } from "../../live/LiveProvider.jsx";
 import { LEVELS, levelName } from "../../lib/game.js";
@@ -8,6 +8,9 @@ import { LevelBadge, OutcomeBadge } from "../ui/Badge.jsx";
 import Icon from "../ui/Icon.jsx";
 import { LiveHud } from "./LiveHud.jsx";
 import { ReactionBar, ReactionLayer } from "./Reactions.jsx";
+
+// The pace chart loads after the card; its block reserves its own height, so nothing jumps when it arrives.
+const GhostPace = lazy(() => import("./GhostPace.jsx"));
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const TIER_TONE = { full: "text-[var(--accent-strong)]", medium: "text-[var(--accent)]", light: "text-[var(--ink-secondary)]", tap: "text-[var(--muted)]" };
@@ -219,6 +222,11 @@ export const LiveArenaCard = memo(function LiveArenaCard({ id, compact = false }
       </dl>
 
       {!compact && <LiveHud id={id} />}
+      {!compact && (
+        <Suspense fallback={<div className="mt-4 border-t border-[var(--border)]" style={{ minHeight: 238 }} aria-hidden />}>
+          <GhostPace id={id} session={session} state={st} />
+        </Suspense>
+      )}
       {!compact && <ReactionBar sessionId={session.id} live={live} className="mt-3 border-t border-[var(--border)] pt-3" />}
 
       {!compact && (
