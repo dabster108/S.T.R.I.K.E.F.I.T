@@ -31,6 +31,9 @@ import { JourneyStrip, NextStepCard } from "../components/engage/Mastery.jsx";
 import { WeekCard } from "../components/engage/WeekCard.jsx";
 import { PlayerCalendar } from "../components/engage/Calendar.jsx";
 
+const FadeAverage = lazy(() => import("../components/effort/FadeAverage.jsx"));
+const FadeSkeleton = lazy(() => import("../components/effort/FadePanel.jsx").then((m) => ({ default: m.FadeSkeleton })));
+
 const LEVELS = [
   { id: "all", label: "All levels" },
   { id: "Easy", label: "Level 1" },
@@ -343,7 +346,13 @@ export default function PlayerView() {
           />
 
           <SectionRule index="03" title="Effort over time" className="mt-12" />
-          <div className="mt-4 grid gap-6 xl:grid-cols-12">
+          <Card className="mt-4 overflow-hidden">
+            <CardHeader title="Effort fade" subtitle="Average across this player's last 10 fights: do the swings slow down by the end?" />
+            <Suspense fallback={<FadeSkeleton />}>
+              <FadeAverage name={name} />
+            </Suspense>
+          </Card>
+          <div className="mt-6 grid gap-6 xl:grid-cols-12">
             <Card className="overflow-hidden xl:col-span-8">
               <CardHeader title="Damage over time" subtitle="Total damage in each fight, in the order played" />
               <div className="px-3 pb-4 pt-4 sm:px-5">

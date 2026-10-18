@@ -16,6 +16,7 @@ const engage = require("./engage");
 const engageStore = require("./engageStore");
 const outcomes = require("./outcomes");
 const levelsInfo = require("./levels");
+const effort = require("./effort");
 
 const LEVEL_ORDER = ["Easy", "Medium", "Hard"];
 const TIERS = ["tap", "light", "medium", "full"];
@@ -51,6 +52,7 @@ function hitsCte(filters, params) {
            CASE WHEN json_typeof(e.payload->'swingSpeed') = 'number' THEN LEAST((e.payload->>'swingSpeed')::float8, ${SWING_CAP}) END AS speed,
            CASE WHEN json_typeof(e.payload->'swingSpeed') = 'number' THEN (e.payload->>'swingSpeed')::float8 END AS raw_speed,
            lower(e.payload->>'tier') AS tier,
+           CASE WHEN json_typeof(e.payload->'defended') = 'boolean' THEN (e.payload->>'defended')::boolean END AS defended,
            CASE WHEN json_typeof(e.payload->'damage') = 'number' THEN (e.payload->>'damage')::float8 END AS damage,
            CASE WHEN json_typeof(e.payload->'t') = 'number' THEN (e.payload->>'t')::float8 END AS t
     FROM events e JOIN sessions s ON s.id = e.session_ref
@@ -725,6 +727,75 @@ async function researchAnalytics(filters = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Effort fade (effort.js): first third vs last third of a fight, from the stored hit events
+// ---------------------------------------------------------------------------
+
+// session id -> [{ t, speed, tier, damage, defended }] for the given sessions (any status), swing speed clamped to the cap.
+async function hitsForSessions(ids) {
+  const map = new Map(ids.map((id) => [id, []]));
+  if (!ids.length) return map;
+  const { rows } = await query(
+    `SELECT e.session_ref AS id,
+            CASE WHEN json_typeof(e.payload->'t') = 'number' THEN (e.payload->>'t')::float8 END AS t,
+            LEAST((e.payload->>'swingSpeed')::float8, ${SWING_CAP}) AS speed,
+            lower(e.payload->>'tier') AS tier,
+            CASE WHEN json_typeof(e.payload->'damage') = 'number' THEN (e.payload->>'damage')::float8 END AS damage,
+            CASE WHEN json_typeof(e.payload->'defended') = 'boolean' THEN (e.payload->>'defended')::boolean END AS defended
+     FROM events e
+     WHERE e.type = 'hit' AND e.session_ref = ANY($1) AND json_typeof(e.payload->'swingSpeed') = 'number'
+     ORDER BY e.occurred_at, e.seq`,
+    [ids]
+  );
+  for (const r of rows) map.get(r.id).push({ t: num(r.t), speed: num(r.speed), tier: r.tier, damage: num(r.damage), defended: r.defended });
+  return map;
+}
+
+// GET /api/sessions/:id/fade -> the fade summary plus the swing series the chart draws. null when the session is unknown.
+async function sessionFade(id) {
+  const { rows } = await query(`SELECT id, player_name AS "playerName", level, status, outcome, duration_sec AS "durationSec" FROM sessions WHERE id = $1`, [id]);
+  if (!rows.length) return null;
+  const s = rows[0];
+  const hits = (await hitsForSessions([id])).get(id);
+  return {
+    sessionId: s.id,
+    playerName: s.playerName,
+    level: s.level,
+    status: s.status,
+    outcome: s.outcome,
+    durationSec: num(s.durationSec),
+    fade: effort.fade(hits, num(s.durationSec)),
+    // Every landed swing with a fight-clock time, speeds clamped to the cap (see speedCap).
+    points: hits.filter((h) => h.t !== null).map((h) => ({ t: round(h.t, 2), speed: round(h.speed, 2), tier: h.tier })),
+    fullPowerSpeed: levelsInfo.fullPowerSpeed(s.level),
+    speedCap: SWING_CAP,
+    rule: "Fade % = (average swing speed in the last third of the fight - average in the first third) / average in the first third. Needs at least 6 landed swings, 2 in each end third.",
+  };
+}
+
+// GET /api/players/:name/fade?last=10 -> the player's most recent finished fights, each with its fade, and their average.
+async function playerFade(name, last = 10) {
+  const n = Math.min(30, Math.max(1, Math.trunc(Number(last)) || 10));
+  const { rows } = await query(
+    `SELECT id, level, outcome, duration_sec AS "durationSec", started_at AS "startedAt"
+     FROM sessions WHERE player_name = $1 AND status = 'finished' ORDER BY started_at DESC, seq DESC LIMIT $2`,
+    [name, n]
+  );
+  if (!rows.length) {
+    const any = await query("SELECT 1 FROM sessions WHERE player_name = $1 LIMIT 1", [name]);
+    if (!any.rowCount) return null;
+  }
+  const hits = await hitsForSessions(rows.map((r) => r.id));
+  const fights = rows.map((r) => ({
+    sessionId: r.id,
+    level: r.level,
+    outcome: r.outcome,
+    startedAt: new Date(r.startedAt).toISOString(),
+    fade: effort.fade(hits.get(r.id), num(r.durationSec)),
+  }));
+  return { playerName: name, last: n, average: effort.averageFade(fights.map((f) => f.fade)), fights };
+}
+
+// ---------------------------------------------------------------------------
 // CSV export
 // ---------------------------------------------------------------------------
 
@@ -793,6 +864,9 @@ module.exports = {
   researchAnalytics,
   calorieInsights,
   sessionFitness,
+  sessionFade,
+  playerFade,
+  hitsForSessions,
   exportSessionsCsv,
   exportEventsCsv,
   TIERS,

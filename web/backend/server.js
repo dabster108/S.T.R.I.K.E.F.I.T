@@ -707,6 +707,18 @@ app.post("/api/live/react", route(async (req, res) => {
   res.status(202).json({ ok: true, ...payload });
 }));
 
+// Effort fade: first third vs last third of a fight, from the stored hit events (effort.js). Read-only.
+app.get("/api/sessions/:id/fade", route(async (req, res) => {
+  const out = await analytics.sessionFade(String(req.params.id));
+  if (!out) return res.status(404).json({ ok: false, error: "Session not found" });
+  res.json(out);
+}));
+app.get("/api/players/:name/fade", route(async (req, res) => {
+  const out = await analytics.playerFade(String(req.params.name), req.query.last);
+  if (!out) return res.status(404).json({ ok: false, error: "Player not found" });
+  res.json(out);
+}));
+
 // Plain-language insights (insights.js): only sentences with enough data behind them; the rest listed with their minimum.
 app.get("/api/players/:name/insights", route(async (req, res) => {
   const result = await analytics.playerInsights(String(req.params.name));

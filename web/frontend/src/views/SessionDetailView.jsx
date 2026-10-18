@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { clampSpeed, levelName } from "../lib/game.js";
@@ -24,6 +24,10 @@ import RatingForm, { RatingSummary } from "../components/feedback/RatingForm.jsx
 import RecapPanel from "../components/recap/RecapCard.jsx";
 import ShareChallenge from "../components/engage/ShareChallenge.jsx";
 import { ghostSummary, valueAt } from "../lib/engage.js";
+
+// Chart components load after the page, in their own chunks; the fixed-height skeleton keeps the layout from jumping.
+const FadePanel = lazy(() => import("../components/effort/FadePanel.jsx"));
+const FadeSkeleton = lazy(() => import("../components/effort/FadePanel.jsx").then((m) => ({ default: m.FadeSkeleton })));
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const P = (e) => (e.payload && typeof e.payload === "object" && !Array.isArray(e.payload) ? e.payload : {});
@@ -389,6 +393,15 @@ export default function SessionDetailView({ onDeleted }) {
                 </Card>
               )}
             </div>
+          )}
+
+          {s.status !== "live" && (
+            <Card className="overflow-hidden">
+              <CardHeader title="Effort fade" subtitle="Did your swings slow down? Average swing speed in the last third of the fight against the first third" />
+              <Suspense fallback={<FadeSkeleton />}>
+                <FadePanel sessionId={s.id} />
+              </Suspense>
+            </Card>
           )}
 
           {!telemetry ? (

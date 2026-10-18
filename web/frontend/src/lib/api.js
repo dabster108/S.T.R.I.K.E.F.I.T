@@ -108,6 +108,9 @@ export const api = {
   playerGoalToday: (name) => request(`/api/players/${enc(name)}/goal/today`, { timeoutMs: 20000 }),
   playerGoals: (name, days = 14) => request(`/api/players/${enc(name)}/goals${qs({ days })}`, { timeoutMs: 20000 }),
   setPlayerGoal: (name, body) => request(`/api/players/${enc(name)}/goal`, { method: "PUT", body, timeoutMs: 20000 }),
+  // Effort fade (first third vs last third of a fight) for one session, and a player's last N fights.
+  sessionFade: (id) => request(`/api/sessions/${enc(id)}/fade`, { timeoutMs: 30000 }),
+  playerFade: (name, last = 10) => request(`/api/players/${enc(name)}/fade${qs({ last })}`, { timeoutMs: 30000 }),
   playerInsights: (name) => request(`/api/players/${enc(name)}/insights`),
   playerChecklist: (name) => request(`/api/players/${enc(name)}/checklist`),
   // Engagement (challenges, calendar, weekly recap, best run, public challenge page, activity feed, live cheers).
