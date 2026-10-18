@@ -199,8 +199,8 @@ export default function DashboardView({ sessions, allSessions, events, eventsRea
 
   const sparks = useMemo(() => {
     const b = buckets(sessions, range);
-    // Win rate as it built up over the last 20 battles in range.
-    const last = chrono.slice(-20);
+    // Win rate as it built up over the decided fights among the last 20 battles in range (the shared rule: abandoned skipped).
+    const last = chrono.slice(-20).filter((s) => s.outcome === "victory" || s.outcome === "defeat");
     let wins = 0;
     const winRate = last.map((s, i) => ((wins += s.outcome === "victory" ? 1 : 0) / (i + 1)) * 100);
     return {
@@ -268,7 +268,7 @@ export default function DashboardView({ sessions, allSessions, events, eventsRea
               ? { value: Math.round(stats.winRate - prev.winRate), label: `${Math.abs(Math.round(stats.winRate - prev.winRate))} pts`, suffix: vsPrev }
               : null
           }
-          hint={prev && stats.sessions ? null : stats.currentStreak > 1 ? `${stats.currentStreak} wins in a row` : `${stats.victories} won · ${stats.defeats} lost`}
+          hint={prev && stats.sessions ? null : stats.currentStreak > 1 ? `${stats.currentStreak} wins in a row` : `${stats.victories} won · ${stats.defeats} lost${stats.abandoned ? ` · ${stats.abandoned} abandoned (not counted)` : ""}`}
         />
         <StatTile
           className="lg:col-span-4"
@@ -332,8 +332,8 @@ export default function DashboardView({ sessions, allSessions, events, eventsRea
           </div>
         </Card>
         <Card className="overflow-hidden xl:col-span-4">
-          <CardHeader title="Outcomes" subtitle="Victories vs defeats" />
-          <OutcomeSplit victories={stats.victories} defeats={stats.defeats} other={stats.other} />
+          <CardHeader title="Outcomes" subtitle="Victories vs defeats; abandoned fights shown apart" />
+          <OutcomeSplit victories={stats.victories} defeats={stats.defeats} abandoned={stats.abandoned} other={stats.other} />
           <dl className="grid grid-cols-2 gap-px border-t border-[var(--border)] bg-[var(--border)]">
             {[
               ["Current streak", stats.currentStreak],

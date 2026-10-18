@@ -1,4 +1,5 @@
 // Client-side aggregates, so every view can respect the active time range.
+import { countOutcomes, isDecided } from "./outcomes.js";
 
 const LEVEL_ORDER = ["Easy", "Medium", "Hard"];
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
@@ -22,11 +23,15 @@ export function levelRank(level) {
   return i === -1 ? 99 : i;
 }
 
+// winRate follows the one shared rule (lib/outcomes.js): victories / (victories + defeats), abandoned fights left out and
+// reported as `abandoned`. It stays a number here (0 when nothing was decided; check `decided`) because the KPI tiles animate
+// it. avgScore is the mean over decided fights, so abandoned zero-score fights don't drag it down.
 export function summarize(sessions) {
   const n = sessions.length;
-  const victories = sessions.filter((s) => s.outcome === "victory").length;
-  const defeats = sessions.filter((s) => s.outcome === "defeat").length;
-  const sum = (k) => sessions.reduce((a, s) => a + num(s[k]), 0);
+  const o = countOutcomes(sessions.map((s) => s.outcome));
+  const { victories, defeats } = o;
+  const decided = sessions.filter((s) => isDecided(s.outcome));
+  const sum = (k, list = sessions) => list.reduce((a, s) => a + num(s[k]), 0);
 
   const chrono = [...sessions].sort((a, b) => sessionTime(a) - sessionTime(b));
   let bestStreak = 0;
@@ -42,11 +47,14 @@ export function summarize(sessions) {
     sessions: n,
     victories,
     defeats,
-    other: n - victories - defeats,
-    winRate: n ? (victories / n) * 100 : 0,
+    abandoned: o.abandoned,
+    other: o.other,
+    decided: o.decided,
+    winRate: o.winRate ?? 0,
+    winRateKnown: o.winRate !== null,
     totalScore: sum("score"),
     bestScore: sessions.reduce((m, s) => Math.max(m, num(s.score)), 0),
-    avgScore: n ? sum("score") / n : 0,
+    avgScore: decided.length ? sum("score", decided) / decided.length : 0,
     totalHits: sum("hitCount"),
     totalDamage: sum("damageDealt"),
     totalTaps: sum("tapCount"),

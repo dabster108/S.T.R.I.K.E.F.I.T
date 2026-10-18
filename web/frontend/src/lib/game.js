@@ -52,6 +52,24 @@ export const LEVELS = {
 };
 
 export const LEVEL_KEYS = ["Easy", "Medium", "Hard"];
+
+// How many levels can be played / are still planned, counted from each level's `status` above. Never typed into copy:
+// the landing page said "2 levels playable, 1 planned" for weeks after Level 3 shipped.
+export function levelCounts(levels = LEVELS) {
+  const list = Object.values(levels);
+  return { playable: list.filter((l) => l.status === "playable").length, planned: list.filter((l) => l.status === "planned").length, total: list.length };
+}
+
+// "3 levels playable" / "2 levels playable, 1 planned".
+export function levelCountsText(levels = LEVELS) {
+  const { playable, planned } = levelCounts(levels);
+  return `${playable} level${playable === 1 ? "" : "s"} playable${planned ? `, ${planned} planned` : ""}.`;
+}
+
+// The swing speed the game stops scaling damage at (m/s). Stored swing speeds are the raw controller speed and can be higher;
+// anything that reports a speed clamps to this (mirror of SWING_SPEED_CAP in backend/levels.js, checked by game.test.js).
+export const SWING_SPEED_CAP = 8;
+export const clampSpeed = (v) => (Number.isFinite(v) ? Math.min(v, SWING_SPEED_CAP) : v);
 export const levelName = (key) => LEVELS[key]?.name || key || "Unknown";
 export const levelShort = (key) => (LEVELS[key] ? `L${LEVELS[key].number}` : key || "?");
 

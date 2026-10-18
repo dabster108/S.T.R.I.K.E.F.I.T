@@ -141,14 +141,17 @@ export function useOnScreen(rootMargin = "0px") {
   return [setEl, on];
 }
 
-// Animates 0 -> target once `start` is true. Reduced motion: jumps straight to target.
+// Animates 0 -> target once `start` is true. Reduced motion (OS setting or Calm mode): there is nothing to animate,
+// so the real number is returned straight away, without waiting for `start`. That wait used to leave a visible "0"
+// on every count-up that sat below the fold (landing "Live numbers", the Outcomes card) until it was scrolled into view.
 export function useCountUp(target, start = true, duration = 1400) {
   const reduced = useReducedMotion();
   const [value, setValue] = useState(0);
   const from = useRef(0);
   useEffect(() => {
     if (!start || typeof target !== "number" || !Number.isFinite(target)) return undefined;
-    if (reduced) {
+    // A tab in the background pauses requestAnimationFrame, so the tween would never run; show the real number.
+    if (reduced || (typeof document !== "undefined" && document.hidden)) {
       from.current = target;
       setValue(target);
       return undefined;
@@ -166,6 +169,7 @@ export function useCountUp(target, start = true, duration = 1400) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [target, start, duration, reduced]);
+  if (reduced && typeof target === "number" && Number.isFinite(target)) return target;
   return value;
 }
 

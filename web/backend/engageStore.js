@@ -10,6 +10,7 @@ const fitness = require("./fitness");
 const goals = require("./goals");
 const challenges = require("./challenges");
 const engage = require("./engage");
+const { SWING_SPEED_CAP } = require("./levels");
 
 const ZONE = challenges.safeZone(challenges.DEFAULT_TZ); // day and week boundaries: the streak / goal constant
 const HISTORY_MAX_DAYS = 90;
@@ -40,7 +41,7 @@ async function loadFacts({ player, level, ids, fromIso, toIso } = {}, zone = ZON
               count(*) FILTER (WHERE lower(e.payload->>'tier') = 'full')::int AS full,
               count(DISTINCT CASE WHEN json_typeof(e.payload->'t') = 'number' AND (e.payload->>'t')::float8 >= 0
                                   THEN floor((e.payload->>'t')::float8 / 60) END)::int AS minutes,
-              max((e.payload->>'swingSpeed')::float8) AS peak
+              LEAST(max((e.payload->>'swingSpeed')::float8), ${SWING_SPEED_CAP}) AS peak
        FROM events e
        WHERE e.type = 'hit' AND json_typeof(e.payload->'swingSpeed') = 'number' AND e.session_ref IN (SELECT id FROM s)
        GROUP BY e.session_ref
@@ -248,7 +249,7 @@ async function best(name, level, beforeId) {
        SELECT e.type,
               CASE WHEN json_typeof(e.payload->'t') = 'number' THEN (e.payload->>'t')::float8 END AS t,
               e.occurred_at AS at,
-              CASE WHEN json_typeof(e.payload->'swingSpeed') = 'number' THEN (e.payload->>'swingSpeed')::float8 END AS speed,
+              CASE WHEN json_typeof(e.payload->'swingSpeed') = 'number' THEN LEAST((e.payload->>'swingSpeed')::float8, ${SWING_SPEED_CAP}) END AS speed,
               lower(e.payload->>'tier') AS tier,
               CASE WHEN json_typeof(e.payload->'monsterHp') = 'number' THEN (e.payload->>'monsterHp')::float8 END AS mhp,
               CASE WHEN json_typeof(e.payload->'monsterMaxHp') = 'number' THEN (e.payload->>'monsterMaxHp')::float8 END AS mmax,

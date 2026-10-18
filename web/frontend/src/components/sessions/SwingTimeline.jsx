@@ -1,3 +1,4 @@
+import { clampSpeed } from "../../lib/game.js";
 import { useElementWidth } from "../charts/useElementWidth.js";
 
 // Swing speed (each hit, dot coloured by its strength tier) and monster HP (% of max, line) over the fight, with marker
@@ -30,7 +31,7 @@ export default function SwingTimeline({ events, duration, t, onSeek, ghost = nul
   const ih = height - pad.t - pad.b;
   const d = Math.max(0.1, duration, ghost?.duration || 0);
   // The speed axis follows this run (as before); a faster ghost swing is drawn clipped at the top edge.
-  const vMax = Math.max(4, Math.ceil(Math.max(0, ...hits.map((e) => P(e).swingSpeed))));
+  const vMax = Math.max(4, Math.ceil(Math.max(0, ...hits.map((e) => clampSpeed(P(e).swingSpeed)))));
   const sx = (x) => pad.l + (Math.min(d, Math.max(0, x)) / d) * iw;
   const sv = (v) => pad.t + ih - (Math.min(vMax, v) / vMax) * ih;
   const sh = (f) => pad.t + ih - Math.min(1, Math.max(0, f)) * ih;
@@ -96,7 +97,7 @@ export default function SwingTimeline({ events, duration, t, onSeek, ghost = nul
         {hp.length > 1 && <path d={hpPath} fill="none" stroke="var(--hp-monster)" strokeWidth={2} />}
         {/* swing speed per hit */}
         {hits.map((e) => (
-          <circle key={e.id} cx={sx(e.t)} cy={sv(P(e).swingSpeed)} r={3.2} fill={TIER[String(P(e).tier || "").toLowerCase()] || "var(--blue-400)"} opacity={e.t <= t ? 1 : 0.35} />
+          <circle key={e.id} cx={sx(e.t)} cy={sv(clampSpeed(P(e).swingSpeed))} r={3.2} fill={TIER[String(P(e).tier || "").toLowerCase()] || "var(--blue-400)"} opacity={e.t <= t ? 1 : 0.35} />
         ))}
         {/* cursor */}
         <line x1={sx(t)} x2={sx(t)} y1={pad.t - 4} y2={pad.t + ih} stroke="var(--accent)" strokeWidth={2} />

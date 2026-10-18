@@ -90,7 +90,7 @@ const PAGES = [
 ];
 
 const TERMS = [
-  ["Win rate", "Victories as a share of the battles in range."],
+  ["Win rate", "Victories ÷ (victories + defeats). Abandoned fights are left out of the rate and shown separately; \"—\" means no fight has been decided yet."],
   ["Current / best streak", "Victories in a row: the run going now, and the longest one recorded."],
   ["Swing speed", "The faster of the controller's tracked speed and the weapon's own motion at contact, in metres per second."],
   ["Full power", "Share of counted hits at or above the level's full-power threshold."],

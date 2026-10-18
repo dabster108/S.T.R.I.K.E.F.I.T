@@ -14,15 +14,17 @@ const goalsStore = require("./goalsStore");
 const goalsRules = require("./goals");
 const engage = require("./engage");
 const engageStore = require("./engageStore");
+const outcomes = require("./outcomes");
+const levelsInfo = require("./levels");
 
 const LEVEL_ORDER = ["Easy", "Medium", "Hard"];
 const TIERS = ["tap", "light", "medium", "full"];
-const LEVELS_PLAYABLE = 2; // Level 1 (Easy) and Level 2 (Medium); Level 3 is planned
-const LEVELS_PLANNED = 1;
+const SWING_CAP = levelsInfo.SWING_SPEED_CAP; // m/s; see levels.js
 const HIST_STEP = 0.5; // m/s per histogram bucket
 
 const num = (v) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
 const round = (v, d = 2) => (v === null ? null : Math.round(v * 10 ** d) / 10 ** d);
+const capSpeed = (v) => (v === null ? null : Math.min(v, SWING_CAP));
 const levelSort = (a, b) => (LEVEL_ORDER.indexOf(a.level) + 1 || 99) - (LEVEL_ORDER.indexOf(b.level) + 1 || 99);
 
 // Session filters shared by every query: player, level, date range on started_at.
@@ -39,12 +41,15 @@ function sessionWhere(filters, params, alias = "s") {
   return where;
 }
 
-// One row per landed hit that carries a measured swing speed.
+// One row per landed hit that carries a measured swing speed. `speed` is clamped to the game's cap (levels.js
+// SWING_SPEED_CAP): the headset stores the raw controller speed, and a raw average of 11.6 m/s on a game that caps at 8 is
+// a number the game never used. `raw_speed` keeps the stored value, for counting how many swings were over the cap.
 function hitsCte(filters, params) {
   const where = sessionWhere(filters, params);
   return `hits AS (
     SELECT e.session_ref AS session_id, s.player_name, s.level, s.status, s.duration_sec,
-           CASE WHEN json_typeof(e.payload->'swingSpeed') = 'number' THEN (e.payload->>'swingSpeed')::float8 END AS speed,
+           CASE WHEN json_typeof(e.payload->'swingSpeed') = 'number' THEN LEAST((e.payload->>'swingSpeed')::float8, ${SWING_CAP}) END AS speed,
+           CASE WHEN json_typeof(e.payload->'swingSpeed') = 'number' THEN (e.payload->>'swingSpeed')::float8 END AS raw_speed,
            lower(e.payload->>'tier') AS tier,
            CASE WHEN json_typeof(e.payload->'damage') = 'number' THEN (e.payload->>'damage')::float8 END AS damage,
            CASE WHEN json_typeof(e.payload->'t') = 'number' THEN (e.payload->>'t')::float8 END AS t
@@ -76,6 +81,7 @@ async function levelHitStats(filters = {}) {
   const { rows } = await query(
     `WITH ${hitsCte(filters, params)}
      SELECT level, count(*)::int AS n, avg(speed) AS avg_speed, max(speed) AS peak_speed,
+            max(raw_speed) AS raw_peak, count(*) FILTER (WHERE raw_speed > ${SWING_CAP})::int AS over_cap,
             count(*) FILTER (WHERE tier = 'full')::int AS full, count(*) FILTER (WHERE tier IS NOT NULL)::int AS tiered
      FROM hits GROUP BY level`,
     params
@@ -85,10 +91,13 @@ async function levelHitStats(filters = {}) {
     avgSwingSpeed: round(num(r.avg_speed)),
     peakSwingSpeed: round(num(r.peak_speed)),
     fullPowerRatio: r.tiered ? round(r.full / r.tiered, 4) : null,
+    // Added with the cap: speeds above SWING_SPEED_CAP are counted here and clamped in the two figures above.
+    swingsOverCap: r.over_cap,
+    rawPeakSwingSpeed: round(num(r.raw_peak)),
   }]));
 }
 
-const emptyHitStats = { swingSamples: 0, avgSwingSpeed: null, peakSwingSpeed: null, fullPowerRatio: null };
+const emptyHitStats = { swingSamples: 0, avgSwingSpeed: null, peakSwingSpeed: null, fullPowerRatio: null, swingsOverCap: 0, rawPeakSwingSpeed: null };
 
 async function overview({ tz } = {}) {
   const engagementRows = (await query(`SELECT player_name AS player, started_at AS "startedAt" FROM sessions`)).rows;
@@ -100,6 +109,7 @@ async function overview({ tz } = {}) {
            COALESCE(sum(damage_dealt), 0)::float8 AS damage,
            count(*) FILTER (WHERE outcome = 'victory')::int AS wins,
            count(*) FILTER (WHERE outcome = 'defeat')::int AS losses,
+           count(*) FILTER (WHERE outcome = 'abandoned')::int AS abandoned,
            avg(duration_sec) FILTER (WHERE status = 'finished' AND duration_sec > 0) AS avg_duration
     FROM sessions`)).rows[0];
 
@@ -114,7 +124,8 @@ async function overview({ tz } = {}) {
     SELECT level, count(*)::int AS sessions,
            count(*) FILTER (WHERE outcome = 'victory')::int AS wins,
            count(*) FILTER (WHERE outcome = 'defeat')::int AS losses,
-           avg(score) FILTER (WHERE status = 'finished') AS avg_score,
+           count(*) FILTER (WHERE outcome = 'abandoned')::int AS abandoned,
+           avg(score) FILTER (WHERE status = 'finished' AND outcome IN ('victory', 'defeat')) AS avg_score,
            max(score) AS best_score,
            COALESCE(sum(hit_count), 0)::float8 AS swings,
            COALESCE(sum(damage_dealt), 0)::float8 AS damage,
@@ -123,7 +134,6 @@ async function overview({ tz } = {}) {
   const hitStats = await levelHitStats();
 
   const recent = (await query(`SELECT ${SESSION_API_SELECT} FROM sessions ORDER BY started_at DESC, seq DESC LIMIT 5`)).rows.map(fromRow);
-  const decided = totals.wins + totals.losses;
 
   return {
     totalSessions: totals.sessions,
@@ -133,8 +143,9 @@ async function overview({ tz } = {}) {
     totalDamage: round(totals.damage, 1),
     wins: totals.wins,
     losses: totals.losses,
-    // Share of fights that ended in victory or defeat (abandoned / in-progress excluded).
-    winRate: decided ? round((totals.wins / decided) * 100, 1) : null,
+    abandoned: totals.abandoned,
+    // The one shared rule (outcomes.js): victories / (victories + defeats), abandoned fights excluded and counted above.
+    winRate: outcomes.winRate(totals.wins, totals.losses),
     avgSessionSec: round(num(totals.avg_duration), 1),
     timeZone: zone,
     sessionsPerDay: perDay,
@@ -146,8 +157,9 @@ async function overview({ tz } = {}) {
         sessions: l.sessions,
         wins: l.wins,
         losses: l.losses,
-        winRate: l.wins + l.losses ? round((l.wins / (l.wins + l.losses)) * 100, 1) : null,
-        avgScore: round(num(l.avg_score), 0),
+        abandoned: l.abandoned,
+        winRate: outcomes.winRate(l.wins, l.losses),
+        avgScore: round(num(l.avg_score), 0), // mean over decided fights (victory + defeat), like the win rate
         bestScore: num(l.best_score),
         swings: l.swings,
         damage: round(l.damage, 1),
@@ -175,8 +187,9 @@ async function publicStats() {
     liveSessions: r.live,
     totalSwings: r.swings,
     totalPlayers: r.players,
-    levelsAvailable: LEVELS_PLAYABLE,
-    levelsPlanned: LEVELS_PLANNED,
+    // Computed from levels.js (status "playable" / "planned"), not typed in: Level 3 shipped and this still said 2 + 1.
+    levelsAvailable: levelsInfo.levelsPlayable(),
+    levelsPlanned: levelsInfo.levelsPlanned(),
     lastSessionAt: r.last_session ? new Date(r.last_session).toISOString() : null,
   };
 }
@@ -224,6 +237,7 @@ async function playerProfile(name) {
   const finished = sessions.filter((s) => s.status !== "live");
   const wins = sessions.filter((s) => s.outcome === "victory").length;
   const losses = sessions.filter((s) => s.outcome === "defeat").length;
+  const abandonedTotal = sessions.filter((s) => s.outcome === "abandoned").length;
   const sum = (list, k) => list.reduce((a, s) => a + (Number(s[k]) || 0), 0);
 
   const levels = [...new Set(sessions.map((s) => s.level))];
@@ -232,6 +246,7 @@ async function playerProfile(name) {
     .map((level) => {
       const list = sessions.filter((s) => s.level === level);
       const done = list.filter((s) => s.status !== "live");
+      const decidedList = done.filter((s) => outcomes.isDecided(s.outcome));
       const w = list.filter((s) => s.outcome === "victory").length;
       const l = list.filter((s) => s.outcome === "defeat").length;
       return {
@@ -239,9 +254,10 @@ async function playerProfile(name) {
         sessions: list.length,
         wins: w,
         losses: l,
-        winRate: w + l ? round((w / (w + l)) * 100, 1) : null,
+        abandoned: list.filter((s) => s.outcome === "abandoned").length,
+        winRate: outcomes.winRate(w, l),
         bestScore: Math.max(0, ...list.map((s) => Number(s.score) || 0)),
-        avgScore: done.length ? round(sum(done, "score") / done.length, 0) : null,
+        avgScore: decidedList.length ? round(sum(decidedList, "score") / decidedList.length, 0) : null, // decided fights only
         avgDamage: done.length ? round(sum(done, "damageDealt") / done.length, 1) : null,
         avgHits: done.length ? round(sum(done, "hitCount") / done.length, 1) : null,
         avgSessionSec: done.length ? round(sum(done, "durationSec") / done.length, 1) : null,
@@ -282,7 +298,8 @@ async function playerProfile(name) {
       finished: finished.length,
       wins,
       losses,
-      winRate: wins + losses ? round((wins / (wins + losses)) * 100, 1) : null,
+      abandoned: abandonedTotal,
+      winRate: outcomes.winRate(wins, losses),
       bestScore: Math.max(0, ...sessions.map((s) => Number(s.score) || 0)),
       totalDamage: round(sum(sessions, "damageDealt"), 1),
       totalSwings: sum(sessions, "hitCount"),
@@ -328,7 +345,7 @@ async function playerProfile(name) {
 function sessionFitness(session, events) {
   const hits = events
     .filter((e) => e.type === "hit" && e.payload && typeof e.payload === "object")
-    .map((e) => ({ tier: String(e.payload.tier || "").toLowerCase(), speed: num(e.payload.swingSpeed), t: num(e.payload.t) }))
+    .map((e) => ({ tier: String(e.payload.tier || "").toLowerCase(), speed: capSpeed(num(e.payload.swingSpeed)), t: num(e.payload.t) }))
     .filter((h) => h.speed !== null);
   const s = fitness.sessionSummary(session, hits);
   return {
@@ -643,7 +660,8 @@ async function researchAnalytics(filters = {}) {
     `SELECT s.level, count(*)::int AS sessions,
             count(*) FILTER (WHERE s.outcome = 'victory')::int AS wins,
             count(*) FILTER (WHERE s.outcome = 'defeat')::int AS losses,
-            avg(s.score) AS avg_score, avg(s.damage_dealt) AS avg_damage, avg(s.hit_count) AS avg_hits,
+            count(*) FILTER (WHERE s.outcome = 'abandoned')::int AS abandoned,
+            avg(s.score) FILTER (WHERE s.outcome IN ('victory', 'defeat')) AS avg_score, avg(s.damage_dealt) AS avg_damage, avg(s.hit_count) AS avg_hits,
             avg(s.duration_sec) FILTER (WHERE s.duration_sec > 0) AS avg_duration,
             sum(s.hit_count) AS hits, sum(s.damage_dealt) AS damage,
             sum(s.duration_sec) FILTER (WHERE s.duration_sec > 0) AS seconds
@@ -660,6 +678,7 @@ async function researchAnalytics(filters = {}) {
   return {
     filters: { player: filters.player || null, level: filters.level || null },
     sample: { hitsWithSpeed: sample[0].hits, sessionsWithSpeed: sample[0].sessions, finishedSessions: levelRows.reduce((a, r) => a + r.sessions, 0) },
+    speedCap: { value: SWING_CAP, unit: "m/s", note: "Stored swing speeds are the raw controller speed. Every speed figure here is clamped to the game's cap; swingsOverCap per level counts the swings that were above it." },
     histogramStep: HIST_STEP,
     speedHistogram: hist.map((r) => ({ level: r.level, from: r.bucket, to: r.bucket + HIST_STEP, count: r.n })),
     tiers: levels.map((level) => ({ level, counts: tierCounts(tiers.filter((r) => r.level === level)) })),
@@ -686,11 +705,13 @@ async function researchAnalytics(filters = {}) {
     intensityByLevel: await siteIntensityByLevel(filters, levels),
     levelComparison: levels.map((level) => {
       const r = levelRows.find((x) => x.level === level);
-      const decided = r ? r.wins + r.losses : 0;
       return {
         level,
         sessions: r ? r.sessions : 0,
-        winRate: decided ? round((r.wins / decided) * 100, 1) : null,
+        wins: r ? r.wins : 0,
+        losses: r ? r.losses : 0,
+        abandoned: r ? r.abandoned : 0,
+        winRate: r ? outcomes.winRate(r.wins, r.losses) : null,
         avgScore: r ? round(num(r.avg_score), 0) : null,
         avgDamage: r ? round(num(r.avg_damage), 1) : null,
         avgHits: r ? round(num(r.avg_hits), 1) : null,

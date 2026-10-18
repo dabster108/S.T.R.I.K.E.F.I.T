@@ -19,6 +19,7 @@ const goalsStore = require("./goalsStore");
 const engage = require("./engage");
 const engageStore = require("./engageStore");
 const activityFeed = require("./activityFeed");
+const outcomes = require("./outcomes");
 
 const PORT = Number(process.env.PORT) || 4000;
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
@@ -169,25 +170,31 @@ async function insertEvents(client, events) {
   );
 }
 
+// Per-group summary. winRate follows the one shared rule (outcomes.js): victories / (victories + defeats), abandoned fights
+// left out and reported as `abandoned`. This legacy shape has always carried a number, so "nothing decided" stays 0 here
+// (check `decided`); avgScore is the mean over decided fights, so abandoned zero-score fights don't drag it down.
 function summarize(sessions) {
   const n = sessions.length;
-  const victories = sessions.filter((s) => s.outcome === "victory").length;
-  const sum = (key) => sessions.reduce((a, s) => a + num(s[key]), 0);
+  const o = outcomes.countOutcomes(sessions.map((s) => s.outcome));
+  const decided = sessions.filter((s) => outcomes.isDecided(s.outcome));
+  const sum = (key, list = sessions) => list.reduce((a, s) => a + num(s[key]), 0);
   return {
     sessions: n,
-    victories,
-    defeats: sessions.filter((s) => s.outcome === "defeat").length,
-    winRate: n ? round1((victories / n) * 100) : 0,
+    victories: o.victories,
+    defeats: o.defeats,
+    abandoned: o.abandoned,
+    decided: o.decided,
+    winRate: o.winRate ?? 0,
     bestScore: sessions.reduce((m, s) => Math.max(m, num(s.score)), 0),
-    avgScore: n ? Math.round(sum("score") / n) : 0,
+    avgScore: decided.length ? Math.round(sum("score", decided) / decided.length) : 0,
     avgDurationSec: n ? round1(sum("durationSec") / n) : 0,
   };
 }
 
 function computeStats(sessions) {
   const totalSessions = sessions.length;
-  const victories = sessions.filter((s) => s.outcome === "victory").length;
-  const defeats = sessions.filter((s) => s.outcome === "defeat").length;
+  const overall = summarize(sessions);
+  const { victories, defeats } = overall;
   const sum = (key) => sessions.reduce((a, s) => a + num(s[key]), 0);
 
   // Streaks, oldest -> newest.
@@ -229,9 +236,11 @@ function computeStats(sessions) {
     totalTaps: sum("tapCount"),
     totalDurationSec: round1(sum("durationSec")),
     bestScore: sessions.reduce((m, s) => Math.max(m, num(s.score)), 0),
-    avgScore: totalSessions ? Math.round(sum("score") / totalSessions) : 0,
+    avgScore: overall.avgScore,
     avgDurationSec: totalSessions ? round1(sum("durationSec") / totalSessions) : 0,
-    winRate: totalSessions ? round1((victories / totalSessions) * 100) : 0,
+    winRate: overall.winRate,
+    abandoned: overall.abandoned,
+    decided: overall.decided,
     currentWinStreak,
     bestWinStreak,
     playerCount: new Set(sessions.map((s) => s.playerName)).size,

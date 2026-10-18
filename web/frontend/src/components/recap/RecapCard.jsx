@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api.js";
-import { levelName } from "../../lib/game.js";
+import { clampSpeed, levelName } from "../../lib/game.js";
 import { formatKcal } from "../../lib/fitness.js";
 import { formatDateTime, formatNumber } from "../../lib/format.js";
 import { useApi } from "../../hooks/useApi.js";
@@ -26,7 +26,7 @@ export function sessionPeaks(events) {
   let combo = null;
   for (const e of events || []) {
     const p = P(e);
-    if (e.type === "hit" && isNum(p.swingSpeed)) speed = Math.max(speed ?? 0, p.swingSpeed);
+    if (e.type === "hit" && isNum(p.swingSpeed)) speed = Math.max(speed ?? 0, clampSpeed(p.swingSpeed)); // the game caps at 8 m/s; the stored speed is raw
     if ((e.type === "hit" || e.type === "hp") && isNum(p.combo)) combo = Math.max(combo ?? 0, p.combo);
   }
   return { peakSpeed: speed, bestCombo: combo };

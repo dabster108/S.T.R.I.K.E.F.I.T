@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { levelName } from "../lib/game.js";
+import { clampSpeed, levelName } from "../lib/game.js";
 import { formatDateTime, formatDuration, formatNumber } from "../lib/format.js";
 import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useReducedMotion } from "../hooks/motion.js";
@@ -52,7 +52,7 @@ function GhostLine({ best, session, events, t, show, onToggle }) {
   if (b.reason === "no_events") {
     return <p className="mt-2 text-xs font-medium text-[var(--muted)]">Your best earlier run on {levelName(session.level)} (score {formatNumber(b.best.score)}) has no swing or health samples, so there is no curve to compare.</p>;
   }
-  const hits = events.filter((e) => e.type === "hit" && isNum(P(e).swingSpeed)).map((e) => ({ t: e.t, speed: P(e).swingSpeed }));
+  const hits = events.filter((e) => e.type === "hit" && isNum(P(e).swingSpeed)).map((e) => ({ t: e.t, speed: clampSpeed(P(e).swingSpeed) }));
   const hpNow = events.filter((e) => isNum(P(e).monsterHp) && P(e).monsterMaxHp > 0).map((e) => ({ t: e.t, f: P(e).monsterHp / P(e).monsterMaxHp }));
   const summary = ghostSummary({ durationSec: session.durationSec, outcome: session.outcome, hits }, b);
   const pct = (f) => (isNum(f) ? `${Math.round(f * 100)}%` : "—");
