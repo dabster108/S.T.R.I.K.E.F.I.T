@@ -1607,3 +1607,18 @@
 @media (prefers-reduced-motion: reduce) {
   .cm-char { animation: none; opacity: 1; }
 }
+
+/* ---- STRIKEFIT Wrapped: the story's progress bar fills over a slide's time when auto-play is on (transform only) ---- */
+@keyframes wr-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.wr-progress {
+  animation: wr-progress var(--wr-ms, 6s) linear both;
+}
+:root[data-calm] .wr-progress {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wr-progress { animation: none; }
+}

@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { levelName } from "../lib/game.js";
+import { wrappedPath } from "../lib/wrapped.js";
 import { formatDuration, formatNumber, formatPercent, formatRelative, formatShortDate } from "../lib/format.js";
 import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useFeed, useLiveForPlayer, useLiveMessages } from "../live/LiveProvider.jsx";
@@ -283,6 +284,10 @@ export default function PlayerView() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <RankSummary name={name} />
+          <Link to={wrappedPath(name)} className={buttonClass("secondary", "sm")}>
+            <Icon name="sparkles" className="h-3.5 w-3.5" />
+            Wrapped
+          </Link>
           <Link to={`/dashboard/compare?a=${encodeURIComponent(name)}`} className={buttonClass("secondary", "sm")}>
             <Icon name="compare" className="h-3.5 w-3.5" />
             Compare with…

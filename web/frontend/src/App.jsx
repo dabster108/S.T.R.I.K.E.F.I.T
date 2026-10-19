@@ -17,6 +17,8 @@ const NotFoundView = lazy(() => import("./views/NotFoundView.jsx"));
 const MethodView = lazy(() => import("./views/MethodView.jsx"));
 const StudyView = lazy(() => import("./views/StudyView.jsx"));
 const StoryPublicView = lazy(() => import("./views/StoryPublicView.jsx"));
+// STRIKEFIT Wrapped: a player's week as a five-slide story. Its own chunk, so it costs nothing until someone opens it.
+const WrappedView = lazy(() => import("./views/WrappedView.jsx"));
 
 function DashboardFallback() {
   return (
@@ -94,6 +96,14 @@ function AppRoutes() {
         element={
           <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
             <StoryPublicView />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/wrapped/:player"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <WrappedView />
           </Suspense>
         }
       />

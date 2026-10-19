@@ -811,8 +811,19 @@ async function playerFingerprint(name) {
     const any = await query("SELECT 1 FROM sessions WHERE player_name = $1 LIMIT 1", [name]);
     if (!any.rowCount) return null;
   }
+  return {
+    playerName: name,
+    fights: rows.length,
+    window: `The last ${FINGERPRINT_FIGHTS} finished fights with swing data${rows.length ? ` (${rows.length} found)` : ""}.`,
+    ...(await fingerprintOfRows(rows)),
+  };
+}
+
+// The fingerprint of a given set of fights (rows: [{ id, durationSec, ... }]), the same maths as above: used for the last 10 fights
+// (playerFingerprint) and for one week of fights (STRIKEFIT Wrapped). Pass `hitsBySession` when the hits are already loaded.
+async function fingerprintOfRows(rows, hitsBySession = null) {
   const ids = rows.map((r) => r.id);
-  const hitsBySession = await hitsForSessions(ids);
+  hitsBySession = hitsBySession || (await hitsForSessions(ids));
   // Dodge needs WHEN each attack started and WHEN the player was hurt (fight clock), not just how many.
   const timed = ids.length
     ? (await query(
@@ -830,16 +841,13 @@ async function playerFingerprint(name) {
     const mine = timed.filter((r) => r.id === id);
     return { attacks: mine.filter((r) => r.type === "monster_attack").map((r) => num(r.t)), hurts: mine.filter((r) => r.type === "player_hurt").map((r) => num(r.t)).filter((t) => t !== null) };
   });
-  const fades = rows.map((r) => effort.fade(hitsBySession.get(r.id), num(r.durationSec)));
+  const fades = rows.map((r) => effort.fade(hitsBySession.get(r.id) || [], num(r.durationSec)));
   const result = effort.fingerprint({
-    hits: ids.flatMap((id) => hitsBySession.get(id)),
+    hits: ids.flatMap((id) => hitsBySession.get(id) || []),
     fades,
     attackFights,
   });
   return {
-    playerName: name,
-    fights: rows.length,
-    window: `The last ${FINGERPRINT_FIGHTS} finished fights with swing data${rows.length ? ` (${rows.length} found)` : ""}.`,
     ...result,
     averageFade: effort.averageFade(fades),
     speedCap: SWING_CAP,
@@ -905,6 +913,7 @@ async function exportEventsCsv(filters) {
 
 module.exports = {
   hitsForSessions,
+  fingerprintOfRows,
   playerInsights,
   playerChecklist,
   overview,
