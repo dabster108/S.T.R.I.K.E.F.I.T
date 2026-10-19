@@ -85,6 +85,7 @@ function HeaderMenu() {
         aria-expanded={open}
         aria-haspopup="true"
         aria-controls="header-menu"
+        aria-label="Guide and help"
         className="press inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)]"
       >
         <Icon name="compass" className="h-4 w-4" />
@@ -155,7 +156,7 @@ export default function Topbar({ onMenu, onSearch }) {
     <>
       <span ref={sentinel} className="block h-px" aria-hidden />
       <header
-        className={`sticky top-0 z-20 flex items-center gap-3 border-b bg-[var(--surface)]/90 px-4 py-3 backdrop-blur-md transition-[border-color,box-shadow] duration-300 sm:px-6 lg:px-8 ${
+        className={`sticky top-0 z-20 flex items-center gap-3 border-b bg-[var(--surface)] px-4 py-3 transition-[border-color,box-shadow] duration-300 sm:px-6 lg:px-8 ${
           raised ? "border-[var(--border)] shadow-[0_1px_12px_rgb(15_23_42/0.06)]" : "border-transparent"
         }`}
       >

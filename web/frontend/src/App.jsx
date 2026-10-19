@@ -11,6 +11,7 @@ const BroadcastView = lazy(() => import("./views/BroadcastView.jsx"));
 const FeedbackView = lazy(() => import("./views/FeedbackView.jsx"));
 const MonstersView = lazy(() => import("./views/MonstersView.jsx"));
 const ChallengeView = lazy(() => import("./views/ChallengeView.jsx"));
+const NotFoundView = lazy(() => import("./views/NotFoundView.jsx"));
 const StoryPublicView = lazy(() => import("./views/StoryPublicView.jsx"));
 
 function DashboardFallback() {
@@ -91,7 +92,14 @@ export default function App() {
           </Suspense>
         }
       />
-      <Route path="*" element={<Landing />} />
+      <Route
+        path="*"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <NotFoundView />
+          </Suspense>
+        }
+      />
     </Routes>
   );
 }

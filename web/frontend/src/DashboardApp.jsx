@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useTelemetry } from "./hooks/useTelemetry.js";
 import { filterByRange } from "./lib/derive.js";
 import { formatNumber } from "./lib/format.js";
@@ -34,6 +34,8 @@ const PlayersView = lazy(() => import("./views/PlayersView.jsx"));
 const PlayerView = lazy(() => import("./views/PlayerView.jsx"));
 const CompareView = lazy(() => import("./views/CompareView.jsx"));
 const AnalyticsView = lazy(() => import("./views/AnalyticsView.jsx"));
+const SettingsView = lazy(() => import("./views/SettingsView.jsx"));
+const DashboardNotFound = lazy(() => import("./views/NotFoundView.jsx").then((m) => ({ default: m.DashboardNotFound })));
 const LabView = lazy(() => import("./views/LabView.jsx"));
 const EngagementView = lazy(() => import("./views/EngagementView.jsx"));
 const ExportView = lazy(() => import("./views/ExportView.jsx"));
@@ -57,6 +59,9 @@ const TITLES = {
   engagement: "Engagement",
   export: "Export",
   guide: "User guide",
+  connection: "Connection",
+  broadcast: "Broadcast",
+  story: "Story",
 };
 const SKELETONS = {
   "": OverviewSkeleton,
@@ -164,7 +169,7 @@ function Dashboard() {
   const openSession = useCallback((id) => navigate(`/dashboard/session/${encodeURIComponent(id)}`), [navigate]);
 
   useEffect(() => {
-    document.title = `${TITLES[section] || "Dashboard"} · STRIKEFIT`;
+    document.title = `${TITLES[section] || "Page not found"} · STRIKEFIT`;
     if (renamed) return;
     window.scrollTo({ top: 0 });
     setMenuOpen(false);
@@ -227,19 +232,38 @@ function Dashboard() {
                   <Route path="engagement" element={<EngagementView />} />
                   <Route path="export" element={<ExportView />} />
                   <Route path="guide" element={<GuideView />} />
+                  {/* the Connection page was linked from the top bar, the guide and the palette but had lost its route */}
+                  <Route
+                    path="connection"
+                    element={<SettingsView connection={t.connection} health={t.health} checkHealth={t.checkHealth} pingRoundTrip={t.pingRoundTrip} refresh={t.refresh} toast={push} />}
+                  />
                   <Route path="story" element={<Suspense fallback={<GenericSkeleton />}><StoryView /></Suspense>} />
-                  <Route path="*" element={overview} />
+                  <Route path="*" element={<DashboardNotFound />} />
                 </Routes>
               </Suspense>
             </div>
           )}
 
-          <footer className="pt-10 text-center text-xs font-semibold text-[var(--muted)]">
-            STRIKEFIT · VR combat telemetry · <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">Ctrl</kbd> +{" "}
-            <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">K</kbd> to jump anywhere ·{" "}
-            <button type="button" onClick={() => setShortcutsOpen(true)} className="press rounded font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline">
-              <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">?</kbd> shortcuts
-            </button>
+          <footer className="mt-12 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-[var(--border)] pt-6 text-xs font-semibold text-[var(--muted)]">
+            <p>STRIKEFIT · VR fitness research prototype</p>
+            <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {[
+                ["/dashboard/guide", "User guide"],
+                ["/dashboard/connection", "Connection"],
+                ["/dashboard/export", "Export data"],
+                ["/", "Public site"],
+              ].map(([to, label]) => (
+                <Link key={to} to={to} className="press rounded hover:text-[var(--accent)] hover:underline">
+                  {label}
+                </Link>
+              ))}
+            </nav>
+            <p className="flex items-center gap-1.5">
+              <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">Ctrl</kbd>+<kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">K</kbd> jump ·
+              <button type="button" onClick={() => setShortcutsOpen(true)} className="press rounded font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline">
+                <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">?</kbd> shortcuts
+              </button>
+            </p>
           </footer>
         </main>
       </div>

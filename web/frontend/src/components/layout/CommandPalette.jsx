@@ -4,6 +4,22 @@ import { api } from "../../lib/api.js";
 import { formatNumber } from "../../lib/format.js";
 import Icon from "../ui/Icon.jsx";
 import { NAV } from "./Sidebar.jsx";
+import { useLiveIds } from "../../live/LiveProvider.jsx";
+import { liveStore } from "../../live/liveStore.js";
+import { levelName } from "../../lib/game.js";
+
+// The matched part of a label in bold, so it is clear why a result is there.
+function Highlight({ text, needle }) {
+  const i = needle ? text.toLowerCase().indexOf(needle) : -1;
+  if (i < 0) return text;
+  return (
+    <>
+      {text.slice(0, i)}
+      <mark className="rounded-sm bg-transparent font-extrabold text-[var(--accent-strong)]">{text.slice(i, i + needle.length)}</mark>
+      {text.slice(i + needle.length)}
+    </>
+  );
+}
 
 const PAGES = [
   ...NAV.map((n) => ({ kind: "page", id: n.to, label: n.label, icon: n.icon, to: n.to })),
@@ -60,11 +76,22 @@ export default function CommandPalette({ open, onClose }) {
     return () => {
       alive = false;
       returnFocus.current?.focus?.();
+      setQ(""); // cleared on close, so a fast reopen-and-type never starts from the old query
+      setActive(0);
     };
   }, [open]);
 
   const needle = q.trim().toLowerCase();
+  const liveIds = useLiveIds();
   const groups = useMemo(() => {
+    // Fights being played right now come first: the most likely place someone wants to jump to.
+    const live = filter(
+      liveIds
+        .map((id) => liveStore.getSession(id))
+        .filter((e) => e && e.session.status === "live")
+        .map((e) => ({ kind: "live", id: `live:${e.session.id}`, label: `${e.session.playerName} is fighting`, icon: "live", to: "/dashboard/live", hint: `${levelName(e.session.level)} · open the Live Arena`, keywords: e.session.playerName })),
+      needle
+    );
     const pages = filter(PAGES, needle);
     const people = filter(
       (players || []).map((p) => ({
@@ -78,10 +105,11 @@ export default function CommandPalette({ open, onClose }) {
       needle
     ).slice(0, needle ? 8 : 5);
     return [
+      { title: "Live now", items: live },
       { title: "Pages", items: pages },
       { title: "Players", items: people },
     ].filter((g) => g.items.length);
-  }, [needle, players]);
+  }, [needle, players, liveIds]);
   const flat = groups.flatMap((g) => g.items);
 
   useEffect(() => {
@@ -116,7 +144,7 @@ export default function CommandPalette({ open, onClose }) {
 
   let index = -1;
   return (
-    <div className="fade-in fixed inset-0 z-50 flex items-start justify-center bg-gray-900/30 px-4 pt-[12vh] backdrop-blur-[2px]" onMouseDown={onClose}>
+    <div className="fade-in fixed inset-0 z-50 flex items-start justify-center bg-gray-900/40 px-4 pt-[12vh]" onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -164,7 +192,11 @@ export default function CommandPalette({ open, onClose }) {
                     onClick={() => go(item)}
                     className={`flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-150 ${on ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]" : "text-[var(--ink)]"}`}
                   >
-                    {item.kind === "player" ? (
+                    {item.kind === "live" ? (
+                      <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-[var(--good-soft)] text-[var(--good-ink)]">
+                        <span className="status-live h-2.5 w-2.5 rounded-full bg-[var(--good)]" aria-hidden />
+                      </span>
+                    ) : item.kind === "player" ? (
                       <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">{item.label.slice(0, 2).toUpperCase()}</span>
                     ) : (
                       <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${on ? "bg-[var(--surface)]" : "bg-[var(--surface-muted)]"}`}>
@@ -172,7 +204,9 @@ export default function CommandPalette({ open, onClose }) {
                       </span>
                     )}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">{item.label}</span>
+                      <span className="block truncate text-sm font-semibold">
+                        <Highlight text={item.label} needle={needle} />
+                      </span>
                       {item.hint && <span className="block truncate text-xs font-medium text-[var(--muted)]">{item.hint}</span>}
                     </span>
                     {on && <Icon name="enter" className="h-4 w-4 opacity-70" />}
@@ -181,9 +215,21 @@ export default function CommandPalette({ open, onClose }) {
               })}
             </div>
           ))}
-          {players === null && <p className="px-3 py-2 text-xs font-medium text-[var(--muted)]">Loading players…</p>}
+          {players === null && (
+            <div className="space-y-2 px-3 py-2" aria-hidden>
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="skeleton h-7 w-7 rounded-full" />
+                  <span className="skeleton h-3 flex-1 rounded" />
+                </div>
+              ))}
+            </div>
+          )}
           {!flat.length && players !== null && (
-            <p className="px-3 py-8 text-center text-sm font-medium text-[var(--muted)]">Nothing matches “{q}”.</p>
+            <div className="px-3 py-8 text-center">
+              <p className="text-sm font-bold text-[var(--ink)]">Nothing matches “{q}”</p>
+              <p className="mt-1 text-xs font-medium text-[var(--muted)]">Try a player's name, or a page such as Live Arena, Sessions or Thesis Lab.</p>
+            </div>
           )}
         </div>
 
