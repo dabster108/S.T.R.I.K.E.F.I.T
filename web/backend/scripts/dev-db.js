@@ -1,90 +1,85 @@
-// A throwaway local Postgres in Docker for development, so nothing local ever touches the production database.
+// The local development database: PGlite (real Postgres compiled to WebAssembly, an npm dev dependency) served on
+// 127.0.0.1:54329 over the normal Postgres protocol, so the backend's `pg` pool talks to it exactly like to Neon.
+// No Docker, no system install, no background service: the database runs while this process runs.
 //
-//   npm run dev:db            start it (creates it the first time) and write .env.development
-//   npm run dev:db -- stop    stop it (data is kept in the Docker volume)
-//   npm run dev:db -- reset   delete it and its data, then start a fresh empty one
-//   npm run dev:db -- status
+//   npm run dev:db            run the database in this terminal (Ctrl+C stops it; npm run dev:safe starts it for you)
+//   npm run dev:db -- reset   delete the local data (web/backend/.dev-db) so the next start is empty
+//   npm run dev:db -- status  is something listening on the port?
 //
-// Container strikefit-dev-pg, image postgres:16-alpine, bound to 127.0.0.1:54329 only. The credentials are local-only and
-// meaningless anywhere else. The server applies schema.sql on boot, so a fresh database needs nothing else.
+// Data lives in web/backend/.dev-db (git-ignored). The server applies schema.sql on boot, so an empty database needs nothing else.
+// PGlite is a single-session database: the socket server queues queries from up to MAX_CONNECTIONS clients, and the backend
+// uses ONE pooled connection in development (DB_POOL_MAX=1 in .env.development) so a transaction is never interleaved.
 
-const { spawnSync } = require("child_process");
 const fs = require("fs");
+const net = require("net");
 const path = require("path");
 
-const NAME = "strikefit-dev-pg";
-const VOLUME = "strikefit-dev-pgdata";
-const IMAGE = "postgres:16-alpine";
-const PORT = 54329;
-const URL = `postgres://strikefit:strikefit@127.0.0.1:${PORT}/strikefit_dev`;
+const HOST = "127.0.0.1";
+const PORT = Number(process.env.DEV_DB_PORT) || 54329;
+const MAX_CONNECTIONS = 4; // the backend (1) plus a script or psql
+const DATA_DIR = path.join(__dirname, "..", ".dev-db");
+const URL = `postgres://postgres:postgres@${HOST}:${PORT}/postgres`;
 const ENV_FILE = path.join(__dirname, "..", ".env.development");
-
-const docker = (...args) => spawnSync("docker", args, { encoding: "utf8" });
-const out = (r) => `${r.stdout || ""}${r.stderr || ""}`.trim();
-
-function requireDocker() {
-  const r = docker("info", "--format", "{{.ServerVersion}}");
-  if (r.error || r.status !== 0) {
-    console.error("[dev-db] Docker is not running. Start Docker Desktop, then run this again.\n" + out(r));
-    process.exit(1);
-  }
-}
-
-const state = () => {
-  const r = docker("inspect", "-f", "{{.State.Running}}", NAME);
-  return r.status !== 0 ? "missing" : out(r) === "true" ? "running" : "stopped";
-};
+const MARKER = "Created by npm run dev:db";
 
 function writeEnvFile() {
-  if (fs.existsSync(ENV_FILE)) return false;
-  fs.writeFileSync(
-    ENV_FILE,
-    `# Local development only (git-ignored). Created by npm run dev:db. A development process refuses any remote DATABASE_URL.\nDATABASE_URL=${URL}\nPORT=4000\n`
-  );
-  return true;
+  const want = `# Local development only (git-ignored). ${MARKER}. A development process refuses any remote DATABASE_URL.\nDATABASE_URL=${URL}\nDB_POOL_MAX=1\nPORT=4000\n`;
+  const have = fs.existsSync(ENV_FILE) ? fs.readFileSync(ENV_FILE, "utf8") : null;
+  if (have === null || (have.includes(MARKER) && have !== want)) {
+    fs.writeFileSync(ENV_FILE, want);
+    return true;
+  }
+  return false; // a hand-written .env.development is left alone
 }
 
-async function waitReady() {
-  for (let i = 0; i < 60; i++) {
-    const r = docker("exec", NAME, "pg_isready", "-U", "strikefit", "-d", "strikefit_dev");
-    if (r.status === 0) return;
-    await new Promise((res) => setTimeout(res, 500));
-  }
-  console.error("[dev-db] Postgres did not become ready in 30 s. See: docker logs " + NAME);
-  process.exit(1);
-}
+const portInUse = () =>
+  new Promise((resolve) => {
+    const s = net.connect({ host: HOST, port: PORT });
+    s.once("connect", () => (s.destroy(), resolve(true)));
+    s.once("error", () => resolve(false));
+  });
 
 async function up() {
-  requireDocker();
-  const s = state();
-  if (s === "missing") {
-    console.log(`[dev-db] creating ${NAME} (${IMAGE}, 127.0.0.1:${PORT}); the first run downloads the image`);
-    const r = docker("run", "-d", "--name", NAME, "-p", `127.0.0.1:${PORT}:5432`, "-e", "POSTGRES_USER=strikefit", "-e", "POSTGRES_PASSWORD=strikefit", "-e", "POSTGRES_DB=strikefit_dev", "-v", `${VOLUME}:/var/lib/postgresql/data`, IMAGE);
-    if (r.status !== 0) {
-      console.error("[dev-db] could not create the container:\n" + out(r));
-      process.exit(1);
-    }
-  } else if (s === "stopped") {
-    console.log(`[dev-db] starting ${NAME}`);
-    docker("start", NAME);
+  if (await portInUse()) {
+    console.error(`[dev-db] port ${PORT} is already in use (is the dev database already running?)`);
+    process.exit(1);
   }
-  await waitReady();
-  const made = writeEnvFile();
-  console.log(`[dev-db] ready: ${URL}${made ? "\n[dev-db] wrote web/backend/.env.development" : ""}`);
+  const { PGlite } = await import("@electric-sql/pglite");
+  const { PGLiteSocketServer } = await import("@electric-sql/pglite-socket");
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const db = await PGlite.create({ dataDir: DATA_DIR });
+  const server = new PGLiteSocketServer({ db, host: HOST, port: PORT, maxConnections: MAX_CONNECTIONS });
+  await server.start();
+  const wrote = writeEnvFile();
+  console.log(`[dev-db] PGlite ready: ${URL}  (data: web/backend/.dev-db)${wrote ? "\n[dev-db] wrote web/backend/.env.development" : ""}`);
+  let stopping = false;
+  const stop = async () => {
+    if (stopping) return;
+    stopping = true;
+    await server.stop().catch(() => {});
+    await db.close().catch(() => {});
+    console.log("[dev-db] stopped");
+    process.exit(0);
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
 }
 
 (async () => {
   const cmd = process.argv[2] || "up";
   if (cmd === "up") return up();
-  requireDocker();
-  if (cmd === "status") return console.log(`[dev-db] ${NAME}: ${state()}`);
-  if (cmd === "stop") return console.log(state() === "running" ? out(docker("stop", NAME)) + " stopped" : "[dev-db] not running");
+  if (cmd === "status") return console.log(`[dev-db] ${HOST}:${PORT} ${(await portInUse()) ? "is listening" : "is not running"}`);
   if (cmd === "reset") {
-    docker("rm", "-f", NAME);
-    docker("volume", "rm", VOLUME);
-    console.log("[dev-db] removed the dev database and its data");
-    return up();
+    if (await portInUse()) {
+      console.error("[dev-db] stop the running dev database first (Ctrl+C in its terminal, or stop npm run dev:safe)");
+      process.exit(1);
+    }
+    fs.rmSync(DATA_DIR, { recursive: true, force: true });
+    return console.log("[dev-db] deleted web/backend/.dev-db: the next start is an empty database");
   }
-  console.error(`[dev-db] unknown command "${cmd}" (up | stop | reset | status)`);
+  console.error(`[dev-db] unknown command "${cmd}" (up | reset | status)`);
   process.exit(1);
-})();
+})().catch((e) => {
+  console.error("[dev-db] failed:", e.message);
+  process.exit(1);
+});

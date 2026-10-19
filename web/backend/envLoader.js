@@ -6,15 +6,15 @@
 //                keys it holds (BROADCAST_KEY, TURN, ...) but its DATABASE_URL is IGNORED, so the production connection
 //                string in .env can never be picked up by accident.
 //
-// Guard: a development process only starts if DATABASE_URL points at this machine (localhost, 127.0.0.1, ::1,
-// host.docker.internal) or at a host listed in DEV_DB_ALLOWED_HOSTS (comma separated, e.g. a Neon dev branch).
+// Guard: a development process only starts if DATABASE_URL points at this machine (localhost, 127.0.0.1, ::1)
+// or at a host listed in DEV_DB_ALLOWED_HOSTS (comma separated, e.g. a Neon dev branch).
 // Anything else, including the production Neon host, stops the process with a message, unless ALLOW_PROD_DB=1 is set.
 
 const fs = require("fs");
 const path = require("path");
 const dotenv = require("dotenv");
 
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "host.docker.internal"]);
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 function isProduction(env = process.env) {
   return Boolean(env.RENDER) || env.NODE_ENV === "production" || env.APP_ENV === "production";
@@ -55,8 +55,8 @@ function enforce(env = process.env, exit = (code) => process.exit(code), log = c
   if (isProduction(env)) return { ok: true, mode: "production" };
   if (!env.DATABASE_URL) {
     log(
-      "[db] DATABASE_URL is not set for development. Run `npm run dev:safe` (starts a local Postgres in Docker and the whole stack),\n" +
-        "     or `npm run dev:db` and then `npm start`. web/backend/.env is deliberately NOT used for DATABASE_URL on a laptop."
+      "[db] DATABASE_URL is not set for development. Run `npm run dev:safe` (starts the local PGlite database and the whole stack),\n" +
+        "     or `npm run dev:db` in one terminal and `npm start` in another. web/backend/.env is deliberately NOT used for DATABASE_URL on a laptop."
     );
     exit(1);
     return { ok: false };

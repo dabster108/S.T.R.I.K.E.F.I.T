@@ -14,7 +14,7 @@ const tmp = (files) => {
 };
 
 test("a development process accepts only this machine", () => {
-  for (const host of ["localhost", "127.0.0.1", "[::1]", "host.docker.internal"]) {
+  for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
     assert.equal(loader.checkDatabaseUrl(`postgres://u:p@${host}:5432/db`, {}).ok, true, host);
   }
   const prod = loader.checkDatabaseUrl(PROD_URL, {});

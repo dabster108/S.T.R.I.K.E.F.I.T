@@ -10,10 +10,10 @@ The Unity game (`Assets/Scripts/Networking/SessionReporter.cs`) posts to the bac
 A process on your laptop **never uses the production database**. `web/backend/.env` still holds the production `DATABASE_URL` for Render's sake, but a development process ignores that line and refuses to start if its `DATABASE_URL` is anything other than this machine (or a host you list in `DEV_DB_ALLOWED_HOSTS`). `ALLOW_PROD_DB=1` overrides the refusal on purpose; nothing sets it for you. Render counts as production because it always sets `RENDER=true` (elsewhere set `NODE_ENV=production`).
 
 ```bash
-# one-time: Docker Desktop must be running, and both packages installed
+# one-time: install both packages (the dev database, PGlite, comes with the backend's dev dependencies: no Docker, no Postgres install)
 cd web/backend && npm install && cd ../frontend && npm install && cd ..
 
-# everything, against a throwaway local Postgres (Docker container strikefit-dev-pg on 127.0.0.1:54329):
+# everything, against a local PGlite database (Postgres in WebAssembly) on 127.0.0.1:54329, data in web/backend/.dev-db:
 cd web && npm run dev:safe
 #   site + dashboard  http://localhost:5173      API  http://localhost:4000
 #   first run: creates the container, applies the schema, seeds 15 simulated fights (players ZZTEST-ann/bo/cy/dee)
@@ -25,7 +25,7 @@ cd web/backend && npm run simulate -- --url http://localhost:4000 --player ZZTES
 #   --level Easy|Medium|Hard   --outcome victory|defeat|abandoned   --fast (no waiting)   --keep
 
 # the database on its own
-npm run dev:db              # start   (npm run dev:db -- stop | reset | status)
+npm run dev:db              # run it in this terminal (Ctrl+C stops it); npm run dev:db -- reset | status
 npm run dev:seed            # seed an already running dev backend
 ```
 

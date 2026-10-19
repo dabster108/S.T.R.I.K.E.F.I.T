@@ -24,7 +24,8 @@ const isLocal = ["localhost", "127.0.0.1", "::1"].includes(connectionUrl.hostnam
 const pool = new Pool({
   connectionString: connectionUrl.toString(),
   ssl: isLocal ? false : { rejectUnauthorized: true },
-  max: 5,
+  // Development sets DB_POOL_MAX=1: the local PGlite database is single-session, and one connection keeps transactions whole.
+  max: Number(process.env.DB_POOL_MAX) > 0 ? Number(process.env.DB_POOL_MAX) : 5,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,
 });
