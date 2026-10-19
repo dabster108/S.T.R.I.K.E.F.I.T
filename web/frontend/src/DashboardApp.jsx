@@ -1,9 +1,10 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useTelemetry } from "./hooks/useTelemetry.js";
 import { filterByRange } from "./lib/derive.js";
 import { formatNumber } from "./lib/format.js";
 import { LiveProvider, useLiveIds, useLiveMessages } from "./live/LiveProvider.jsx";
+import { liveStore } from "./live/liveStore.js";
 import { MobileNav, Sidebar } from "./components/layout/Sidebar.jsx";
 import Topbar from "./components/layout/Topbar.jsx";
 import CommandPalette from "./components/layout/CommandPalette.jsx";
@@ -99,7 +100,11 @@ function Dashboard() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { toasts, push, dismiss } = useToasts();
-  const liveCount = useLiveIds().length;
+  // Fights that are being played, not ones lingering for their result moment: the badge must agree with the Live Arena page.
+  const liveIds = useLiveIds();
+  const [, recount] = useReducer((n) => n + 1, 0);
+  useLiveMessages((type) => (type === "session_started" || type === "session_finished" || type === "session_deleted") && recount());
+  const liveCount = liveIds.filter((id) => liveStore.getSession(id)?.session.status === "live").length;
 
   const onSession = useCallback(
     (s) =>
@@ -197,7 +202,8 @@ function Dashboard() {
 
       <div className="min-w-0 lg:pl-[var(--sb)]">
         <Topbar onMenu={() => setMenuOpen(true)} onSearch={() => setPaletteOpen(true)} />
-        <main id="main" className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        {/* the Live Arena gets a wider column: it is meant to be read from across a room on a projector */}
+        <main id="main" className={`mx-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8 ${section === "live" ? "max-w-[1760px]" : "max-w-7xl"}`}>
           {t.loading && needsTelemetry ? (
             <Fallback />
           ) : (

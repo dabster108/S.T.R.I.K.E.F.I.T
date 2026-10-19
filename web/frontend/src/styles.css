@@ -1390,3 +1390,46 @@
   outline-offset: 3px;
   border-radius: 999px;
 }
+
+/* ---- Live Arena (components/live/arena/*): transform and opacity only, small elements only. Reduced motion is covered by the global
+   rule; the Calm-mode rules below give the same static result. ---- */
+@keyframes arena-feed-in {
+  from { opacity: 0; transform: translate3d(0, -8px, 0); }
+  to { opacity: 1; transform: none; }
+}
+.arena-feed-in { animation: arena-feed-in 0.22s var(--ease-out) both; }
+/* the attack telegraph: a bar that fills over the wind-up time (--wind), so the player sees how long they have */
+@keyframes arena-telegraph {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.arena-telegraph { transform-origin: left center; animation: arena-telegraph var(--wind, 1s) linear both; }
+@keyframes arena-clash {
+  0% { opacity: 0; transform: scale(0.85); }
+  20% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 0; transform: scale(1); }
+}
+.arena-clash { animation: arena-clash 0.7s var(--ease-out) both; }
+@keyframes arena-rise {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; transform: none; }
+}
+.arena-rise { animation: arena-rise 0.32s var(--ease-out) both; }
+.arena-needle { transition: transform 0.18s ease-out; }
+.arena-fill { transition: transform 0.35s var(--ease-out); }
+.arena-trail { transition: transform 0.8s var(--ease-out) 0.25s; }
+:root[data-calm] .arena-feed-in,
+:root[data-calm] .arena-telegraph,
+:root[data-calm] .arena-clash,
+:root[data-calm] .arena-rise {
+  animation: none !important;
+}
+:root[data-calm] .arena-needle,
+:root[data-calm] .arena-fill,
+:root[data-calm] .arena-trail {
+  transition: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .arena-telegraph, .arena-feed-in, .arena-clash, .arena-rise { animation: none !important; }
+  .arena-needle, .arena-fill, .arena-trail { transition: none !important; }
+}

@@ -86,7 +86,7 @@ function PaceChart({ live, ghost, now, ghostBest }) {
   );
 }
 
-export default function GhostPace({ id, session, state }) {
+export default function GhostPace({ id, session, state, flush = false }) {
   const level = ["Easy", "Medium", "Hard"].includes(session.level) ? session.level : null;
   const best = useApi(() => (level ? api.playerBestPace(session.playerName, level) : Promise.resolve(null)), [session.playerName, level]);
   const hits = useLiveHits(id);
@@ -105,7 +105,7 @@ export default function GhostPace({ id, session, state }) {
   else if (data && data.reason === "no_events") note = "Your best fight on this level has no swing data, so there is no pace line to compare.";
 
   return (
-    <section className="mt-4 border-t border-[var(--border)] pt-3" style={{ minHeight: BLOCK_MIN_H }} aria-label="Pace against your best fight">
+    <section className={flush ? "" : "mt-4 border-t border-[var(--border)] pt-3"} style={{ minHeight: BLOCK_MIN_H }} aria-label="Pace against your best fight">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-xs font-bold text-[var(--ink)]">Damage pace</h3>
         {chip && <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-extrabold ring-1 ring-inset ${CHIP_TONE[chip.tone]}`}>{chip.text}</span>}

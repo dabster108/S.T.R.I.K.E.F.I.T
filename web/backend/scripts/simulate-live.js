@@ -112,9 +112,12 @@ async function runFight(opts = {}) {
 
     // Swings: 0-3 per tick; effort fades a little late in the fight.
     const fatigue = lerp(1, 0.82, progress);
-    // Pace the damage so the monster dies near 90 % of the fight (victory) or stays well above 40 % HP (defeat / abandoned).
-    const target = OUTCOME === "victory" ? Math.max(0, 1 - 1.1 * progress) : Math.max(0.4, 1 - 0.5 * progress);
-    const pace = Math.min(3, Math.max(0.4, 1 + ((s.monsterHp / cfg.monsterHp - target) * 4)));
+    // Pace both sides with a feedback loop on the HP fractions: a victory has the monster reach 0 near 90 % of the fight and the player
+    // keep at least a third; a defeat the other way round; an abandoned fight stays close and open.
+    const monsterTarget = OUTCOME === "victory" ? Math.max(0, 1 - 1.1 * progress) : Math.max(0.45, 1 - 0.45 * progress);
+    const playerTarget = OUTCOME === "defeat" ? Math.max(0, 1 - 1.1 * progress) : Math.max(0.4, 1 - 0.5 * progress);
+    const pace = Math.min(3, Math.max(0.06, 1 + (s.monsterHp / cfg.monsterHp - monsterTarget) * 7));
+    const hurtPace = Math.min(3, Math.max(0.12, 1 + (s.playerHp / cfg.hp - playerTarget) * 7));
     for (let i = Math.floor(rnd() * 3.4); i > 0; i--) {
       // 10 % of swings are raw speeds above the game's 8 m/s cap, like the real headset reports.
       const raw = rnd() < 0.1 ? 8 + rnd() * 6 : (rnd() * 5.5 + 0.8) * skill * fatigue;
@@ -167,10 +170,10 @@ async function runFight(opts = {}) {
       const p = pending[i];
       if (t < p.at) continue;
       pending.splice(i, 1);
-      const lands = OUTCOME === "defeat" ? rnd() < 0.85 : rnd() < 0.5;
+      const lands = rnd() < (OUTCOME === "defeat" ? 0.85 : 0.5);
       if (lands) {
         for (let k = 0; k < p.hits; k++) {
-          const amount = r2(cfg.monsterDmg * (CATEGORY_DAMAGE[p.attack.category] || 1) * lerp(0.8, 1.2, rnd()) * (OUTCOME === "defeat" ? 1.6 : 0.9) / p.hits);
+          const amount = r2(cfg.monsterDmg * (CATEGORY_DAMAGE[p.attack.category] || 1) * lerp(0.8, 1.2, rnd()) * hurtPace / p.hits);
           s.playerHp = Math.max(0, s.playerHp - amount);
           ev("player_hurt", `Took ${amount.toFixed(1)} damage`, { amount, blocked: false, attack: p.attack.name, category: p.attack.category, ...snapshot() });
         }
