@@ -24,10 +24,11 @@ export default function LandingRest() {
     <>
       <Problem />
       <HowItWorks />
+      {/* the story: the problem, how it works, playing it (the headset, then the fight), the levels, the story, what was recorded, the thesis */}
       <GameplayShowcase />
+      <Combat />
       <Levels />
       <StoryMode />
-      <Combat />
       <LiveNumbers />
       <Thesis />
       <HowTo60 />

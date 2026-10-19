@@ -155,6 +155,7 @@
   }
   /* callout figures, set well above the stat size */
   .t-figure {
+    font-variant-numeric: tabular-nums; /* a counting number keeps its width: nothing beside it moves */
     font-size: clamp(3.25rem, 2rem + 4.6vw, 6rem);
     font-weight: var(--fw-heading);
     letter-spacing: -0.05em;
@@ -162,6 +163,7 @@
     font-variant-numeric: tabular-nums;
   }
   .t-figure-md {
+    font-variant-numeric: tabular-nums;
     font-size: clamp(2.25rem, 1.7rem + 2vw, 3.4rem);
     font-weight: var(--fw-heading);
     letter-spacing: -0.04em;
