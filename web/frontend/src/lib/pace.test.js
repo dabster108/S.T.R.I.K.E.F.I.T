@@ -24,6 +24,7 @@ test("ahead / behind chip", () => {
   assert.deepEqual(paceChip(140), { tone: "ahead", text: "Ahead of your best by 140 dmg" });
   assert.deepEqual(paceChip(-90.4), { tone: "behind", text: "Behind by 90 dmg" });
   assert.deepEqual(paceChip(0.2), { tone: "level", text: "Level with your best" });
+  assert.equal(paceChip(1722.4).text, "Ahead of your best by 1,722 dmg"); // thousands separator
   // time passing with no hit makes the live line fall behind a ghost that keeps scoring: at t=30 ghost 300, live still 240
   assert.equal(paceDelta(live, ghost, 30), -60);
 });

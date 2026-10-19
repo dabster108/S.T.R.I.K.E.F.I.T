@@ -43,7 +43,8 @@ export function paceChip(delta) {
   if (delta === null || !isNum(delta)) return null;
   const n = Math.round(Math.abs(delta));
   if (n < 1) return { tone: "level", text: "Level with your best" };
-  return delta > 0 ? { tone: "ahead", text: `Ahead of your best by ${n} dmg` } : { tone: "behind", text: `Behind by ${n} dmg` };
+  const v = n.toLocaleString("en-US"); // 1,722 dmg, like every other number on the dashboard
+  return delta > 0 ? { tone: "ahead", text: `Ahead of your best by ${v} dmg` } : { tone: "behind", text: `Behind by ${v} dmg` };
 }
 
 /** The moment the live fight is at: its own clock, or its last hit if that is later. */
