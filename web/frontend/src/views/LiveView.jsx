@@ -1,7 +1,12 @@
-import { lazy, Suspense, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useFeed, useLiveIds, useLiveMessages, useLiveReady } from "../live/LiveProvider.jsx";
 import { liveStore } from "../live/liveStore.js";
 import { RESULT_HOLD_MS } from "../lib/arena.js";
+import { arenaLink, effectiveChoice, pickStage, playersOnStage, readChoice, writeChoice } from "../lib/arenaView.js";
+import { copyText } from "../lib/toast.js";
+import { isTypingTarget } from "../components/layout/ShortcutsOverlay.jsx";
+import { anotherModalOpen } from "../components/onboarding/tourState.js";
+import ArenaSwitcher from "../components/live/arena/ArenaSwitcher.jsx";
 import { Card, SectionRule } from "../components/ui/Card.jsx";
 import { SegmentedControl } from "../components/ui/Controls.jsx";
 import { EmptyState, Skeleton } from "../components/ui/Feedback.jsx";
@@ -110,39 +115,142 @@ function StageSkeleton() {
   );
 }
 
+// Full screen for projecting: the browser's own full-screen mode where it is allowed, and an overlay that hides the sidebar, header and
+// everything below the fights either way. F toggles it, Esc leaves it.
+function useArenaFullscreen() {
+  const [fs, setFs] = useState(false);
+  const enter = useCallback(() => {
+    setFs(true);
+    document.documentElement.requestFullscreen?.().catch(() => {}); // refused (iframe, old Safari): the overlay alone still hides the chrome
+  }, []);
+  const exit = useCallback(() => {
+    setFs(false);
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  }, []);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
+      if (e.key === "Escape" && fs) {
+        e.preventDefault();
+        exit();
+      } else if ((e.key === "f" || e.key === "F") && !anotherModalOpen()) {
+        e.preventDefault();
+        fs ? exit() : enter();
+      }
+    };
+    const onChange = () => !document.fullscreenElement && setFs(false); // the browser's own Esc
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("fullscreenchange", onChange);
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    };
+  }, [fs, enter, exit]);
+  useEffect(() => {
+    if (!fs) return undefined;
+    const prev = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.documentElement.style.overflow = prev;
+    };
+  }, [fs]);
+  return { fs, enter, exit };
+}
+
 export default function LiveView() {
   const ready = useLiveReady();
   const stage = useStageIds();
   const live = useLiveIds().filter((id) => liveStore.getSession(id)?.session.status === "live").length;
   const [logOpen, setLogOpen] = useState(false);
+  const [choice, setChoice] = useState(() => readChoice(localStorage, window.location.search));
+  const { fs, enter, exit } = useArenaFullscreen();
+
+  const entries = stage
+    .map((id) => liveStore.getSession(id))
+    .filter(Boolean)
+    .map((e) => ({ id: e.session.id, playerName: e.session.playerName, level: e.session.level, live: e.session.status === "live", at: new Date(e.session.startedAt || 0).getTime() }))
+    .sort((a, b) => a.at - b.at || a.playerName.localeCompare(b.playerName)); // earliest fight first, so "Player 1" stays Player 1
+  const players = playersOnStage(entries);
+  const shown = pickStage(entries, choice);
+  const active = effectiveChoice(entries, choice);
+  const choose = (c) => {
+    setChoice(c);
+    writeChoice(localStorage, c);
+  };
+  const copyLink = () => copyText(arenaLink(window.location.origin, active), "Link");
 
   if (!ready) return <LiveSkeleton />;
+
+  const stages = shown.length ? (
+    <div className={shown.length > 1 ? "grid gap-12 2xl:grid-cols-2 2xl:gap-8" : ""}>
+      {shown.map((id, i) => (
+        <Suspense key={id} fallback={<StageSkeleton />}>
+          <ArenaStage id={id} primary={i === 0} compact={shown.length > 1} />
+        </Suspense>
+      ))}
+    </div>
+  ) : (
+    <QuietArena />
+  );
+
+  const controls = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button icon="link" onClick={copyLink}>
+        Copy link
+      </Button>
+      <Button icon={fs ? "minimize" : "maximize"} onClick={fs ? exit : enter} aria-pressed={fs} aria-keyshortcuts="F" title="Full screen for projecting (F)">
+        {fs ? "Exit full screen" : "Full screen"}
+        <kbd className="ml-1.5 rounded border border-[var(--border)] bg-[var(--surface-muted)] px-1 font-sans text-[0.6875rem] font-bold text-[var(--ink-secondary)]" aria-hidden>
+          F
+        </kbd>
+      </Button>
+    </div>
+  );
+  const status =
+    live > 1 ? (
+      <LiveChip label={`${live} fights live`} />
+    ) : live === 1 ? (
+      <LiveChip />
+    ) : (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-semibold text-[var(--ink-secondary)] ring-1 ring-inset ring-[var(--border)]">
+        <span className="h-2 w-2 rounded-full bg-gray-400" aria-hidden />
+        No fights right now
+      </span>
+    );
+
+  if (fs) {
+    return (
+      <div role="region" aria-label="Live Arena, full screen" className="fixed inset-0 z-[55] overflow-y-auto bg-[var(--bg)] px-5 py-5 sm:px-8 sm:py-6">
+        <div className="mx-auto max-w-[1920px] space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="t-eyebrow">STRIKEFIT · Live Arena</p>
+              {status}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {players.length > 1 && <ArenaSwitcher players={players} choice={active} onChoose={choose} />}
+              {controls}
+            </div>
+          </div>
+          {stages}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="t-eyebrow">Live Arena</p>
-        {live > 1 ? (
-          <LiveChip label={`${live} fights live`} />
-        ) : live === 1 ? null : ( // one live fight already carries its own LIVE chip in the stage header
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-semibold text-[var(--ink-secondary)] ring-1 ring-inset ring-[var(--border)]">
-            <span className="h-2 w-2 rounded-full bg-gray-400" aria-hidden />
-            No fights right now
-          </span>
-        )}
-      </div>
-
-      {stage.length ? (
-        <div className="space-y-12">
-          {stage.map((id, i) => (
-            <Suspense key={id} fallback={<StageSkeleton />}>
-              <ArenaStage id={id} primary={i === 0} />
-            </Suspense>
-          ))}
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="t-eyebrow">Live Arena</p>
+          {live > 1 ? status : live === 0 ? status : null /* one live fight already carries its own LIVE chip in the stage header */}
         </div>
-      ) : (
-        <QuietArena />
-      )}
+        {controls}
+      </div>
+      {players.length > 1 && <ArenaSwitcher players={players} choice={active} onChoose={choose} />}
+
+      {stages}
 
       <section aria-labelledby="milestones-title">
         <SectionRule id="milestones-title" index="01" title="Milestones · all players" />

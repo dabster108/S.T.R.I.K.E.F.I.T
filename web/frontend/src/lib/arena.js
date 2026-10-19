@@ -70,6 +70,22 @@ export function resultLabel(outcome) {
 }
 export const RESULT_HOLD_MS = 8000;
 
+// --- Impact moments -------------------------------------------------------------------------------------------------------------
+
+/**
+ * What a stream event means for the arena's impact moments, or null: a full-power hit that landed (not absorbed by the guard) gets
+ * the gauge punch and a floating "+damage"; a weapon clash gets a ring pulse. The tier is the one the game reported.
+ * -> { kind: "full", damage } | { kind: "clash" } | null
+ */
+export function impactOf(event) {
+  const p = event?.payload && typeof event.payload === "object" ? event.payload : {};
+  if (event?.type === "clash") return { kind: "clash" };
+  if (event?.type !== "hit" || p.defended === true) return null;
+  const tier = typeof p.tier === "string" ? p.tier.toLowerCase() : "";
+  if (tier !== "full" || !isNum(p.damage) || p.damage <= 0) return null;
+  return { kind: "full", damage: Math.round(p.damage) };
+}
+
 const num = (v, d = 0) => (isNum(v) ? Math.round(v * 10 ** d) / 10 ** d : null);
 
 /** The data-dependent half: monsters (story content) and attacks (prefab table). */

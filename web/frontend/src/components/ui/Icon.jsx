@@ -45,6 +45,7 @@ import {
   List,
   LoaderCircle,
   Maximize,
+  Minimize,
   Medal,
   Menu,
   Monitor,
@@ -156,6 +157,7 @@ const ICONS = {
   external: ExternalLink,
   pencil: PencilLine,
   maximize: Maximize,
+  minimize: Minimize,
   // engagement pass
   star: Star,
   thumbsUp: ThumbsUp,

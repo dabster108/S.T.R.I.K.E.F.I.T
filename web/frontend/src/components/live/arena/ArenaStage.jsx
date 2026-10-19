@@ -12,6 +12,7 @@ import Icon from "../../ui/Icon.jsx";
 import { LiveChip } from "../LiveFight.jsx";
 import GhostPace from "../GhostPace.jsx";
 import KillFeed from "./KillFeed.jsx";
+import { DamagePops, usePunch, useRing } from "./Impact.jsx";
 import { useArena } from "./useArena.js";
 
 // One live fight, laid out so that someone across the room can read it in two seconds: WHO is fighting WHICH monster (the headline),
@@ -45,15 +46,18 @@ function HpFill({ pct, color, trail, origin = "origin-left" }) {
   );
 }
 
-const MonsterCard = memo(function MonsterCard({ monster, hp, maxHp, guarding, clashing, phase }) {
+const MonsterCard = memo(function MonsterCard({ monster, hp, maxHp, guarding, clashing, phase, clashAt, impact, compact = false }) {
   const reduced = useReducedMotion();
+  const ring = useRing(clashAt);
   const frac = fraction(hp, maxHp);
   const glow = MONSTER_GLOW[monster.levelKey];
   const enraged = phase === 3;
   return (
-    <article className="grid min-w-0 grid-cols-[8.5rem_minmax(0,1fr)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)] lg:grid-cols-1" aria-label={`${monster.name}, the monster in this fight`}>
-      <div className="relative flex items-end justify-center overflow-hidden px-3 pt-4 lg:px-6 lg:pt-6" style={{ background: `linear-gradient(180deg, color-mix(in srgb, ${glow.aura} 14%, white) 0%, var(--surface) 100%)` }}>
+    <article className={`grid min-w-0 grid-cols-[8.5rem_minmax(0,1fr)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)] ${compact ? "" : "lg:grid-cols-1"}`} aria-label={`${monster.name}, the monster in this fight`}>
+      <div className={`relative flex items-end justify-center overflow-hidden px-3 pt-4 ${compact ? "" : "lg:px-6 lg:pt-6"}`} style={{ background: `linear-gradient(180deg, color-mix(in srgb, ${glow.aura} 14%, white) 0%, var(--surface) 100%)` }}>
         <MonsterPortrait level={monster.levelKey} size="md" glow={!reduced} intensity={frac ?? 1} className="!w-full max-w-[17.5rem]" />
+        {/* a ring that expands from the monster when weapons clash */}
+        <span ref={ring} className="pointer-events-none absolute left-1/2 top-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-[var(--warn)] opacity-0" aria-hidden />
         {/* state badges sit on the portrait; they appear and disappear, nothing larger moves */}
         <div className="pointer-events-none absolute left-2 top-2 flex flex-col items-start gap-1.5 lg:left-3 lg:top-3">
           {guarding && (
@@ -74,7 +78,7 @@ const MonsterCard = memo(function MonsterCard({ monster, hp, maxHp, guarding, cl
         )}
       </div>
 
-      <div className="min-w-0 p-4 lg:p-5">
+      <div className={`min-w-0 p-4 ${compact ? "" : "lg:p-5"}`}>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="rounded-md bg-[var(--surface-muted)] px-1.5 py-0.5 text-xs font-bold text-[var(--ink-secondary)] ring-1 ring-inset ring-[var(--border)]">{monster.levelName}</span>
           <span className="rounded-md bg-[var(--accent-soft)] px-1.5 py-0.5 text-xs font-bold text-[var(--accent-strong)] ring-1 ring-inset ring-[var(--accent-ring)]">{monster.difficulty}</span>
@@ -86,7 +90,8 @@ const MonsterCard = memo(function MonsterCard({ monster, hp, maxHp, guarding, cl
           </p>
         )}
 
-        <div className="mt-3">
+        <div className="relative mt-3">
+          <DamagePops impact={impact} />
           <div className="flex items-baseline justify-between gap-2">
             <Kicker className="text-[var(--hp-monster)]">Monster HP</Kicker>
             <p className="text-sm font-extrabold tabular-nums text-[var(--ink)]">
@@ -258,7 +263,8 @@ const arc = (from, to, r) => {
   return `M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 0 1 ${x2.toFixed(2)},${y2.toFixed(2)}`;
 };
 
-const SwingGauge = memo(function SwingGauge({ levelKey, swing, combo }) {
+const SwingGauge = memo(function SwingGauge({ levelKey, swing, combo, impact }) {
+  const { card, flash } = usePunch(impact);
   const bands = useMemo(() => swingBands(levelKey, SWING_SPEED_CAP), [levelKey]);
   const speed = swing ? swing.speed : 0;
   const band = swing ? bands.find((b) => speed >= b.from && speed < b.to) || bands[bands.length - 1] : bands[0];
@@ -267,7 +273,9 @@ const SwingGauge = memo(function SwingGauge({ levelKey, swing, combo }) {
   const color = TIER_COLOR[tierId] || TIER_COLOR.none;
   const deg = (Math.min(speed, SWING_SPEED_CAP) / SWING_SPEED_CAP) * 180;
   return (
-    <section className="flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)] sm:p-5" aria-label="Latest swing speed and combo">
+    <section ref={card} className="relative flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)] sm:p-5" aria-label="Latest swing speed and combo">
+      {/* the accent flash of a full-power hit (opacity only) */}
+      <span ref={flash} className="pointer-events-none absolute inset-0 rounded-2xl bg-[var(--accent)] opacity-0" aria-hidden />
       <div className="flex items-start justify-between gap-3">
         <Kicker className="text-[var(--muted)]">Swing speed</Kicker>
         <div className="text-right" aria-label={`Combo ${combo ?? 0}`}>
@@ -349,7 +357,7 @@ function ResultMoment({ session, monster }) {
 
 const initials = (name) => name.slice(0, 2).toUpperCase();
 
-export default memo(function ArenaStage({ id, primary = true }) {
+export default memo(function ArenaStage({ id, primary = true, compact = false }) {
   const entry = useLiveSession(id);
   const session = entry?.session;
   const st = entry?.liveState;
@@ -357,7 +365,7 @@ export default memo(function ArenaStage({ id, primary = true }) {
   const monster = useMemo(() => monsterFor(levelKey), [levelKey]);
   const monsterFrac = fraction(st?.monsterHp, st?.monsterMaxHp);
   const phase = monster?.hasPhases ? phaseOf(levelKey, monsterFrac) : null;
-  const { state, swing, now } = useArena(id, levelKey, phase === 3);
+  const { state, swing, now, impact } = useArena(id, levelKey, phase === 3);
   if (!entry || !monster) return null;
 
   const Heading = primary ? "h1" : "h2";
@@ -385,19 +393,19 @@ export default memo(function ArenaStage({ id, primary = true }) {
       {!live ? (
         <ResultMoment session={session} monster={monster} />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[19rem_minmax(0,1fr)] 2xl:grid-cols-[20rem_minmax(0,1fr)_25rem]">
-          <MonsterCard monster={monster} hp={st?.monsterHp} maxHp={st?.monsterMaxHp} guarding={isGuarding(state, now)} clashing={isClashing(state, now)} phase={phase} />
+        <div className={compact ? "grid gap-4" : "grid gap-4 lg:grid-cols-[19rem_minmax(0,1fr)] 2xl:grid-cols-[20rem_minmax(0,1fr)_25rem]"}>
+          <MonsterCard monster={monster} hp={st?.monsterHp} maxHp={st?.monsterMaxHp} guarding={isGuarding(state, now)} clashing={isClashing(state, now)} phase={phase} clashAt={state.clashAt} impact={impact} compact={compact} />
           <div className="min-w-0 space-y-4">
             <DuelBar playerName={session.playerName} monsterName={monster.name} st={st} session={session} live={live} />
             <AttackStrip attack={attack} />
-            <div className="grid gap-4 md:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
-              <SwingGauge levelKey={levelKey} swing={swing} combo={combo} />
+            <div className={compact ? "grid gap-4" : "grid gap-4 md:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]"}>
+              <SwingGauge levelKey={levelKey} swing={swing} combo={combo} impact={impact} />
               <div className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)] sm:p-5">
                 <GhostPace id={id} session={session} state={st} flush />
               </div>
             </div>
           </div>
-          <div className="min-w-0 lg:col-span-2 2xl:col-span-1">
+          <div className={`min-w-0 ${compact ? "" : "lg:col-span-2 2xl:col-span-1"}`}>
             <KillFeed sessionId={id} monsterName={monster.name} />
           </div>
         </div>

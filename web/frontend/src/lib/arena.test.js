@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import {
   ATTACK_GRACE_MS, ATTACK_RESULT_HOLD_MS, attackLifetimeMs, GUARD_FALLBACK_MS, initialArena, isClashing, isGuarding, makeArena, phaseLabel, phaseOf,
-  nextExpiry, resultLabel, visibleAttack,
+  impactOf, nextExpiry, resultLabel, visibleAttack,
 } from "./arena.js";
 import { swingBands } from "./game.js";
 import { makeStory } from "./storyData.js";
@@ -153,4 +153,16 @@ test("nextExpiry says when the arena next needs to redraw, and null when it neve
   assert.equal(nextExpiry(s, 1500), 1900);
   assert.equal(nextExpiry(s, 2000), 1400 + 900 + ATTACK_GRACE_MS); // then the attack strip
   assert.equal(nextExpiry(s, 1000 + GUARD_FALLBACK_MS + 5000), null); // everything has faded
+});
+
+test("impactOf: a landed full-power hit and a clash are impact moments; everything else is not", () => {
+  assert.deepEqual(impactOf({ type: "hit", payload: { tier: "Full", damage: 41.6, swingSpeed: 6.1 } }), { kind: "full", damage: 42 });
+  assert.deepEqual(impactOf({ type: "hit", payload: { tier: "full", damage: 30 } }), { kind: "full", damage: 30 });
+  assert.deepEqual(impactOf({ type: "clash", payload: {} }), { kind: "clash" });
+  assert.equal(impactOf({ type: "hit", payload: { tier: "medium", damage: 20 } }), null);
+  assert.equal(impactOf({ type: "hit", payload: { tier: "full", damage: 30, defended: true } }), null, "the guard absorbed it");
+  assert.equal(impactOf({ type: "hit", payload: { tier: "full" } }), null, "no damage reported: nothing to show");
+  assert.equal(impactOf({ type: "hit", payload: { tier: "full", damage: 0 } }), null);
+  assert.equal(impactOf({ type: "monster_attack", payload: {} }), null);
+  assert.equal(impactOf(null), null);
 });
