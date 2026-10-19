@@ -1508,3 +1508,71 @@
 #main:has([aria-busy="true"]) > footer {
   visibility: hidden;
 }
+
+/* Method page (/about/method): a clean A4 document from the browser's Print dialog. White paper, no navigation, cards that do not
+   split across pages, and the address of every external link printed after it. */
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm 14mm;
+  }
+  html,
+  body,
+  .method-page {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .method-page .no-print {
+    display: none !important;
+  }
+  .method-page > div {
+    display: block !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .method-page main {
+    max-width: none !important;
+  }
+  .method-page * {
+    box-shadow: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+  .method-page .method-section {
+    break-inside: auto;
+    padding-top: 7mm !important;
+  }
+  .method-page .method-card,
+  .method-page figure,
+  .method-page table,
+  .method-page li,
+  .method-page blockquote {
+    break-inside: avoid;
+  }
+  .method-page h1,
+  .method-page h3,
+  .method-page .t-kicker {
+    break-after: avoid;
+  }
+  .method-page .overflow-x-auto {
+    overflow: visible !important;
+  }
+  .method-page table {
+    min-width: 0 !important;
+    font-size: 9.5pt;
+  }
+  .method-page .curve .curve-line {
+    stroke-dashoffset: 0 !important;
+  }
+  .method-page .curve .curve-area {
+    opacity: 0.9 !important;
+  }
+  .method-page main a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 8pt;
+    color: #555;
+  }
+  .method-page .t-h1 {
+    font-size: 22pt;
+  }
+}

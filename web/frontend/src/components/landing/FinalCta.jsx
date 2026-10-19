@@ -75,13 +75,16 @@ export function Footer() {
           </ol>
         </nav>
         <nav aria-label="Dashboard" className="lg:col-span-2">
-          <p className={head}>Dashboard</p>
+          <p className={head}>Dashboard and research</p>
           <ul className="space-y-2 text-sm">
             {[
               ["/dashboard", "Overview"],
               ["/dashboard/live", "Live Arena"],
               ["/dashboard/leaderboard", "Leaderboard"],
               ["/dashboard/analytics", "Analytics"],
+              ["/dashboard/lab", "Thesis Lab"],
+              ["/about/method", "Method"],
+              ["/study", "Join the study"],
             ].map(([to, label]) => (
               <li key={to}>
                 <Link to={to} className={link}>

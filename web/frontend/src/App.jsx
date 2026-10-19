@@ -12,6 +12,7 @@ const FeedbackView = lazy(() => import("./views/FeedbackView.jsx"));
 const MonstersView = lazy(() => import("./views/MonstersView.jsx"));
 const ChallengeView = lazy(() => import("./views/ChallengeView.jsx"));
 const NotFoundView = lazy(() => import("./views/NotFoundView.jsx"));
+const MethodView = lazy(() => import("./views/MethodView.jsx"));
 const StudyView = lazy(() => import("./views/StudyView.jsx"));
 const StoryPublicView = lazy(() => import("./views/StoryPublicView.jsx"));
 
@@ -91,6 +92,14 @@ export default function App() {
         element={
           <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
             <StudyView />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/about/method"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <MethodView />
           </Suspense>
         }
       />
