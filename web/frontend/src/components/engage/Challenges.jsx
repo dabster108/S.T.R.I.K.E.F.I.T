@@ -10,6 +10,7 @@ import { EmptyState, Skeleton } from "../ui/Feedback.jsx";
 const Select = lazy(() => import("../ui/Select.jsx").then((m) => ({ default: m.Select })));
 import Button from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
+import ProgressRing from "../ui/ProgressRing.jsx";
 import Confetti from "../ui/Confetti.jsx";
 
 // Daily (easy / medium / stretch) and weekly challenges for one player. Progress is computed by the API on every read;
@@ -33,31 +34,11 @@ export function useChallenges(name) {
   return { ...state, data };
 }
 
-function Ring({ percent, done, children, label }) {
-  const r = 30;
-  const circ = 2 * Math.PI * r;
-  return (
-    <div className="relative h-[4.5rem] w-[4.5rem] shrink-0" role="img" aria-label={label}>
-      <svg viewBox="0 0 72 72" className="h-full w-full -rotate-90" aria-hidden>
-        <circle cx="36" cy="36" r={r} fill="none" stroke="var(--grid)" strokeWidth="7" />
-        <circle
-          cx="36" cy="36" r={r} fill="none"
-          stroke={done ? "var(--good)" : "var(--accent)"}
-          strokeWidth="7" strokeLinecap="round"
-          strokeDasharray={circ} strokeDashoffset={circ * (1 - Math.min(1, percent / 100))}
-          style={{ transition: "stroke-dashoffset 600ms var(--ease-out)" }}
-        />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-center">{children}</span>
-    </div>
-  );
-}
-
 function ChallengeRow({ c, popped }) {
   const done = c.completed;
   return (
     <li className="flex items-center gap-4 px-5 py-4">
-      <Ring percent={done ? 100 : c.percent} done={done} label={done ? `${c.title}: completed` : `${c.title}: ${c.percent}%`}>
+      <ProgressRing percent={done ? 100 : c.percent} done={done} label={done ? `${c.title}: completed` : `${c.title}: ${c.percent}%`}>
         {done ? (
           <span key={popped ? "pop" : "still"} className={`flex h-9 w-9 items-center justify-center rounded-full bg-[var(--good)] text-white ${popped ? "pb-pop" : ""}`}>
             <Icon name="check" className="h-5 w-5" strokeWidth={2.6} />
@@ -65,7 +46,7 @@ function ChallengeRow({ c, popped }) {
         ) : (
           <span className="text-sm font-extrabold tabular-nums text-[var(--ink)]">{c.percent}%</span>
         )}
-      </Ring>
+      </ProgressRing>
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="t-kicker">{c.period === "weekly" ? "This week" : TIER_LABEL[c.tier] || "Today"}</span>

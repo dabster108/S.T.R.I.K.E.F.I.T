@@ -132,7 +132,8 @@ export function ProgressBar({ value, max = 100, tone = "accent", label }) {
       aria-valuemax={100}
       aria-label={label}
     >
-      <div className="h-full transition-[width] duration-500" style={{ width: `${pct}%` }}>
+      {/* scaleX, not width: only transform animates (the grow-x entrance, then any later change) */}
+      <div className="h-full origin-left transition-transform duration-500" style={{ transform: `scaleX(${pct / 100})` }}>
         <div className={`grow-x h-full w-full rounded-full ${bar}`} />
       </div>
     </div>

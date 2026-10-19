@@ -7,6 +7,7 @@ import { Card, CardHeader } from "../ui/Card.jsx";
 import { EmptyState, Skeleton } from "../ui/Feedback.jsx";
 import Button from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
+import ProgressRing from "../ui/ProgressRing.jsx";
 
 // Daily goal: one metric and one target for the player's local day (the same day the headset uses: the API's default
 // Asia/Kathmandu day, so no ?tz= is sent). kcal is always labelled "(estimated)". There is no login: anyone who knows a
@@ -35,26 +36,6 @@ export function useDailyGoal(name) {
     if (type === "player_renamed" && payload.newName === name) refresh();
   });
   return { today, history, refresh };
-}
-
-function Ring({ percent, met, children }) {
-  const r = 38;
-  const circ = 2 * Math.PI * r;
-  return (
-    <div className="relative h-28 w-28 shrink-0" role="img" aria-label={`${percent}% of today's goal`}>
-      <svg viewBox="0 0 96 96" className="h-full w-full -rotate-90">
-        <circle cx="48" cy="48" r={r} fill="none" stroke="var(--grid)" strokeWidth="9" />
-        <circle
-          cx="48" cy="48" r={r} fill="none"
-          stroke={met ? "var(--good)" : "var(--accent)"}
-          strokeWidth="9" strokeLinecap="round"
-          strokeDasharray={circ} strokeDashoffset={circ * (1 - Math.min(1, percent / 100))}
-          style={{ transition: "stroke-dashoffset 600ms var(--ease-out)" }}
-        />
-      </svg>
-      <span className="absolute inset-0 flex flex-col items-center justify-center text-center">{children}</span>
-    </div>
-  );
 }
 
 function Strip({ days }) {
@@ -175,10 +156,10 @@ export function DailyGoalCard({ name }) {
       <div className="p-5">
         {g ? (
           <div className="flex flex-wrap items-center gap-5">
-            <Ring percent={p.percent} met={data.completed}>
+            <ProgressRing percent={p.percent} done={data.completed} size="lg" label={`${p.percent}% of today's goal`}>
               <span className="text-xl font-extrabold tabular-nums leading-none text-[var(--ink)]">{p.percent}%</span>
               <span className="mt-0.5 text-[0.65rem] font-semibold text-[var(--muted)]">of today</span>
-            </Ring>
+            </ProgressRing>
             <div className="min-w-0 flex-1">
               <p className="t-kicker">{mt.label}</p>
               <p className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-[var(--ink)]">
