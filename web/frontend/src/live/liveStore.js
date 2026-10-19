@@ -63,10 +63,17 @@ function recomputeIds() {
 
 const lingerTimers = new Map();
 
-function upsertSession(session, liveState) {
+// extra: the fields a finished fight's message adds (newRecords: the personal bests it set, rankUp: a rank it reached). They are kept
+// on the entry so the result moment can show them; later messages for the same fight do not wipe them.
+function upsertSession(session, liveState, extra) {
   if (!session?.id) return;
   const prev = state.sessions.get(session.id);
-  const entry = { session, liveState: liveState ?? prev?.liveState ?? null };
+  const entry = {
+    session,
+    liveState: liveState ?? prev?.liveState ?? null,
+    newRecords: extra && "newRecords" in extra ? extra.newRecords : prev?.newRecords,
+    rankUp: extra && "rankUp" in extra ? extra.rankUp : prev?.rankUp,
+  };
   if (session.status !== "live") {
     if (!prev) return; // a finished fight we never saw live: nothing to show
     entry.finishedAt = prev.finishedAt || Date.now();
@@ -166,8 +173,10 @@ function handle(type, payload) {
   switch (type) {
     case "session_started":
     case "session_updated":
-    case "session_finished":
       upsertSession(payload.session, payload.liveState);
+      break;
+    case "session_finished":
+      upsertSession(payload.session, payload.liveState, payload);
       break;
     case "event_created":
       pushFeed([payload]);

@@ -6,16 +6,17 @@ const ranksStore = require("./ranksStore");
 const featureRoutes = require("./featureRoutes");
 const activityFeed = require("./activityFeed");
 
-/** -> { rankUp: { from, to, effortPoints } | null } for a finished session. */
+/** -> { rankUp: { from, to, effortPoints } | null, newRecords: [{ metric, value, previous }] } for a finished session. */
 async function extras(session) {
   featureRoutes.invalidatePlayer(session.playerName);
   activityFeed.invalidate(); // before the stream message goes out, so a page that refetches the feed at once gets the new rows
-  const out = { rankUp: null };
+  const out = { rankUp: null, newRecords: [] };
   try {
     out.rankUp = await ranksStore.rankUpAfter(session);
   } catch (err) {
     console.error("[rank] rank-up check failed:", err.message);
   }
+  out.newRecords = await featureRoutes.newRecordsFor(session); // never throws
   return out;
 }
 

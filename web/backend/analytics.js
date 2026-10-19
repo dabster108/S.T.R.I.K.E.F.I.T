@@ -904,6 +904,7 @@ async function exportEventsCsv(filters) {
 }
 
 module.exports = {
+  hitsForSessions,
   playerInsights,
   playerChecklist,
   overview,

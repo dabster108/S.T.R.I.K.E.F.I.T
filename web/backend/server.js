@@ -531,8 +531,9 @@ app.get("/api/sessions/:id", route(async (req, res) => {
   const events = rows.map(fromRow);
   // Added: swing-tier breakdown, exertion trend and calorie estimate (see fitness.js), the
   // post-session rating (null when unrated) and the personal bests this session holds.
-  const [rating, personalBestsSet] = await Promise.all([feedback.getFeedback(session.id), analytics.sessionPersonalBests(session)]);
-  res.json({ session, events, liveState, fitness: analytics.sessionFitness(session, events), feedback: rating, personalBestsSet });
+  const [rating, personalBestsSet, newRecords] = await Promise.all([feedback.getFeedback(session.id), analytics.sessionPersonalBests(session), featureRoutes.newRecordsFor(session)]);
+  // newRecords (added): what this fight beat on its level, [{ metric, value, previous }]; empty for a first fight, an abandoned one or a live one.
+  res.json({ session, events, liveState, fitness: analytics.sessionFitness(session, events), feedback: rating, personalBestsSet, newRecords });
 }));
 
 app.get("/api/stats", route(async (_req, res) => {

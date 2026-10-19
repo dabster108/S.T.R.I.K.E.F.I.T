@@ -196,6 +196,13 @@ export default function PlayerView() {
   });
   const [level, setLevel] = useState("all");
   const [outcome, setOutcome] = useState("all");
+  // which of this player's fights set a record on their level (the PB chip in the history below); refreshed when a fight ends
+  const records = useApi(() => api.playerRecords(name), [name]);
+  const refreshRecords = useThrottledCallback(records.reload, 4000);
+  useLiveMessages((type, payload) => {
+    if (payload?.session?.playerName === name && (type === "session_finished" || type === "session_deleted")) refreshRecords();
+  });
+  const pbBySession = records.data && records.data.playerName === name ? records.data.bySession : undefined;
 
   const history = useMemo(
     () => (p?.sessions || []).filter((s) => s.status !== "live" && (level === "all" || s.level === level) && (outcome === "all" || s.outcome === outcome)),
@@ -538,7 +545,7 @@ export default function PlayerView() {
             />
             {history.length ? (
               <div className="p-4 sm:p-5">
-                <SessionList rows={history} onSelect={(s) => navigate(`/dashboard/session/${encodeURIComponent(s.id)}`)} />
+                <SessionList rows={history} pbBySession={pbBySession} onSelect={(s) => navigate(`/dashboard/session/${encodeURIComponent(s.id)}`)} />
               </div>
             ) : (
               <EmptyState icon="search" title="No sessions match these filters" />

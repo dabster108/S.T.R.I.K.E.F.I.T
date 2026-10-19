@@ -15,7 +15,11 @@ import KillFeed from "./KillFeed.jsx";
 import { DamagePops, usePunch, useRing } from "./Impact.jsx";
 import { useArena } from "./useArena.js";
 import { useRank } from "../../../hooks/useRank.js";
+import { useApi } from "../../../hooks/useApi.js";
+import { api } from "../../../lib/api.js";
 import RankBadge from "../../rank/RankBadge.jsx";
+import RankUpBanner from "../../rank/RankUpBanner.jsx";
+import PbBanner from "../../records/PbBanner.jsx";
 import { CaptionBar, CommentaryLog, useStageCommentary } from "./Commentary.jsx";
 
 // One live fight, laid out so that someone across the room can read it in two seconds: WHO is fighting WHICH monster (the headline),
@@ -326,7 +330,7 @@ const TONE = {
   muted: "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--ink-secondary)]",
 };
 
-function ResultMoment({ session, monster }) {
+function ResultMoment({ session, monster, records, rankUp }) {
   const r = resultLabel(session.outcome);
   const facts = [
     ["Score", formatNumber(session.score)],
@@ -341,6 +345,11 @@ function ResultMoment({ session, monster }) {
       <p className="mt-2 text-base font-semibold text-[var(--ink-secondary)]">
         {session.playerName} against {monster.name}. {r.line}
       </p>
+      {/* what this fight beat on its level, and a rank it reached (the stream's session_finished message carries both) */}
+      <div className="mx-auto mt-5 max-w-2xl space-y-3 text-left">
+        <PbBanner records={records} fireKey={session.id} />
+        <RankUpBanner rankUp={rankUp} />
+      </div>
       <dl className="mx-auto mt-6 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">
         {facts.map(([k, v]) => (
           <div key={k} className="rounded-xl bg-[var(--surface)] px-3 py-3 shadow-[var(--shadow-card)]">
@@ -372,6 +381,9 @@ export default memo(function ArenaStage({ id, primary = true, compact = false })
   // The commentary of this fight: its own stream of lines, read aloud (when the viewer turned that on) only for the first fight on stage.
   const commentary = useStageCommentary(id, entry, { speak: primary });
   const rank = useRank(session?.playerName); // the player's effort rank, shown next to their name
+  // The records a finished fight set come with the stream's message; if this page only learned of the end by polling, ask the server.
+  const finishedWithoutExtras = Boolean(entry) && entry.session.status !== "live" && entry.newRecords === undefined;
+  const fetchedExtras = useApi(() => (finishedWithoutExtras ? api.session(id) : Promise.resolve(null)), [id, finishedWithoutExtras]);
   if (!entry || !monster) return null;
 
   const Heading = primary ? "h1" : "h2";
@@ -398,7 +410,7 @@ export default memo(function ArenaStage({ id, primary = true, compact = false })
       </header>
 
       {!live ? (
-        <ResultMoment session={session} monster={monster} />
+        <ResultMoment session={session} monster={monster} records={entry.newRecords ?? fetchedExtras.data?.newRecords} rankUp={entry.rankUp} />
       ) : (
         <div className={compact ? "grid gap-4" : "grid gap-4 lg:grid-cols-[19rem_minmax(0,1fr)] 2xl:grid-cols-[20rem_minmax(0,1fr)_25rem]"}>
           <MonsterCard monster={monster} hp={st?.monsterHp} maxHp={st?.monsterMaxHp} guarding={isGuarding(state, now)} clashing={isClashing(state, now)} phase={phase} clashAt={state.clashAt} impact={impact} compact={compact} />

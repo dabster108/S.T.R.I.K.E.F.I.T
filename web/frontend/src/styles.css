@@ -1238,7 +1238,7 @@
   100% { transform: translate3d(var(--dx), 260px, 0) rotate(var(--rot)); opacity: 0; }
 }
 .confetti-piece {
-  animation: confetti-fall 1.4s var(--ease-out) var(--d) both;
+  animation: confetti-fall var(--dur, 1.4s) var(--ease-out) var(--d) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

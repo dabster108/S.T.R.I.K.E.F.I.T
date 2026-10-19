@@ -35,6 +35,10 @@ function createCache({ ttlMs = CACHE_MS, now = Date.now } = {}) {
       return entry;
     },
     clear: () => map.clear(),
+    /** Drops every entry whose key starts with `prefix` (a player's keys are "name\u0000level"). */
+    deleteWhere(prefix) {
+      for (const k of [...map.keys()]) if (k.startsWith(prefix)) map.delete(k);
+    },
     size: () => map.size,
   };
 }
@@ -89,7 +93,7 @@ function createHandler({ loadBest, cache = createCache() }) {
       const cached = Boolean(entry);
       if (!entry) entry = cache.set(key, await loadBest(n.value, level));
       const { best, points } = entry.value;
-      res.set("Cache-Control", "private, max-age=15");
+      res.set("Cache-Control", "private, no-cache"); // revalidate (a cheap 304): the best fight changes the moment a fight ends
       res.json({
         ok: true,
         playerName: n.value,
@@ -109,8 +113,15 @@ function createHandler({ loadBest, cache = createCache() }) {
   };
 }
 
+let shared = null; // the cache of the mounted route, so a finished fight can drop its player's answers (invalidatePlayer)
 function mount(app, { query }) {
-  app.get("/api/players/:name/best-pace", createHandler({ loadBest: (name, level) => loadBestPace(query, name, level) }));
+  shared = createCache();
+  app.get("/api/players/:name/best-pace", createHandler({ loadBest: (name, level) => loadBestPace(query, name, level), cache: shared }));
 }
 
-module.exports = { CACHE_MS, createCache, createHandler, parseLevelParam, loadBestPace, mount };
+/** A fight just ended (or was deleted): this player's best fight may have changed, so their cached answers are dropped. */
+function invalidatePlayer(name) {
+  if (shared) shared.deleteWhere(`${name}\u0000`);
+}
+
+module.exports = { CACHE_MS, createCache, createHandler, parseLevelParam, loadBestPace, mount, invalidatePlayer };

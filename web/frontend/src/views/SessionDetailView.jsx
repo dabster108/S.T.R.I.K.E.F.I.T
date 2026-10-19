@@ -7,6 +7,7 @@ import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useOnScreen, useReducedMotion } from "../hooks/motion.js";
 import { useLiveMessages } from "../live/LiveProvider.jsx";
 import { Card, CardHeader, PageHeader, SectionRule } from "../components/ui/Card.jsx";
+import PbBanner from "../components/records/PbBanner.jsx";
 import { ConfirmDialog, EmptyState } from "../components/ui/Feedback.jsx";
 import { SessionDetailSkeleton } from "../components/ui/Skeletons.jsx";
 import { LevelBadge, OutcomeBadge } from "../components/ui/Badge.jsx";
@@ -359,6 +360,9 @@ export default function SessionDetailView({ onDeleted }) {
         </Card>
       ) : (
         <>
+          {/* what this fight beat on its level (never for a first fight, an abandoned one or one still being played) */}
+          <PbBanner records={data?.newRecords} fireKey={s.id} />
+
           <Card className="overflow-hidden">
             <CardHeader title="Summary" />
             <dl className="stagger grid grid-cols-2 gap-x-6 gap-y-4 px-5 py-5 sm:grid-cols-3 lg:grid-cols-5">

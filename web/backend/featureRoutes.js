@@ -4,20 +4,38 @@
 // (a cheap 304 when nothing changed), so a page that refetches right after a fight never shows the old rank.
 
 const goals = require("./goals");
+const pace = require("./pace");
 const ranksStore = require("./ranksStore");
+const recordsStore = require("./recordsStore");
 const { createTtlCache } = require("./ttlCache");
 
-const TTL = { rank: 30_000 };
-const caches = { rank: createTtlCache({ ttlMs: TTL.rank }), ranks: createTtlCache({ ttlMs: TTL.rank, max: 100 }) };
+const TTL = { rank: 30_000, records: 30_000 };
+const caches = {
+  rank: createTtlCache({ ttlMs: TTL.rank }),
+  ranks: createTtlCache({ ttlMs: TTL.rank, max: 100 }),
+  records: createTtlCache({ ttlMs: TTL.records }),
+};
 const keyOf = (name, what) => `${name}\u0000${what}`;
 
 /** Forget everything cached about one player (and the many-players answers, which may include them). */
 function invalidatePlayer(name) {
   for (const c of Object.values(caches)) c.invalidate(c === caches.ranks ? "" : `${name}\u0000`);
+  pace.invalidatePlayer(name); // the Ghost Pace best fight can change when a fight ends
 }
 /** Forget everything (a clear-all, a rename of unknown scope). */
 function invalidateAll() {
   for (const c of Object.values(caches)) c.invalidate();
+}
+
+/** The records a finished session set (cached 30 s; dropped when that player's fights change). Never throws: [] on a failure. */
+async function newRecordsFor(session) {
+  if (!session || session.status === "live") return [];
+  try {
+    return await caches.records.get(keyOf(session.playerName, `session:${session.id}`), () => recordsStore.forSession(session));
+  } catch (err) {
+    console.error("[records] could not work out the records:", err.message);
+    return [];
+  }
 }
 
 function validName(req, res) {
@@ -40,6 +58,16 @@ function mount(app, { route }) {
     res.json(out);
   }));
 
+  // Which of a player's fights set a record (the PB chip in the lists): { bySession: { id: [metric, ...] } }.
+  app.get("/api/players/:name/records", route(async (req, res) => {
+    const name = validName(req, res);
+    if (!name) return;
+    const out = await caches.records.get(keyOf(name, "records"), () => recordsStore.playerRecords(name));
+    if (!out) return res.status(404).json({ ok: false, error: "Player not found" });
+    res.set("Cache-Control", "no-cache");
+    res.json(out);
+  }));
+
   // Ranks for several players at once (the leaderboard rows): /api/ranks?players=Ava,Ben (at most 50 names).
   app.get("/api/ranks", route(async (req, res) => {
     const raw = typeof req.query.players === "string" ? req.query.players : "";
@@ -51,4 +79,4 @@ function mount(app, { route }) {
   }));
 }
 
-module.exports = { mount, invalidatePlayer, invalidateAll, TTL };
+module.exports = { mount, invalidatePlayer, invalidateAll, newRecordsFor, TTL };

@@ -2,6 +2,7 @@ import { formatDuration, formatNumber, formatRelative } from "../../lib/format.j
 import { sessionTime } from "../../lib/derive.js";
 import { LevelBadge, OutcomeBadge } from "../ui/Badge.jsx";
 import Icon from "../ui/Icon.jsx";
+import PbChip from "../records/PbChip.jsx";
 
 const STRIPE = { victory: "bg-[var(--good)]", defeat: "bg-[var(--bad)]" };
 
@@ -21,7 +22,8 @@ function Metric({ icon, label, value }) {
 }
 
 // One battle as a clickable card row: result stripe, who / which level / when, key numbers.
-export function SessionRow({ session: s, onSelect, compact = false, showTime = false }) {
+// pb: the metrics this fight set records in (a list of metric keys, from GET /api/players/:name/records), shown as a small PB chip.
+export function SessionRow({ session: s, onSelect, compact = false, showTime = false, pb }) {
   const at = s.endedAt || s.startedAt;
   return (
     <button
@@ -38,6 +40,7 @@ export function SessionRow({ session: s, onSelect, compact = false, showTime = f
           <span className="truncate text-sm font-bold text-[var(--ink)]">{s.playerName}</span>
           <LevelBadge level={s.level} />
           <OutcomeBadge outcome={s.outcome} />
+          <PbChip metrics={pb} />
         </span>
         <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
           <span className="text-xs font-medium text-[var(--muted)]">{showTime ? timeOfDay(at) : formatRelative(at)}</span>
@@ -72,7 +75,7 @@ function dayLabel(t) {
 }
 
 // Day-grouped timeline: a rail with a node per day, the day's battles as cards.
-export function SessionTimeline({ rows, onSelect }) {
+export function SessionTimeline({ rows, onSelect, pbBySession }) {
   const groups = [];
   for (const s of rows) {
     const t = sessionTime(s);
@@ -96,7 +99,7 @@ export function SessionTimeline({ rows, onSelect }) {
             <ul className="stagger mt-3 space-y-2">
               {g.items.map((s) => (
                 <li key={s.id}>
-                  <SessionRow session={s} onSelect={onSelect} showTime />
+                  <SessionRow session={s} onSelect={onSelect} showTime pb={pbBySession?.[s.id]} />
                 </li>
               ))}
             </ul>
@@ -108,12 +111,12 @@ export function SessionTimeline({ rows, onSelect }) {
 }
 
 // Flat list for non-chronological sorts (by score, hits, …).
-export function SessionList({ rows, onSelect, compact = false }) {
+export function SessionList({ rows, onSelect, compact = false, pbBySession }) {
   return (
     <ul className="stagger space-y-2">
       {rows.map((s) => (
         <li key={s.id}>
-          <SessionRow session={s} onSelect={onSelect} compact={compact} />
+          <SessionRow session={s} onSelect={onSelect} compact={compact} pb={pbBySession?.[s.id]} />
         </li>
       ))}
     </ul>

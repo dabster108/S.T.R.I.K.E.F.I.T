@@ -115,6 +115,7 @@ export function useCommentary({ id, levelKey, playerName, monsterName, liveState
   const t = liveState?.t;
   useEffect(() => {
     if (!enabled || !live || !ghost || ghost.length < 2) return;
+    if (livePoints.length < 2) return; // this fight's own hits have not loaded (or it has none yet): comparing nothing against the best would be a false claim
     const delta = paceDelta(livePoints, ghost, liveNow(t, livePoints));
     if (delta !== null) feed({ type: "pace", payload: { delta } });
   }, [enabled, live, ghost, livePoints, t, feed]);

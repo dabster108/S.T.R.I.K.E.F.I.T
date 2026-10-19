@@ -140,3 +140,14 @@ test("cumulativeDamage: a step curve from zero, ignoring hits with no time or no
   assert.deepEqual(many.at(-1), { t: 1999, damage: 2000 });
   assert.deepEqual(effort.cumulativeDamage([]), [{ t: 0, damage: 0 }]);
 });
+
+test("a cache can drop one player's entries and keep everyone else's", () => {
+  const cache = pace.createCache();
+  cache.set("Ava\u0000Easy", 1);
+  cache.set("Ava\u0000Hard", 2);
+  cache.set("Ben\u0000Easy", 3);
+  cache.deleteWhere("Ava\u0000");
+  assert.equal(cache.get("Ava\u0000Easy"), null);
+  assert.equal(cache.get("Ava\u0000Hard"), null);
+  assert.ok(cache.get("Ben\u0000Easy"));
+});
