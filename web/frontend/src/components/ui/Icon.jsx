@@ -80,6 +80,13 @@ import {
   WifiOff,
   X,
   Zap,
+  Award,
+  Camera,
+  Captions,
+  Milestone,
+  PartyPopper,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 // Lucide line icons (24px grid). One place so every icon matches; views ask by name.
@@ -166,6 +173,14 @@ const ICONS = {
   moon: Moon,
   compass: Compass,
   coffee: Coffee,
+  // engagement features: commentary, rank, personal bests, Wrapped, milestones
+  award: Award,
+  camera: Camera,
+  captions: Captions,
+  milestone: Milestone,
+  partyPopper: PartyPopper,
+  volume: Volume2,
+  volumeOff: VolumeX,
 };
 
 // Lucide dropped brand marks, so GitHub keeps its own outline path in the same style.

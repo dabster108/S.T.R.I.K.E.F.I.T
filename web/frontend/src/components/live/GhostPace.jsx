@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { api } from "../../lib/api.js";
 import { useApi } from "../../hooks/useApi.js";
-import { useLiveMessages } from "../../live/LiveProvider.jsx";
 import { clockText } from "../../lib/effort.js";
 import { cumulativeDamage, damageAt, liveNow, paceChip, paceDelta } from "../../lib/pace.js";
 import { formatDateTime, formatNumber } from "../../lib/format.js";
 import { useElementWidth } from "../charts/useElementWidth.js";
+import { useLiveHits } from "./useLiveHits.js";
 
 // Ghost pace for a live fight: cumulative damage against fight time, with the player's personal-best finished fight on the same
 // level drawn as a faint line behind this one, and a chip saying how far ahead or behind it this fight is.
@@ -17,41 +17,11 @@ const H = 150;
 const PAD = { t: 10, r: 12, b: 24, l: 40 };
 const BLOCK_MIN_H = 238; // every state is this tall, so the card doesn't jump when the best fight arrives (or doesn't)
 
-const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const CHIP_TONE = {
   ahead: "bg-[var(--good-soft)] text-[var(--good-ink)] ring-emerald-200",
   behind: "bg-[var(--warn-soft)] text-[var(--warn-ink)] ring-amber-200",
   level: "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-[var(--accent-ring)]",
 };
-
-// This fight's hit events (id -> { t, damage }), seeded from the stored session and kept up to date from the stream.
-function useLiveHits(id) {
-  const [hits, setHits] = useState(() => new Map());
-  const add = (events) =>
-    setHits((cur) => {
-      let next = cur;
-      for (const e of events) {
-        const p = e?.payload;
-        if (e?.type !== "hit" || !e.id || next.has(e.id) || !p || !isNum(p.t) || !isNum(p.damage)) continue;
-        if (next === cur) next = new Map(cur);
-        next.set(e.id, { t: p.t, damage: p.damage });
-      }
-      return next;
-    });
-  useEffect(() => {
-    let alive = true;
-    setHits(new Map());
-    api.session(id).then((d) => alive && add(d.events || [])).catch(() => {});
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-  useLiveMessages((type, e) => {
-    if (type === "event_created" && e?.sessionId === id) add([e]);
-  });
-  return hits;
-}
 
 function PaceChart({ live, ghost, now, ghostBest }) {
   const [ref, width] = useElementWidth();

@@ -7,6 +7,7 @@ import { copyText } from "../lib/toast.js";
 import { isTypingTarget } from "../components/layout/ShortcutsOverlay.jsx";
 import { anotherModalOpen } from "../components/onboarding/tourState.js";
 import ArenaSwitcher from "../components/live/arena/ArenaSwitcher.jsx";
+import { CommentaryControls } from "../components/live/arena/Commentary.jsx";
 import { Card, SectionRule } from "../components/ui/Card.jsx";
 import { SegmentedControl } from "../components/ui/Controls.jsx";
 import { EmptyState, Skeleton } from "../components/ui/Feedback.jsx";
@@ -210,6 +211,7 @@ export default function LiveView() {
 
   const controls = (
     <div className="flex flex-wrap items-center gap-2">
+      <CommentaryControls />
       <Button icon="link" onClick={copyLink}>
         Copy link
       </Button>

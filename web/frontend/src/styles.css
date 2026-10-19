@@ -1588,3 +1588,22 @@
     font-size: 22pt;
   }
 }
+
+/* ---- live commentary: the caption types in one character at a time (opacity only). Instant under reduced motion and in Calm mode;
+   paused while the bar is off screen (motion/usePauseOffscreen.js sets data-offscreen). ---- */
+@keyframes cm-char-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.cm-char {
+  opacity: 0;
+  white-space: pre-wrap;
+  animation: cm-char-in 110ms var(--motion-ease) var(--cm-delay, 0ms) forwards;
+}
+:root[data-calm] .cm-char {
+  animation: none;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-char { animation: none; opacity: 1; }
+}

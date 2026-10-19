@@ -14,6 +14,7 @@ import GhostPace from "../GhostPace.jsx";
 import KillFeed from "./KillFeed.jsx";
 import { DamagePops, usePunch, useRing } from "./Impact.jsx";
 import { useArena } from "./useArena.js";
+import { CaptionBar, CommentaryLog, useStageCommentary } from "./Commentary.jsx";
 
 // One live fight, laid out so that someone across the room can read it in two seconds: WHO is fighting WHICH monster (the headline),
 // how it is going (the duel bar), what the monster is doing right now (the attack strip) and how hard the player is swinging (the
@@ -366,6 +367,8 @@ export default memo(function ArenaStage({ id, primary = true, compact = false })
   const monsterFrac = fraction(st?.monsterHp, st?.monsterMaxHp);
   const phase = monster?.hasPhases ? phaseOf(levelKey, monsterFrac) : null;
   const { state, swing, now, impact } = useArena(id, levelKey, phase === 3);
+  // The commentary of this fight: its own stream of lines, read aloud (when the viewer turned that on) only for the first fight on stage.
+  const commentary = useStageCommentary(id, entry, { speak: primary });
   if (!entry || !monster) return null;
 
   const Heading = primary ? "h1" : "h2";
@@ -410,6 +413,10 @@ export default memo(function ArenaStage({ id, primary = true, compact = false })
           </div>
         </div>
       )}
+
+      {/* what is happening, in words: the caption stays through the result moment, the log keeps the last 20 lines */}
+      <CaptionBar commentary={commentary} />
+      <CommentaryLog commentary={commentary} />
     </div>
   );
 });
