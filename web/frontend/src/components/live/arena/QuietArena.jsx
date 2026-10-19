@@ -18,7 +18,8 @@ function MonsterTile({ levelKey }) {
   return (
     <li className="min-w-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]">
       <div className="flex items-end justify-center bg-gradient-to-b from-[var(--accent-soft)] to-[var(--surface)] px-4 pt-4">
-        <MonsterPortrait level={levelKey} size="md" glow={false} className="!w-full max-w-[12.5rem]" />
+        {/* "sm" asks for the 480 px image (enough at this size on a phone screen too); eager: these portraits are the first thing on screen */}
+        <MonsterPortrait level={levelKey} size="sm" glow={false} eager className="!w-full max-w-[11rem]" />
       </div>
       <div className="p-4">
         <p className="text-xs font-bold text-[var(--muted)]">

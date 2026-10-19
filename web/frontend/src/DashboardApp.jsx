@@ -121,7 +121,8 @@ function Dashboard() {
     [push]
   );
 
-  const t = useTelemetry({ onSession });
+  // The recent-events list (about 130 kB) only feeds the Overview's "Latest activity": every other page skips it.
+  const t = useTelemetry({ onSession, withEvents: section === "" });
 
   // Guided tour. It starts by itself only when the visitor is on the Overview, has not seen it, and nothing else is open;
   // it waits AUTO_START_DELAY_MS so the page has painted, and re-checks all of that when the wait is over. The header's

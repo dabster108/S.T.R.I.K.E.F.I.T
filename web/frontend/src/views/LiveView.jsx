@@ -5,12 +5,15 @@ import { RESULT_HOLD_MS } from "../lib/arena.js";
 import { Card, SectionRule } from "../components/ui/Card.jsx";
 import { SegmentedControl } from "../components/ui/Controls.jsx";
 import { EmptyState, Skeleton } from "../components/ui/Feedback.jsx";
-import { LiveSkeleton } from "../components/ui/Skeletons.jsx";
 import Button from "../components/ui/Button.jsx";
 import Icon from "../components/ui/Icon.jsx";
 import EventList, { collapseRepeats } from "../components/sessions/EventList.jsx";
 import { LiveChip } from "../components/live/LiveFight.jsx";
+import { LiveSkeleton } from "../components/ui/Skeletons.jsx";
 import ActivityFeed from "../components/engage/ActivityFeed.jsx";
+// The quiet arena is what most visits see first (no fight on): bundled with the page (under 2 kB gzipped) instead of a second
+// lazy hop, so its portraits are requested at once. The fight stage stays a lazy chunk.
+import QuietArena from "../components/live/arena/QuietArena.jsx";
 
 // The Live Arena. While a fight is on, one stage per fight (components/live/arena): who is fighting which monster, both health bars,
 // the attack the monster is winding up, the swing gauge, ghost pace and a kill-feed. When a fight ends its result stays for 8 seconds,
@@ -18,7 +21,6 @@ import ActivityFeed from "../components/engage/ActivityFeed.jsx";
 // listens to it. The stage chunk loads after the page, in its own file.
 
 const ArenaStage = lazy(() => import("../components/live/arena/ArenaStage.jsx"));
-const QuietArena = lazy(() => import("../components/live/arena/QuietArena.jsx"));
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -139,9 +141,7 @@ export default function LiveView() {
           ))}
         </div>
       ) : (
-        <Suspense fallback={<StageSkeleton />}>
-          <QuietArena />
-        </Suspense>
+        <QuietArena />
       )}
 
       <section aria-labelledby="milestones-title">

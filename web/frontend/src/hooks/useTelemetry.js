@@ -14,7 +14,9 @@ const CONNECTION = { connected: "live", connecting: "connecting", reconnecting: 
 // Owns the session/event lists for the original views. REST loads the snapshot;
 // the one shared Server-Sent Events connection (live/liveStore.js) keeps it current.
 // Every (re)connect refetches, so a backend restart never leaves stale data.
-export function useTelemetry({ onSession, onConnectionChange } = {}) {
+// withEvents: whether the (large) recent-events list is needed by the page on screen. Only the Overview shows it, so every other
+// page skips that download; it is fetched the first time it is wanted, and the stream keeps it current from then on.
+export function useTelemetry({ onSession, onConnectionChange, withEvents = true } = {}) {
   const [sessions, setSessions] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,31 +33,61 @@ export function useTelemetry({ onSession, onConnectionChange } = {}) {
   const loadedOk = useRef(false);
   const refreshing = useRef(false);
   const everLive = useRef(false);
+  const wantEvents = useRef(withEvents);
+  wantEvents.current = withEvents;
+  const eventsLoaded = useRef(false);
+  const eventsInFlight = useRef(false);
 
   const refresh = useCallback(async () => {
     refreshing.current = true;
     try {
       // Both requests start together; the page is shown as soon as the sessions are in (the events list is about four times as
       // big and only feeds "Latest activity").
-      const eventsRequest = api.events(MAX_EVENTS);
-      eventsRequest.catch(() => {});   // handled below, after the sessions
+      const eventsRequest = wantEvents.current ? api.events(MAX_EVENTS) : null;
+      eventsInFlight.current = Boolean(eventsRequest);
+      eventsRequest?.catch(() => {});   // handled below, after the sessions
       const s = await api.sessions();
       setSessions(s.filter((x) => x.status !== "live"));
       setLastUpdate(new Date().toISOString());
       loadedOk.current = true;
       setLoading(false);
-      const e = await eventsRequest;
-      setEvents(e.filter((ev) => !HIDDEN_TYPES.has(ev.type)));
-      setEventsReady(true);
+      if (eventsRequest) {
+        const e = await eventsRequest;
+        setEvents(e.filter((ev) => !HIDDEN_TYPES.has(ev.type)));
+        eventsLoaded.current = true;
+        setEventsReady(true);
+      }
       setLoadError(null);
     } catch (err) {
       setLoadError(err.message);
     } finally {
       refreshing.current = false;
+      eventsInFlight.current = false;
       setLoading(false);
-      setEventsReady(true);   // also after a failed request: the list then shows its empty state, not a skeleton forever
+      if (wantEvents.current) setEventsReady(true);   // also after a failed request: the list then shows its empty state, not a skeleton forever
     }
   }, []);
+
+  // The first time a page that shows the events list is opened (after the sessions were loaded without it).
+  useEffect(() => {
+    if (!withEvents || loading || eventsLoaded.current || eventsInFlight.current) return;
+    eventsInFlight.current = true;
+    setEventsReady(false);
+    api
+      .events(MAX_EVENTS)
+      .then((e) => {
+        setEvents((prev) => {
+          const have = new Set(prev.map((x) => x.id));
+          return [...prev, ...e.filter((ev) => !HIDDEN_TYPES.has(ev.type) && !have.has(ev.id))].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, MAX_EVENTS);
+        });
+        eventsLoaded.current = true;
+      })
+      .catch(() => {})
+      .finally(() => {
+        eventsInFlight.current = false;
+        setEventsReady(true); // a failed request shows the empty state, not a skeleton forever
+      });
+  }, [withEvents, loading]);
 
   const checkHealth = useCallback(async () => {
     const t0 = performance.now();

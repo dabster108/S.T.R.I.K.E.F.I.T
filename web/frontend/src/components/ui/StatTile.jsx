@@ -125,7 +125,7 @@ export function TrendChip({ value, label, goodWhenUp = true, suffix }) {
     <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-bold tabular-nums ${cls}`}>
       {!flat && <Icon name={up ? "score" : "trendDown"} className="h-3 w-3" strokeWidth={2.6} />}
       {flat ? "±0" : `${up ? "+" : "−"}${label ?? Math.abs(value)}`}
-      {suffix && <span className="font-semibold opacity-80">{suffix}</span>}
+      {suffix && <span className="font-semibold">{suffix}</span>}
     </span>
   );
 }
