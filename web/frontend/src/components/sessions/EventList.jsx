@@ -1,6 +1,21 @@
 import { useRef } from "react";
 import Icon from "../ui/Icon.jsx";
 import { formatClock } from "../../lib/format.js";
+import { clampSpeed, TIER_LABEL } from "../../lib/game.js";
+
+const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+
+// The game writes its own message for each event; for hits and clashes it prints the RAW controller speed (e.g. "13.13 m/s"),
+// which the dashboard otherwise clamps to the game's 8 m/s cap. Those two are rebuilt from the payload, everything else is as sent.
+export function describeEvent(ev) {
+  const p = ev.payload && typeof ev.payload === "object" ? ev.payload : {};
+  if (ev.type === "hit" && isNum(p.swingSpeed)) {
+    const tier = TIER_LABEL[String(p.tier || "").toLowerCase()];
+    return `${tier ? `${tier} hit` : "Hit"}${isNum(p.damage) ? ` for ${Math.round(p.damage * 10) / 10} damage` : ""} · ${clampSpeed(p.swingSpeed).toFixed(1)} m/s${p.defended ? " · into the guard" : ""}`;
+  }
+  if (ev.type === "clash" && isNum(p.swingSpeed)) return `Weapon clash · ${clampSpeed(p.swingSpeed).toFixed(1)} m/s`;
+  return ev.message;
+}
 
 export const EVENT_META = {
   session_start: { label: "Session start", icon: "play", cls: "bg-blue-50 text-blue-600", dot: "bg-blue-500" },
@@ -82,7 +97,7 @@ export default function EventList({ events, dense = false, showPlayer = false })
                 </p>
                 <time className="shrink-0 text-xs font-medium tabular-nums text-[var(--muted)]">{formatClock(ev.at)}</time>
               </div>
-              <p className="mt-0.5 text-xs font-medium leading-snug text-[var(--muted)]">{ev.message}</p>
+              <p className="mt-0.5 text-xs font-medium leading-snug text-[var(--muted)]">{describeEvent(ev)}</p>
             </div>
           </li>
         );

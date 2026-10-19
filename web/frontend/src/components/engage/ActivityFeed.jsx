@@ -11,13 +11,26 @@ import Icon from "../ui/Icon.jsx";
 // Recent milestones across all players, from stored data (GET /api/activity), refreshed when the stream reports a
 // finished fight, a goal or a challenge. Names and event types only, at most 20 rows, newest first.
 
+// Each kind has its own icon and tone, so a glance down the column tells cleared levels from badges from challenges.
 const TYPES = {
-  level_cleared: { icon: "trophy", verb: (r) => `cleared ${r.label}` },
-  personal_record: { icon: "sparkles", verb: (r) => `set a new best on ${r.label}` },
-  goal_met: { icon: "target", verb: () => "met their daily goal" },
-  challenge_done: { icon: "check", verb: (r) => `completed “${r.label}”` },
-  badge_unlocked: { icon: "medal", verb: (r) => `unlocked ${r.label}` },
+  level_cleared: { icon: "trophy", tone: "bg-[var(--warn-soft)] text-[var(--warn-ink)]", verb: "cleared", label: (r) => r.label },
+  personal_record: { icon: "sparkles", tone: "bg-[var(--accent-soft)] text-[var(--accent-strong)]", verb: "set a new best on", label: (r) => r.label },
+  goal_met: { icon: "target", tone: "bg-[var(--good-soft)] text-[var(--good-ink)]", verb: "met their daily goal", label: () => null },
+  challenge_done: { icon: "check", tone: "bg-[var(--good-soft)] text-[var(--good-ink)]", verb: "completed", label: (r) => `“${r.label}”` },
+  badge_unlocked: { icon: "medal", tone: "bg-[var(--warn-soft)] text-[var(--warn-ink)]", verb: "unlocked", label: (r) => r.label },
 };
+
+// "Today" / "Yesterday" / "Mon 13 Oct": rows are grouped under the day they happened.
+function dayLabel(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Earlier";
+  const key = (x) => x.toDateString();
+  const today = new Date();
+  const yesterday = new Date(today.getTime() - 864e5);
+  if (key(d) === key(today)) return "Today";
+  if (key(d) === key(yesterday)) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
 
 export default function ActivityFeed({ className = "", limit = 20, title = "Activity" }) {
   const { data, error, reload } = useApi(() => api.activity(limit), [limit]);
@@ -38,23 +51,31 @@ export default function ActivityFeed({ className = "", limit = 20, title = "Acti
           </div>
         )
       ) : items.length ? (
-        <ol className="scrollbar-thin max-h-[26rem] divide-y divide-[var(--border)] overflow-y-auto" aria-live="polite">
-          {items.map((r) => {
+        <ol className="scrollbar-thin max-h-[26rem] overflow-y-auto" aria-live="polite">
+          {items.map((r, i) => {
             const t = TYPES[r.type];
+            const day = dayLabel(r.at);
+            const label = t.label({ ...r, label: shortName(r.label, 40) });
             return (
-              <li key={r.id} className="flex items-center gap-3 px-5 py-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent-strong)]">
-                  <Icon name={t.icon} className="h-4 w-4" />
-                </span>
-                <p className="min-w-0 flex-1 text-sm font-medium text-[var(--ink-secondary)]">
-                  <Link to={`/dashboard/player/${encodeURIComponent(r.playerName)}`} className="press rounded font-bold text-[var(--ink)] hover:text-[var(--accent)]">
-                    {shortName(r.playerName, 24)}
-                  </Link>{" "}
-                  {t.verb({ ...r, label: shortName(r.label, 40) })}
-                </p>
-                <time dateTime={r.at} className="shrink-0 text-xs font-semibold text-[var(--muted)]">
-                  {formatRelative(r.at)}
-                </time>
+              <li key={r.id}>
+                {(i === 0 || dayLabel(items[i - 1].at) !== day) && (
+                  <p className="sticky top-0 z-[1] border-b border-[var(--border)] bg-[var(--surface-muted)] px-5 py-1.5 text-[0.68rem] font-extrabold uppercase tracking-wider text-[var(--muted)]">{day}</p>
+                )}
+                <div className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-2.5 last:border-0 hover:bg-[var(--surface-muted)]">
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${t.tone}`} aria-hidden>
+                    <Icon name={t.icon} className="h-4 w-4" />
+                  </span>
+                  <p className="min-w-0 flex-1 text-sm text-[var(--ink-secondary)]">
+                    <Link to={`/dashboard/player/${encodeURIComponent(r.playerName)}`} className="press rounded font-bold text-[var(--ink)] hover:text-[var(--accent)]">
+                      {shortName(r.playerName, 24)}
+                    </Link>{" "}
+                    <span className="font-medium">{t.verb}</span>
+                    {label && <span className="font-semibold text-[var(--ink)]"> {label}</span>}
+                  </p>
+                  <time dateTime={r.at} className="shrink-0 text-xs font-semibold tabular-nums text-[var(--muted)]">
+                    {formatRelative(r.at)}
+                  </time>
+                </div>
               </li>
             );
           })}

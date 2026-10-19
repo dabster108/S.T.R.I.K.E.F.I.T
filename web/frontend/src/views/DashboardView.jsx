@@ -241,12 +241,10 @@ export default function DashboardView({ sessions, allSessions, events, eventsRea
         <Highlights sessions={allSessions} openSession={openSession} />
       </section>
 
-      {/* 01: one lead figure, then three tiles of different widths */}
+      {/* 01: four headline figures of equal weight, each with its own small trend line */}
       <SectionRule index="01" title={`Headline · ${rangeLabel}`} className="mt-8" />
-      <div className="stagger mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-12">
+      <div className="stagger mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
-          feature
-          className="sm:col-span-2 lg:col-span-5 lg:row-span-2"
           label="Battles"
           count={stats.sessions}
           icon={null}
@@ -256,7 +254,6 @@ export default function DashboardView({ sessions, allSessions, events, eventsRea
           hint={prev ? null : `${stats.players} player${stats.players === 1 ? "" : "s"}${sessions.length ? ` · battles per ${sparkWord}` : ""}`}
         />
         <StatTile
-          className="sm:col-span-2 lg:col-span-7"
           label="Win rate"
           count={stats.winRate}
           format={(v) => `${Math.round(v * 10) / 10}%`}
@@ -271,7 +268,6 @@ export default function DashboardView({ sessions, allSessions, events, eventsRea
           hint={prev && stats.sessions ? null : stats.currentStreak > 1 ? `${stats.currentStreak} wins in a row` : `${stats.victories} won · ${stats.defeats} lost${stats.abandoned ? ` · ${stats.abandoned} abandoned (not counted)` : ""}`}
         />
         <StatTile
-          className="lg:col-span-4"
           label="Latest score"
           count={latest ? Number(latest.score) || 0 : undefined}
           value="—"
@@ -282,7 +278,6 @@ export default function DashboardView({ sessions, allSessions, events, eventsRea
           hint={scoreDelta !== null ? null : `best ${formatNumber(stats.bestScore)}`}
         />
         <StatTile
-          className="lg:col-span-3"
           label="Active time"
           count={stats.totalDurationSec}
           format={(v) => formatDuration(v)}

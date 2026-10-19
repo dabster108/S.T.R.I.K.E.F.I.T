@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatWinRate } from "../../lib/outcomes.js";
+import { formatNumber } from "../../lib/format.js";
 import { LevelBadge } from "../ui/Badge.jsx";
 import { EmptyState } from "../ui/Feedback.jsx";
 
@@ -18,7 +19,7 @@ export default function LevelBars({ rows }) {
           <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
             <LevelBadge level={r.level} />
             <span className="font-semibold text-[var(--muted)]">
-              <span className="text-sm font-extrabold tabular-nums text-[var(--ink)]">{Math.round(r.avgScore)}</span> avg score
+              <span className="text-sm font-extrabold tabular-nums text-[var(--ink)]">{formatNumber(r.avgScore)}</span> avg score
               <span className="font-medium"> · decided fights</span>
             </span>
           </div>
@@ -32,7 +33,7 @@ export default function LevelBars({ rows }) {
           </div>
           <p className="mt-1.5 text-xs font-medium text-[var(--muted)]">
             {r.sessions} session{r.sessions === 1 ? "" : "s"} · {r.winRateKnown ? formatWinRate(r.winRate) : "—"} win rate
-            {r.abandoned > 0 ? ` (${r.abandoned} abandoned left out)` : ""} · best {r.bestScore}
+            {r.abandoned > 0 ? ` (${r.abandoned} abandoned left out)` : ""} · best {formatNumber(r.bestScore)}
           </p>
         </li>
       ))}

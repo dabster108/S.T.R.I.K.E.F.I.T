@@ -1,7 +1,7 @@
 import Icon from "../ui/Icon.jsx";
 import { formatPercent } from "../../lib/format.js";
 import { winRate as rateOf } from "../../lib/outcomes.js";
-import { useCountUp, useInView } from "../../hooks/motion.js";
+import { useCountUp, useInView, useReducedMotion } from "../../hooks/motion.js";
 
 // Victory / defeat share as one stacked bar (2px surface gap between segments)
 // with an icon + label legend so the split never relies on color alone.
@@ -17,7 +17,9 @@ export default function OutcomeSplit({ victories, defeats, abandoned = 0, other 
   ].filter((s) => s.value > 0 || (s.key !== "other" && s.key !== "abandoned"));
 
   const winRate = rateOf(victories, defeats); // null when nothing was decided
-  const [ref, inView] = useInView({ rootMargin: "0px" });
+  const [ref, seen] = useInView({ rootMargin: "0px" });
+  const reduced = useReducedMotion();
+  const inView = seen || reduced; // nothing animates under reduced motion / Calm mode, so the bar is drawn at once
   const shown = useCountUp(winRate ?? 0, inView, 1200);
 
   return (
