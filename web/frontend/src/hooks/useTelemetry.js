@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { api } from "../lib/api.js";
 import { liveStore, startLive } from "../live/liveStore.js";
 import { shouldRefetchOnConnect } from "../lib/startup.js";
+import { whenIdle } from "../lib/idle.js";
 
 const HEALTH_INTERVAL_MS = 15000;
 const MAX_EVENTS = 300;
@@ -41,18 +42,17 @@ export function useTelemetry({ onSession, onConnectionChange, withEvents = true 
   const refresh = useCallback(async () => {
     refreshing.current = true;
     try {
-      // Both requests start together; the page is shown as soon as the sessions are in (the events list is about four times as
-      // big and only feeds "Latest activity").
-      const eventsRequest = wantEvents.current ? api.events(MAX_EVENTS) : null;
-      eventsInFlight.current = Boolean(eventsRequest);
-      eventsRequest?.catch(() => {});   // handled below, after the sessions
+      // The page is shown as soon as the sessions are in. The events list (about four times as big, and it only feeds "Latest
+      // activity" further down) is requested once the browser is idle, so it no longer competes with the sessions on a slow link.
       const s = await api.sessions();
       setSessions(s.filter((x) => x.status !== "live"));
       setLastUpdate(new Date().toISOString());
       loadedOk.current = true;
       setLoading(false);
-      if (eventsRequest) {
-        const e = await eventsRequest;
+      if (wantEvents.current) {
+        eventsInFlight.current = true;
+        await whenIdle();
+        const e = await api.events(MAX_EVENTS);
         setEvents(e.filter((ev) => !HIDDEN_TYPES.has(ev.type)));
         eventsLoaded.current = true;
         setEventsReady(true);

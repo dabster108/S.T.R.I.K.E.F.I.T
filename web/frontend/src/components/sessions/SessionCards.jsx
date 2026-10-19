@@ -1,5 +1,4 @@
 import { formatDuration, formatNumber, formatRelative } from "../../lib/format.js";
-import { levelName } from "../../lib/game.js";
 import { sessionTime } from "../../lib/derive.js";
 import { LevelBadge, OutcomeBadge } from "../ui/Badge.jsx";
 import Icon from "../ui/Icon.jsx";
@@ -29,7 +28,6 @@ export function SessionRow({ session: s, onSelect, compact = false, showTime = f
       type="button"
       onClick={() => onSelect?.(s)}
       className="press group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] py-3 pl-4 pr-3 text-left hover:border-[var(--accent-ring)] hover:bg-[var(--surface-muted)] focus-visible:border-[var(--accent)]"
-      aria-label={`${s.playerName}, ${levelName(s.level)}, ${s.outcome || "unknown result"}, ${formatNumber(s.score)} points, ${formatRelative(at)}`}
     >
       <span className={`absolute inset-y-0 left-0 w-1 ${STRIPE[s.outcome] || "bg-gray-300"}`} aria-hidden />
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-extrabold text-[var(--accent-strong)] ring-1 ring-inset ring-[var(--accent-ring)]">

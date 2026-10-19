@@ -1,0 +1,22 @@
+/* Inter, served from this site (public/fonts/inter-latin-var.woff2, the Latin subset of the variable font, OFL licence) instead of
+   Google Fonts: one request fewer to a third-party origin, and it can be preloaded, so the first paint already has the real font.
+   Before, the page could paint in the fallback font and then swap, which re-sized the headline and made it a second, later
+   largest-contentful-paint candidate. Weights 500 to 800 are the only ones the design uses. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500 800;
+  font-display: block; /* the file is preloaded and arrives before the app's JS has rendered text: block avoids a fallback paint and a swap */
+  src: url("/fonts/inter-latin-var.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Arial resized to Inter's metrics: if the font file is slow, the fallback text takes the same space, so nothing reflows on the swap. */
+@font-face {
+  font-family: "Inter Fallback";
+  src: local("Arial"), local("Helvetica Neue"), local("Helvetica");
+  size-adjust: 107.4%;
+  ascent-override: 90.2%;
+  descent-override: 22.48%;
+  line-gap-override: 0%;
+}

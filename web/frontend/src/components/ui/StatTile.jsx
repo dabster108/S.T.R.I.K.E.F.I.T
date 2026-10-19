@@ -43,7 +43,8 @@ export default function StatTile({
   return (
     <div
       ref={ref}
-      className={`lift flex min-w-0 flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)] hover:border-[var(--accent-ring)] ${feature ? "p-6 sm:p-7" : "p-5"} ${className}`}
+      data-spotlight=""
+      className={`spotlight lift flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)] hover:border-[var(--accent-ring)] ${feature ? "p-6 sm:p-7" : "p-5"} ${className}`}
     >
       <div className="flex items-center justify-between gap-2">
         <p className={feature ? "t-kicker" : "text-xs font-semibold uppercase tracking-wide text-[var(--muted)]"}>{label}</p>
@@ -62,8 +63,13 @@ export default function StatTile({
         </>
       ) : (
         <div className="mt-3 flex items-end justify-between gap-3">
-          <p className="t-stat truncate text-[var(--ink)]">{figure}</p>
-          {hasSpark && <Sparkline values={spark} width={88} height={30} label={sparkLabel || `${label} trend`} animate={inView} />}
+          <p className="t-stat shrink-0 text-[var(--ink)]">{figure}</p>
+          {/* the trend takes whatever width the figure leaves, so a long figure ("20m 36s") is never cut short */}
+          {hasSpark && (
+            <div className="min-w-[3rem] max-w-[7rem] flex-1">
+              <FluidSpark values={spark} height={30} label={sparkLabel || `${label} trend`} animate={inView} />
+            </div>
+          )}
         </div>
       )}
       <div className="mt-3 flex min-h-[1.5rem] flex-wrap items-center gap-2 text-xs font-medium text-[var(--muted)]">
@@ -76,11 +82,11 @@ export default function StatTile({
 }
 
 // Sparkline that fills its container's width (for feature tiles).
-function FluidSpark({ values, label, animate }) {
+function FluidSpark({ values, label, animate, height = 56 }) {
   const [ref, width] = useElementWidth(0);
   return (
     <div ref={ref} className="w-full">
-      {width > 0 && <Sparkline values={values} width={width} height={56} label={label} animate={animate} />}
+      {width > 0 && <Sparkline values={values} width={width} height={height} label={label} animate={animate} />}
     </div>
   );
 }
@@ -115,16 +121,18 @@ export function FigureStrip({ items, className = "", caption }) {
   );
 }
 
+// "▲ 12% vs previous 7 days". The arrow is text, so it is also what a screen reader hears ("up 12%").
 export function TrendChip({ value, label, goodWhenUp = true, suffix }) {
   if (value === null || value === undefined || !Number.isFinite(value)) return null;
   const up = value > 0;
   const flat = value === 0;
   const good = flat ? null : up === goodWhenUp;
-  const cls = flat ? "bg-gray-100 text-[var(--ink-secondary)]" : good ? "bg-[var(--good-soft)] text-[var(--good-ink)]" : "bg-[var(--bad-soft)] text-[var(--bad)]";
+  const cls = flat ? "bg-gray-100 text-[var(--ink-secondary)]" : good ? "bg-[var(--good-soft)] text-[var(--good-ink)]" : "bg-[var(--bad-soft)] text-[var(--bad-ink)]";
+  const said = flat ? "no change" : `${up ? "up" : "down"} ${label ?? Math.abs(value)}`;
   return (
     <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-bold tabular-nums ${cls}`}>
-      {!flat && <Icon name={up ? "score" : "trendDown"} className="h-3 w-3" strokeWidth={2.6} />}
-      {flat ? "±0" : `${up ? "+" : "−"}${label ?? Math.abs(value)}`}
+      <span aria-hidden>{flat ? "±0" : `${up ? "▲" : "▼"} ${label ?? Math.abs(value)}`}</span>
+      <span className="sr-only">{said}</span>
       {suffix && <span className="font-semibold">{suffix}</span>}
     </span>
   );

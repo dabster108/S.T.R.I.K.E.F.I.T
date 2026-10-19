@@ -28,7 +28,8 @@ export function CardHeader({ title, subtitle, actions, className = "" }) {
 export function PageHeader({ eyebrow, title, description, actions, leading }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="flex min-w-0 items-center gap-4">
+      {/* grow: the title box is as wide as the row allows, so the loading skeleton's title and the real one are the same box (the Overview's largest paint then happens once) */}
+      <div className="flex min-w-0 grow items-center gap-4">
         {leading}
         <div className="min-w-0">
           {eyebrow && <p className="t-eyebrow">{eyebrow}</p>}

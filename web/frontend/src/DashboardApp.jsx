@@ -10,6 +10,7 @@ import { liveStore } from "./live/liveStore.js";
 import { MobileNav, Sidebar } from "./components/layout/Sidebar.jsx";
 import Topbar from "./components/layout/Topbar.jsx";
 import CommandPalette from "./components/layout/CommandPalette.jsx";
+import OverviewHeader from "./views/OverviewHeader.jsx";
 import ShortcutsOverlay, { isTypingTarget } from "./components/layout/ShortcutsOverlay.jsx";
 import { ToastStack, useToasts } from "./components/ui/Toasts.jsx";
 import { anotherModalOpen, AUTO_START_DELAY_MS, hasSeenTour, markTourSeen, TOUR_EVENT, tourAutoStartAllowed } from "./components/onboarding/tourState.js";
@@ -211,10 +212,11 @@ function Dashboard() {
         <Topbar onMenu={() => setMenuOpen(true)} onSearch={() => setPaletteOpen(true)} />
         {/* the Live Arena gets a wider column: it is meant to be read from across a room on a projector */}
         <main id="main" className={`mx-auto min-h-[calc(100svh-4.5rem)] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 ${section === "live" ? "max-w-[1760px]" : "max-w-7xl"}`}>
-          {t.loading && needsTelemetry ? (
-            <Fallback />
-          ) : (
-            <div key={pageKey.current} className="page-in min-w-0">
+          <div key={pageKey.current} className="page-in min-w-0">
+            {section === "" && <OverviewHeader shown={filtered.length} total={t.sessions.length} loading={t.loading} range={range} onRange={setRange} />}
+            {t.loading && needsTelemetry ? (
+              <Fallback />
+            ) : (
               <Suspense fallback={<Fallback />}>
                 <Routes>
                   <Route index element={overview} />
@@ -243,8 +245,8 @@ function Dashboard() {
                   <Route path="*" element={<DashboardNotFound />} />
                 </Routes>
               </Suspense>
-            </div>
-          )}
+            )}
+          </div>
 
           <footer className="mt-12 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-[var(--border)] pt-6 text-xs font-semibold text-[var(--muted)]">
             <p>STRIKEFIT · VR fitness research prototype</p>

@@ -38,6 +38,7 @@
   --warn-soft: #fffbeb;
   --bad: #dc2626;
   --bad-soft: #fef2f2;
+  --bad-ink: #b91c1c; /* red text on --bad-soft: 6.5:1 (--bad itself is 4.4:1 there) */
   /* text on white / soft fills: emerald-700 and amber-700 of the same scales.
      --good (3.8:1) and --warn (3.2:1) stay for dots, bars and icons only. */
   --good-ink: #047857;
@@ -58,8 +59,8 @@
   --tier-medium: #1d4ed8; /* blue-700 */
   --tier-full: #1e3a8a; /* blue-900 */
 
-  /* type (original: Inter everywhere; only 500/600/700/800 are loaded) */
-  --font-ui: "Inter", system-ui, -apple-system, sans-serif;
+  /* type (Inter everywhere, self-hosted: see fonts.css; only weights 500 to 800 are used) */
+  --font-ui: "Inter", "Inter Fallback", system-ui, -apple-system, sans-serif;
   --fw-body: 500;
   --fw-label: 600;
   --fw-title: 700;

@@ -1,5 +1,4 @@
 import { Skeleton } from "./Feedback.jsx";
-import { PageHeader } from "./Card.jsx";
 
 // Loading placeholders shaped like each page, so nothing jumps when data lands.
 
@@ -100,17 +99,15 @@ const wrap = (label, children) => (
 );
 
 export const OverviewSkeleton = () =>
-  wrap(
-    "Loading overview",
-    <>
-      {/* The real header (it is static text), so the largest paint is not waiting for the data. */}
-      <PageHeader eyebrow="Dashboard" title="Performance overview" description="How your players are doing across every battle." />
+  (
+    <div className="mt-6 space-y-6" aria-busy="true" aria-label="Loading overview">
+      {/* the title is OverviewHeader, rendered by the dashboard shell above this */}
       <KpiRow />
       <div className="grid gap-6 xl:grid-cols-12">
         <ChartBox className="xl:col-span-8" />
         <ChartBox className="xl:col-span-4" />
       </div>
-    </>
+    </div>
   );
 
 export const LiveSkeleton = () =>
@@ -374,3 +371,17 @@ export const EngagementSkeleton = () =>
       <StatStrip n={4} />
     </>
   );
+
+// The Overview below its headline figures while that chunk loads: the two-column rows the real sections use.
+export const OverviewMoreSkeleton = () => (
+  <div className="mt-12 space-y-6" aria-hidden>
+    <div className="grid gap-6 xl:grid-cols-12">
+      <ChartBox className="xl:col-span-7" h="h-48" />
+      <ChartBox className="xl:col-span-5" h="h-48" />
+    </div>
+    <div className="grid gap-6 xl:grid-cols-12">
+      <ChartBox className="xl:col-span-8" />
+      <ChartBox className="xl:col-span-4" />
+    </div>
+  </div>
+);

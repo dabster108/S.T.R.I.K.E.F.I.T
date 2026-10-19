@@ -6,6 +6,7 @@
 // Components subscribe to narrow slices (one session, the id list, the feed,
 // the connection state) so an event only re-renders what it changed.
 
+import { whenIdle } from "../lib/idle.js";
 import { api } from "../lib/api.js";
 import { shouldResync } from "../lib/startup.js";
 import { bindPageLifecycle } from "../lib/pagelife.js";
@@ -196,9 +197,13 @@ let lastResyncAt = 0;
 async function resync({ seedFeed }) {
   lastResyncAt = Date.now();
   try {
-    const [live, events] = await Promise.all([api.live(), seedFeed ? api.events({ limit: 80 }) : Promise.resolve(null)]);
+    const live = await api.live();
     applySnapshot(live.sessions || []);
-    if (events) pushFeed(events, { seeded: true });
+    if (seedFeed) {
+      // The kill feed is only on screen on the Live Arena and Broadcast pages; elsewhere its 35 kB seed waits for an idle moment.
+      if (!/^\/dashboard\/(live|broadcast)/.test(location.pathname)) await whenIdle();
+      pushFeed(await api.events({ limit: 80 }), { seeded: true });
+    }
   } catch {
     /* the connection state already tells the user */
   }
