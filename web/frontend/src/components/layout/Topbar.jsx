@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { breadcrumbs } from "../../lib/breadcrumbs.js";
 import { wakeStore } from "../../lib/api.js";
 import { useCalmMode } from "../../hooks/motion.js";
 import { openTour } from "../onboarding/tourState.js";
@@ -31,6 +32,32 @@ function ConnectionDot() {
         <span className={`h-2 w-2 rounded-full ${d.cls}`} aria-hidden />
       </Link>
     </Tooltip>
+  );
+}
+
+// Dashboard > Players > Ada. The last crumb is the page you are on (aria-current), the rest are links.
+function Breadcrumb() {
+  const { pathname } = useLocation();
+  const crumbs = breadcrumbs(pathname);
+  return (
+    <nav aria-label="Breadcrumb" className="hidden min-w-0 shrink lg:block">
+      <ol className="flex min-w-0 items-center gap-1.5 text-sm font-semibold">
+        {crumbs.map((c, i) => (
+          <li key={i} className="flex min-w-0 items-center gap-1.5">
+            {i > 0 && <Icon name="chevronRight" className="h-3.5 w-3.5 shrink-0 text-[var(--border-strong)]" />}
+            {c.to ? (
+              <Link to={c.to} className="press truncate rounded text-[var(--muted)] hover:text-[var(--accent-strong)]">
+                {c.label}
+              </Link>
+            ) : (
+              <span aria-current="page" className="truncate text-[var(--ink)]">
+                {c.label}
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </nav>
   );
 }
 
@@ -163,6 +190,7 @@ export default function Topbar({ onMenu, onSearch }) {
         <div className="hidden sm:block lg:hidden">
           <Brand />
         </div>
+        <Breadcrumb />
         <PaletteTrigger onSearch={onSearch} />
         <div className="ml-auto flex items-center gap-2">
           <HeaderMenu />

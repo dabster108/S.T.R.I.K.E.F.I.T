@@ -1502,3 +1502,8 @@
   .curve .curve-area { opacity: 0.9 !important; transition: none !important; }
   .flow-dots { animation: none !important; }
 }
+
+/* While a page is a skeleton its height is a guess, so the footer waits (invisible, not collapsed) instead of jumping when the page lands. */
+#main:has([aria-busy="true"]) > footer {
+  visibility: hidden;
+}

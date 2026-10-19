@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useSyncExternalStore } from "react";
+import { dismiss, getToasts, push, subscribe } from "../../lib/toast.js";
 import Icon from "./Icon.jsx";
 
 const TONES = {
@@ -7,20 +8,9 @@ const TONES = {
   info: { icon: "signal", cls: "text-[var(--accent)]" },
 };
 
+// The store lives in lib/toast.js; this hook is how a component reads it (and how the dashboard shell kept its old API).
 export function useToasts() {
-  const [toasts, setToasts] = useState([]);
-
-  const dismiss = useCallback((id) => setToasts((t) => t.filter((x) => x.id !== id)), []);
-
-  const push = useCallback(
-    ({ tone = "info", title, detail, timeout = 4500 }) => {
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      setToasts((t) => [...t.slice(-3), { id, tone, title, detail }]);
-      if (timeout) setTimeout(() => dismiss(id), timeout);
-    },
-    [dismiss]
-  );
-
+  const toasts = useSyncExternalStore(subscribe, getToasts, getToasts);
   return { toasts, push, dismiss };
 }
 

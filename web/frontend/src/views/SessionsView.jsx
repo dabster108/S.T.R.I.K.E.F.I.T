@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { RANGES, levelRank, sessionTime, summarize, toCsv } from "../lib/derive.js";
 import { formatNumber } from "../lib/format.js";
@@ -8,6 +9,7 @@ import { EmptyState } from "../components/ui/Feedback.jsx";
 import Button from "../components/ui/Button.jsx";
 import { FigureStrip } from "../components/ui/StatTile.jsx";
 import { SessionList, SessionTimeline } from "../components/sessions/SessionCards.jsx";
+import { toast } from "../lib/toast.js";
 
 const PAGE_SIZE = 20;
 const OUTCOMES = [
@@ -33,12 +35,18 @@ function download(name, text) {
   a.download = name;
   a.click();
   URL.revokeObjectURL(url);
+  toast.good("CSV downloaded", name);
 }
 
 export default function SessionsView({ sessions, range, onRange, openSession }) {
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState("all");
-  const [level, setLevel] = useState("all");
+  const [params] = useSearchParams();
+  const [level, setLevel] = useState(() => params.get("level") || "all"); // the palette's "jump to level" arrives as ?level=Easy
+  const levelParam = params.get("level");
+  useEffect(() => {
+    if (levelParam) setLevel(levelParam); // also when the page is already open
+  }, [levelParam]);
   const [sortId, setSortId] = useState("newest");
   const [page, setPage] = useState(0);
   const sort = SORTS.find((s) => s.id === sortId);

@@ -8,6 +8,7 @@ import { inputClass } from "../components/ui/Controls.jsx";
 import { Select } from "../components/ui/Select.jsx";
 import Button from "../components/ui/Button.jsx";
 import Icon from "../components/ui/Icon.jsx";
+import { toast } from "../lib/toast.js";
 
 const EVENT_TYPES = [
   { id: "all", label: "All event types" },
@@ -157,8 +158,11 @@ export default function ExportView() {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       setStatus({ kind, state: "done", rows, name });
+      toast.good("CSV downloaded", `${name}${Number.isFinite(rows) ? ` · ${rows.toLocaleString()} rows` : ""}`);
     } catch (err) {
-      setStatus({ kind, state: "error", message: err.message === "Failed to fetch" ? "the server didn't answer" : err.message });
+      const message = err.message === "Failed to fetch" ? "the server didn't answer" : err.message;
+      setStatus({ kind, state: "error", message });
+      toast.bad("Export failed", message);
     }
   };
   const statusFor = (kind) => (status?.kind === kind ? status : null);

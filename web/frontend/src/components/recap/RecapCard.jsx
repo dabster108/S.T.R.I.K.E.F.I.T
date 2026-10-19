@@ -8,6 +8,7 @@ import { useElementWidth } from "../charts/useElementWidth.js";
 import Button from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
 import ShareChallenge from "../engage/ShareChallenge.jsx";
+import { toast } from "../../lib/toast.js";
 
 // A shareable 1080 x 1350 recap of one session. Everything on it comes from the stored session,
 // its events, the player's other sessions and their unlocked badges; a number that doesn't exist is
@@ -224,9 +225,15 @@ export default function RecapPanel({ data }) {
     try {
       const f = await file();
       if (share && navigator.canShare?.({ files: [f] })) await navigator.share({ files: [f], title: "My STRIKEFIT session" });
-      else download(f);
+      else {
+        download(f);
+        toast.good("Image saved", f.name);
+      }
     } catch (err) {
-      if (err?.name !== "AbortError") setNote("Couldn't create the image. Try again.");
+      if (err?.name !== "AbortError") {
+        setNote("Couldn't create the image. Try again.");
+        toast.bad("Couldn't create the image", "Try again in a moment.");
+      }
     } finally {
       setBusy(false);
     }

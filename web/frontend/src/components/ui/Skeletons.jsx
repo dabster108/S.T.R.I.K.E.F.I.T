@@ -263,3 +263,114 @@ export const GenericSkeleton = () =>
       <ChartBox />
     </>
   );
+
+// A numbered section heading ("01 ── Return rate") above a card.
+function RuleSkeleton() {
+  return (
+    <div className="flex items-center gap-3">
+      <Skeleton className="h-3 w-6" />
+      <Skeleton className="h-4 w-40" />
+      <span className="h-px flex-1 bg-[var(--border)]" aria-hidden />
+    </div>
+  );
+}
+
+// A row of figures in one bordered strip (the Lab's and Engagement's headline numbers).
+function StatStrip({ n = 4 }) {
+  return (
+    <Box className="grid divide-x divide-[var(--border)] sm:grid-cols-4">
+      {Array.from({ length: n }, (_, i) => (
+        <div key={i} className="space-y-2 px-5 py-4">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-8 w-16" />
+        </div>
+      ))}
+    </Box>
+  );
+}
+
+// Thesis Lab: header + export button, a "what this tells us" summary card, then numbered chart sections.
+export const LabSkeleton = () =>
+  wrap(
+    "Loading the Thesis Lab",
+    <>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <Header />
+        <Skeleton className="h-10 w-36 rounded-xl" />
+      </div>
+      <Box className="space-y-2 border-amber-200 bg-amber-50/50 p-4">
+        <Skeleton className="h-3.5 w-72 max-w-full" />
+        <Skeleton className="h-3 w-full max-w-2xl" />
+      </Box>
+      <StatStrip n={4} />
+      {[0, 1].map((i) => (
+        <div key={i} className="space-y-3">
+          <RuleSkeleton />
+          <ChartBox h={i ? "h-64" : "h-52"} />
+        </div>
+      ))}
+      <div className="space-y-3">
+        <RuleSkeleton />
+        <Rows n={3} avatar={false} />
+      </div>
+    </>
+  );
+
+// Export: filters card on the left, the two download cards on the right.
+export const ExportSkeleton = () =>
+  wrap(
+    "Loading the export page",
+    <>
+      <Header />
+      <div className="grid gap-10 lg:grid-cols-12 lg:gap-8">
+        <div className="space-y-3 lg:col-span-4">
+          <Skeleton className="h-4 w-44" />
+          <Box className="space-y-4 p-5">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-10 w-full rounded-xl" />
+              </div>
+            ))}
+          </Box>
+        </div>
+        <div className="space-y-6 lg:col-span-8">
+          {[0, 1].map((i) => (
+            <Box key={i} className="flex items-center gap-4 p-5">
+              <Skeleton className="h-12 w-12 rounded-xl" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-full max-w-md" />
+              </div>
+              <Skeleton className="h-10 w-32 rounded-xl" />
+            </Box>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+
+// Engagement: header, a player picker, a week strip of cards and a calendar grid.
+export const EngagementSkeleton = () =>
+  wrap(
+    "Loading engagement",
+    <>
+      <Header />
+      <RuleSkeleton />
+      <Box className="overflow-hidden">
+        <div className="space-y-2 border-b border-[var(--border)] px-5 py-4">
+          <Skeleton className="h-3.5 w-48" />
+          <Skeleton className="h-3 w-56" />
+        </div>
+        <div className="space-y-3 p-5">
+          <Skeleton className="h-3 w-64" />
+          <div className="grid grid-flow-col grid-rows-7 gap-1">
+            {Array.from({ length: 7 * 26 }, (_, i) => (
+              <span key={i} className="skeleton aspect-square rounded-[3px]" aria-hidden />
+            ))}
+          </div>
+        </div>
+      </Box>
+      <StatStrip n={4} />
+    </>
+  );

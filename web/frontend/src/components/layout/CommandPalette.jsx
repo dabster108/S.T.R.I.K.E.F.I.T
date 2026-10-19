@@ -6,7 +6,13 @@ import Icon from "../ui/Icon.jsx";
 import { NAV } from "./Sidebar.jsx";
 import { useLiveIds } from "../../live/LiveProvider.jsx";
 import { liveStore } from "../../live/liveStore.js";
-import { levelName } from "../../lib/game.js";
+import { LEVELS, levelName } from "../../lib/game.js";
+import { fuzzyFilter } from "../../lib/fuzzy.js";
+import { addRecent, goHint, readRecent, writeRecent } from "../../lib/shortcuts.js";
+import { exportCsv } from "../../lib/exportCsv.js";
+import { copyText } from "../../lib/toast.js";
+import { useCalmMode } from "../../hooks/motion.js";
+import { openTour } from "../onboarding/tourState.js";
 
 // The matched part of a label in bold, so it is clear why a result is there.
 function Highlight({ text, needle }) {
@@ -22,37 +28,39 @@ function Highlight({ text, needle }) {
 }
 
 const PAGES = [
-  ...NAV.map((n) => ({ kind: "page", id: n.to, label: n.label, icon: n.icon, to: n.to })),
+  ...NAV.map((n) => ({ kind: "page", id: n.to, label: n.label, icon: n.icon, to: n.to, shortcut: goHint(n.to) })),
   { kind: "page", id: "/dashboard/connection", label: "Connection and Unity setup", icon: "server", to: "/dashboard/connection", keywords: "settings health api" },
   { kind: "page", id: "/dashboard/guide", label: "User guide", icon: "book", to: "/dashboard/guide", keywords: "help manual docs how" },
   { kind: "page", id: "/", label: "Landing page", icon: "external", to: "/", keywords: "home public" },
 ];
 
-const score = (text, q) => {
-  const t = text.toLowerCase();
-  if (t.startsWith(q)) return 0;
-  const i = t.indexOf(q);
-  if (i >= 0) return 1 + i / 100;
-  // Loose subsequence match ("ldb" -> "Leaderboard").
-  let at = 0;
-  for (const ch of q) {
-    at = t.indexOf(ch, at);
-    if (at < 0) return null;
-    at++;
-  }
-  return 3;
-};
+// "Jump to level": the Sessions page filtered to that level.
+const LEVEL_ITEMS = Object.values(LEVELS).map((l) => ({
+  kind: "level",
+  id: `level:${l.key}`,
+  label: `${l.name}: ${l.difficulty} sessions`,
+  icon: "swords",
+  to: `/dashboard/sessions?level=${l.key}`,
+  hint: l.monster,
+  keywords: `level ${l.number} ${l.key} ${l.difficulty} ${l.monster}`,
+}));
 
-function filter(items, q) {
-  if (!q) return items;
-  return items
-    .map((it) => ({ it, s: score(`${it.label} ${it.keywords || ""}`, q) }))
-    .filter((x) => x.s !== null)
-    .sort((a, b) => a.s - b.s)
-    .map((x) => x.it);
+const filter = (items, q) => fuzzyFilter(items, q);
+
+function Keys({ keys }) {
+  if (!keys) return null;
+  return (
+    <span className="flex shrink-0 items-center gap-1" aria-hidden>
+      {keys.map((k, i) => (
+        <kbd key={i} className="min-w-5 rounded border border-[var(--border)] bg-[var(--surface)] px-1 py-px text-center font-sans text-[0.6875rem] font-bold text-[var(--ink-secondary)]">
+          {k}
+        </kbd>
+      ))}
+    </span>
+  );
 }
 
-export default function CommandPalette({ open, onClose }) {
+export default function CommandPalette({ open, onClose, onShortcuts }) {
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
   const [players, setPlayers] = useState(null);
@@ -61,12 +69,15 @@ export default function CommandPalette({ open, onClose }) {
   const list = useRef(null);
   const returnFocus = useRef(null);
   const listId = useId();
+  const [calm, setCalm] = useCalmMode();
+  const [recent, setRecent] = useState(() => readRecent(localStorage));
 
   useEffect(() => {
     if (!open) return undefined;
     returnFocus.current = document.activeElement;
     setQ("");
     setActive(0);
+    setRecent(readRecent(localStorage));
     requestAnimationFrame(() => input.current?.focus());
     let alive = true;
     api
@@ -93,6 +104,18 @@ export default function CommandPalette({ open, onClose }) {
       needle
     );
     const pages = filter(PAGES, needle);
+    const levels = filter(LEVEL_ITEMS, needle);
+    const actions = filter(
+      [
+        { kind: "action", id: "act:calm", label: calm ? "Turn Calm mode off" : "Turn Calm mode on", icon: "moon", hint: "Stops confetti, tilt, embers and cheers", keywords: "calm motion reduce animation accessibility toggle", run: () => setCalm(!calm) },
+        { kind: "action", id: "act:csv-sessions", label: "Export sessions as CSV", icon: "download", hint: "Every session, one row each", keywords: "download csv export sessions data", run: () => exportCsv("sessions") },
+        { kind: "action", id: "act:csv-events", label: "Export events as CSV", icon: "download", hint: "Every hit and monster attack", keywords: "download csv export events hits data", run: () => exportCsv("events") },
+        { kind: "action", id: "act:copy-link", label: "Copy link to this page", icon: "link", keywords: "share url copy", run: () => copyText(window.location.href, "Link") },
+        { kind: "action", id: "act:shortcuts", label: "Show keyboard shortcuts", icon: "command", shortcut: ["?"], keywords: "keys help hotkeys", run: () => onShortcuts?.() },
+        { kind: "action", id: "act:tour", label: "Take the dashboard tour", icon: "compass", keywords: "guide onboarding walkthrough help", run: () => openTour() },
+      ],
+      needle
+    );
     const people = filter(
       (players || []).map((p) => ({
         kind: "player",
@@ -104,12 +127,20 @@ export default function CommandPalette({ open, onClose }) {
       })),
       needle
     ).slice(0, needle ? 8 : 5);
+    const known = new Map([...PAGES, ...LEVEL_ITEMS, ...people].map((i) => [i.id, i]));
+    // Recents come back as they were saved, but a page that no longer exists is dropped and a stale hint is refreshed.
+    const recents = needle ? [] : recent.map((r) => known.get(r.id) || (r.kind === "player" ? r : null)).filter(Boolean);
+    const seen = new Set(recents.map((r) => r.id));
+    const dedupe = (items) => (needle ? items : items.filter((i) => !seen.has(i.id)));
     return [
+      { title: "Recent", items: recents },
       { title: "Live now", items: live },
-      { title: "Pages", items: pages },
-      { title: "Players", items: people },
+      { title: "Actions", items: needle ? actions : actions.slice(0, 4) },
+      { title: "Pages", items: dedupe(pages) },
+      { title: "Levels", items: dedupe(levels) },
+      { title: "Players", items: dedupe(people) },
     ].filter((g) => g.items.length);
-  }, [needle, players, liveIds]);
+  }, [needle, players, liveIds, recent, calm]);
   const flat = groups.flatMap((g) => g.items);
 
   useEffect(() => {
@@ -121,6 +152,15 @@ export default function CommandPalette({ open, onClose }) {
   const go = (item) => {
     if (!item) return;
     onClose();
+    if (item.run) {
+      item.run();
+      return;
+    }
+    if (item.kind !== "live") {
+      const next = addRecent(recent, item);
+      setRecent(next);
+      writeRecent(localStorage, next);
+    }
     navigate(item.to);
   };
 
@@ -167,7 +207,7 @@ export default function CommandPalette({ open, onClose }) {
             aria-controls={listId}
             aria-autocomplete="list"
             aria-activedescendant={flat[active] ? `${listId}-${active}` : undefined}
-            placeholder="Jump to a page or player…"
+            placeholder="Jump to a page, player or level, or run an action…"
             className="h-14 w-full bg-transparent text-[0.95rem] font-semibold text-[var(--ink)] placeholder:font-medium placeholder:text-[var(--muted)] focus:outline-none"
           />
           <kbd className="rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-1.5 py-0.5 font-sans text-xs font-semibold text-[var(--ink-secondary)]">Esc</kbd>
@@ -209,7 +249,8 @@ export default function CommandPalette({ open, onClose }) {
                       </span>
                       {item.hint && <span className="block truncate text-xs font-medium text-[var(--muted)]">{item.hint}</span>}
                     </span>
-                    {on && <Icon name="enter" className="h-4 w-4 opacity-70" />}
+                    <Keys keys={item.shortcut} />
+                    {on && <Icon name="enter" className="h-4 w-4 shrink-0 opacity-70" />}
                   </div>
                 );
               })}
@@ -240,6 +281,9 @@ export default function CommandPalette({ open, onClose }) {
           </span>
           <span className="inline-flex items-center gap-1">
             <Icon name="enter" className="h-3 w-3" /> open
+          </span>
+          <span className="inline-flex items-center gap-1" title="Press G, then a letter, to jump straight to a page">
+            <Keys keys={["G"]} /> then a letter
           </span>
           <span className="ml-auto">{players ? `${players.length} player${players.length === 1 ? "" : "s"}` : ""}</span>
         </div>

@@ -9,8 +9,10 @@ import Icon from "../components/ui/Icon.jsx";
 import { useApi } from "../hooks/useApi.js";
 import { Card, CardHeader, PageHeader, SectionRule } from "../components/ui/Card.jsx";
 import { Banner, EmptyState, Skeleton } from "../components/ui/Feedback.jsx";
+import { LabSkeleton } from "../components/ui/Skeletons.jsx";
 import { LevelBadge } from "../components/ui/Badge.jsx";
 import Button from "../components/ui/Button.jsx";
+import { toast } from "../lib/toast.js";
 
 // Thesis Lab: the figures a thesis chapter needs, in one place, with their sample sizes. Everything comes from GET /api/lab
 // (backend/lab.js); the win rate is the shared rule from lib/outcomes.js, the same one the rest of the dashboard uses.
@@ -177,8 +179,11 @@ function ExportCsv() {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       setStatus({ state: "done", rows, name });
+      toast.good("CSV downloaded", `${name}${Number.isFinite(rows) ? ` · ${rows.toLocaleString()} rows` : ""}`);
     } catch (err) {
-      setStatus({ state: "error", message: err.message === "Failed to fetch" ? "the server didn't answer" : err.message });
+      const message = err.message === "Failed to fetch" ? "the server didn't answer" : err.message;
+      setStatus({ state: "error", message });
+      toast.bad("Export failed", message);
     }
   };
   return (
@@ -190,17 +195,6 @@ function ExportCsv() {
         {status?.state === "done" && `${formatNumber(status.rows)} sessions saved as ${status.name}`}
         {status?.state === "error" && <span className="text-[var(--bad)]">The download didn't finish: {status.message}. Try again in a moment.</span>}
       </p>
-    </div>
-  );
-}
-
-function LabSkeleton() {
-  return (
-    <div className="space-y-6" aria-hidden>
-      <Skeleton className="h-24 w-full rounded-2xl" />
-      <Skeleton className="h-56 w-full rounded-2xl" />
-      <Skeleton className="h-72 w-full rounded-2xl" />
-      <Skeleton className="h-64 w-full rounded-2xl" />
     </div>
   );
 }

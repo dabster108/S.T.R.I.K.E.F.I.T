@@ -2,6 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, us
 import { Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useTelemetry } from "./hooks/useTelemetry.js";
 import { filterByRange } from "./lib/derive.js";
+import { GO_WINDOW_MS, goTarget } from "./lib/shortcuts.js";
+import { TITLES } from "./lib/breadcrumbs.js";
 import { formatNumber } from "./lib/format.js";
 import { LiveProvider, useLiveIds, useLiveMessages } from "./live/LiveProvider.jsx";
 import { liveStore } from "./live/liveStore.js";
@@ -14,6 +16,9 @@ import { anotherModalOpen, AUTO_START_DELAY_MS, hasSeenTour, markTourSeen, TOUR_
 import {
   AnalyticsSkeleton,
   CompareSkeleton,
+  EngagementSkeleton,
+  ExportSkeleton,
+  LabSkeleton,
   GenericSkeleton,
   LeaderboardSkeleton,
   LiveSkeleton,
@@ -45,24 +50,6 @@ const Tour = lazy(() => import("./components/onboarding/Tour.jsx"));
 
 const RANGE_KEY = "vrfitness.range";
 const SIDEBAR_KEY = "strikefit.sidebar";
-const TITLES = {
-  "": "Overview",
-  live: "Live Arena",
-  players: "Players",
-  player: "Player",
-  sessions: "Sessions",
-  session: "Session",
-  leaderboard: "Leaderboard",
-  compare: "Compare",
-  analytics: "Analytics",
-  lab: "Thesis Lab",
-  engagement: "Engagement",
-  export: "Export",
-  guide: "User guide",
-  connection: "Connection",
-  broadcast: "Broadcast",
-  story: "Story",
-};
 const SKELETONS = {
   "": OverviewSkeleton,
   live: LiveSkeleton,
@@ -73,6 +60,9 @@ const SKELETONS = {
   leaderboard: LeaderboardSkeleton,
   compare: CompareSkeleton,
   analytics: AnalyticsSkeleton,
+  lab: LabSkeleton,
+  export: ExportSkeleton,
+  engagement: EngagementSkeleton,
 };
 
 const read = (key, fallback) => {
@@ -177,18 +167,29 @@ function Dashboard() {
   }, [pathname, section, renamed]);
 
   useEffect(() => {
+    let armedAt = 0; // "G" pressed: the next letter jumps to a page
     const onKey = (e) => {
+      const plain = !e.metaKey && !e.ctrlKey && !e.altKey;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((o) => !o);
-      } else if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingTarget(e.target)) {
+      } else if (e.key === "?" && plain && !isTypingTarget(e.target)) {
         e.preventDefault();
         setShortcutsOpen((o) => !o);
+      } else if (plain && !e.shiftKey && !isTypingTarget(e.target) && !overlayOpen.current && !anotherModalOpen()) {
+        const k = e.key.toLowerCase();
+        if (armedAt && Date.now() - armedAt < GO_WINDOW_MS && goTarget(k)) {
+          e.preventDefault();
+          armedAt = 0;
+          navigate(goTarget(k));
+        } else {
+          armedAt = k === "g" ? Date.now() : 0;
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [navigate]);
 
   // Pages that load their own data don't need to wait for the telemetry snapshot.
   const needsTelemetry = ["", "sessions", "leaderboard", "players"].includes(section);
@@ -209,7 +210,7 @@ function Dashboard() {
       <div className="min-w-0 lg:pl-[var(--sb)]">
         <Topbar onMenu={() => setMenuOpen(true)} onSearch={() => setPaletteOpen(true)} />
         {/* the Live Arena gets a wider column: it is meant to be read from across a room on a projector */}
-        <main id="main" className={`mx-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8 ${section === "live" ? "max-w-[1760px]" : "max-w-7xl"}`}>
+        <main id="main" className={`mx-auto min-h-[calc(100svh-4.5rem)] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 ${section === "live" ? "max-w-[1760px]" : "max-w-7xl"}`}>
           {t.loading && needsTelemetry ? (
             <Fallback />
           ) : (
@@ -269,7 +270,7 @@ function Dashboard() {
         </main>
       </div>
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onShortcuts={() => setShortcutsOpen(true)} />
       <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       {touring && !t.loading && (
         <Suspense fallback={null}>

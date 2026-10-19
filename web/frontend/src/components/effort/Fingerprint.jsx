@@ -7,6 +7,7 @@ import { EmptyState, Skeleton } from "../ui/Feedback.jsx";
 import Button from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
 import RadarChart from "./RadarChart.jsx";
+import { toast } from "../../lib/toast.js";
 
 // Effort fingerprint: five axes scored 0-100 from the player's last 10 finished fights that have swing data
 // (GET /api/players/:name/fingerprint; the maths is backend/effort.js). How each axis is scored:
@@ -140,8 +141,10 @@ export default function Fingerprint({ name }) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.good("Image saved", `strikefit-fingerprint-${name.replace(/[^a-z0-9]+/gi, "_")}.png`);
     } catch {
       setNote("Couldn't create the image. Try again.");
+      toast.bad("Couldn't create the image", "Try again in a moment.");
     } finally {
       setBusy(false);
     }
