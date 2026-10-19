@@ -31,6 +31,7 @@ import { JourneyStrip, NextStepCard } from "../components/engage/Mastery.jsx";
 import { WeekCard } from "../components/engage/WeekCard.jsx";
 import { PlayerCalendar } from "../components/engage/Calendar.jsx";
 
+const ProfileSummary = lazy(() => import("../components/players/ProfileSummary.jsx"));
 const Fingerprint = lazy(() => import("../components/effort/Fingerprint.jsx"));
 const FadeAverage = lazy(() => import("../components/effort/FadeAverage.jsx"));
 const FadeSkeleton = lazy(() => import("../components/effort/FadePanel.jsx").then((m) => ({ default: m.FadeSkeleton })));
@@ -304,6 +305,12 @@ export default function PlayerView() {
         </div>
       )}
 
+      {p && (
+        <Suspense fallback={<div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)]" style={{ minHeight: 300 }} aria-hidden />}>
+          <ProfileSummary name={name} bests={p.personalBests} />
+        </Suspense>
+      )}
+
       {error && !p ? (
         <Card className="mt-6">
           <EmptyState icon="players" title="This profile will appear here" description="It loads as soon as the server answers." />
@@ -347,13 +354,13 @@ export default function PlayerView() {
           />
 
           <SectionRule index="03" title="Effort over time" className="mt-12" />
-          <Card className="mt-4 overflow-hidden">
+          <Card id="player-fade" className="mt-4 scroll-mt-24 overflow-hidden">
             <CardHeader title="Effort fade" subtitle="Average across this player's last 10 fights: do the swings slow down by the end?" />
             <Suspense fallback={<FadeSkeleton />}>
               <FadeAverage name={name} />
             </Suspense>
           </Card>
-          <Card className="mt-6 overflow-hidden">
+          <Card id="player-fingerprint" className="mt-6 scroll-mt-24 overflow-hidden">
             <CardHeader title="Effort fingerprint" subtitle="Power, consistency, stamina, dodge and guard timing, each scored 0 to 100 from this player's recent fights" />
             <Suspense fallback={<div style={{ minHeight: 560 }} aria-hidden><div className="skeleton m-5 h-[26rem] rounded-xl" /></div>}>
               <Fingerprint name={name} />
