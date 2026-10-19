@@ -205,10 +205,19 @@
   animation: status-pulse 2s ease-in-out infinite;
 }
 
-@keyframes flash-in {
+/* The two keyframes every entrance uses (motion/tokens.js has the matching numbers). */
+@keyframes motion-fade {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes motion-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-rise), 0);
   }
   to {
     opacity: 1;
@@ -216,25 +225,17 @@
   }
 }
 .flash-in {
-  animation: flash-in 0.25s ease-out;
+  animation: motion-fade var(--motion-base) var(--motion-ease);
 }
-
-@keyframes view-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.view-in {
+  animation: motion-rise var(--motion-slow) var(--motion-ease);
 }
-.view-in,
+/* A route change is a 150 ms cross-fade, opacity only: nothing moves, so the layout cannot jump. */
 .page-in {
-  animation: view-in 0.22s var(--ease-out);
+  animation: motion-fade var(--motion-fast) linear;
 }
 .route-in {
-  animation: fade-in 0.2s ease-out;
+  animation: motion-fade var(--motion-base) var(--motion-ease);
 }
 
 @keyframes drawer-in {
@@ -249,16 +250,8 @@
   animation: drawer-in 0.3s var(--ease-out);
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
 .fade-in {
-  animation: fade-in 0.2s ease-out;
+  animation: motion-fade var(--motion-base) var(--motion-ease);
 }
 
 @keyframes pop-in {
@@ -272,33 +265,23 @@
   }
 }
 .pop-in {
-  animation: pop-in 0.22s var(--ease-out);
+  animation: pop-in var(--motion-base) var(--motion-ease);
 }
 
 /* staggered card entrance: children fade up one after another */
-@keyframes card-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
 /* backwards, not both: once finished the animation lets go of transform, so
-   .lift / .press on the same element still work. */
+   .lift / .press on the same element still work. One step per sibling, capped at 8 (motion/tokens.js staggerDelay). */
 .stagger > * {
-  animation: card-in 0.5s var(--ease-out) backwards;
+  animation: motion-rise var(--motion-slow) var(--motion-ease) backwards;
 }
-.stagger > *:nth-child(2) { animation-delay: 60ms; }
-.stagger > *:nth-child(3) { animation-delay: 120ms; }
-.stagger > *:nth-child(4) { animation-delay: 180ms; }
-.stagger > *:nth-child(5) { animation-delay: 240ms; }
-.stagger > *:nth-child(6) { animation-delay: 300ms; }
-.stagger > *:nth-child(7) { animation-delay: 360ms; }
-.stagger > *:nth-child(8) { animation-delay: 420ms; }
-.stagger > *:nth-child(n + 9) { animation-delay: 480ms; }
+.stagger > *:nth-child(2) { animation-delay: calc(var(--motion-stagger) * 1); }
+.stagger > *:nth-child(3) { animation-delay: calc(var(--motion-stagger) * 2); }
+.stagger > *:nth-child(4) { animation-delay: calc(var(--motion-stagger) * 3); }
+.stagger > *:nth-child(5) { animation-delay: calc(var(--motion-stagger) * 4); }
+.stagger > *:nth-child(6) { animation-delay: calc(var(--motion-stagger) * 5); }
+.stagger > *:nth-child(7) { animation-delay: calc(var(--motion-stagger) * 6); }
+.stagger > *:nth-child(8) { animation-delay: calc(var(--motion-stagger) * 7); }
+.stagger > *:nth-child(n + 9) { animation-delay: calc(var(--motion-stagger) * 8); }
 
 /* skeleton: a light sweep slides across (transform), no background repaint.
    In the components layer so rounded-* utilities can override the radius. */
@@ -448,26 +431,54 @@
 }
 
 /* ---------------------------------------------------------------- landing */
-.reveal {
+/* <Reveal> (motion/Reveal.jsx): opacity + a 12 px rise, once, when it scrolls into view. */
+.m-reveal {
   opacity: 0;
-  transform: translateY(18px);
+  transform: translate3d(0, var(--motion-rise), 0);
   transition:
-    opacity 0.7s var(--ease-out),
-    transform 0.7s var(--ease-out);
-  transition-delay: var(--reveal-delay, 0ms);
+    opacity var(--motion-slow) var(--motion-ease),
+    transform var(--motion-slow) var(--motion-ease);
+  transition-delay: var(--m-delay, 0ms);
 }
-.reveal[data-reveal="left"] {
-  transform: translateX(-24px);
-}
-.reveal[data-reveal="right"] {
-  transform: translateX(24px);
-}
-.reveal[data-reveal="scale"] {
-  transform: scale(0.96);
-}
-.reveal.is-visible {
+.m-reveal.is-visible {
   opacity: 1;
   transform: none;
+}
+
+/* <Spotlight> / [data-spotlight] (motion/spotlight.js): a soft highlight that follows the cursor inside a card. The highlight is
+   one pseudo-element moved with transform and faded with opacity, so a pointer move never repaints the card. It sits behind the
+   card's content (isolation + z-index -1). Off on touch (the listener never fires), under reduced motion and in Calm mode. */
+.spotlight {
+  position: relative;
+  isolation: isolate;
+}
+.spotlight::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  width: 420px;
+  height: 420px;
+  margin: -210px 0 0 -210px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(37 99 235 / 0.1), rgb(37 99 235 / 0.04) 40%, transparent 68%);
+  transform: translate3d(var(--spot-x, 50%), var(--spot-y, 50%), 0);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-base) var(--motion-ease);
+  will-change: opacity, transform;
+}
+.spotlight:hover::before {
+  opacity: 1;
+}
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .spotlight::before {
+    display: none;
+  }
+}
+:root[data-calm] .spotlight::before {
+  display: none;
 }
 
 /* nav: the white bar and shadow fade in on a pseudo-element after scrolling */
@@ -1263,8 +1274,7 @@
     display: none;
   }
 
-  .reveal,
-  .reveal[data-reveal] {
+  .m-reveal {
     opacity: 1;
     transform: none;
   }
@@ -1338,7 +1348,7 @@
 :root[data-calm] .stagger > * {
   animation: none !important;
 }
-:root[data-calm] .reveal {
+:root[data-calm] .m-reveal {
   opacity: 1;
   transform: none;
   transition: none;
@@ -1398,7 +1408,7 @@
   from { opacity: 0; transform: translate3d(0, -8px, 0); }
   to { opacity: 1; transform: none; }
 }
-.arena-feed-in { animation: arena-feed-in 0.22s var(--ease-out) both; }
+.arena-feed-in { animation: arena-feed-in var(--motion-base) var(--motion-ease) both; }
 /* the attack telegraph: a bar that fills over the wind-up time (--wind), so the player sees how long they have */
 @keyframes arena-telegraph {
   from { transform: scaleX(0); }
@@ -1415,7 +1425,7 @@
   from { opacity: 0; transform: translate3d(0, 8px, 0); }
   to { opacity: 1; transform: none; }
 }
-.arena-rise { animation: arena-rise 0.32s var(--ease-out) both; }
+.arena-rise { animation: motion-rise var(--motion-base) var(--motion-ease) both; }
 .arena-needle { transition: transform 0.18s ease-out; }
 .arena-fill { transition: transform 0.35s var(--ease-out); }
 .arena-trail { transition: transform 0.8s var(--ease-out) 0.25s; }

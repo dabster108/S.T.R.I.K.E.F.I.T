@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api.js";
-import { useReveal } from "../../hooks/motion.js";
+import Reveal from "../../motion/Reveal.jsx";
 
 // The repo's actual name (git remote -v), not the project's display name — the old value here 404'd.
 export const GITHUB = "https://github.com/dabster108/vr-fitness-monster-battle";
@@ -8,14 +8,9 @@ export const THESIS = "Design, Development, and Evaluation of a Virtual Reality-
 
 export const card = "rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]";
 
-export function Reveal({ as: Tag = "div", className = "", delay = 0, from, children, ...rest }) {
-  const ref = useReveal();
-  return (
-    <Tag ref={ref} data-reveal={from} className={`reveal ${className}`} style={delay ? { "--reveal-delay": `${delay}ms` } : undefined} {...rest}>
-      {children}
-    </Tag>
-  );
-}
+// The one Reveal now lives in motion/ (opacity + a 12 px rise, once). `from` (left / right / scale) used to pick a direction per
+// call site; the whole site now rises the same way, so it is accepted and ignored.
+export { Reveal };
 
 // "01 ── The problem": the section number and kicker that open every landing section.
 export function Kicker({ index, children, className = "" }) {
