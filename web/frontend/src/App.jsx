@@ -12,6 +12,7 @@ const FeedbackView = lazy(() => import("./views/FeedbackView.jsx"));
 const MonstersView = lazy(() => import("./views/MonstersView.jsx"));
 const ChallengeView = lazy(() => import("./views/ChallengeView.jsx"));
 const NotFoundView = lazy(() => import("./views/NotFoundView.jsx"));
+const StudyView = lazy(() => import("./views/StudyView.jsx"));
 const StoryPublicView = lazy(() => import("./views/StoryPublicView.jsx"));
 
 function DashboardFallback() {
@@ -81,6 +82,15 @@ export default function App() {
         element={
           <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
             <StoryPublicView />
+          </Suspense>
+        }
+      />
+      {/* the playtest study: consent, participant code, before and after forms. Public, no login. */}
+      <Route
+        path="/study"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <StudyView />
           </Suspense>
         }
       />

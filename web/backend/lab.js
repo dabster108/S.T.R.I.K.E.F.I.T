@@ -7,6 +7,7 @@
 const effort = require("./effort");
 const outcomes = require("./outcomes");
 const levelsInfo = require("./levels");
+const studyCore = require("./studyCore");
 
 const NOTE = "Research prototype. Small sample. Correlation is not causation.";
 const CACHE_MS = 30_000;
@@ -45,7 +46,7 @@ async function loadRows() {
   });
 }
 
-function buildLab(rows, nowMs = Date.now()) {
+function buildLab(rows, nowMs = Date.now(), studyData = null) {
   const levels = [...new Set([...LEVEL_ORDER, ...rows.map((r) => r.level)])].sort((a, b) => levelRank(a) - levelRank(b));
   const rpePoints = rows.filter((r) => typeof r.rpe === "number" && r.avgSpeed !== null).map((r) => ({ sessionId: r.id, level: r.level, rpe: r.rpe, avgSpeed: round(r.avgSpeed, 2) }));
   return {
@@ -70,6 +71,8 @@ function buildLab(rows, nowMs = Date.now()) {
       points: rpePoints,
       ...effort.rpeCorrelation(rpePoints),
     },
+    // The playtest study (study.js): null until at least one participant has consented.
+    study: studyData && studyData.participants.length ? studyCore.buildStudy(studyData, rows) : null,
     levels: levels.map((level) => {
       const list = rows.filter((r) => r.level === level);
       const o = outcomes.countOutcomes(list.map((r) => r.outcome));
@@ -100,7 +103,8 @@ function buildLab(rows, nowMs = Date.now()) {
 let cache = null;
 async function lab() {
   if (cache && Date.now() - cache.at < CACHE_MS) return { ...cache.value, cached: true };
-  const value = buildLab(await loadRows());
+  const study = require("./study"); // required here so buildLab can be tested without a database
+  const value = buildLab(await loadRows(), Date.now(), await study.load());
   cache = { at: Date.now(), value };
   return { ...value, cached: false };
 }

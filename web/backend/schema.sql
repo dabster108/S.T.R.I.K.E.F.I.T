@@ -134,3 +134,37 @@ CREATE TABLE IF NOT EXISTS challenge_completions (
 );
 CREATE INDEX IF NOT EXISTS challenge_completions_player_idx ON challenge_completions (player_name, completed_at DESC);
 CREATE INDEX IF NOT EXISTS challenge_completions_completed_idx ON challenge_completions (completed_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- Playtest study (study.js, the public /study page). Additive and idempotent.
+--   study_participants  one row per participant code. Codes are P01..P20 (ZZTEST-P01.. for development test data). The code is
+--                       also the player name typed into the headset, which is how a participant's fights are found.
+--   study_consents      the consent given before a code was issued: wording version and time. Kept apart so it can be audited.
+--   study_responses     the post-play questionnaire, one per participant: five enjoyment items (1-5), perceived effort against
+--                       usual workouts (1-5), "play again this week" (yes / maybe / no) and the ten SUS items (1-5) with the
+--                       computed SUS score. The Borg RPE is NOT stored here: it goes through the existing survey endpoint into
+--                       session_feedback, next to the fight it rates.
+-- Nothing here holds an IP address, a device id or a name: the database never saw them.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS study_participants (
+  code            text PRIMARY KEY CHECK (code ~ '^(ZZTEST-)?P[0-9]{2}$'),
+  age_band        text,
+  vr_experience   text,
+  weekly_exercise text,
+  pre_at          timestamptz,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS study_consents (
+  participant_code text PRIMARY KEY REFERENCES study_participants(code) ON DELETE CASCADE,
+  version          text NOT NULL,
+  consented_at     timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS study_responses (
+  participant_code  text PRIMARY KEY REFERENCES study_participants(code) ON DELETE CASCADE,
+  enjoyment         smallint[] NOT NULL CHECK (cardinality(enjoyment) = 5),
+  effort_vs_usual   smallint NOT NULL CHECK (effort_vs_usual BETWEEN 1 AND 5),
+  play_again        text NOT NULL CHECK (play_again IN ('yes', 'maybe', 'no')),
+  sus               smallint[] NOT NULL CHECK (cardinality(sus) = 10),
+  sus_score         numeric(4,1) NOT NULL CHECK (sus_score BETWEEN 0 AND 100),
+  created_at        timestamptz NOT NULL DEFAULT now()
+);

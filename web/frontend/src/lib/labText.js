@@ -60,3 +60,42 @@ export function levelsText(levels) {
   if (thin.length) s += ` ${listText(thin.map((l) => l.label))} ${thin.length === 1 ? "has" : "have"} fewer than ${SMALL} decided fights, so treat ${thin.length === 1 ? "its" : "their"} rate as rough.`;
   return s;
 }
+
+// ---- playtest study (components/lab/StudySection.jsx) -------------------------------------------------------------------------
+
+const oneDecimal = (v) => (Math.round(v * 10) / 10).toFixed(1);
+const smallNote = (n, noun = "participants") => (n < SMALL ? ` With ${n} ${noun} this describes this group only, not people in general.` : "");
+
+export function susText(sus) {
+  if (!sus || !sus.n) return "Nobody has finished the usability questions yet, so there is no SUS score.";
+  const below = sus.scores.filter((s) => typeof s.score === "number" && s.score < 68).length;
+  let s = `The average System Usability Scale score is ${oneDecimal(sus.mean)} out of 100 across ${sus.n} participant${sus.n === 1 ? "" : "s"}, which counts as “${sus.band?.label.toLowerCase()}”. ${sus.band?.note || ""}`;
+  s += ` ${below} of ${sus.n} scored under the usual benchmark of 68.`;
+  return s + smallNote(sus.n);
+}
+
+export function enjoymentText(en) {
+  if (!en || !en.n) return "No enjoyment ratings yet.";
+  const items = (en.items || []).filter((v) => typeof v === "number");
+  const spread = items.length ? Math.max(...items) - Math.min(...items) : 0;
+  let s = `Participants rated their enjoyment ${oneDecimal(en.mean)} out of 5 on average (1 is strongly disagree, 5 is strongly agree).`;
+  if (spread >= 0.8) s += " The five statements differ noticeably, so the single average hides which part was liked most.";
+  return s + smallNote(en.n);
+}
+
+export function playAgainText(pa) {
+  if (!pa || !pa.n) return "Nobody has answered whether they would play again yet.";
+  let s = `${pa.yes} of ${pa.n} said they would play again this week${pa.maybe ? `, ${pa.maybe} said maybe` : ""}${pa.no ? ` and ${pa.no} said no` : ""}. That is stated intent, not what people actually do next week.`;
+  return s + smallNote(pa.n);
+}
+
+export function fadeText(rows) {
+  const list = (rows || []).filter((r) => typeof r.fadePct === "number");
+  if (!list.length) return "No participant has a fight with enough swings to measure fade yet.";
+  const slowed = list.filter((r) => r.fadePct <= -10).length;
+  const stronger = list.filter((r) => r.fadePct >= 10).length;
+  let s = `${slowed} of ${list.length} participants swung at least 10% slower in the last third of their fights than in the first third`;
+  s += stronger ? `, and ${stronger} swung at least 10% faster.` : ".";
+  s += " Fade compares each fight with itself, so it needs no comparison between people.";
+  return s + smallNote(list.length);
+}

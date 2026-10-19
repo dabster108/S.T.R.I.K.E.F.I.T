@@ -132,6 +132,12 @@ export const api = {
   activity: (limit = 20) => request(`/api/activity${qs({ limit })}`),
   reactionsStatus: () => request("/api/live/reactions", { quiet: true, timeoutMs: 15000 }),
   react: (sessionId, kind) => request("/api/live/react", { method: "POST", body: { sessionId, kind }, quiet: true, timeoutMs: 8000 }),
+  // Playtest study (public /study page). The Borg RPE goes through submitFeedback, like any other fight rating.
+  studyEnroll: () => request("/api/study/participants", { method: "POST", body: { consent: true }, quiet: true, timeoutMs: 30000 }),
+  studyStatus: (code) => request(`/api/study/participants/${enc(code)}`, { quiet: true, timeoutMs: 20000 }),
+  studyPre: (code, body) => request(`/api/study/participants/${enc(code)}/pre`, { method: "POST", body, quiet: true, timeoutMs: 30000 }),
+  studyPost: (code, body) => request(`/api/study/participants/${enc(code)}/post`, { method: "POST", body, quiet: true, timeoutMs: 30000 }),
+  studyCsvUrl: () => `${API_BASE}/api/study/export.csv`,
   exportUrl: (kind, filters) => `${API_BASE}/api/export/${kind}.csv${qs(filters)}`,
   streamUrl: () => `${API_BASE}/api/stream`,
 };

@@ -27,7 +27,12 @@ cd web/backend && npm run simulate -- --url http://localhost:4000 --player ZZTES
 # the database on its own
 npm run dev:db              # run it in this terminal (Ctrl+C stops it); npm run dev:db -- reset | status
 npm run dev:seed            # seed an already running dev backend
+npm run dev:seed-study      # 10 ZZTEST study participants (consent, pre/post answers, fights) for the Lab's study section
+                            #   -- --reset removes them first; refuses anything but the local dev database; add --url for other ports
 ```
+
+The playtest study lives at `/study` (public). Participants get a code `P01`..`P20` that they use as the headset player name; the Thesis Lab's
+"Playtest study" section and `GET /api/study/export.csv` read the answers. The Borg RPE is stored in `session_feedback` like any fight rating.
 
 | Env var | Where | Default | Purpose |
 |---|---|---|---|

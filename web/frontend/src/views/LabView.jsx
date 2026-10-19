@@ -13,46 +13,16 @@ import { LabSkeleton } from "../components/ui/Skeletons.jsx";
 import { LevelBadge } from "../components/ui/Badge.jsx";
 import Button from "../components/ui/Button.jsx";
 import { toast } from "../lib/toast.js";
+import { SampleBadge, SmallSampleFlag, WhatThis } from "../components/lab/LabParts.jsx";
 
 // Thesis Lab: the figures a thesis chapter needs, in one place, with their sample sizes. Everything comes from GET /api/lab
 // (backend/lab.js); the win rate is the shared rule from lib/outcomes.js, the same one the rest of the dashboard uses.
 // The scatter plot is a lazy chunk. Nothing here animates.
 
 const RpeScatter = lazy(() => import("../components/lab/RpeScatter.jsx"));
+const StudySection = lazy(() => import("../components/lab/StudySection.jsx"));
 
 const NOTE = "Research prototype. Small sample. Correlation is not causation.";
-
-function SampleBadge({ n, small }) {
-  return small ? (
-    <span className="inline-flex rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-xs font-extrabold text-[var(--warn-ink)] ring-1 ring-inset ring-amber-200">small sample · n = {n}</span>
-  ) : (
-    <span className="inline-flex rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-xs font-bold text-[var(--ink-secondary)] ring-1 ring-inset ring-[var(--border)]">n = {n}</span>
-  );
-}
-
-// The plain-language reading of a chart, right under it.
-function WhatThis({ children }) {
-  return (
-    <div className="flex gap-3 border-t border-[var(--border)] bg-[var(--accent-soft)] px-5 py-3.5">
-      <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-strong)]" />
-      <p className="text-sm font-medium leading-relaxed text-[var(--ink)]">
-        <span className="font-bold">What this tells us: </span>
-        {children}
-      </p>
-    </div>
-  );
-}
-
-// A loud, unmissable flag in the card header when the number rests on fewer than 10 players or fights.
-function SmallSampleFlag({ n, unit }) {
-  const u = n === 1 ? unit.replace(/s$/, "") : unit; // "1 rated fight", "1 player"
-  if (n >= 10) return <span className="text-xs font-bold tabular-nums text-[var(--muted)]">n = {n} {u}</span>;
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--warn-soft)] px-2.5 py-1 text-xs font-extrabold text-[var(--warn-ink)] ring-1 ring-inset ring-amber-300">
-      <Icon name="info" className="h-3.5 w-3.5" /> Small sample · {n} {u}
-    </span>
-  );
-}
 
 function ReturnRate({ data }) {
   const windows = data.returnRate.windows;
@@ -270,6 +240,11 @@ export default function LabView() {
             <WhatThis>{levelsText(data.levels.map((l) => ({ ...l, label: levelName(l.level) })))}</WhatThis>
           </Card>
 
+          {data.study && (
+            <Suspense fallback={<Skeleton className="h-72 w-full rounded-2xl" />}>
+              <StudySection study={data.study} index="04" />
+            </Suspense>
+          )}
           <p className="text-center text-xs font-semibold text-[var(--muted)]">{NOTE} Names are pseudonyms; the CSV carries no IP address or device information.</p>
         </>
       )}
