@@ -1,0 +1,54 @@
+// The read-only GET endpoints added with the engagement features (rank, ...): one place that validates the name, caches the answer
+// for 30 to 60 seconds in memory (ttlCache.js) and drops it when something changes for that player (sessionEnd.js, delete, rename).
+// Additions only; mounted from server.js. Every answer carries an ETag, and Cache-Control: no-cache makes the browser ask again
+// (a cheap 304 when nothing changed), so a page that refetches right after a fight never shows the old rank.
+
+const goals = require("./goals");
+const ranksStore = require("./ranksStore");
+const { createTtlCache } = require("./ttlCache");
+
+const TTL = { rank: 30_000 };
+const caches = { rank: createTtlCache({ ttlMs: TTL.rank }), ranks: createTtlCache({ ttlMs: TTL.rank, max: 100 }) };
+const keyOf = (name, what) => `${name}\u0000${what}`;
+
+/** Forget everything cached about one player (and the many-players answers, which may include them). */
+function invalidatePlayer(name) {
+  for (const c of Object.values(caches)) c.invalidate(c === caches.ranks ? "" : `${name}\u0000`);
+}
+/** Forget everything (a clear-all, a rename of unknown scope). */
+function invalidateAll() {
+  for (const c of Object.values(caches)) c.invalidate();
+}
+
+function validName(req, res) {
+  const n = goals.validateName(req.params.name);
+  if (!n.ok) {
+    res.status(400).json({ ok: false, error: n.error });
+    return null;
+  }
+  return n.value;
+}
+
+function mount(app, { route }) {
+  // Rank, effort points, next rank and progress (0 to 1) from the player's finished fights (ranks.js).
+  app.get("/api/players/:name/rank", route(async (req, res) => {
+    const name = validName(req, res);
+    if (!name) return;
+    const out = await caches.rank.get(keyOf(name, "rank"), () => ranksStore.playerRank(name));
+    if (!out) return res.status(404).json({ ok: false, error: "Player not found" });
+    res.set("Cache-Control", "no-cache");
+    res.json(out);
+  }));
+
+  // Ranks for several players at once (the leaderboard rows): /api/ranks?players=Ava,Ben (at most 50 names).
+  app.get("/api/ranks", route(async (req, res) => {
+    const raw = typeof req.query.players === "string" ? req.query.players : "";
+    const names = raw.split(",").map((s) => s.trim()).filter((s) => goals.validateName(s).ok).slice(0, ranksStore.MAX_NAMES);
+    const key = [...new Set(names)].sort().join("\u0001");
+    const out = await caches.ranks.get(key, () => ranksStore.ranksFor(names));
+    res.set("Cache-Control", "no-cache");
+    res.json({ ok: true, ranks: out });
+  }));
+}
+
+module.exports = { mount, invalidatePlayer, invalidateAll, TTL };

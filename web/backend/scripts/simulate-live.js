@@ -11,6 +11,14 @@
 //   --fast     no waiting: a virtual clock, for seeding. --days-ago N back-dates the fight; --seed N repeats it exactly
 //   --keep     keep the finished session (default: it is DELETED at the end so it never reaches the statistics)
 //   --linger   seconds to keep a finished (non --keep) session before deleting it
+//   --skill    how hard this player swings, 0.6 to 1.3 (default: a seeded random 0.8 to 1.15)
+//   --no-spikes  no raw speeds above the 8 m/s cap (the headset reports some; this keeps a fight's peak below the cap)
+//
+//   --scenario pb | rankup | phase   a whole story instead of one fight (scripts/scenarios.js):
+//                pb      two weaker fights, then a live fight that sets new personal bests (shows the "New PB" banner)
+//                rankup  quiet fights until the player is a few points short of the next rank, then a live fight that crosses it
+//                phase   a Level 3 fight that goes through both boss phase breaks (66% and 33% HP)
+//                --player NAME (ZZTEST...), --cleanup deletes that player's simulated fights afterwards
 //
 // SAFETY: this posts real rows to whatever backend --url points at. It refuses any host that is not this machine unless
 // ALLOW_PROD_DB=1, and every player name must start with ZZTEST so test rows can be found and removed by prefix.
@@ -64,7 +72,8 @@ async function runFight(opts = {}) {
   const cfg = CFG[LEVEL];
   const attacks = Object.entries(ATTACK_TABLE.levels[LEVEL]).map(([name, a]) => ({ name, ...a }));
   const rnd = mulberry32(Number.isFinite(Number(opts.seed)) ? Number(opts.seed) : Math.floor(Math.random() * 2 ** 31));
-  const skill = lerp(0.8, 1.15, rnd()); // how hard this player swings overall
+  const skill = Number.isFinite(Number(opts.skill)) ? Number(opts.skill) : lerp(0.8, 1.15, rnd()); // how hard this player swings overall
+  const spikes = !opts.noSpikes;
 
   const post = async (p, body) => {
     const res = await fetch(BASE + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -120,7 +129,7 @@ async function runFight(opts = {}) {
     const hurtPace = Math.min(3, Math.max(0.12, 1 + (s.playerHp / cfg.hp - playerTarget) * 7));
     for (let i = Math.floor(rnd() * 3.4); i > 0; i--) {
       // 10 % of swings are raw speeds above the game's 8 m/s cap, like the real headset reports.
-      const raw = rnd() < 0.1 ? 8 + rnd() * 6 : (rnd() * 5.5 + 0.8) * skill * fatigue;
+      const raw = spikes && rnd() < 0.1 ? 8 + rnd() * 6 : (rnd() * 5.5 + 0.8) * skill * fatigue;
       const speed = r2(Math.max(0.4, raw));
       const hand = rnd() < 0.5 ? "right" : "left";
       if (speed < cfg.min) {
@@ -228,7 +237,9 @@ function parseArgs(argv) {
 module.exports = { runFight, parseArgs, assertSafeTarget, mulberry32, CFG };
 
 if (require.main === module) {
-  runFight(parseArgs(process.argv.slice(2))).catch((err) => {
+  const args = parseArgs(process.argv.slice(2));
+  const run = args.scenario ? require("./scenarios").runScenario(String(args.scenario), args) : runFight(args);
+  run.catch((err) => {
     console.error("\n[sim] failed:", err.message);
     process.exitCode = 1;
   });

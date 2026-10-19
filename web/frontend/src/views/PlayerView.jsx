@@ -30,6 +30,7 @@ import { ChallengesCard, useChallenges } from "../components/engage/Challenges.j
 import { JourneyStrip, NextStepCard } from "../components/engage/Mastery.jsx";
 import { WeekCard } from "../components/engage/WeekCard.jsx";
 import { PlayerCalendar } from "../components/engage/Calendar.jsx";
+import RankSummary from "../components/rank/RankSummary.jsx";
 
 const ProfileSummary = lazy(() => import("../components/players/ProfileSummary.jsx"));
 const Fingerprint = lazy(() => import("../components/effort/Fingerprint.jsx"));
@@ -273,10 +274,13 @@ export default function PlayerView() {
             )}
           </div>
         </div>
-        <Link to={`/dashboard/compare?a=${encodeURIComponent(name)}`} className={buttonClass("secondary", "sm")}>
-          <Icon name="compare" className="h-3.5 w-3.5" />
-          Compare with…
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <RankSummary name={name} />
+          <Link to={`/dashboard/compare?a=${encodeURIComponent(name)}`} className={buttonClass("secondary", "sm")}>
+            <Icon name="compare" className="h-3.5 w-3.5" />
+            Compare with…
+          </Link>
+        </div>
       </header>
 
       {p && (rankIndex >= 0 || streak.best >= 2 || latestIsBest || best) && (

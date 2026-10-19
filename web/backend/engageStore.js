@@ -21,11 +21,12 @@ const isoDayStart = (day, shiftDays = 0) => new Date(Date.parse(`${day}T00:00:00
 // ---------------------------------------------------------------------------
 // Session facts: finished sessions with their hit / evidence aggregates (one query)
 // ---------------------------------------------------------------------------
-// filters: { player, level, ids, fromIso, toIso } (started_at in [fromIso, toIso)). -> engage.sessionFacts rows
-async function loadFacts({ player, level, ids, fromIso, toIso } = {}, zone = ZONE) {
+// filters: { player | players, level, ids, fromIso, toIso } (started_at in [fromIso, toIso)). -> engage.sessionFacts rows
+async function loadFacts({ player, players, level, ids, fromIso, toIso } = {}, zone = ZONE) {
   const params = [];
   const where = ["status <> 'live'"];
   if (player) where.push(`player_name = $${params.push(String(player))}`);
+  if (players) where.push(`player_name = ANY($${params.push(players.map(String))})`);
   if (level) where.push(`level = $${params.push(String(level))}`);
   if (ids) where.push(`id = ANY($${params.push(ids.map(String))})`);
   if (fromIso) where.push(`started_at >= $${params.push(fromIso)}`);
@@ -56,7 +57,7 @@ async function loadFacts({ player, level, ids, fromIso, toIso } = {}, zone = ZON
      )
      SELECT s.*, h.tap, h.light, h.medium, h.full, h.minutes, h.peak, x.combo, x.maxhp, x.hurt, (x.id IS NOT NULL) AS evented
      FROM s LEFT JOIN h ON h.id = s.id LEFT JOIN x ON x.id = s.id
-     ORDER BY s."startedAt"`,
+     ORDER BY s."startedAt", s.id`,
     params
   );
   return rows.map((r) => {

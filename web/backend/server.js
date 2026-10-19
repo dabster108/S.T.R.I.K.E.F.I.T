@@ -20,6 +20,8 @@ const engage = require("./engage");
 const engageStore = require("./engageStore");
 const activityFeed = require("./activityFeed");
 const outcomes = require("./outcomes");
+const featureRoutes = require("./featureRoutes");
+const sessionEnd = require("./sessionEnd");
 
 const PORT = Number(process.env.PORT) || 4000;
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
@@ -300,10 +302,11 @@ async function reloadLiveActivity() {
   for (const r of rows) liveActivity.set(r.id, r.last_event_at ? new Date(r.last_event_at).getTime() : Date.now());
 }
 
-function broadcastSession(kind, session, liveState) {
+// extra: fields added to a finished fight's message (sessionEnd.js: rankUp, newRecords). The original { session, liveState } stay as they were.
+function broadcastSession(kind, session, liveState, extra = null) {
   const type = { started: "session_started", updated: "session_updated", finished: "session_finished" }[kind];
   if (!type) return;
-  stream.broadcast(type, { session, liveState }, session.playerName);
+  stream.broadcast(type, extra ? { session, liveState, ...extra } : { session, liveState }, session.playerName);
 }
 
 // Folds a batch of events into the session's latest state, oldest first.
@@ -417,7 +420,7 @@ async function sweepStaleSessions() {
   for (const row of rows) {
     const { session, liveState } = sessionFromRow(row);
     console.log(`[live] ${session.playerName} ${session.id} finished after ${LIVE_TIMEOUT_MS / 1000}s without events (${session.outcome})`);
-    broadcastSession("finished", session, liveState);
+    broadcastSession("finished", session, liveState, await sessionEnd.extras(session));
     io.emit("session", session);
     await evaluateGoalAfter(session);
     await evaluateEngagementAfter(session);
@@ -789,6 +792,8 @@ app.patch("/api/players/:name", route(async (req, res) => {
   console.log(`[player] renamed "${oldName}" -> "${newName}" (${result.sessions} session rows, ${result.events} event rows)`);
   const change = { oldName, newName, sessions: result.sessions, events: result.events };
   // Sent to every client (no player scope), including ones watching the old name.
+  featureRoutes.invalidateAll();
+  activityFeed.invalidate();
   stream.broadcast("player_renamed", change);
   io.emit("player_renamed", change);
   io.emit("stats", computeStats(await allSessions()));
@@ -932,7 +937,10 @@ app.post("/api/sessions", route(async (req, res) => {
 
   const wasLive = before && before.status === "live";
   if (session.status === "live") broadcastSession(wasLive ? "updated" : "started", session, liveState);
-  else broadcastSession(wasLive || !before ? "finished" : "updated", session, liveState);
+  else {
+    const kind = wasLive || !before ? "finished" : "updated";
+    broadcastSession(kind, session, liveState, kind === "finished" ? await sessionEnd.extras(session) : null);
+  }
   if (event) stream.broadcast("event_created", event, event.playerName);
   if (session.status === "finished") await evaluateGoalAfter(session);
   if (session.status === "finished") await evaluateEngagementAfter(session);
@@ -959,7 +967,7 @@ app.post("/api/events", route(async (req, res) => {
   for (const e of events) stream.broadcast("event_created", e, e.playerName);
   for (const c of changes) {
     trackLive(c.session);
-    broadcastSession(c.kind, c.session, c.liveState);
+    broadcastSession(c.kind, c.session, c.liveState, c.kind === "finished" ? await sessionEnd.extras(c.session) : null);
     if (c.kind === "finished") io.emit("session", c.session);
   }
   for (const c of changes) if (c.kind === "finished") await evaluateGoalAfter(c.session);
@@ -997,6 +1005,8 @@ app.delete("/api/sessions/:id", route(async (req, res) => {
   });
   if (!deleted) return res.status(404).json({ ok: false, error: "Session not found" });
   liveActivity.delete(req.params.id);
+  featureRoutes.invalidatePlayer(deleted.playerName);
+  activityFeed.invalidate();
   io.emit("session_deleted", { id: req.params.id });
   io.emit("stats", computeStats(await allSessions()));
   stream.broadcast("session_deleted", { id: req.params.id, playerName: deleted.playerName }, deleted.playerName);
@@ -1009,6 +1019,8 @@ app.delete("/api/sessions", route(async (_req, res) => {
     await client.query("DELETE FROM sessions");
   });
   liveActivity.clear();
+  featureRoutes.invalidateAll();
+  activityFeed.invalidate();
   io.emit("stats", computeStats([]));
   io.emit("cleared", { at: new Date().toISOString() });
   stream.broadcast("session_deleted", { all: true });
@@ -1017,6 +1029,7 @@ app.delete("/api/sessions", route(async (_req, res) => {
 
 // Public scoreboard shared by the headset menu and the web Leaderboard page (added; rule in leaderboard.js).
 require("./leaderboardRoute").mount(app, { query, route });
+featureRoutes.mount(app, { route }); // rank (and the other read-only engagement endpoints): featureRoutes.js
 
 // Ghost pace for the Live Arena: a player's personal-best fight on a level as cumulative damage over time (pace.js, cached 60 s).
 require("./pace").mount(app, { query });

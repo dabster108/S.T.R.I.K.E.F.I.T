@@ -18,6 +18,7 @@ const TYPES = {
   goal_met: { icon: "target", tone: "bg-[var(--good-soft)] text-[var(--good-ink)]", verb: "met their daily goal", label: () => null },
   challenge_done: { icon: "check", tone: "bg-[var(--good-soft)] text-[var(--good-ink)]", verb: "completed", label: (r) => `“${r.label}”` },
   badge_unlocked: { icon: "medal", tone: "bg-[var(--warn-soft)] text-[var(--warn-ink)]", verb: "unlocked", label: (r) => r.label },
+  rank_up: { icon: "award", tone: "bg-[var(--accent-soft)] text-[var(--accent-strong)]", verb: "reached", label: (r) => r.label },
 };
 
 // "Today" / "Yesterday" / "Mon 13 Oct": rows are grouped under the day they happened.

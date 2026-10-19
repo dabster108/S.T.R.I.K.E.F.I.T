@@ -5,6 +5,8 @@ import { api } from "../lib/api.js";
 import { formatDuration, formatNumber, formatRelative } from "../lib/format.js";
 import { levelName } from "../lib/game.js";
 import { useCountUp } from "../hooks/motion.js";
+import { useRanks } from "../hooks/useRank.js";
+import RankBadge from "../components/rank/RankBadge.jsx";
 import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
 import { SegmentedControl } from "../components/ui/Controls.jsx";
 import { Select } from "../components/ui/Select.jsx";
@@ -244,6 +246,7 @@ export default function LeaderboardView({ sessions, openSession }) {
     return bestPerPlayer(pool);
   }, [sessions, mode, level, outcome, board]);
   const ranked = server || local;
+  const rankOf = useRanks(useMemo(() => ranked.slice(0, 50).map((s) => s.playerName), [ranked])); // effort ranks (the rank ladder), one request
 
   const podium = PODIUM.map((p) => ({ ...p, s: ranked[p.place - 1] })).filter((p) => p.s);
   const top = Math.max(1, Number(ranked[0]?.score) || 0);
@@ -380,7 +383,10 @@ export default function LeaderboardView({ sessions, openSession }) {
                           >
                             {s.playerName}
                           </button>
-                          <span className="block text-xs font-medium text-[var(--muted)]">{formatRelative(s.endedAt)}</span>
+                          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-medium text-[var(--muted)]">
+                            {rankOf[s.playerName] && <RankBadge rank={rankOf[s.playerName].rank} size="xs" />}
+                            {formatRelative(s.endedAt)}
+                          </span>
                         </td>
                         <td className="hidden px-3 py-3 md:table-cell">
                           <LevelBadge level={s.level} />

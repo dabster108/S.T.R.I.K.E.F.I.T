@@ -14,6 +14,8 @@ import GhostPace from "../GhostPace.jsx";
 import KillFeed from "./KillFeed.jsx";
 import { DamagePops, usePunch, useRing } from "./Impact.jsx";
 import { useArena } from "./useArena.js";
+import { useRank } from "../../../hooks/useRank.js";
+import RankBadge from "../../rank/RankBadge.jsx";
 import { CaptionBar, CommentaryLog, useStageCommentary } from "./Commentary.jsx";
 
 // One live fight, laid out so that someone across the room can read it in two seconds: WHO is fighting WHICH monster (the headline),
@@ -369,6 +371,7 @@ export default memo(function ArenaStage({ id, primary = true, compact = false })
   const { state, swing, now, impact } = useArena(id, levelKey, phase === 3);
   // The commentary of this fight: its own stream of lines, read aloud (when the viewer turned that on) only for the first fight on stage.
   const commentary = useStageCommentary(id, entry, { speak: primary });
+  const rank = useRank(session?.playerName); // the player's effort rank, shown next to their name
   if (!entry || !monster) return null;
 
   const Heading = primary ? "h1" : "h2";
@@ -390,6 +393,7 @@ export default memo(function ArenaStage({ id, primary = true, compact = false })
           <span className="mx-2 text-[var(--muted)]">vs</span>
           <span>{monster.name}</span>
         </Heading>
+        {rank.data && <RankBadge rank={rank.data.rank} size="md" />}
         <div className="ml-auto flex items-center gap-2">{live ? <LiveChip /> : null}</div>
       </header>
 
