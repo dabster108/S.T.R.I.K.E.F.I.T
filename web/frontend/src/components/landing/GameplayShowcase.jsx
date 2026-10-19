@@ -1,26 +1,35 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { SHOWCASE_SHOTS } from "../../content/showcaseShots.js";
+import { SHOWCASE_SHOTS, shotType } from "../../content/showcaseShots.js";
 import { useOnScreen, useReducedMotion } from "../../hooks/motion.js";
 import Icon from "../ui/Icon.jsx";
 import { Reveal, SectionHead } from "./shared.jsx";
 
 const BASE = import.meta.env.BASE_URL;
 const CYCLE_MS = 6000; // time on each shot while auto-cycling
-const srcOf = (shot) => (shot.path ? BASE + shot.path.replace(/^\//, "") : null);
+const urlOf = (path) => (path ? BASE + path.replace(/^\//, "") : null);
+const srcOf = (shot) => urlOf(shot.path);
 
-// path -> "ok" | "missing". Preloads off-DOM so a missing file never shows a broken image; a shot with no path is
-// "missing" from the start (it shows the empty-state card, with no network request).
+// path -> "ok" | "missing". Checks off-DOM so a missing file never shows a broken image; a shot with no path is "missing" from the
+// start (it shows the empty-state card, with no network request). A video is checked with a HEAD request that must answer with a
+// video content type: a missing file on this site answers 200 with the HTML shell, which must not count as a clip.
 function useShotStatus(shots) {
   const [status, setStatus] = useState({});
-  const key = shots.map((s) => s.path || "").join("|");
+  const key = shots.map((s) => `${shotType(s)}:${s.path || ""}`).join("|");
   useEffect(() => {
     let alive = true;
+    const set = (path, v) => alive && setStatus((s) => ({ ...s, [path]: v }));
     for (const shot of shots) {
       const src = srcOf(shot);
       if (!src) continue;
+      if (shotType(shot) === "video") {
+        fetch(src, { method: "HEAD" })
+          .then((r) => set(shot.path, r.ok && /^video\//.test(r.headers.get("content-type") || "") ? "ok" : "missing"))
+          .catch(() => set(shot.path, "missing"));
+        continue;
+      }
       const img = new Image();
-      img.onload = () => alive && setStatus((s) => ({ ...s, [shot.path]: img.naturalWidth > 0 ? "ok" : "missing" }));
-      img.onerror = () => alive && setStatus((s) => ({ ...s, [shot.path]: "missing" }));
+      img.onload = () => set(shot.path, img.naturalWidth > 0 ? "ok" : "missing");
+      img.onerror = () => set(shot.path, "missing");
       img.src = src;
     }
     return () => {
@@ -29,6 +38,33 @@ function useShotStatus(shots) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return status;
+}
+
+// A clip: muted, looping, inline (iOS), lazy (metadata only until it is the shot on show). It plays only while it is the active
+// shot, on screen, and the visitor has not asked for reduced motion; otherwise it sits on its poster with the browser's own controls.
+function ShotVideo({ shot, on, playing, reduced, index }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (playing && on) v.play().catch(() => {});
+    else v.pause();
+  }, [playing, on]);
+  return (
+    <video
+      ref={ref}
+      src={srcOf(shot)}
+      poster={urlOf(shot.poster) || undefined}
+      muted
+      loop
+      playsInline
+      controls={reduced}
+      preload={index === 0 || on ? "metadata" : "none"}
+      aria-label={on ? shot.alt : undefined}
+      aria-hidden={on ? undefined : true}
+      className="h-full w-full object-cover"
+    />
+  );
 }
 
 // The designed empty state for a frame that has no capture yet: a gradient frame around a soft grid, the frame number,
@@ -146,7 +182,9 @@ export default function GameplayShowcase() {
                 const on = i === active;
                 return (
                   <div key={s.title} className={`showcase-shot absolute inset-0 ${on ? "is-active" : ""}`} aria-hidden={!on}>
-                    {s.path && status[s.path] === "ok" ? (
+                    {s.path && status[s.path] === "ok" && shotType(s) === "video" ? (
+                      <ShotVideo shot={s} on={on} playing={!reduced && !stopped && inView} reduced={reduced} index={i} />
+                    ) : s.path && status[s.path] === "ok" ? (
                       <img src={srcOf(s)} alt={on ? s.alt : ""} className="h-full w-full object-cover" loading={i ? "lazy" : "eager"} decoding="async" />
                     ) : (
                       <EmptyShot shot={s} index={i} count={SHOWCASE_SHOTS.length} />

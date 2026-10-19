@@ -1444,3 +1444,61 @@
   .arena-telegraph, .arena-feed-in, .arena-clash, .arena-rise { animation: none !important; }
   .arena-needle, .arena-fill, .arena-trail { transition: none !important; }
 }
+
+/* Everything that loops (hero gradient, marquee, spinning card borders, travelling dots) stops while its section is off-screen
+   or the tab is hidden: motion/usePauseOffscreen.js sets data-offscreen on the section. */
+[data-offscreen="true"],
+[data-offscreen="true"] *,
+[data-offscreen="true"] *::before,
+[data-offscreen="true"] *::after {
+  animation-play-state: paused !important;
+}
+
+/* Landing motion: bars that grow when their card scrolls into view (transform only). Reduced motion and Calm show the end state. */
+.draw-x {
+  transform-origin: left center;
+  transform: scaleX(var(--w, 1));
+  transition: transform var(--motion-slow) var(--motion-ease) var(--bar-delay, 0ms);
+}
+.m-reveal:not(.is-visible) .draw-x {
+  transform: scaleX(0);
+}
+:root[data-calm] .draw-x {
+  transition: none !important;
+  transform: scaleX(var(--w, 1)) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .draw-x {
+    transition: none !important;
+    transform: scaleX(var(--w, 1)) !important;
+  }
+}
+
+/* "Type it in": nothing to style (TypedLine writes text). Damage curve draws itself; dots travel along the data-path lines. */
+.curve .curve-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 900ms var(--motion-ease);
+}
+.curve .curve-area {
+  opacity: 0;
+  transition: opacity var(--motion-slow) var(--motion-ease) 700ms;
+}
+.curve.is-drawn .curve-line { stroke-dashoffset: 0; }
+.curve.is-drawn .curve-area { opacity: 0.9; }
+:root[data-calm] .curve .curve-line { stroke-dashoffset: 0 !important; transition: none !important; }
+:root[data-calm] .curve .curve-area { opacity: 0.9 !important; transition: none !important; }
+.flow-dots {
+  stroke-dasharray: 0.1 36;
+  animation: flow-dots 2.4s linear infinite;
+  animation-delay: var(--flow-delay, 0s);
+}
+@keyframes flow-dots {
+  to { stroke-dashoffset: -36; }
+}
+:root[data-calm] .flow-dots { animation: none !important; stroke-dasharray: 0.1 36; }
+@media (prefers-reduced-motion: reduce) {
+  .curve .curve-line { stroke-dashoffset: 0 !important; transition: none !important; }
+  .curve .curve-area { opacity: 0.9 !important; transition: none !important; }
+  .flow-dots { animation: none !important; }
+}

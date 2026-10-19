@@ -3,7 +3,9 @@ import { LEVELS } from "../../lib/game.js";
 import { useMagnetic, useParallax } from "../../hooks/motion.js";
 import { buttonClass } from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
+import { usePauseOffscreen } from "../../motion/usePauseOffscreen.js";
 import DashboardDemo from "./DashboardDemo.jsx";
+import SwingTicker from "./SwingTicker.jsx";
 
 const LINES = [
   ["Swing", "harder."],
@@ -99,18 +101,19 @@ function SpecStrip() {
 export default function Hero({ status }) {
   const bg = useParallax(0.25);
   const art = useParallax(-0.06);
+  const pause = usePauseOffscreen(); // the drifting gradient and the dashboard preview stop while the hero is scrolled away
   let w = 0;
   return (
-    <section id="top" aria-labelledby="hero-title" className="relative -mt-[var(--nav-h)] overflow-hidden bg-[var(--surface)] pt-[var(--nav-h)]">
+    <section ref={pause} id="top" aria-labelledby="hero-title" className="relative -mt-[var(--nav-h)] overflow-hidden bg-[var(--surface)] pt-[var(--nav-h)]">
       <div ref={bg} className="pointer-events-none absolute inset-0" aria-hidden>
         <div className="blob left-[55%] top-[-12%] h-[34rem] w-[34rem] bg-[var(--accent-ring)] opacity-70" />
         <div className="blob blob-b left-[-10%] top-[30%] h-[26rem] w-[26rem] bg-[var(--blue-100)] opacity-90" />
         <div className="blob blob-c left-[70%] top-[45%] h-[22rem] w-[22rem] bg-[var(--blue-300)] opacity-35" />
         <div
-          className="absolute inset-0 opacity-60"
+          className="absolute inset-0 opacity-80"
           style={{
-            backgroundImage: "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
-            backgroundSize: "56px 56px",
+            backgroundImage: "radial-gradient(circle at 1px 1px, var(--border-strong) 1.1px, transparent 1.6px)",
+            backgroundSize: "26px 26px",
             maskImage: "radial-gradient(ellipse 70% 60% at 50% 35%, #000 20%, transparent 75%)",
             WebkitMaskImage: "radial-gradient(ellipse 70% 60% at 50% 35%, #000 20%, transparent 75%)",
           }}
@@ -158,6 +161,9 @@ export default function Hero({ status }) {
           </div>
           <div className="mt-6 min-h-[2rem]" aria-live="polite">
             <LivePill status={status} />
+          </div>
+          <div className="fade-up mt-6" style={{ "--d": "560ms" }}>
+            <SwingTicker />
           </div>
         </div>
 

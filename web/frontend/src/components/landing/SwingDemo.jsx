@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { LEVELS, TIER_LABEL, roundToInt, simulateHit } from "../../lib/game.js";
 import { useTween } from "../../hooks/motion.js";
 import { SegmentedControl } from "../ui/Controls.jsx";
@@ -14,10 +14,14 @@ const LEVEL_OPTS = [
 const zone = (on) =>
   `rounded-xl transition-[background-color,box-shadow] duration-500 ${on ? "bg-[var(--accent-soft)] shadow-[inset_0_0_0_2px_var(--accent-ring)]" : "shadow-[inset_0_0_0_2px_transparent]"}`;
 
-export default function SwingDemo({ step = null }) {
+export default function SwingDemo({ step = null, onChange }) {
   const [level, setLevel] = useState("Easy");
   const [speed, setSpeed] = useState(3.4);
   const id = useId();
+  useEffect(() => {
+    onChange?.({ level, speed });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [level, speed]);
   const s = LEVELS[level].swing;
   const hit = simulateHit(speed, level);
   const maxDamage = simulateHit(s.cap, level).damage;

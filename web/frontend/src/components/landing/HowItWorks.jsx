@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { LEVELS } from "../../lib/game.js";
 import SwingDemo from "./SwingDemo.jsx";
+import TypedLine from "./TypedLine.jsx";
+import DamageCurve from "./DamageCurve.jsx";
+import DataPath from "./DataPath.jsx";
 import { Reveal, SectionHead } from "./shared.jsx";
 
 const L1 = LEVELS.Easy.swing;
@@ -41,6 +44,7 @@ function useActiveStep(count) {
 
 export default function HowItWorks() {
   const [refs, active] = useActiveStep(STEPS.length);
+  const [demo, setDemo] = useState({ level: "Easy", speed: 3.4 });
   return (
     <section id="how" aria-labelledby="how-title" className="border-y border-[var(--border)] bg-[var(--surface)]">
       <div className="mx-auto max-w-6xl px-4 pb-24 pt-20 sm:px-6 lg:pb-32 lg:pt-28">
@@ -58,7 +62,7 @@ export default function HowItWorks() {
                   step <span className="text-[var(--accent)]">{active + 1}</span> / {STEPS.length}
                 </span>
               </div>
-              <SwingDemo step={active} />
+              <SwingDemo step={active} onChange={setDemo} />
             </Reveal>
           </div>
 
@@ -95,8 +99,9 @@ export default function HowItWorks() {
                           on ? "border-[var(--accent)] text-[var(--accent-strong)]" : "border-[var(--border-strong)] text-[var(--muted)]"
                         }`}
                       >
-                        {readout}
+                        <TypedLine text={readout} active={on} />
                       </p>
+                      {i === 2 && <DamageCurve level={demo.level} marker={demo.speed} />}
                     </div>
                   </div>
                 </li>
@@ -104,6 +109,8 @@ export default function HowItWorks() {
             })}
           </ol>
         </div>
+
+        <DataPath />
       </div>
     </section>
   );
