@@ -5,22 +5,33 @@
 
 The Unity game (`Assets/Scripts/Networking/SessionReporter.cs`) posts to the backend while a fight is being played.
 
-## Run locally
+## Run locally (safe by default)
+
+A process on your laptop **never uses the production database**. `web/backend/.env` still holds the production `DATABASE_URL` for Render's sake, but a development process ignores that line and refuses to start if its `DATABASE_URL` is anything other than this machine (or a host you list in `DEV_DB_ALLOWED_HOSTS`). `ALLOW_PROD_DB=1` overrides the refusal on purpose; nothing sets it for you. Render counts as production because it always sets `RENDER=true` (elsewhere set `NODE_ENV=production`).
 
 ```bash
-# terminal 1: API (needs web/backend/.env with DATABASE_URL)
-cd web/backend && npm install && npm start          # http://localhost:4000
+# one-time: Docker Desktop must be running, and both packages installed
+cd web/backend && npm install && cd ../frontend && npm install && cd ..
 
-# terminal 2: site + dashboard, proxying /api to the API
-cd web/frontend && npm install && npm run dev       # http://localhost:5173
+# everything, against a throwaway local Postgres (Docker container strikefit-dev-pg on 127.0.0.1:54329):
+cd web && npm run dev:safe
+#   site + dashboard  http://localhost:5173      API  http://localhost:4000
+#   first run: creates the container, applies the schema, seeds 15 simulated fights (players ZZTEST-ann/bo/cy/dee)
+#   if 4000 or 5173 are busy:  PORT=4100 WEB_PORT=5273 npm run dev:safe
+#   skip the seed:             npm run dev:safe -- --no-seed
 
-# optional: play a fake fight so the live views move (deleted afterwards unless --keep)
-cd web/backend && npm run simulate -- --url http://localhost:4000 --level Medium --seconds 30
+# play a fake fight so the Live Arena moves (names must start with ZZTEST; the fight is deleted afterwards unless --keep)
+cd web/backend && npm run simulate -- --url http://localhost:4000 --player ZZTEST-me --level Hard --seconds 70
+#   --level Easy|Medium|Hard   --outcome victory|defeat|abandoned   --fast (no waiting)   --keep
+
+# the database on its own
+npm run dev:db              # start   (npm run dev:db -- stop | reset | status)
+npm run dev:seed            # seed an already running dev backend
 ```
 
 | Env var | Where | Default | Purpose |
 |---|---|---|---|
-| `DATABASE_URL` | backend | (required) | Neon connection string. Never commit it. |
+| `DATABASE_URL` | backend | (required) | Production: Neon connection string (Render dashboard). Development: set by `.env.development`, local only. Never commit it. |
 | `ALLOWED_ORIGINS` | backend | none | Comma-separated browser origins allowed by CORS, e.g. `https://strikefit.vercel.app`. `https://*.vercel.app` style wildcards work. localhost is always allowed. |
 | `PORT` | backend | `4000` | Render sets this itself. |
 | `BACKEND_URL` | frontend dev | `http://localhost:4000` | Where the Vite dev proxy sends `/api`. |

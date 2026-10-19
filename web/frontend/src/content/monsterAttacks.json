@@ -1,0 +1,156 @@
+{
+  "_about": "Monster attack names, categories and authored wind-up times (seconds from the attack starting to its first hit frame = the player's telegraph). Read straight from the monster prefabs' AttackDefinition tables (name, category, windUp); regenerate with web/tools/extract-monster-attacks.py. The game divides a wind-up by the monster's tempo (1.15 for the Level 3 boss once enraged), so a live telegraph can be shorter than this authored value.",
+  "source": {
+    "Easy": "Assets/Prefabs/Monsters/Monster_Easy_HipHop.prefab",
+    "Medium": "Assets/Prefabs/Monsters/Monster_Medium_VampireLust.prefab",
+    "Hard": "Assets/Prefabs/Monsters/Monster_Hard_TwinAxeBrute.prefab"
+  },
+  "categoryLabels": {
+    "Standard": "Standard",
+    "Heavy": "Heavy",
+    "IdleSlam": "Slam",
+    "Special": "Special",
+    "Combo": "Combo"
+  },
+  "enragedTempo": 1.15,
+  "levels": {
+    "Easy": {
+      "Slash": {
+        "category": "Standard",
+        "windUp": 0.9
+      },
+      "Side Sweep": {
+        "category": "Standard",
+        "windUp": 0.985
+      },
+      "Overhead Strike": {
+        "category": "Standard",
+        "windUp": 1.15
+      },
+      "Cut and Chop": {
+        "category": "Combo",
+        "windUp": 0.89
+      },
+      "Spin Slash": {
+        "category": "Heavy",
+        "windUp": 1.28
+      },
+      "Leaping Slam": {
+        "category": "Special",
+        "windUp": 1.6
+      }
+    },
+    "Medium": {
+      "Horizontal Sweep": {
+        "category": "Standard",
+        "windUp": 0.61
+      },
+      "Diagonal Slash": {
+        "category": "Standard",
+        "windUp": 0.6
+      },
+      "Backhand Cut": {
+        "category": "Standard",
+        "windUp": 0.59
+      },
+      "Twin Strike": {
+        "category": "Combo",
+        "windUp": 0.57
+      },
+      "Whirlwind Spin": {
+        "category": "Heavy",
+        "windUp": 1.04
+      },
+      "Executioner Slam": {
+        "category": "IdleSlam",
+        "windUp": 1.475
+      },
+      "Leaping Cleave": {
+        "category": "Special",
+        "windUp": 1.025
+      },
+      "Reaping Combo": {
+        "category": "Combo",
+        "windUp": 0.835
+      },
+      "Lunging Cleave": {
+        "category": "Standard",
+        "windUp": 0.63
+      },
+      "Overhead Chop": {
+        "category": "Standard",
+        "windUp": 0.61
+      }
+    },
+    "Hard": {
+      "Alternating Chops": {
+        "category": "Standard",
+        "windUp": 0.575
+      },
+      "Crossing Double Swing": {
+        "category": "Standard",
+        "windUp": 0.558
+      },
+      "Twin Diagonal Hack": {
+        "category": "Standard",
+        "windUp": 0.525
+      },
+      "Reaping Flurry": {
+        "category": "Combo",
+        "windUp": 0.608
+      },
+      "Twin Whirlwind": {
+        "category": "Heavy",
+        "windUp": 0.883
+      },
+      "Twin Overhead Cleave": {
+        "category": "Heavy",
+        "windUp": 0.942
+      },
+      "Leaping Double Cleave": {
+        "category": "Heavy",
+        "windUp": 0.792
+      },
+      "Earthsplitter Slam": {
+        "category": "Special",
+        "windUp": 1.3
+      },
+      "Rending Double Strike": {
+        "category": "Combo",
+        "windUp": 0.525
+      },
+      "Spinning Reap": {
+        "category": "Standard",
+        "windUp": 0.708
+      },
+      "Backhand Double Chop": {
+        "category": "Standard",
+        "windUp": 0.525
+      },
+      "Hurled Axe": {
+        "category": "Standard",
+        "windUp": 0.792
+      },
+      "Twin Hurl": {
+        "category": "Combo",
+        "windUp": 0.792
+      },
+      "Brute Rush": {
+        "category": "Heavy",
+        "windUp": 1.125
+      },
+      "Twin Cyclone": {
+        "category": "Heavy",
+        "windUp": 0.883
+      },
+      "Twin Overhead Chain": {
+        "category": "Combo",
+        "windUp": 0.942
+      },
+      "Lunge Strike": {
+        "category": "Heavy",
+        "windUp": 0.775
+      }
+    }
+  }
+}

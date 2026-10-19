@@ -10,7 +10,10 @@
     "db:schema": "node scripts/apply-schema.js",
     "db:migrate": "node scripts/migrate-json-to-postgres.js",
     "simulate": "node scripts/simulate-live.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "dev:db": "node scripts/dev-db.js",
+    "dev:seed": "node scripts/seed-dev.js",
+    "dev:safe": "node scripts/dev-safe.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
