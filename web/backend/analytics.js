@@ -813,22 +813,28 @@ async function playerFingerprint(name) {
   }
   const ids = rows.map((r) => r.id);
   const hitsBySession = await hitsForSessions(ids);
-  const counts = ids.length
+  // Dodge needs WHEN each attack started and WHEN the player was hurt (fight clock), not just how many.
+  const timed = ids.length
     ? (await query(
-        `SELECT session_ref AS id,
-                count(*) FILTER (WHERE type = 'monster_attack')::int AS attacks,
-                count(*) FILTER (WHERE type = 'player_hurt' AND json_typeof(payload->'amount') = 'number' AND (payload->>'amount')::float8 > 0
-                                   AND COALESCE(payload->>'attack', '') <> 'Dragon fire')::int AS hurt
-         FROM events WHERE session_ref = ANY($1) GROUP BY session_ref`,
+        `SELECT session_ref AS id, type,
+                CASE WHEN json_typeof(payload->'t') = 'number' THEN (payload->>'t')::float8 END AS t
+         FROM events
+         WHERE session_ref = ANY($1)
+           AND (type = 'monster_attack'
+                OR (type = 'player_hurt' AND json_typeof(payload->'amount') = 'number' AND (payload->>'amount')::float8 > 0
+                    AND COALESCE(payload->>'attack', '') <> 'Dragon fire'))`,
         [ids]
       )).rows
     : [];
+  const attackFights = ids.map((id) => {
+    const mine = timed.filter((r) => r.id === id);
+    return { attacks: mine.filter((r) => r.type === "monster_attack").map((r) => num(r.t)), hurts: mine.filter((r) => r.type === "player_hurt").map((r) => num(r.t)).filter((t) => t !== null) };
+  });
   const fades = rows.map((r) => effort.fade(hitsBySession.get(r.id), num(r.durationSec)));
   const result = effort.fingerprint({
     hits: ids.flatMap((id) => hitsBySession.get(id)),
     fades,
-    hurt: counts.reduce((a, c) => a + c.hurt, 0),
-    attacks: counts.reduce((a, c) => a + c.attacks, 0),
+    attackFights,
   });
   return {
     playerName: name,

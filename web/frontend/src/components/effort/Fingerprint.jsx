@@ -13,11 +13,12 @@ import RadarChart from "./RadarChart.jsx";
 //   Power         average swing speed / the game's 8 m/s cap
 //   Consistency   100 - (standard deviation of swing speed / mean swing speed x 100), kept within 0-100
 //   Stamina       100 + the average effort fade % (see Effort fade), kept within 0-100
-//   Dodge         1 - (hits taken / monster attacks), kept within 0-1
+//   Dodge         share of monster attacks that did not hurt the player within 1.5 s of the attack starting
 //   Guard timing  share of hits that landed while the monster was NOT guarding (dropped when the game sent no guard flag)
 // An axis with no data behind it is left off the chart and named underneath; it is never drawn as 0.
 // The card carries only the STRIKEFIT wordmark and the player's name (already a pseudonym): no personal data.
 
+const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const W = 1080; // export size, px
 const MIN_H = 560;
 
@@ -85,7 +86,7 @@ function ScoringPopover({ axes }) {
             ))}
           </dl>
           <p className="mt-3 border-t border-[var(--border)] pt-3 text-xs font-medium leading-relaxed text-[var(--muted)]">
-            Built from your last 10 finished fights that recorded swings. Swing speeds above the game's 8 m/s cap count as 8. An axis with no data is left off, not scored as 0.
+            Built from your last 10 finished fights that recorded swings. Swing speeds above the game's 8 m/s cap count as 8. Dodge needs at least 5 timed monster attacks. An axis with no data is left off, not scored as 0.
           </p>
         </div>
       )}
@@ -188,7 +189,7 @@ export default function Fingerprint({ name }) {
               ["Fights", data.fights],
               ["Swings", data.swings],
               ["Monster attacks", data.attacks],
-              ["Hits taken", data.hitsTaken],
+              ["Attacks avoided", isNum(data.attacksAvoided) ? data.attacksAvoided : "—"],
             ].map(([k, v]) => (
               <div key={k}>
                 <dt className="font-semibold text-[var(--muted)]">{k}</dt>

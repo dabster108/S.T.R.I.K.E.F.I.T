@@ -85,8 +85,8 @@ const fp = (over = {}) =>
   effort.fingerprint({
     hits: Array.from({ length: 20 }, () => ({ speed: 4, defended: false })),
     fades: [effort.fade(swings([5, 5, 5, 5, 5, 5, 4.4, 4.4, 4.4]), 90)],
-    hurt: 5,
-    attacks: 20,
+    // 20 attacks two seconds apart; the first 5 hurt the player 0.8 s after they start
+    attackFights: [{ attacks: Array.from({ length: 20 }, (_, i) => i * 2), hurts: [0.8, 2.8, 4.8, 6.8, 8.8] }],
     ...over,
   });
 const axis = (r, key) => r.axes.find((a) => a.key === key).score;
@@ -113,11 +113,23 @@ test("Stamina = 100 + average fade %, clamped to 0-100", () => {
   assert.equal(axis(fp({ fades: [effort.fade([], 60)] }), "stamina"), null);
 });
 
-test("Dodge = 1 - (hits taken / monster attacks), clamped, and omitted without enough attacks", () => {
-  assert.equal(axis(fp(), "dodge"), 75); // 5 hurt in 20 attacks
-  assert.equal(axis(fp({ hurt: 0 }), "dodge"), 100);
-  assert.equal(axis(fp({ hurt: 40 }), "dodge"), 0); // a double cleave can hurt twice: never below 0
-  assert.equal(axis(fp({ attacks: 3 }), "dodge"), null);
+test("Dodge = share of monster attacks that did not hurt the player within 1.5 s of starting", () => {
+  assert.equal(axis(fp(), "dodge"), 75); // 5 of 20 attacks hurt within the window
+  assert.equal(axis(fp({ attackFights: [{ attacks: [0, 10, 20, 30, 40], hurts: [] }] }), "dodge"), 100);
+  // a double cleave hurts twice inside one window: still ONE attack that landed (the old formula went below 0 here)
+  assert.equal(axis(fp({ attackFights: [{ attacks: [0, 10, 20, 30, 40], hurts: [0.5, 0.9, 10.4, 10.6] }] }), "dodge"), 60);
+  // a hurt tick 1.6 s after the attack is outside the window, so that attack counts as avoided
+  assert.equal(axis(fp({ attackFights: [{ attacks: [0, 10, 20, 30, 40], hurts: [1.6, 11.5] }] }), "dodge"), 80);
+  // every attack landing really is 0 (with enough attacks); too few timed attacks is "not enough data" (null), not 0
+  assert.equal(axis(fp({ attackFights: [{ attacks: [0, 10, 20, 30, 40], hurts: [1, 11, 21, 31, 41] }] }), "dodge"), 0);
+  assert.equal(axis(fp({ attackFights: [{ attacks: [0, 10, 20], hurts: [] }] }), "dodge"), null);
+  assert.equal(axis(fp({ attackFights: [{ attacks: [null, null, null, null, null, null], hurts: [] }] }), "dodge"), null); // no fight clock
+});
+
+test("dodgeShare counts across fights and reports what it could not time", () => {
+  const d = effort.dodgeShare([{ attacks: [0, 5, null], hurts: [1] }, { attacks: [3, 9, 12], hurts: [3.2, 13.6] }]);
+  assert.deepEqual(d, { attacks: 5, avoided: 3, untimed: 1, share: 0.6 });
+  assert.equal(effort.dodgeShare([]).share, null);
 });
 
 test("Guard timing = share of hits that landed while the monster was not guarding", () => {
@@ -130,7 +142,7 @@ test("Guard timing = share of hits that landed while the monster was not guardin
 });
 
 test("not enough data: no fake axes", () => {
-  const r = effort.fingerprint({ hits: [{ speed: 5 }], fades: [], hurt: 0, attacks: 0 });
+  const r = effort.fingerprint({ hits: [{ speed: 5 }], fades: [], attackFights: [] });
   assert.equal(r.status, "insufficient");
   assert.ok(r.axes.every((a) => a.score === null));
   assert.match(r.reason, /Not enough data/);

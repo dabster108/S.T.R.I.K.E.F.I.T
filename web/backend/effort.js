@@ -91,20 +91,22 @@ function averageFade(results) {
 //   Power         = average swing speed / speed cap (8 m/s)                                   x 100
 //   Consistency   = 100 - (standard deviation of swing speed / mean swing speed x 100)         clamped 0-100
 //   Stamina       = 100 + average fade % (the last-10-fights average from B1)                  clamped 0-100
-//   Dodge         = 1 - (hits taken / monster attacks)                                         clamped 0-1, x 100
+//   Dodge         = share of monster attacks that did NOT hurt the player within 1.5 s of the attack starting   x 100
+//                   (monster_attack.t against player_hurt.t on the fight clock; an attack or hurt tick without a time is left out)
 //   Guard timing  = share of landed hits that came while the monster was NOT guarding          x 100
 //                   (hit.payload.defended is stored, so this axis exists; it is dropped when no hit carries the flag)
-// Notes: hits taken counts every player_hurt tick, and one monster attack can hurt twice (a double cleave), so Dodge
-// reads low for a player who is hit by most attacks and is clamped at 0, never negative.
+// Notes: the old Dodge (1 - hurt ticks / attacks) was 0 for every player: almost every attack lands and some hurt twice.
+// The time window counts each attack once. An attack whose wind-up is longer than the window (Level 1's 1.6 s Leaping Slam)
+// can land after it and still count as avoided; dragon fire is a hazard, not a monster attack, and is excluded by the caller.
 // An axis with no data behind it is null and left off the chart; it is never shown as 0.
 
-const FINGERPRINT = { minSwings: 10, minAttacks: 5 };
+const FINGERPRINT = { minSwings: 10, minAttacks: 5, dodgeWindowSec: 1.5 };
 
 const AXES = [
   { key: "power", label: "Power", formula: "Average swing speed ÷ the game's 8 m/s cap" },
   { key: "consistency", label: "Consistency", formula: "100 − (standard deviation of swing speed ÷ mean swing speed × 100), kept between 0 and 100" },
   { key: "stamina", label: "Stamina", formula: "100 + average fade % over the last 10 fights, kept between 0 and 100 (no fade = 100)" },
-  { key: "dodge", label: "Dodge", formula: "1 − (hits taken ÷ monster attacks), kept between 0 and 1" },
+  { key: "dodge", label: "Dodge", formula: "Share of the monster's attacks that did not hurt you within 1.5 s of starting" },
   { key: "guard", label: "Guard timing", formula: "Share of your hits that landed while the monster was not guarding" },
 ];
 
@@ -114,10 +116,32 @@ function stdev(xs) {
 }
 
 /**
- * hits: [{ speed, defended? }]; fades: fade() outputs for the fights to average (the last 10);
- * hurt: player_hurt ticks (amount > 0); attacks: monster_attack events (both over the same fights).
+ * Dodge evidence. fights: [{ attacks: [t, ...], hurts: [t, ...] }] in fight-clock seconds (monster_attack and damaging player_hurt).
+ * An attack is avoided when no hurt tick falls in [t, t + windowSec]. -> { attacks, avoided, untimed, share | null }
  */
-function fingerprint({ hits, fades, hurt, attacks }) {
+function dodgeShare(fights, windowSec = FINGERPRINT.dodgeWindowSec) {
+  let attacks = 0;
+  let avoided = 0;
+  let untimed = 0;
+  for (const f of fights || []) {
+    const hurts = (f.hurts || []).filter(isNum).sort((a, b) => a - b);
+    for (const t of f.attacks || []) {
+      if (!isNum(t)) {
+        untimed++;
+        continue;
+      }
+      attacks++;
+      if (!hurts.some((h) => h >= t && h <= t + windowSec)) avoided++;
+    }
+  }
+  return { attacks, avoided, untimed, share: attacks >= FINGERPRINT.minAttacks ? avoided / attacks : null };
+}
+
+/**
+ * hits: [{ speed, defended? }]; fades: fade() outputs for the fights to average (the last 10);
+ * attackFights: per fight, the times of monster attacks and of damaging hurt ticks (see dodgeShare).
+ */
+function fingerprint({ hits, fades, attackFights }) {
   const speeds = (hits || []).filter((h) => isNum(h.speed)).map((h) => Math.min(h.speed, SWING_SPEED_CAP));
   const enough = speeds.length >= FINGERPRINT.minSwings;
   const values = {};
@@ -131,7 +155,8 @@ function fingerprint({ hits, fades, hurt, attacks }) {
     const flagged = (hits || []).filter((h) => typeof h.defended === "boolean");
     values.guard = flagged.length >= FINGERPRINT.minSwings ? (flagged.filter((h) => !h.defended).length / flagged.length) * 100 : null;
   }
-  values.dodge = (attacks || 0) >= FINGERPRINT.minAttacks ? clamp(1 - (hurt || 0) / attacks, 0, 1) * 100 : null;
+  const dodge = dodgeShare(attackFights);
+  values.dodge = dodge.share === null ? null : clamp(dodge.share, 0, 1) * 100;
 
   const axes = AXES.map((a) => ({ ...a, score: isNum(values[a.key]) ? Math.round(values[a.key]) : null }));
   const have = axes.filter((a) => a.score !== null);
@@ -139,8 +164,10 @@ function fingerprint({ hits, fades, hurt, attacks }) {
     status: have.length >= 3 ? "ok" : "insufficient",
     reason: have.length >= 3 ? null : `Not enough data yet (needs ${FINGERPRINT.minSwings}+ landed swings and ${FINGERPRINT.minAttacks}+ monster attacks)`,
     swings: speeds.length,
-    attacks: attacks || 0,
-    hitsTaken: hurt || 0,
+    attacks: dodge.attacks,
+    attacksAvoided: dodge.avoided,
+    hitsTaken: (attackFights || []).reduce((a, f) => a + (f.hurts || []).length, 0),
+    dodgeWindowSec: FINGERPRINT.dodgeWindowSec,
     axes,
     omitted: axes.filter((a) => a.score === null).map((a) => a.key),
   };
@@ -242,6 +269,6 @@ function returnRates(sessions, nowMs) {
 
 module.exports = {
   FADE, FADE_LABELS, FINGERPRINT, AXES, RPE_MIN_PAIRS, RETURN_WINDOWS_DAYS, SMALL_SAMPLE,
-  fade, fadeLabel, averageFade, fingerprint, cumulativeDamage, damageAt, pearson, rpeCorrelation, returnRates,
+  fade, fadeLabel, averageFade, fingerprint, dodgeShare, cumulativeDamage, damageAt, pearson, rpeCorrelation, returnRates,
   clamp, mean, stdev, round,
 };
