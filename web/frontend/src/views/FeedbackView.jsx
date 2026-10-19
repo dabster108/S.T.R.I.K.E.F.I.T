@@ -38,7 +38,7 @@ function PickPlayer({ onPick }) {
             ))}
           </div>
         ) : players.error && !players.data ? (
-          <p role="alert" className="rounded-xl border border-red-200 bg-[var(--bad-soft)] px-3 py-2.5 text-sm font-semibold text-[var(--bad)]">
+          <p role="alert" className="rounded-xl border border-red-200 bg-[var(--bad-soft)] px-3 py-2.5 text-sm font-semibold text-[var(--bad-ink)]">
             Couldn't load players. The server may be waking up, so give it a moment and{" "}
             <button type="button" className="underline" onClick={players.reload}>
               try again

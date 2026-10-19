@@ -12,7 +12,6 @@ const TIER_COLOR = { none: "var(--border-strong)", tap: "var(--tier-tap)", light
 const S = LEVELS.Easy.swing;
 const MARKS = [
   [S.min, "tap"],
-  [S.tiers.light, "light"],
   [S.tiers.medium, "medium"],
   [S.tiers.full, "full"],
 ];

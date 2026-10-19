@@ -46,7 +46,7 @@ function Strip({ days }) {
           // Today is still being played: an unmet goal today is "in progress", never "missed".
           const isToday = d.date === days[days.length - 1].date;
           const state = d.met ? "met" : d.goal ? (isToday ? "open" : "missed") : "none";
-          const cls = state === "met" ? "bg-[var(--good)] text-white" : state === "missed" ? "bg-[var(--bad-soft)] text-[var(--bad)] ring-1 ring-inset ring-red-200" : state === "open" ? "bg-gray-100 text-[var(--accent-strong)] ring-1 ring-inset ring-[var(--accent-strong)]" : "bg-gray-100 text-[var(--muted)]";
+          const cls = state === "met" ? "bg-[var(--good)] text-white" : state === "missed" ? "bg-[var(--bad-soft)] text-[var(--bad-ink)] ring-1 ring-inset ring-red-200" : state === "open" ? "bg-gray-100 text-[var(--accent-strong)] ring-1 ring-inset ring-[var(--accent-strong)]" : "bg-gray-100 text-[var(--muted)]";
           const tip = `${dayLabel(d.date)}: ${state === "met" ? "goal met" : state === "missed" ? `goal missed (${d.progress?.percent ?? 0}%)` : state === "open" ? `goal in progress (${d.progress?.percent ?? 0}%)` : "no goal set"}`;
           return (
             <li key={d.date} title={tip} className={`flex h-8 w-8 items-center justify-center rounded-lg text-[0.7rem] font-extrabold ${cls}`}>

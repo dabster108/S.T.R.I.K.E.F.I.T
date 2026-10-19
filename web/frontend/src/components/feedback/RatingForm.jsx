@@ -115,7 +115,7 @@ export default function RatingForm({ sessionId, onSaved, onSkip }) {
       </div>
 
       {error && (
-        <p role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-[var(--bad-soft)] px-3 py-2.5 text-sm font-semibold text-[var(--bad)]">
+        <p role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-[var(--bad-soft)] px-3 py-2.5 text-sm font-semibold text-[var(--bad-ink)]">
           <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0" /> {error}
         </p>
       )}

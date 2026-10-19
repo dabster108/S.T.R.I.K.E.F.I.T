@@ -36,3 +36,14 @@ test("revealStyle sets --m-delay only when there is a delay", () => {
   assert.deepEqual(revealStyle({ delay: 100 }), { "--m-delay": "100ms" });
   assert.deepEqual(revealStyle({ delay: 100, index: 2 }), { "--m-delay": `${100 + 2 * STAGGER}ms` });
 });
+
+test("every animation name used in the stylesheets has @keyframes (a missing one leaves its element stuck at its first frame)", () => {
+  const css = ["../styles.css", "../styles/tokens.css", "../styles/fonts.css"].map((f) => fs.readFileSync(new URL(f, import.meta.url), "utf8")).join("\n");
+  const defined = new Set([...css.matchAll(/@keyframes\s+([\w-]+)/g)].map((m) => m[1]));
+  const IGNORE = new Set(["var", "linear", "ease", "infinite", "both", "forwards", "backwards", "none", "normal", "alternate", "paused", "running", "ease-in-out", "ease-out", "ease-in", "reverse", "initial", "inherit", "important"]);
+  const used = new Set();
+  for (const m of css.matchAll(/animation(?:-name)?\s*:\s*([^;}]+)/g)) {
+    for (const tok of m[1].match(/(?<![\w-])[a-zA-Z][\w-]*(?![\w-]*\()/g) || []) if (!IGNORE.has(tok) && !/^\d/.test(tok)) used.add(tok);
+  }
+  assert.deepEqual([...used].filter((u) => !defined.has(u)).sort(), []);
+});

@@ -15,7 +15,7 @@ import { useLiveIds, useLiveSession } from "../live/LiveProvider.jsx";
 // has to touch the Quest. ?room=<name> picks a room other than the default.
 
 const PHASES = {
-  disconnected: { label: "Disconnected", icon: "offline", dot: "bg-[var(--bad)]", cls: "bg-[var(--bad-soft)] text-[var(--bad)] ring-red-200" },
+  disconnected: { label: "Disconnected", icon: "offline", dot: "bg-[var(--bad)]", cls: "bg-[var(--bad-soft)] text-[var(--bad-ink)] ring-red-200" },
   connecting: { label: "Connecting", icon: "loader", dot: "bg-[var(--warn)] status-live", cls: "bg-[var(--warn-soft)] text-[var(--warn-ink)] ring-amber-200" },
   negotiating: { label: "Negotiating Handshake", icon: "loader", dot: "bg-[var(--accent)] status-live", cls: "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-[var(--accent-ring)]" },
   live: { label: "LIVE", icon: "radio", dot: "bg-[var(--good)] status-live", cls: "bg-[var(--good-soft)] text-[var(--good-ink)] ring-emerald-200" },
@@ -128,7 +128,7 @@ function BroadcastPanel({ room, header }) {
       <CheerBar />
 
       {error && (
-        <p className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-[var(--bad-soft)] px-4 py-3 text-sm font-semibold text-[var(--bad)]">
+        <p className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-[var(--bad-soft)] px-4 py-3 text-sm font-semibold text-[var(--bad-ink)]">
           <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0" /> {error}
         </p>
       )}

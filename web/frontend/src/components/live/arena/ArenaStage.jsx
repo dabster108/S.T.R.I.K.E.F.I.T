@@ -203,8 +203,8 @@ const CATEGORY_TONE = {
   Standard: "bg-gray-100 text-[var(--ink-secondary)] ring-[var(--border)]",
   Combo: "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-[var(--accent-ring)]",
   Heavy: "bg-[var(--warn-soft)] text-[var(--warn-ink)] ring-amber-200",
-  IdleSlam: "bg-[var(--bad-soft)] text-[var(--bad)] ring-red-200",
-  Special: "bg-[var(--bad-soft)] text-[var(--bad)] ring-red-200",
+  IdleSlam: "bg-[var(--bad-soft)] text-[var(--bad-ink)] ring-red-200",
+  Special: "bg-[var(--bad-soft)] text-[var(--bad-ink)] ring-red-200",
 };
 
 // A fixed-height strip, so an attack arriving never moves what is below it.
@@ -319,7 +319,7 @@ const SwingGauge = memo(function SwingGauge({ levelKey, swing, combo, impact }) 
 
 const TONE = {
   good: "border-emerald-200 bg-[var(--good-soft)] text-[var(--good-ink)]",
-  bad: "border-red-200 bg-[var(--bad-soft)] text-[var(--bad)]",
+  bad: "border-red-200 bg-[var(--bad-soft)] text-[var(--bad-ink)]",
   muted: "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--ink-secondary)]",
 };
 

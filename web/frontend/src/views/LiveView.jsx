@@ -19,6 +19,8 @@ import ActivityFeed from "../components/engage/ActivityFeed.jsx";
 // The quiet arena is what most visits see first (no fight on): bundled with the page (under 2 kB gzipped) instead of a second
 // lazy hop, so its portraits are requested at once. The fight stage stays a lazy chunk.
 import QuietArena from "../components/live/arena/QuietArena.jsx";
+import MonsterPortrait from "../components/ui/MonsterPortrait.jsx";
+import { LEVEL_KEYS } from "../lib/arena.js";
 
 // The Live Arena. While a fight is on, one stage per fight (components/live/arena): who is fighting which monster, both health bars,
 // the attack the monster is winding up, the swing gauge, ghost pace and a kill-feed. When a fight ends its result stays for 8 seconds,
@@ -180,7 +182,19 @@ export default function LiveView() {
   };
   const copyLink = () => copyText(arenaLink(window.location.origin, active), "Link");
 
-  if (!ready) return <LiveSkeleton />;
+  // Until the first snapshot arrives the page is a skeleton, but the three portraits the quiet arena will show start loading now,
+  // off screen, instead of after the snapshot (they were the page's largest paint, found 1.6 s late).
+  if (!ready)
+    return (
+      <>
+        <LiveSkeleton />
+        <div aria-hidden className="pointer-events-none fixed -left-[9999px] top-0 h-px w-px overflow-hidden">
+          {LEVEL_KEYS.map((k) => (
+            <MonsterPortrait key={k} level={k} size="sm" glow={false} eager />
+          ))}
+        </div>
+      </>
+    );
 
   const stages = shown.length ? (
     <div className={shown.length > 1 ? "grid gap-12 2xl:grid-cols-2 2xl:gap-8" : ""}>

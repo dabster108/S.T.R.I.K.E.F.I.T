@@ -1,4 +1,5 @@
 import { Skeleton } from "./Feedback.jsx";
+import { PageHeader } from "./Card.jsx";
 
 // Loading placeholders shaped like each page, so nothing jumps when data lands.
 
@@ -291,10 +292,13 @@ export const LabSkeleton = () =>
   wrap(
     "Loading the Thesis Lab",
     <>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <Header />
-        <Skeleton className="h-10 w-36 rounded-xl" />
-      </div>
+      {/* the real title and description (static text, the same as LabView's), so the page's largest paint does not wait for the chunk */}
+      <PageHeader
+        eyebrow="Research"
+        title="Thesis Lab"
+        description="Return rate, perceived exertion against swing speed, and a level-by-level comparison, each with the number of players or fights behind it."
+        actions={<Skeleton className="h-10 w-36 rounded-xl" />}
+      />
       <Box className="space-y-2 border-amber-200 bg-amber-50/50 p-4">
         <Skeleton className="h-3.5 w-72 max-w-full" />
         <Skeleton className="h-3 w-full max-w-2xl" />

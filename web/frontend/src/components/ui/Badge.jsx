@@ -2,7 +2,7 @@ import Icon from "./Icon.jsx";
 
 const OUTCOMES = {
   victory: { label: "Victory", icon: "check", cls: "bg-[var(--good-soft)] text-[var(--good-ink)] ring-emerald-200" },
-  defeat: { label: "Defeat", icon: "xCircle", cls: "bg-[var(--bad-soft)] text-[var(--bad)] ring-red-200" },
+  defeat: { label: "Defeat", icon: "xCircle", cls: "bg-[var(--bad-soft)] text-[var(--bad-ink)] ring-red-200" },
 };
 
 // Outcome always carries an icon + label, never color alone.
@@ -34,7 +34,7 @@ export function LevelBadge({ level }) {
 const CONNECTION = {
   live: { label: "Connected", dot: "bg-[var(--good)] status-live", text: "text-[var(--good-ink)]", bg: "bg-[var(--good-soft)] ring-emerald-200" },
   connecting: { label: "Reconnecting", dot: "bg-[var(--warn)] status-live", text: "text-amber-700", bg: "bg-[var(--warn-soft)] ring-amber-200" },
-  offline: { label: "Offline", dot: "bg-[var(--bad)]", text: "text-[var(--bad)]", bg: "bg-[var(--bad-soft)] ring-red-200" },
+  offline: { label: "Offline", dot: "bg-[var(--bad)]", text: "text-[var(--bad-ink)]", bg: "bg-[var(--bad-soft)] ring-red-200" },
 };
 
 export function ConnectionBadge({ state, compact = false, label }) {

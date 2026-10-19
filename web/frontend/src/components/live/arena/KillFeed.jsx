@@ -12,7 +12,7 @@ const MAX = 8;
 const TONE = {
   accent: "bg-[var(--accent-soft)] text-[var(--accent)]",
   good: "bg-[var(--good-soft)] text-[var(--good-ink)]",
-  bad: "bg-[var(--bad-soft)] text-[var(--bad)]",
+  bad: "bg-[var(--bad-soft)] text-[var(--bad-ink)]",
   warn: "bg-[var(--warn-soft)] text-[var(--warn-ink)]",
   muted: "bg-gray-100 text-[var(--muted)]",
 };

@@ -206,6 +206,18 @@
   animation: status-pulse 2s ease-in-out infinite;
 }
 
+/* Two older names that rules further down still use (.fade-up, .chart-area). Item 1's consolidation dropped them and left those rules
+   animating nothing, which kept the hero's lower half and every chart area at opacity 0; motion.test.js now fails on any animation
+   name that has no @keyframes. */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* The two keyframes every entrance uses (motion/tokens.js has the matching numbers). */
 @keyframes motion-fade {
   from {
