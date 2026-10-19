@@ -132,6 +132,7 @@ export const api = {
   activity: (limit = 20) => request(`/api/activity${qs({ limit })}`),
   // Rank ladder: one player (rank, effort points, next rank, progress, the ladder itself), or many at once for the leaderboard rows.
   playerRank: (name) => request(`/api/players/${enc(name)}/rank`, { quiet: true, timeoutMs: 20000 }),
+  playerMilestones: (name) => request(`/api/players/${enc(name)}/milestones`, { quiet: true, timeoutMs: 30000 }),
   playerWrapped: (name, weekStart) => request(`/api/players/${enc(name)}/wrapped${qs({ weekStart })}`, { quiet: true, timeoutMs: 45000 }),
   playerRecords: (name) => request(`/api/players/${enc(name)}/records`, { quiet: true, timeoutMs: 20000 }),
   ranks: (names) => request(`/api/ranks${qs({ players: names.join(",") })}`, { quiet: true, timeoutMs: 20000 }),

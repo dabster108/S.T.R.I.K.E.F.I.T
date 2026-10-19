@@ -32,6 +32,7 @@ import { JourneyStrip, NextStepCard } from "../components/engage/Mastery.jsx";
 import { WeekCard } from "../components/engage/WeekCard.jsx";
 import { PlayerCalendar } from "../components/engage/Calendar.jsx";
 import RankSummary from "../components/rank/RankSummary.jsx";
+import MilestoneTimeline from "../components/milestones/MilestoneTimeline.jsx";
 
 const ProfileSummary = lazy(() => import("../components/players/ProfileSummary.jsx"));
 const Fingerprint = lazy(() => import("../components/effort/Fingerprint.jsx"));
@@ -352,6 +353,9 @@ export default function PlayerView() {
           </div>
           <div className="mt-6">
             <AchievementsSection name={name} latestSessionId={p.sessions.find((x) => x.status !== "live")?.id} />
+          </div>
+          <div className="mt-6">
+            <MilestoneTimeline name={name} />
           </div>
           <div className="mt-6">
             <InsightsCard name={name} />

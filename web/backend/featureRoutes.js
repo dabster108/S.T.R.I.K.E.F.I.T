@@ -8,15 +8,17 @@ const pace = require("./pace");
 const ranksStore = require("./ranksStore");
 const recordsStore = require("./recordsStore");
 const wrappedStore = require("./wrappedStore");
+const milestonesStore = require("./milestonesStore");
 const wrapped = require("./wrapped");
 const { createTtlCache } = require("./ttlCache");
 
-const TTL = { rank: 30_000, records: 30_000, wrapped: 60_000 };
+const TTL = { rank: 30_000, records: 30_000, wrapped: 60_000, milestones: 30_000 };
 const caches = {
   rank: createTtlCache({ ttlMs: TTL.rank }),
   ranks: createTtlCache({ ttlMs: TTL.rank, max: 100 }),
   records: createTtlCache({ ttlMs: TTL.records }),
   wrapped: createTtlCache({ ttlMs: TTL.wrapped }),
+  milestones: createTtlCache({ ttlMs: TTL.milestones }),
 };
 const keyOf = (name, what) => `${name}\u0000${what}`;
 
@@ -56,6 +58,16 @@ function mount(app, { route }) {
     const name = validName(req, res);
     if (!name) return;
     const out = await caches.rank.get(keyOf(name, "rank"), () => ranksStore.playerRank(name));
+    if (!out) return res.status(404).json({ ok: false, error: "Player not found" });
+    res.set("Cache-Control", "no-cache");
+    res.json(out);
+  }));
+
+  // The milestone timeline: what was reached and when, and the next three with how far along they are (milestones.js).
+  app.get("/api/players/:name/milestones", route(async (req, res) => {
+    const name = validName(req, res);
+    if (!name) return;
+    const out = await caches.milestones.get(keyOf(name, "milestones"), () => milestonesStore.playerMilestones(name));
     if (!out) return res.status(404).json({ ok: false, error: "Player not found" });
     res.set("Cache-Control", "no-cache");
     res.json(out);
