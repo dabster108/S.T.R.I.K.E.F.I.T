@@ -3,6 +3,8 @@ import { Route, Routes } from "react-router-dom";
 import Landing from "./views/Landing.jsx";
 import { OverviewSkeleton } from "./components/ui/Skeletons.jsx";
 import { LiveProvider } from "./live/LiveProvider.jsx";
+import DemoRibbon from "./demo/DemoRibbon.jsx";
+import { isDemo } from "./demo/mode.js";
 
 // The dashboard (charts, live stream, every inner page) is its own chunk, so the
 // public landing page never downloads it.
@@ -27,6 +29,15 @@ function DashboardFallback() {
 }
 
 export default function App() {
+  return (
+    <>
+      {isDemo() && <DemoRibbon />}
+      <AppRoutes />
+    </>
+  );
+}
+
+function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />

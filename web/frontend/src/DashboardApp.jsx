@@ -10,6 +10,7 @@ import { liveStore } from "./live/liveStore.js";
 import { MobileNav, Sidebar } from "./components/layout/Sidebar.jsx";
 import Topbar from "./components/layout/Topbar.jsx";
 import CommandPalette from "./components/layout/CommandPalette.jsx";
+import { isDemo, setDemo } from "./demo/mode.js";
 import OverviewHeader from "./views/OverviewHeader.jsx";
 import ShortcutsOverlay, { isTypingTarget } from "./components/layout/ShortcutsOverlay.jsx";
 import { ToastStack, useToasts } from "./components/ui/Toasts.jsx";
@@ -262,6 +263,9 @@ function Dashboard() {
                 </Link>
               ))}
             </nav>
+            <button type="button" onClick={() => setDemo(!isDemo())} className="press rounded font-semibold text-[var(--muted)] hover:text-[var(--accent)] hover:underline" title="Runs the whole site on scripted data: no server or internet needed">
+              {isDemo() ? "Exit demo mode" : "Demo mode"}
+            </button>
             <p className="flex items-center gap-1.5">
               <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">Ctrl</kbd>+<kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">K</kbd> jump ·
               <button type="button" onClick={() => setShortcutsOpen(true)} className="press rounded font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline">

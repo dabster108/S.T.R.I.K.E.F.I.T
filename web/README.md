@@ -31,6 +31,12 @@ npm run dev:seed-study      # 10 ZZTEST study participants (consent, pre/post an
                             #   -- --reset removes them first; refuses anything but the local dev database; add --url for other ports
 ```
 
+**Demo mode** (for the viva): open any page with `?demo=1` (or press "Demo mode" in a footer). The whole site then runs on recorded data
+with no backend and no internet: every `/api` call is answered from `frontend/src/demo/snapshot.json`, and the Live Arena loops two scripted
+fights (Ava and Ben) with the player switcher, full screen and impact moments. A "Demo data" ribbon stays on screen; "Exit demo" leaves.
+Nothing is saved. Refresh the recording after changing seed data, with the dev stack running: `npm run demo:snapshot -- --url http://localhost:4100`
+(local only; timestamps are moved forward so the newest fight is recent, but a snapshot taken the day before looks best).
+
 The playtest study lives at `/study` (public). Participants get a code `P01`..`P20` that they use as the headset player name; the Thesis Lab's
 "Playtest study" section and `GET /api/study/export.csv` read the answers. The Borg RPE is stored in `session_feedback` like any fight rating.
 
