@@ -7,6 +7,7 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 const { v4: uuidv4 } = require("uuid");
 const { query, withTransaction } = require("./db");
+const { sanitize, withRetry } = require("./dbRetry");
 const { SESSION_API_FIELDS, SESSION_API_SELECT, EVENT_SELECT, fromRow } = require("./columns");
 const stream = require("./stream");
 const broadcast = require("./broadcast");
@@ -455,6 +456,12 @@ broadcast.attach(server);
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
+
+// Is the Express process alive? Answers 200 without touching Postgres, so a platform health check (Render) or a browser can ask as often as
+// it likes without waking a database that scales to zero. /api/health below is the one that checks the database.
+app.get("/api/ping", (_req, res) => {
+  res.set("Cache-Control", "no-store").status(200).json({ ok: true });
+});
 
 app.get("/api/health", route(async (_req, res) => {
   const database = { ok: false, latencyMs: null };
@@ -1080,7 +1087,11 @@ server.on("error", (err) => {
 // Idempotent (IF NOT EXISTS throughout), so every boot — including a Render
 // deploy — brings the database up to date before live tracking starts.
 async function prepareDatabase() {
-  await query(fs.readFileSync(SCHEMA_SQL, "utf8"));
+  // The schema is idempotent, so the whole step can safely be tried again when the database is still waking up (a cold start).
+  await withRetry(() => query(fs.readFileSync(SCHEMA_SQL, "utf8")), {
+    attempts: 4,
+    onRetry: ({ attempt, delayMs, error }) => console.warn(`  Database: not ready (attempt ${attempt}), trying again in ${delayMs} ms: ${sanitize(error.message)}`),
+  });
   await reloadLiveActivity();
   console.log(`  Database: Postgres connected, schema up to date (${liveActivity.size} live session(s))`);
   goalsStore.refreshPresets(goals.safeZone(goals.DEFAULT_TZ)).catch(() => {});   // warm the goal preset cache (silent failure)
@@ -1089,7 +1100,7 @@ async function prepareDatabase() {
 
 // Migrate first so no request can see the old schema; if Postgres is down the
 // server still starts (health reports 503) and the next boot migrates.
-const ready = prepareDatabase().catch((err) => console.error("  Database: Postgres UNREACHABLE or migration failed —", err.message));
+const ready = prepareDatabase().catch((err) => console.error("  Database: Postgres UNREACHABLE or migration failed —", sanitize(err.message)));
 
 ready.then(() => server.listen(PORT, "0.0.0.0", () => {
   console.log(`VR Fitness backend on http://localhost:${PORT}`);

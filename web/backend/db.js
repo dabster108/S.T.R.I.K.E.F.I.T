@@ -1,5 +1,6 @@
 const { Pool } = require("pg");
 const envLoader = require("./envLoader");
+const { sanitize, withRetry } = require("./dbRetry");
 
 // Production (Render): web/backend/.env if present, else the platform's variables, exactly as before. On a laptop: .env.development,
 // and a remote DATABASE_URL (the production Neon string in .env) is refused unless ALLOW_PROD_DB=1. See envLoader.js.
@@ -19,28 +20,45 @@ connectionUrl.searchParams.delete("sslmode");
 // A Postgres on this machine (local testing) has no TLS; everything else must use it.
 const isLocal = ["localhost", "127.0.0.1", "::1"].includes(connectionUrl.hostname);
 
-// One small shared pool: Neon is serverless and its pooled endpoint multiplexes for us.
-// Neon serves publicly trusted certificates, so the certificate is verified.
+// One small shared pool for the whole backend (a Render free instance and a database that scales to zero need few connections). The
+// provider (Neon, Layerbase) serves a publicly trusted certificate, so the certificate is always verified. Idle clients are closed after
+// 30 s, so the pool never holds a connection open that would keep the database awake.
 const pool = new Pool({
   connectionString: connectionUrl.toString(),
   ssl: isLocal ? false : { rejectUnauthorized: true },
   // Development sets DB_POOL_MAX=1: the local PGlite database is single-session, and one connection keeps transactions whole.
   max: Number(process.env.DB_POOL_MAX) > 0 ? Number(process.env.DB_POOL_MAX) : 5,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000,
+  connectionTimeoutMillis: 15_000, // the first connection after an idle period waits for the database to wake up (a few seconds)
 });
 
-// Neon drops idle connections when the compute scales to zero; without a listener
-// that error would crash the process. The pool discards the dead client and reconnects.
-pool.on("error", (err) => console.error("[db] idle client error:", err.message));
+// A database that scales to zero drops idle connections; without a listener that error would crash the process.
+// The pool discards the dead client and reconnects.
+pool.on("error", (err) => console.error("[db] idle client error:", sanitize(err.message)));
 
-function query(text, params) {
-  return pool.query(text, params);
+// Getting a connection is the only step that is retried (a few times, with a growing pause): nothing has been sent to the database yet, so
+// trying again cannot repeat a write. A failure while a statement is running is never retried here.
+function acquire() {
+  return withRetry(() => pool.connect(), {
+    onRetry: ({ attempt, delayMs, error }) => console.warn(`[db] could not connect (attempt ${attempt}), retrying in ${delayMs} ms: ${error.code || ""} ${sanitize(error.message)}`.trim()),
+  });
+}
+
+async function query(text, params) {
+  const client = await acquire();
+  try {
+    const result = await client.query(text, params);
+    client.release();
+    return result;
+  } catch (err) {
+    client.release(err); // a failed statement may have left the connection unusable: drop it, as pool.query does
+    throw err;
+  }
 }
 
 // Runs fn(client) inside BEGIN/COMMIT, rolling back if it throws.
 async function withTransaction(fn) {
-  const client = await pool.connect();
+  const client = await acquire();
   try {
     await client.query("BEGIN");
     const result = await fn(client);
