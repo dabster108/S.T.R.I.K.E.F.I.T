@@ -51,11 +51,24 @@ const GLOBAL = [
   "/api/leaderboard?level=all&limit=10", "/api/leaderboard?level=Easy&limit=10", "/api/leaderboard?level=Medium&limit=10", "/api/leaderboard?level=Hard&limit=10",
   "/api/live/reactions", "/api/sessions", "/api/events?limit=300",
 ];
-const PLAYER = ["", "/engagement", "/achievements", "/goal/today", "/goals?days=14", "/challenges", "/challenges/history?days=30", "/calendar?weeks=26", "/week", "/week?week=last", "/best", "/fade?last=10", "/fingerprint", "/insights", "/checklist",
+const PLAYER = ["", "/rank", "/milestones", "/records", "/engagement", "/achievements", "/goal/today", "/goals?days=14", "/challenges", "/challenges/history?days=30", "/calendar?weeks=26", "/week", "/week?week=last", "/best", "/fade?last=10", "/fingerprint", "/insights", "/checklist",
   "/best-pace?level=Easy", "/best-pace?level=Medium", "/best-pace?level=Hard"];
 
 for (const p of GLOBAL) await put(p);
 for (const old of Object.keys(NAMES)) for (const s of PLAYER) await put(`/api/players/${encodeURIComponent(old)}${s}`);
+// STRIKEFIT Wrapped: every week a player has fights in (under its original date, the handler maps a requested week back to it), and the
+// default answer is their LATEST week with fights, so the demo opens on something to show whatever day it is.
+for (const old of Object.keys(NAMES)) {
+  const base = `/api/players/${encodeURIComponent(old)}/wrapped`;
+  const first = await get(base);
+  if (!first) continue;
+  const weeks = (first.weeks || []).slice(0, 8);
+  for (const w of weeks) await put(`${base}?weekStart=${w.weekStart}`);
+  if (weeks.length) {
+    const latest = await get(`${base}?weekStart=${weeks[0].weekStart}`);
+    out.json[keyOf(rename(base))] = JSON.parse(rename(JSON.stringify(latest)));
+  } else await put(base);
+}
 const sessions = (await get("/api/sessions")).sessions;
 // A fight's detail page carries every event of the fight (about 200 kB each), so only a handful have one: the newest fight of each named player and a few more.
 const shown = [...new Map(sessions.filter((s) => s.playerName in NAMES).map((s) => [s.playerName, s])).values(), ...sessions.filter((s) => s.playerName in NAMES).slice(0, 8)].filter((s, i, a) => a.indexOf(s) === i).slice(0, 8);

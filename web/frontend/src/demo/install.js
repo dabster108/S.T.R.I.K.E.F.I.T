@@ -1,13 +1,14 @@
 import { createDemoApi } from "./handler.js";
 import { createEngine } from "./engine.js";
 import { createFakeEventSource } from "./fakeSource.js";
+import { demoFinishedExtras } from "./finishedExtras.js";
 
 // Switches the page to demo data: every /api request is answered by the recorded snapshot (handler.js) and the live stream is the
 // scripted fights (engine.js). Imported only when demo mode is on, so a normal visit never downloads any of it (snapshot.json is the
 // big part). Runs before the app renders.
 export async function installDemo() {
   const [{ default: snapshot }, { buildFight }] = await Promise.all([import("./snapshot.json"), import("./fightApp.js")]);
-  const engine = createEngine({ buildFight });
+  const engine = createEngine({ buildFight, finishedExtras: demoFinishedExtras });
   let storage = null;
   try {
     storage = sessionStorage;

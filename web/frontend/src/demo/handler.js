@@ -32,6 +32,22 @@ const json = (body, status = 200) => ({ status, body: JSON.stringify(body), type
 const err = (status, error) => json({ ok: false, error }, status);
 const READ_ONLY = "The demo is read-only: nothing you change here is saved.";
 
+const addDays = (day, n) => new Date(Date.parse(`${day}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
+/** The Monday of the week a YYYY-MM-DD day is in. */
+export const shiftToMonday = (day) => addDays(day, -((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7));
+
+/** A week with no fights, shaped like the real answer, built from any recorded answer of the same player (their picker list and name). */
+export function emptyWrappedWeek(template, weekStart) {
+  const thisWeek = template.isCurrentWeek ? template.weekStart : null;
+  return {
+    ok: true, playerName: template.playerName, timeZone: template.timeZone, weekStart, weekEnd: addDays(weekStart, 6), isCurrentWeek: weekStart === thisWeek,
+    previousWeek: addDays(weekStart, -7), nextWeek: thisWeek && weekStart >= thisWeek ? null : addDays(weekStart, 7), weeks: template.weeks,
+    fights: 0, decidedFights: 0, wins: 0, defeats: 0, abandoned: 0, winRate: null, swings: 0, fastestSwing: null, speedCap: template.speedCap, fullPowerSwings: 0,
+    fullPowerShare: null, activeMinutes: 0, averageFade: null, bestDay: null, favouriteMonster: null, xpGained: 0, longestWinStreak: 0,
+    personality: { status: "insufficient", key: "warming_up", name: "Warming Up", topAxis: null, axes: [], reason: "Not enough fights with swing data this week yet." }, rules: template.rules,
+  };
+}
+
 export function createDemoApi({ snapshot, engine, now = Date.now, storage = null }) {
   const days = daysBetween(snapshot.capturedAt, now());
   const data = JSON.parse(shiftTimes(JSON.stringify(snapshot.json), days));
@@ -104,6 +120,26 @@ export function createDemoApi({ snapshot, engine, now = Date.now, storage = null
     }
     if (/^\/api\/study\/participants\/[^/]+$/.test(path)) {
       return study && decodeURIComponent(path.split("/").pop()) === study.code ? json(studyStatus()) : err(404, "Unknown participant code.");
+    }
+    // The leaderboard asks for many players' ranks at once; the snapshot holds one rank per player, so the batch is put together here.
+    if (path === "/api/ranks") {
+      const ranks = {};
+      for (const name of (u.searchParams.get("players") || "").split(",").filter(Boolean)) {
+        const r = data[`/api/players/${encodeURIComponent(name)}/rank`];
+        if (r) ranks[name] = { rank: r.rank, effortPoints: r.effortPoints, progress: r.progress };
+      }
+      return json({ ok: true, ranks });
+    }
+    // STRIKEFIT Wrapped: weeks were recorded under their ORIGINAL dates while everything inside the answers was moved forward by `days`,
+    // so a requested (moved) week is looked up under its original date. A week nobody recorded is an empty week, as the real API says.
+    const wrapped = /^\/api\/players\/([^/]+)\/wrapped$/.exec(path);
+    if (wrapped) {
+      const asked = u.searchParams.get("weekStart");
+      const original = asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) ? shiftDate(...asked.split("-"), -days) : null;
+      const hit = data[`/api/players/${wrapped[1]}/wrapped${original ? `?weekStart=${original}` : ""}`];
+      if (hit) return json(hit);
+      const template = data[`/api/players/${wrapped[1]}/wrapped`];
+      return template && asked ? json(emptyWrappedWeek(template, shiftToMonday(asked))) : err(404, "This page is not part of the demo data.");
     }
     if (key in data) return json(data[key]);
     if (path in data) return json(data[path]);

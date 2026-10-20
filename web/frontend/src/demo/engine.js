@@ -11,7 +11,8 @@ export const DEFAULT_PLAN = [
 ];
 export const GAP_MS = 15_000; // between a fight ending and the same player's next one (the arena shows the result for 8 s of it)
 
-export function createEngine({ buildFight, plan = DEFAULT_PLAN, now = Date.now, gapMs = GAP_MS }) {
+// finishedExtras({ lane, run, step }) -> extra fields for a finished fight's message (newRecords, rankUp); none by default.
+export function createEngine({ buildFight, plan = DEFAULT_PLAN, now = Date.now, gapMs = GAP_MS, finishedExtras = () => ({}) }) {
   const t0 = now();
   const lanes = plan.map((p, i) => ({ ...p, i, cursor: 0, run: null, startAt: t0 + (p.offsetMs || 0) }));
   const feed = []; // newest first, for /api/events
@@ -52,7 +53,7 @@ export function createEngine({ buildFight, plan = DEFAULT_PLAN, now = Date.now, 
         if (feed.length > 300) feed.length = 300;
         run.live = { ...step.state, ...(lastEvent && lastEvent.type !== "hp" ? { lastEvent } : {}), updatedAt: iso(at) };
         if (step.final) {
-          emit("session_finished", { session: sessionOf(run, step, "finished", { outcome: step.outcome }), liveState: run.live });
+          emit("session_finished", { session: sessionOf(run, step, "finished", { outcome: step.outcome }), liveState: run.live, ...finishedExtras({ lane, run, step }) });
           run.done = true;
         } else emit(first ? "session_started" : "session_updated", { session: sessionOf(run, step), liveState: run.live });
       }

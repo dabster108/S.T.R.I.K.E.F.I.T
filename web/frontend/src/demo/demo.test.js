@@ -176,3 +176,72 @@ test("the study flow works in memory: consent, a code, the two forms, and the 'f
   assert.equal(body(api.handle("GET", "/api/study/participants/P11")).postDone, true);
   assert.equal(api.handle("GET", "/api/study/participants/P99").status, 404);
 });
+
+// ---------------------------------------------------------------------------------------------------------------- engagement features
+
+import { demoFinishedExtras } from "./finishedExtras.js";
+import { emptyWrappedWeek, shiftToMonday } from "./handler.js";
+
+const clock = Date.UTC(2026, 9, 20, 12, 0, 0);
+const wrappedOf = (weekStart, extra = {}) => ({ ok: true, playerName: "Ava", timeZone: "Asia/Kathmandu", weekStart, weekEnd: weekStart, isCurrentWeek: false, weeks: [{ weekStart, weekEnd: weekStart, fights: 3 }], fights: 3, speedCap: 8, rules: {}, ...extra });
+
+test("the batch of ranks for the leaderboard is put together from the one-per-player answers", () => {
+  const snapshot = { capturedAt: clock, json: { "/api/players/Ava/rank": { playerName: "Ava", rank: { key: "warrior", name: "Warrior" }, effortPoints: 2252, progress: 0.46, ladder: [] }, "/api/players/Ben/rank": { playerName: "Ben", rank: { key: "brawler", name: "Brawler" }, effortPoints: 1043, progress: 0.83 } } };
+  const api = createDemoApi({ snapshot, engine: null, now: () => clock });
+  const body = JSON.parse(api.handle("GET", "/api/ranks?players=Ava,Ben,Nobody").body);
+  assert.deepEqual(Object.keys(body.ranks), ["Ava", "Ben"]);
+  assert.deepEqual(body.ranks.Ava, { rank: { key: "warrior", name: "Warrior" }, effortPoints: 2252, progress: 0.46 });
+});
+
+test("a Wrapped week is looked up under its original date, the default is the recorded latest week, an unrecorded week is empty", () => {
+  const days = 6; // the snapshot is six days old, so every date inside it moves forward by six days
+  const snapshot = {
+    capturedAt: clock - days * 864e5,
+    json: {
+      "/api/players/Ava/wrapped": wrappedOf("2026-10-12", { fights: 4 }),
+      "/api/players/Ava/wrapped?weekStart=2026-10-12": wrappedOf("2026-10-12", { fights: 4 }),
+      "/api/players/Ava/wrapped?weekStart=2026-10-05": wrappedOf("2026-10-05", { fights: 3 }),
+    },
+  };
+  const api = createDemoApi({ snapshot, engine: null, now: () => clock });
+  const get = (p) => JSON.parse(api.handle("GET", p).body);
+  assert.equal(get("/api/players/Ava/wrapped").fights, 4);
+  assert.equal(get("/api/players/Ava/wrapped").weekStart, "2026-10-18"); // 10-12 + 6 days
+  assert.equal(get("/api/players/Ava/wrapped?weekStart=2026-10-18").fights, 4); // asked by its moved date, found by its original one
+  assert.equal(get("/api/players/Ava/wrapped?weekStart=2026-10-11").fights, 3);
+  const empty = get("/api/players/Ava/wrapped?weekStart=2026-09-27");
+  assert.deepEqual([empty.fights, empty.winRate, empty.bestDay, empty.personality.name], [0, null, null, "Warming Up"]);
+  assert.equal(api.handle("GET", "/api/players/Zed/wrapped").status, 404);
+});
+
+test("an empty week keeps the player's week list and has neighbours", () => {
+  const e = emptyWrappedWeek(wrappedOf("2026-10-12", { isCurrentWeek: true }), "2026-10-05");
+  assert.deepEqual([e.weekStart, e.weekEnd, e.previousWeek, e.nextWeek, e.weeks.length], ["2026-10-05", "2026-10-11", "2026-09-28", "2026-10-12", 1]);
+  assert.equal(shiftToMonday("2026-10-15"), "2026-10-12");
+  assert.equal(shiftToMonday("2026-10-18"), "2026-10-12");
+  assert.equal(shiftToMonday("2026-10-12"), "2026-10-12");
+});
+
+test("scripted fights finish with sample records after the first fight of a loop, and one rank-up", () => {
+  const won = { outcome: "victory", session: { score: 1000, damageDealt: 500.4 } };
+  assert.deepEqual(demoFinishedExtras({ lane: { player: "Ben", cursor: 1 }, step: won }).newRecords, []); // the first fight has nothing to beat
+  const second = demoFinishedExtras({ lane: { player: "Ben", cursor: 2 }, step: won });
+  assert.deepEqual(second.newRecords.map((r) => [r.metric, r.value, r.previous]), [["damageDealt", 500.4, 425.3], ["score", 1000, 820]]);
+  assert.equal(second.rankUp, null);
+  assert.deepEqual(demoFinishedExtras({ lane: { player: "Ben", cursor: 2 }, step: { outcome: "defeat", session: won.session } }).newRecords, []);
+  assert.equal(demoFinishedExtras({ lane: { player: "Ava", cursor: 2 }, step: won }).rankUp.to.name, "Warrior");
+});
+
+test("the engine puts the extras on the finished message and only there", () => {
+  const messages = [];
+  let t = 0;
+  const engine = createEngine({ buildFight, now: () => t, gapMs: 1000, plan: [{ player: "Ava", offsetMs: 0, seed: 11, fights: [["Easy", "victory", 20], ["Easy", "victory", 20]] }], finishedExtras: () => ({ newRecords: [{ metric: "score", value: 1, previous: 0 }], rankUp: null }) });
+  for (let i = 0; i < 120; i++) {
+    t += 500;
+    engine.advance((type, payload) => messages.push([type, payload]));
+  }
+  const finished = messages.filter(([type]) => type === "session_finished");
+  assert.ok(finished.length >= 1);
+  assert.ok(finished.every(([, p]) => Array.isArray(p.newRecords) && "rankUp" in p));
+  assert.ok(messages.filter(([type]) => type !== "session_finished" && type !== "event_created").every(([, p]) => !("newRecords" in p)));
+});
