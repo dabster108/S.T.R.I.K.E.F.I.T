@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { levelName } from "../lib/game.js";
 import { useApi, useThrottledCallback } from "../hooks/useApi.js";
+import { useRecordFlags } from "../hooks/useRecordFlags.js";
+import { useMemo } from "react";
 import { useLiveMessages } from "../live/LiveProvider.jsx";
 import { BarChart } from "../components/charts/Charts.jsx";
 import { LevelBadge } from "../components/ui/Badge.jsx";
@@ -135,6 +137,8 @@ function RecordRow({ label, session, value, onOpen, lead = false }) {
 }
 
 export default function OverviewMore({ sessions, stats, levels, recs, trend, openSession, events, eventsReady, noHitData }) {
+  const recent = useMemo(() => sessions.slice(0, 5), [sessions]); // the battles listed under "Recent battles"
+  const pbBySession = useRecordFlags(recent); // which of them set a personal best (the PB chip)
   return (
     <div>
       {/* 02: today's challenges (per player) and the activity feed (everyone) */}
@@ -235,7 +239,7 @@ export default function OverviewMore({ sessions, stats, levels, recs, trend, ope
           <CardHeader title="Recent battles" subtitle="Newest first" />
           {sessions.length ? (
             <div className="p-4 sm:p-5">
-              <SessionList rows={sessions.slice(0, 5)} onSelect={(s) => openSession(s.id)} />
+              <SessionList rows={recent} pbBySession={pbBySession} onSelect={(s) => openSession(s.id)} />
             </div>
           ) : (
             <EmptyState title="No battles yet" description="Play a round in the headset and it lands here within a second." />

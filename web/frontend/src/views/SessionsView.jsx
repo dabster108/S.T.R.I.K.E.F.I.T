@@ -10,6 +10,7 @@ import Button from "../components/ui/Button.jsx";
 import { FigureStrip } from "../components/ui/StatTile.jsx";
 import { SessionList, SessionTimeline } from "../components/sessions/SessionCards.jsx";
 import { toast } from "../lib/toast.js";
+import { useRecordFlags } from "../hooks/useRecordFlags.js";
 
 const PAGE_SIZE = 20;
 const OUTCOMES = [
@@ -72,6 +73,7 @@ export default function SessionsView({ sessions, range, onRange, openSession }) 
 
   const pageCount = Math.ceil(rows.length / PAGE_SIZE);
   const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const pbBySession = useRecordFlags(pageRows); // which of these fights set a personal best (the PB chip)
   const summary = useMemo(() => summarize(rows), [rows]);
   const chronological = sort.key === "endedAt";
 
@@ -116,7 +118,7 @@ export default function SessionsView({ sessions, range, onRange, openSession }) 
         {pageRows.length ? (
           <>
             <div key={`${sortId}-${page}`} className="p-4 sm:p-5">
-              {chronological ? <SessionTimeline rows={pageRows} onSelect={(s) => openSession(s.id)} /> : <SessionList rows={pageRows} onSelect={(s) => openSession(s.id)} />}
+              {chronological ? <SessionTimeline rows={pageRows} pbBySession={pbBySession} onSelect={(s) => openSession(s.id)} /> : <SessionList rows={pageRows} pbBySession={pbBySession} onSelect={(s) => openSession(s.id)} />}
             </div>
             <Pagination page={page} pageCount={pageCount} onPage={setPage} total={rows.length} pageSize={PAGE_SIZE} />
           </>
