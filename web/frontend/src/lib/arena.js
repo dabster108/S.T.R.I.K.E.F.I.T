@@ -68,7 +68,9 @@ export function resultLabel(outcome) {
   if (outcome === "abandoned") return { title: "Abandoned", tone: "muted", icon: "headset", line: "The headset went quiet before the fight ended." };
   return { title: "Fight finished", tone: "muted", icon: "check", line: "" };
 }
-export const RESULT_HOLD_MS = 8000;
+// How long a finished fight stays on the stage: the result moment, then the full-time report (it appears after 1.5 s and types in over about
+// 5 s, so it needs time to be read). It was 8 s before the report existed. liveStore.js keeps the fight a little longer than this.
+export const RESULT_HOLD_MS = 28000;
 
 // --- Impact moments -------------------------------------------------------------------------------------------------------------
 

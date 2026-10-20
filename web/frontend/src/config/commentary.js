@@ -33,8 +33,34 @@ export const COMMENTARY = Object.freeze({
   priority: Object.freeze({ result: 9, phase: 8, monsterLow: 7, playerLow: 6, fullPower: 5, windUp: 4, combo: 3, clash: 2, rest: 1 }),
 
   // --- local preferences ----------------------------------------------------------------------------------------------
-  storageKeys: Object.freeze({ hidden: "strikefit.commentary.hidden", speech: "strikefit.commentary.speech" }),
+  storageKeys: Object.freeze({ hidden: "strikefit.commentary.hidden", speech: "strikefit.commentary.speech", plain: "strikefit.commentary.plain" }),
   speechRate: 1.05,
+
+  // --- the full-time report: a short summary under the caption when the fight is over, typed in slowly -------------------------
+  summary: Object.freeze({
+    title: "Full-time report",
+    delayMs: 1500, // after the result line, so the victory or defeat line has its moment
+    aiWaitMs: 2500, // how long to wait for the AI's version; after that the plain report is shown
+    typeStepMs: 28, // one character every 28 ms: a 200-character report takes about six seconds
+    typeMaxChars: 400,
+  }),
+
+  // --- the AI commentator (server: /api/commentary/*; Groq writes the line, Google reads it aloud) ----------------------------
+  // The plain template line is always the fallback, so these only decide how long to wait for the better one.
+  ai: Object.freeze({
+    requestTimeoutMs: 1800, // give up on a line request after this long (the server has its own, shorter limit)
+    showWaitMs: 600, // when a line's turn comes and the AI sentence is not back yet, wait this much longer, then show the plain one
+    maxInFlight: 3, // line requests running at once for one fight
+    // The free Groq tier allows about 20 requests a minute in total, so the AI is asked about the moments that gain from colour, not
+    // about every line. Advice and bookkeeping lines ("swings under 2 m/s do not count", the guard, the Ghost Pace gap) stay as written.
+    situations: Object.freeze(["enter", "fullPower", "combo", "clash", "windUp", "hurt", "dodge", "playerLow", "monsterLow", "phase2", "phase3", "victory", "defeat"]),
+    maxPerMinute: 12, // line requests one fight may send per minute ...
+    alwaysAskPriority: 6, // ... except for lines of this priority or more (low health, boss phase, result), which are the big moments
+    recentLines: 3, // the last lines shown, sent so the model does not repeat their wording
+    voiceTimeoutMs: 4000, // the audio of one line
+    voiceStaleMs: 3500, // a spoken line that had to wait for the one before it is skipped if it waited this long (the caption still showed it)
+    statusRetryMs: 60000, // when the status check failed (server asleep), ask again no sooner than this
+  }),
 });
 
 // Template pools: at least three variants per situation (the logic never uses the same one twice in a row for a situation).

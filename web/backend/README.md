@@ -200,3 +200,23 @@ No schema change: everything is computed from the stored `sessions` and `events`
 `GET /api/players/:name/best-pace` now answers `Cache-Control: private, no-cache` (it was `max-age=15`) and its server cache is dropped when a fight ends, so a fight that starts soon after another compares against the new best.
 
 **Win rate** is one rule everywhere: `victories / (victories + defeats)`, abandoned fights excluded and counted separately (`abandoned`). **Swing speeds** are stored raw by the game; every aggregate clamps them to the 8 m/s cap and `swingsOverCap` / `rawPeakSwingSpeed` report what was clamped.
+
+## AI match commentary and its voice (added 2026-10-20; additive, optional)
+
+The Live Arena's commentary can be worded like a football match by an AI and read aloud by Google's voice. Both are optional: with no key, or when a service is down, the site shows the plain template lines and the browser's own voice, as before. The keys stay on the server (`commentaryAi.js`, numbers and the instruction text in `config/commentaryAi.js`); the browser never sees them.
+
+| Variable (`web/backend/.env`) | What it does |
+| --- | --- |
+| `GROQ_API_KEY` (or `GORQ_API_KEY`, the spelling the existing `.env` uses) | switches the AI commentator on (Groq chat model) |
+| `GROQ_COMMENTARY_MODEL` | the model; default `qwen/qwen3.8-27b` (Groq no longer lists a Mistral model; any chat model Groq serves works) |
+| `GOOGLE_TTS_API_KEY` | switches Google Cloud Text-to-Speech on (a Cloud Text-to-Speech API key); `GOOGLE_TTS_VOICE` changes the voice (default `en-GB-Neural2-B`) |
+| `COMMENTARY_AI=off` | switches both off without removing the keys |
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/commentary/status` | `{ ai, voice, model, voiceName }`: what is switched on (never a key) |
+| `POST /api/commentary/line` | `{ situation, base, monster, player, level, monsterPct, playerPct, combo, phase, recent[] }` -> `{ text }`. `base` is the plain line the game already made, so the model only rewords facts it is given; an answer with a link, an emoji, a number that is not in the facts or the wrong length is refused (422) and the browser keeps `base` |
+| `POST /api/commentary/summary` | the totals of a finished fight (`outcome`, `monster`, `player`, `level`, `durationSec`, `score`, `damageDealt`, `hitCount`, `fullSwings`, `peakCombo`) and `base` (the plain report) -> `{ text }`: a 2 to 3 sentence full-time report, under the same checks (at most 60 words, no number that is not in the facts) |
+| `POST /api/commentary/speech` | `{ text }` (3 to 400 characters) -> `audio/mpeg` |
+
+Limits: per IP 12 line requests in a burst then 15 a minute, 21 a minute in total (Groq's free tier allows 8,000 tokens a minute and 1,000 requests a day per model; a request is about 250 tokens), the same moment asked by several viewers of one fight is one request (8 s cache), a Groq 429 rests the service for its `retry-after`, three other failures in a row rest it for 30 s. The browser only asks about colourful moments (not the advice and guard lines) and at most 12 times a minute per fight, with the big moments (result, phase change, low health) exempt.

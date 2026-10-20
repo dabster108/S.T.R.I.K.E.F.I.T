@@ -1031,6 +1031,7 @@ app.delete("/api/sessions", route(async (_req, res) => {
 // Public scoreboard shared by the headset menu and the web Leaderboard page (added; rule in leaderboard.js).
 require("./leaderboardRoute").mount(app, { query, route });
 featureRoutes.mount(app, { route }); // rank (and the other read-only engagement endpoints): featureRoutes.js
+require("./commentaryAi").mount(app, { route }); // AI match commentary (Groq) and its voice (Google TTS): commentaryAi.js
 
 // Ghost pace for the Live Arena: a player's personal-best fight on a level as cumulative damage over time (pace.js, cached 60 s).
 require("./pace").mount(app, { query });

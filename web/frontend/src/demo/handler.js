@@ -102,6 +102,7 @@ export function createDemoApi({ snapshot, engine, now = Date.now, storage = null
       for (const [param, field] of [["player", "playerName"], ["sessionId", "sessionId"], ["type", "type"]]) if (q.get(param)) list = list.filter((e) => e[field] === q.get(param));
       return json({ events: list.slice(0, limit), count: Math.min(limit, list.length) });
     }
+    if (path === "/api/commentary/status") return json({ ok: true, ai: false, voice: false }); // the demo runs with no internet: plain lines, the browser's own voice
     if (path === "/api/sessions") {
       const all = data["/api/sessions"]?.sessions || [];
       const q = u.searchParams;

@@ -91,6 +91,7 @@ export function createState({ levelKey, playerName = "Player", monsterName = "Th
     monsterLowSaid: monsterFrac !== null && monsterFrac < COMMENTARY.monsterHpLowFrac,
     playerLowSaid: playerFrac !== null && playerFrac < COMMENTARY.playerHpLowFrac,
     combo,
+    peakCombo: combo, // the best chain of this fight (for the full-time report)
     comboSaid: COMMENTARY.comboMilestones.filter((m) => combo >= m), // milestones already announced in this chain
     lastSwingAt: null,
     idleSaid: false,
@@ -100,6 +101,11 @@ export function createState({ levelKey, playerName = "Player", monsterName = "Th
 }
 
 // ---------------------------------------------------------------------------------------------------------------- one line
+
+const pct = (f) => (isNum(f) ? Math.round(f * 100) : null);
+function factsOf(state, base) {
+  return { base, monster: state.monsterName, player: state.playerName, level: state.levelKey, monsterPct: pct(state.monsterFrac), playerPct: pct(state.playerFrac), combo: state.combo || null, phase: state.hasPhases ? state.phase : null };
+}
 
 function makeLine(state, situation, vars, at) {
   const meta = SITUATIONS[situation];
@@ -113,7 +119,15 @@ function makeLine(state, situation, vars, at) {
   });
   return {
     // each combo milestone is its own situation, so "10-hit combo" is not blocked by a "5-hit combo" a moment ago
-    line: { text, situation: situation === "combo" ? `combo${vars.n}` : situation, priority: COMMENTARY.priority[meta.priority], tone: meta.tone, icon: meta.icon, at },
+    line: {
+      text,
+      situation: situation === "combo" ? `combo${vars.n}` : situation,
+      priority: COMMENTARY.priority[meta.priority],
+      tone: meta.tone,
+      icon: meta.icon,
+      at,
+      facts: factsOf(state, text), // what the AI commentator is told (see askCommentator in commentaryAi.js)
+    },
     next: { ...state, seed: picked.seed, lastVariant: { ...state.lastVariant, [situation]: picked.index } },
   };
 }
@@ -223,6 +237,7 @@ export function step(event, state) {
     const combo = Math.max(0, Math.round(p.combo));
     if (combo < s.combo) s.comboSaid = s.comboSaid.filter((m) => m <= combo); // the chain broke: milestones can be earned again
     s.combo = combo;
+    s.peakCombo = Math.max(s.peakCombo || 0, combo);
     // Several milestones crossed by one update (an event was missed): all count as announced, only the highest is said.
     const crossed = COMMENTARY.comboMilestones.filter((m) => combo >= m && !s.comboSaid.includes(m));
     if (crossed.length) {

@@ -115,6 +115,9 @@ export const api = {
   sessionFade: (id) => request(`/api/sessions/${enc(id)}/fade`, { timeoutMs: 30000 }),
   playerFade: (name, last = 10) => request(`/api/players/${enc(name)}/fade${qs({ last })}`, { timeoutMs: 30000 }),
   // The player's personal-best finished fight on a level, as cumulative damage over time (the Live Arena's ghost line).
+  commentaryStatus: () => request("/api/commentary/status", { quiet: true, timeoutMs: 6000 }),
+  commentaryLine: (body, timeoutMs) => request("/api/commentary/line", { method: "POST", body, quiet: true, timeoutMs }),
+  commentarySummary: (body, timeoutMs) => request("/api/commentary/summary", { method: "POST", body, quiet: true, timeoutMs }),
   playerBestPace: (name, level) => request(`/api/players/${enc(name)}/best-pace${qs({ level })}`, { quiet: true, timeoutMs: 15000 }),
   playerFingerprint: (name) => request(`/api/players/${enc(name)}/fingerprint`, { timeoutMs: 30000 }),
   playerInsights: (name) => request(`/api/players/${enc(name)}/insights`),

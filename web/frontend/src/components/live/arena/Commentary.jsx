@@ -37,12 +37,12 @@ export function useStageCommentary(id, entry, { speak = false } = {}) {
 }
 
 // Each character fades in a few milliseconds after the one before it (opacity only; see .cm-char in styles.css).
-function TypedText({ text, animate }) {
-  if (!animate || text.length > COMMENTARY.typeMaxChars) return text;
+function TypedText({ text, animate, stepMs = COMMENTARY.typeStepMs, maxChars = COMMENTARY.typeMaxChars }) {
+  if (!animate || text.length > maxChars) return text;
   return (
     <>
       {Array.from(text).map((ch, i) => (
-        <span key={i} className="cm-char" style={{ "--cm-delay": `${i * COMMENTARY.typeStepMs}ms` }} aria-hidden>
+        <span key={i} className="cm-char" style={{ "--cm-delay": `${i * stepMs}ms` }} aria-hidden>
           {ch}
         </span>
       ))}
@@ -94,6 +94,7 @@ export const CaptionBar = memo(function CaptionBar({ commentary, variant = "stag
         role="status"
         aria-live="polite"
         aria-atomic="true"
+        data-source={showing ? (line.ai ? "ai" : "plain") : undefined}
         className={
           overlay
             ? `min-w-0 flex-1 text-base font-extrabold leading-snug tracking-tight sm:text-xl ${showing ? "text-white" : "text-[var(--blue-100)]"}`
@@ -106,15 +107,30 @@ export const CaptionBar = memo(function CaptionBar({ commentary, variant = "stag
   );
 });
 
+// The report after the final whistle: a short match summary, typed in slowly (it simply appears under reduced motion and in Calm mode).
+function FullTimeReport({ summary }) {
+  const reduced = useReducedMotion();
+  const S = COMMENTARY.summary;
+  return (
+    <div className="border-b border-[var(--border)] bg-[var(--accent-soft)]/40 px-4 py-3" data-testid="commentary-summary" data-source={summary.ai ? "ai" : "plain"}>
+      <p className="text-xs font-bold uppercase tracking-wider text-[var(--accent)]">{S.title}</p>
+      <p key={summary.key} aria-live="polite" className="mt-1 text-base font-semibold leading-snug text-[var(--ink)] sm:text-lg">
+        <TypedText text={summary.text} animate={!reduced} stepMs={S.typeStepMs} maxChars={S.typeMaxChars} />
+      </p>
+    </div>
+  );
+}
+
 export const CommentaryLog = memo(function CommentaryLog({ commentary }) {
   if (!commentary.enabled) return null;
-  const { log } = commentary;
+  const { log, summary } = commentary;
   return (
     <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]" aria-label="Commentary log">
       <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
         <h2 className="text-sm font-bold tracking-tight text-[var(--ink)]">Commentary</h2>
         <span className="text-xs font-semibold text-[var(--muted)]">last {COMMENTARY.logMax} lines, newest first</span>
       </div>
+      {summary ? <FullTimeReport summary={summary} /> : null}
       {log.length ? (
         <ol className="scrollbar-thin max-h-60 divide-y divide-[var(--border)] overflow-y-auto px-2" role="log" aria-live="off">
           {log.map((l) => (

@@ -15,7 +15,7 @@ const FEED_MAX = 250;
 const POLL_MS = 3000;
 const WATCHDOG_MS = 35_000; // server heartbeats every 15 s: two missed beats = dead
 const BACKOFF = [1000, 2000, 4000, 8000, 15000, 30000];
-const FINISHED_LINGER_MS = 12_000; // a finished fight stays on the arena briefly
+const FINISHED_LINGER_MS = 30_000; // a finished fight stays in the store a little longer than the arena shows it (RESULT_HOLD_MS in lib/arena.js)
 const QUIET_TYPES = new Set(["hp", "ping"]); // stored, but too frequent for the feed
 
 const state = {
