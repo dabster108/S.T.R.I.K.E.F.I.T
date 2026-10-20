@@ -196,6 +196,7 @@ function Dashboard() {
   // Pages that load their own data don't need to wait for the telemetry snapshot.
   const needsTelemetry = ["", "sessions", "leaderboard", "players"].includes(section);
   const Fallback = SKELETONS[section] || GenericSkeleton;
+  const playerName = section === "player" ? decodeURIComponent(pathname.split("/")[3] || "") : ""; // the player page draws its heading from the URL at once
   const overview = <DashboardView sessions={filtered} allSessions={t.sessions} events={t.events} eventsReady={t.eventsReady} range={range} onRange={setRange} openSession={openSession} />;
 
   return (
@@ -218,7 +219,7 @@ function Dashboard() {
             {t.loading && needsTelemetry ? (
               <Fallback />
             ) : (
-              <Suspense fallback={<Fallback />}>
+              <Suspense fallback={<Fallback name={playerName} />}>
                 <Routes>
                   <Route index element={overview} />
                   <Route path="live" element={<LiveView />} />

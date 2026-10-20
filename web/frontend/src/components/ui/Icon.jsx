@@ -81,10 +81,8 @@ import {
   X,
   Zap,
   Award,
-  Camera,
   Captions,
   Milestone,
-  PartyPopper,
   Volume2,
   VolumeX,
 } from "lucide-react";
@@ -175,10 +173,8 @@ const ICONS = {
   coffee: Coffee,
   // engagement features: commentary, rank, personal bests, Wrapped, milestones
   award: Award,
-  camera: Camera,
   captions: Captions,
   milestone: Milestone,
-  partyPopper: PartyPopper,
   volume: Volume2,
   volumeOff: VolumeX,
 };

@@ -9,7 +9,8 @@ import RankRing from "./RankRing.jsx";
 // "no fights yet" each have their own small state; nothing here is ever invented.
 export default function RankSummary({ name }) {
   const { data, loading, error, notFound } = useRank(name);
-  const frame = "flex min-h-[4.5rem] items-center gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 shadow-[var(--shadow-card)]";
+  // every state reserves the size of the finished card (about 15.5 x 6.8 rem), so the rank arriving moves nothing below it
+  const frame = "flex min-h-[6.8125rem] min-w-[15.5rem] items-center gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 shadow-[var(--shadow-card)]";
   if (loading)
     return (
       <div className={frame} aria-hidden>

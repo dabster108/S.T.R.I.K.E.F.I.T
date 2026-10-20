@@ -17,6 +17,7 @@ import { buttonClass } from "../components/ui/Button.jsx";
 import Icon from "../components/ui/Icon.jsx";
 import { FigureStrip } from "../components/ui/StatTile.jsx";
 import PlayerName from "../components/players/PlayerName.jsx";
+import { Avatar } from "../components/players/PlayerTitle.jsx";
 import { SessionList } from "../components/sessions/SessionCards.jsx";
 import EventList, { collapseRepeats } from "../components/sessions/EventList.jsx";
 import { LiveArenaCard, LiveChip } from "../components/live/LiveFight.jsx";
@@ -52,14 +53,6 @@ const OUTCOMES = [
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const speed = (v) => (isNum(v) ? `${v.toFixed(1)} m/s` : "—");
 const share = (r) => (isNum(r) ? formatPercent(r * 100) : "—");
-
-function Avatar({ name }) {
-  return (
-    <span className="pop-in flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--blue-800)] text-xl font-extrabold text-white shadow-[var(--shadow-glow)] sm:h-16 sm:w-16">
-      {name.slice(0, 2).toUpperCase()}
-    </span>
-  );
-}
 
 // Win streaks from finished fights, oldest to newest.
 function streaks(sessions) {
@@ -232,8 +225,8 @@ export default function PlayerView() {
       </div>
     );
   }
-  if (!p && !error) return <PlayerSkeleton />;
-
+  // No early return while the profile loads: the header (and its one <h1>) is drawn at once and stays, and only the body below it waits.
+  // That keeps a single heading element from the first paint, which is also what the browser's largest-paint measure follows.
   const t = p?.totals;
   const series = (p?.series || []).map((s, i) => ({ ...s, n: i + 1 })).filter((s) => s.status !== "live");
   const played = [...new Set(series.map((s) => s.level))].filter((l) => LEVEL_COLORS[l]);
@@ -328,7 +321,11 @@ export default function PlayerView() {
         </Suspense>
       )}
 
-      {error && !p ? (
+      {!p && !error ? (
+        <div className="mt-6">
+          <PlayerSkeleton />
+        </div>
+      ) : error && !p ? (
         <Card className="mt-6">
           <EmptyState icon="players" title="This profile will appear here" description="It loads as soon as the server answers." />
         </Card>

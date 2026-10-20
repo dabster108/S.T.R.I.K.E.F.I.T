@@ -21,6 +21,24 @@ npm run simulate -- --url http://localhost:4000 --player ZZTEST-bo  --level Hard
 
 Open <http://localhost:5173>. The simulated names start with `ZZTEST`; the simulator deletes its fights when it finishes.
 
+**Stories for the engagement features** (local dev database only; the player name must start with `ZZTEST`). Each ends with a LIVE fight, so
+keep the Live Arena open (`/dashboard/live`, and the player's page in a second tab) while it runs. These fights are kept, so the pages have history;
+add `--cleanup` to delete the player's fights when the story ends.
+
+```bash
+cd web
+npm run simulate -- --url http://localhost:4000 --scenario pb     --player ZZTEST-pb     # two weaker fights, then a live fight that sets records
+npm run simulate -- --url http://localhost:4000 --scenario rankup --player ZZTEST-rank   # quiet fights up to a few points short of the next rank, then one that crosses it
+npm run simulate -- --url http://localhost:4000 --scenario phase  --player ZZTEST-phase  # a Level 3 fight through the boss's 66% and 33% HP breaks
+node backend/scripts/rank-distribution.js --url http://localhost:4000                     # how many players sit in each rank
+```
+
+| Scenario | What to watch |
+| --- | --- |
+| `pb` | The result moment shows the **New PB** banner with each metric, its new value and the old one, with light confetti (24 pieces, 1.5 s; none in Calm mode). The player's battle page shows the same banner for the last fight only, and the history has a **PB** chip on the fights that set a record. In the commentary: "ahead of / behind the personal best pace" |
+| `rankup` | A **Rank up** banner on the result moment (Rookie to Brawler), the badge next to the player's name changes, the player page's ring moves, and the activity list gains "<Name> reached Brawler" |
+| `phase` | The commentary announces "The Tyrant enters phase 2!" at 66% HP and "…phase 3, enraged!" at 33% |
+
 **If the network or the server dies:** open <http://localhost:5173/?demo=1> (or press "Demo mode" in any footer). The whole site then runs
 on recorded data with scripted fights looping on the Live Arena, no backend and no internet. A "Demo data" ribbon stays on screen;
 "Exit demo" leaves. Refresh the recording the day before with `cd web && npm run demo:snapshot -- --url http://localhost:4000`.
@@ -40,6 +58,19 @@ on recorded data with scripted fights looping on the Live Arena, no backend and 
 | 9 | `/study` | What a participant sees: plain-language consent (the box is required), a code like P07 that is also their headset name, the before form. Stop at the form; do not submit on the demo laptop's real database unless you want a P-code used (codes are P01 to P20). |
 | 10 | `/about/method` | Research question, the effort formula and thresholds, why swings are clamped at 8 m/s, the calorie method (MET × 70 kg, **labelled an estimate**), study design, limitations, ethics. **Print / Save as PDF** gives a clean A4 document. |
 | 11 | Footer, "Demo mode" | Show the safety net: the same pages on scripted data with the network off. |
+
+## The engagement features: where to find them
+
+| Feature | Where | What to say |
+| --- | --- | --- |
+| **Live commentary** | Live Arena (also full screen, `F`) and `/watch`: a large caption bar under each fight and a **Commentary** log of the last 20 lines | One line at most every 1.2 s, three waiting, the most important first (result, phase change, monster nearly dead, player low, full-power swing, wind-up, combo, clash). It uses the monster's real name and attack names and the level's own full-power speed. **Commentary: on/off** is remembered in the browser; **Spoken commentary** (the browser's own voice) is off until switched on and reads the first fight only |
+| **Rank ladder** | Player page header (ring and badge), leaderboard rows, next to the name on the Live Arena | Rookie 0, Brawler 300, Warrior 1,200, Guardian 3,500 effort points: counted swings x 1, full-power swings x 2, victories x 40, Level 3 victories 60 more. The thresholds live in `backend/config/ranks.js`; the pages read them from the API |
+| **Personal-best alerts** | Live Arena result moment, battle page, **PB** chip in the Recent battles, Sessions and player history lists | A record beats everything the player did earlier on the same level: peak swing speed (clamped to 8 m/s), damage, score, effort fade. A first fight on a level has nothing to beat; equal values and abandoned fights never count |
+| **STRIKEFIT Wrapped** | `/wrapped/<player>` (a button on the player page) | A week (Monday to Sunday, Kathmandu time) as five slides: swings, fastest swing, favourite monster, best day, effort personality. Tap or arrow keys; auto-play is off; **Save this slide as PNG** (1080 x 1350) and **Copy link**. The card shows the pseudonym only |
+| **Milestone timeline** | Player page, under the badges | First fight, first victory (and on each level), first full-power swing, 100 / 500 / 1,000 swings, 10 fights, 3- and 7-day streaks, each rank reached, with the date; the next three dimmed with a progress bar. Swing milestones use the running total at the time of each session |
+
+Demo mode (`?demo=1`) works with all five: the recorded snapshot carries the rank, milestones, records and every week of Wrapped for the demo players, and the scripted
+fights finish with **sample** records and one rank-up (scripted values, like everything in demo mode). Refresh the recording with `npm run demo:snapshot`.
 
 ## What is real and what is not (say this out loud)
 
@@ -79,18 +110,50 @@ keys and keeps focus; F and Esc enter and leave full screen; the study consent a
 **Charts.** Every chart and graphic found on the landing page and the dashboard pages (54 SVGs on 12 pages) has a role and a text label, and the
 data charts have a table or a "show as a table" version for screen readers. Lighthouse accessibility is 100 on all five pages above.
 
-**Tests.** `cd web/frontend && npm test` (157) and `cd web/backend && npm test` (131) pass.
+**Tests.** `cd web/frontend && npm test` (157) and `cd web/backend && npm test` (131) pass. After the engagement features: frontend 204, backend 183.
+
+### Engagement features (checked 2026-10-20, local only)
+
+Everything below ran against the local PGlite dev database with the simulator (`--scenario pb | rankup | phase`) and in demo mode. Nothing touched production, and nothing is pushed.
+
+**Browser checks** (Chrome for Testing 156; Firefox and WebKit for the Wrapped page, the player page and a live fight):
+- *Commentary:* captions type in and keep at least 1.2 s apart (measured from the log's own timestamps); two fights on stage each have their own caption and log; speech is off by default, speaks only the first fight when turned on and stops when turned off (checked with a spy on `speechSynthesis`: no audio was listened to); hide is remembered across a reload; full screen and `/watch` (the bar under the player) show it; reduced motion and Calm mode show plain text; the idle nudge ("Swings under 1.6 m/s don't count" on Level 3), victory, defeat, abandoned, the Level 3 phase 2 and 3 lines, "One more hit!" and the Ghost Pace lines all appeared in real fights.
+- *Rank:* a `rankup` fight changed the badge next to the player's name, moved the ring on the player page and added "<Name> reached Brawler" to the activity list; re-posting the finished fight twice left exactly one such row. The leaderboard shows a badge on all 18 rows from one request.
+- *Personal bests:* the banner, the PB chips and the confetti (24 pieces, 1,500 ms, only `transform` and `opacity`, gone after 2 s); in Calm mode the banner shows and no confetti piece exists; the first fight on a level shows no banner; an abandoned fight with huge numbers sets none.
+- *Wrapped:* five slides by arrow keys, tap zones and the progress bars; auto-play off by default and advancing when on; week picker and next / previous week; PNG export at exactly 1080 x 1350 in all three engines; copy link; no fights, unknown player, server unreachable and not-enough-data states; no horizontal overflow at 375 px.
+- *Milestones:* 12 reached and 3 upcoming for a player with history, the dates checked by hand against the raw sessions; the "No milestones yet" state; the error state; it updates by itself when a fight ends.
+- *Demo mode:* all of the above run from the recorded snapshot with zero real network requests.
+
+**Lighthouse, mobile profile** (same method as above, Chrome for Testing 156, production build, median of 3; before = the site at commit `463b782`, after = the finished build, same dev data):
+
+| Page | Performance | Accessibility | Largest paint | Layout shift |
+|---|---|---|---|---|
+| Landing `/` | 95 → 95 | 100 → 100 | 2.73 s → 2.73 s | 0.0006 → 0.0006 |
+| Live Arena `/dashboard/live` | 91 → 91 (runs 89, 91, 91) | 100 → 100 | 3.34 s → 3.34 s | 0 → 0 |
+| Player page `/dashboard/player/ZZTEST-ann` | **86 → 86** (runs 89, 86, 86) | 100 → 100 | 3.97 s → 3.93 s | 0.006 → 0.009 |
+
+The player page was already under 90 in this setup before any of this work, so the "nothing below 90" line is **not met for that page**, before or after. Without the network
+throttling it is fast (first paint 0.1 s, largest paint 0.26 s); the simulation counts the page's many small script chunks and its API calls (about 20 on load) in its estimate.
+Two things that did not move the score were tried and removed: starting the live stream and the session list when the browser is idle, and asking for the page's chunk earlier.
+What did stay: the page draws its heading from the URL on the first frame, and the rank card reserves its size, so nothing jumps when it fills.
 
 ## Screenshots
 
 `docs/screenshots/*-1920.png` (1920 x 1080) and `*-375.png` (375 px wide): landing hero, problem, how it works, data path and levels; Overview;
 command palette; Thesis Lab study section; study consent; method page; Live Arena with both players, Level 1, Level 2 and Level 3, and full screen.
+The engagement features: `commentary-live-arena` (the caption bar and the Commentary log), `pb-banner-result` (the result moment with the New PB and Rank up banners),
+`rank-player-header` (badge and ring), `rank-leaderboard`, `milestones` (the timeline) and `wrapped-1-swings` to `wrapped-5-personality` (every slide).
 They are taken in demo mode (scripted fights, names Ava and Ben) with the ribbon hidden for the picture, so they can be regenerated with no server.
 
 ## Not verified
 
 - A real headset session against this build (the website was checked with simulated and scripted fights only).
-- Safari on a real device and Firefox on Windows or Android.
+- Safari on a real device and Firefox on Windows or Android (Firefox and WebKit builds from Playwright were checked for the new pages).
+- The commentary bar drawn **over the headset video** on `/watch`: it needs a live WebRTC stream, which cannot be produced without a headset. The same bar was checked under the player (no video) and in the Live Arena.
+- That the spoken commentary is audible: only the calls to the browser's speech API were checked.
+- The guard's "70% absorbed" in the commentary is the code default (`MonsterAI.defendDamageMultiplier` = 0.3); a scene override was not ruled out.
+- Rank thresholds against real players: only simulated data exists (14 dev players: Rookie 1, Brawler 12, Warrior 1, Guardian 0). Brawler (300 points) is reached in one or two fights.
+- "The Marathoner" is the most common personality: the Stamina axis is 100 plus the fade percentage, so anyone who does not slow down scores 100.
 - The consent wording has not been checked by an ethics board; the reference field on the consent screen is empty until you fill it in
   (`web/frontend/src/content/studyContent.js`, `ETHICS_REFERENCE`).
 - The citations on the method page were written from memory and are marked "verify".

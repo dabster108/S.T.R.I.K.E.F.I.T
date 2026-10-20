@@ -1,4 +1,5 @@
 import { Skeleton } from "./Feedback.jsx";
+import { PlayerTitleShell } from "../players/PlayerTitle.jsx";
 import { PageHeader } from "./Card.jsx";
 
 // Loading placeholders shaped like each page, so nothing jumps when data lands.
@@ -185,10 +186,12 @@ export const PlayersSkeleton = () =>
     </>
   );
 
-export const PlayerSkeleton = () =>
+// name: the player's name from the URL; when given, the heading is drawn at once and the page's own header takes over without a shift.
+export const PlayerSkeleton = ({ name }) =>
   wrap(
     "Loading player",
     <>
+      {name && <PlayerTitleShell name={name} />}
       <KpiRow />
       <div className="grid gap-6 xl:grid-cols-2">
         <ChartBox />

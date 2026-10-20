@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { COMMENTARY } from "../config/commentary.js";
 import { api } from "../lib/api.js";
 import { createQueue, createState, enqueue, hashSeed, nextReleaseDelay, release, step } from "../lib/commentary.js";
-import { commentaryPrefs, speechSupported } from "../lib/commentaryPrefs.js";
+import { speechSupported } from "../lib/commentaryPrefs.js";
 import { cumulativeDamage, liveNow, paceDelta } from "../lib/pace.js";
 import { useLiveMessages } from "../live/LiveProvider.jsx";
 import { useApi } from "./useApi.js";
+import { useCommentaryPrefs } from "./useCommentaryPrefs.js";
 import { useLiveHits } from "../components/live/useLiveHits.js";
-
-export const useCommentaryPrefs = () => useSyncExternalStore(commentaryPrefs.subscribe, commentaryPrefs.get);
 
 const clock = () => performance.now();
 

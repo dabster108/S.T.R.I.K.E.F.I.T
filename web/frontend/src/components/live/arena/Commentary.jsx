@@ -1,13 +1,11 @@
 import { memo, useEffect, useState } from "react";
 import { COMMENTARY, RESTING_TEXT } from "../../../config/commentary.js";
 import { useReducedMotion } from "../../../hooks/motion.js";
-import { useCommentary, useCommentaryPrefs } from "../../../hooks/useCommentary.js";
-import { commentaryPrefs, speechSupported } from "../../../lib/commentaryPrefs.js";
+import { useCommentary } from "../../../hooks/useCommentary.js";
 import { monsterFor } from "../../../lib/arenaApp.js";
 import { formatClock } from "../../../lib/format.js";
 import { useLiveSession } from "../../../live/LiveProvider.jsx";
 import { usePauseOffscreen } from "../../../motion/index.js";
-import Button from "../../ui/Button.jsx";
 import Icon from "../../ui/Icon.jsx";
 
 // Live Commentary for a fight: a large caption bar (readable across a room), a log of the last 20 lines and the viewer's two choices
@@ -137,28 +135,6 @@ export const CommentaryLog = memo(function CommentaryLog({ commentary }) {
     </section>
   );
 });
-
-/** The viewer's two choices. The voice is the browser's own (SpeechSynthesis), off until it is switched on. */
-export function CommentaryControls() {
-  const prefs = useCommentaryPrefs();
-  const canSpeak = speechSupported();
-  return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Commentary settings">
-      <Button icon="captions" onClick={() => commentaryPrefs.setHidden(!prefs.hidden)} aria-pressed={!prefs.hidden} title={prefs.hidden ? "Show the live commentary" : "Hide the live commentary"}>
-        Commentary: {prefs.hidden ? "off" : "on"}
-      </Button>
-      <Button
-        icon={prefs.speech && canSpeak ? "volume" : "volumeOff"}
-        onClick={() => commentaryPrefs.setSpeech(!prefs.speech)}
-        aria-pressed={prefs.speech && canSpeak}
-        disabled={!canSpeak || prefs.hidden}
-        title={canSpeak ? "Read the commentary of the first fight aloud, with this browser's own voice" : "This browser has no speech synthesis"}
-      >
-        Spoken commentary: {prefs.speech && canSpeak ? "on" : "off"}
-      </Button>
-    </div>
-  );
-}
 
 /** Over the broadcast video (/watch): the commentary of the fight the video shows, at the top of the frame. */
 export function CommentaryOverlay({ id }) {

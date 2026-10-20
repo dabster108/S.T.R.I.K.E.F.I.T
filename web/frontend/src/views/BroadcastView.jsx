@@ -8,7 +8,8 @@ import Icon from "../components/ui/Icon.jsx";
 import { useBroadcast } from "../hooks/useBroadcast.js";
 import { LiveOverlay } from "../components/live/LiveHud.jsx";
 import { ReactionBar, ReactionLayer } from "../components/live/Reactions.jsx";
-import { CaptionBar, CommentaryControls, CommentaryOverlay, useStageCommentary } from "../components/live/arena/Commentary.jsx";
+import { CaptionBar, CommentaryOverlay, useStageCommentary } from "../components/live/arena/Commentary.jsx";
+import CommentaryControls from "../components/live/arena/CommentaryControls.jsx";
 import { useLiveIds, useLiveSession } from "../live/LiveProvider.jsx";
 
 // strikefit.vercel.app/broadcast — the headset's view, live. Opening the page is the

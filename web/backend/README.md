@@ -183,4 +183,20 @@ No existing route or response shape changed, and no schema change: everything is
 | `GET /api/lab` | Thesis Lab: return rate within 1 / 3 / 7 days (with n), RPE against average swing speed (Pearson r from 8 pairs), level-by-level table. Cached 30 s |
 | `GET /api/lab/sessions.csv` | one row per session: player, level, outcome, score, hits, avg_swing, fade_pct, duration_sec, started_at. No IP or device information (none is stored) |
 
+## Rank, personal bests, Wrapped and milestones (additive, read-only `GET`)
+
+No schema change: everything is computed from the stored `sessions` and `events` rows. Each route is cached 30 to 60 s in memory (`ttlCache.js`) and the cache for a player is dropped when one of their fights ends, is deleted or the player is renamed (`featureRoutes.js`); answers carry an `ETag` and `Cache-Control: no-cache`. The rules are pure modules with their numbers in `config/`: `ranks.js`, `records.js`, `wrapped.js`, `milestones.js`.
+
+| Route | What it returns |
+| --- | --- |
+| `GET /api/players/:name/rank` | `rank`, `effortPoints`, `nextRank`, `pointsToNext`, `progress` (0 to 1), the `ladder` and the points rule. Effort points = counted swings x 1 + full-power swings x 2 + victories x 40 + Level 3 victories 60 more. Rookie 0, Brawler 300, Warrior 1,200, Guardian 3,500 (`config/ranks.js`) |
+| `GET /api/ranks?players=Ava,Ben` | the same for up to 50 players in one request (leaderboard rows) |
+| `GET /api/players/:name/records` | `bySession`: which fights set a personal best on their level (the PB chip) |
+| `GET /api/players/:name/wrapped?weekStart=YYYY-MM-DD` | one week (Monday to Sunday, Asia/Kathmandu; default the current week): fights, wins (shared win-rate rule), swings, fastest swing (clamped to 8 m/s), full-power share, active minutes, average fade, best day, favourite monster (level; the page adds the name and portrait from `story.json`), XP, longest win streak, the week list for the picker and the effort personality from the Fingerprint scores of that week |
+| `GET /api/players/:name/milestones` | what the player reached and when (first fight, first victory and on each level, first full-power swing, 100 / 500 / 1,000 swings, 10 fights, 3- and 7-day streaks, each rank) and the next three with a progress fraction |
+
+`GET /api/sessions/:id` gains `newRecords: [{ metric, value, previous }]`: what that fight beat on its level (peak swing speed clamped to 8 m/s, damage dealt, score, effort fade). A record needs at least one earlier decided fight on the same level, equal values are not records, an abandoned fight never sets one, and only fights that started earlier count, so the answer is the same whenever it is read. The stream's `session_finished` message gains `newRecords` and `rankUp` (`{ from, to, effortPoints }` or `null`) next to the unchanged `session` and `liveState`. A rank-up also appears in `GET /api/activity` as `rank_up` ("<Name> reached <Rank>"); the row id is player + rank, so finishing or re-reporting a session twice cannot repeat it.
+
+`GET /api/players/:name/best-pace` now answers `Cache-Control: private, no-cache` (it was `max-age=15`) and its server cache is dropped when a fight ends, so a fight that starts soon after another compares against the new best.
+
 **Win rate** is one rule everywhere: `victories / (victories + defeats)`, abandoned fights excluded and counted separately (`abandoned`). **Swing speeds** are stored raw by the game; every aggregate clamps them to the 8 m/s cap and `swingsOverCap` / `rawPeakSwingSpeed` report what was clamped.
