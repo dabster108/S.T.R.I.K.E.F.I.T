@@ -1,8 +1,8 @@
 # STRIKEFIT backend
 
 Express + Socket.IO API that the Unity game posts battle results to and the web
-dashboard reads from. Data lives in **Neon serverless Postgres** (it used to be a
-local `db.json` file).
+dashboard reads from. Data lives in **Postgres** (hosted on Layerbase, earlier on Neon); it used to be a
+local `db.json` file.
 
 ## Setup
 
@@ -10,7 +10,7 @@ local `db.json` file).
 cd web/backend
 npm install
 # create web/backend/.env (git-ignored) containing one line:
-#   DATABASE_URL=<your Neon connection string>
+#   DATABASE_URL=<your Postgres connection string>
 npm run db:schema    # creates tables + indexes; safe to run any number of times
 npm start            # http://localhost:4000 (or $PORT)
 ```
@@ -69,11 +69,24 @@ Postgres stores timestamps to the microsecond, so a Unity timestamp such as
 - **Root Directory:** `web/backend`
 - **Build command:** `npm install`
 - **Start command:** `npm run start` (the server listens on `process.env.PORT`)
-- **Environment variable:** `DATABASE_URL` = the Neon connection string
-  (Render → service → Environment). Run `npm run db:schema` once against the
-  database if the tables don't exist yet (they already do for the current Neon DB).
+- **Environment variable:** `DATABASE_URL` = the Postgres connection string
+  (Render → service → Environment). Any Postgres 14+ with TLS works (Neon, Layerbase, Supabase, ...); the
+  server creates its tables itself at start-up (`schema.sql`, idempotent), so an empty database needs no
+  extra step. `npm run db:schema` applies it by hand.
+- **Health Check Path:** `/api/ping` (Render → service → Settings). It answers 200 while the process is
+  alive and never touches Postgres, so the platform's checks cannot wake a database that scales to zero.
 
-`GET /api/health` reports `database.ok` and returns 503 if Postgres is unreachable.
+`GET /api/ping` -> `{ "ok": true }`, no database. `GET /api/health` reports `database.ok` and returns 503 if
+Postgres is unreachable; use it to look at the database, not as the platform health check.
+
+**Databases that scale to zero.** The first connection after an idle period can take a few seconds while
+the database wakes up. `db.js` retries only the step of getting a connection (3 tries, 0.75 s then 1.5 s
+pause; never a statement that is running, so a write can never be repeated), the start-up schema step
+retries as a whole (4 tries, it is idempotent), and the pool waits up to 15 s for a connection. Idle
+connections close after 30 s. TLS certificates are always verified. Logs show the error code and message
+only, with any connection string removed (`dbRetry.js`). After start-up (about 11 statements: the schema
+check and cache warm-up) an idle backend sends no queries: the 10 s inactive-session check only queries when
+a live fight has gone quiet, and the live stream and WebSocket timers do not use the database.
 
 Also set `ALLOWED_ORIGINS` to the Vercel URL (comma separated; `https://*.vercel.app`
 wildcards work). localhost is always allowed. Requests without an `Origin`
