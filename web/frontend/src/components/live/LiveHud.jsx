@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api.js";
-import { TIER_LABEL } from "../../lib/game.js";
+import { clampSpeed, TIER_LABEL } from "../../lib/game.js";
 import { useLiveIds, useLiveMessages, useLiveSession } from "../../live/LiveProvider.jsx";
 import Icon from "../ui/Icon.jsx";
 
@@ -111,16 +111,17 @@ export const LiveHud = memo(function LiveHud({ id, variant = "card" }) {
     if (!live || type !== "event_created" || e.sessionId !== id || e.type !== "hit") return;
     const p = e.payload || {};
     if (!isNum(p.swingSpeed)) return;
-    setHit({ speed: p.swingSpeed, tier: typeof p.tier === "string" ? p.tier : null });
+    const speed = clampSpeed(p.swingSpeed); // raw controller speed can exceed the game's 8 m/s cap
+    setHit({ speed, tier: typeof p.tier === "string" ? p.tier : null });
     clearTimeout(idle.current);
     idle.current = setTimeout(() => setHit(null), GAUGE_IDLE_MS);
     const b = best.current;
-    if (isNum(b.pb) && p.swingSpeed > Math.max(b.pb, b.session)) {
+    if (isNum(b.pb) && speed > Math.max(b.pb, b.session)) {
       const key = Date.now();
       setPb(key);
       timers.current.push(setTimeout(() => setPb((cur) => (cur === key ? 0 : cur)), PB_SHOW_MS));
     }
-    b.session = Math.max(b.session, p.swingSpeed);
+    b.session = Math.max(b.session, speed);
   });
   useEffect(() => () => clearTimeout(idle.current), []);
 

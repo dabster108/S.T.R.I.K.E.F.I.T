@@ -1,6 +1,13 @@
-export function Card({ as: Tag = "section", className = "", children, ...rest }) {
+// spotlight: the cursor-following highlight (motion/Spotlight). On by default for cards that clip their own content
+// (overflow-hidden), where the highlight cannot spill past the rounded corners; pass spotlight={false} to opt out.
+export function Card({ as: Tag = "section", className = "", spotlight, children, ...rest }) {
+  const spot = spotlight ?? /\boverflow-hidden\b/.test(className);
   return (
-    <Tag className={`min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)] ${className}`} {...rest}>
+    <Tag
+      data-spotlight={spot ? "" : undefined}
+      className={`min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)] ${spot ? "spotlight" : ""} ${className}`}
+      {...rest}
+    >
       {children}
     </Tag>
   );
@@ -21,7 +28,8 @@ export function CardHeader({ title, subtitle, actions, className = "" }) {
 export function PageHeader({ eyebrow, title, description, actions, leading }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="flex min-w-0 items-center gap-4">
+      {/* grow: the title box is as wide as the row allows, so the loading skeleton's title and the real one are the same box (the Overview's largest paint then happens once) */}
+      <div className="flex min-w-0 grow items-center gap-4">
         {leading}
         <div className="min-w-0">
           {eyebrow && <p className="t-eyebrow">{eyebrow}</p>}

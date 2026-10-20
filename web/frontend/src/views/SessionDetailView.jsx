@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { levelName } from "../lib/game.js";
+import { clampSpeed, levelName } from "../lib/game.js";
 import { formatDateTime, formatDuration, formatNumber } from "../lib/format.js";
 import { useApi, useThrottledCallback } from "../hooks/useApi.js";
-import { useReducedMotion } from "../hooks/motion.js";
+import { useOnScreen, useReducedMotion } from "../hooks/motion.js";
 import { useLiveMessages } from "../live/LiveProvider.jsx";
-import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
+import { Card, CardHeader, PageHeader, SectionRule } from "../components/ui/Card.jsx";
+import PbBanner from "../components/records/PbBanner.jsx";
 import { ConfirmDialog, EmptyState } from "../components/ui/Feedback.jsx";
 import { SessionDetailSkeleton } from "../components/ui/Skeletons.jsx";
 import { LevelBadge, OutcomeBadge } from "../components/ui/Badge.jsx";
@@ -24,6 +25,12 @@ import RatingForm, { RatingSummary } from "../components/feedback/RatingForm.jsx
 import RecapPanel from "../components/recap/RecapCard.jsx";
 import ShareChallenge from "../components/engage/ShareChallenge.jsx";
 import { ghostSummary, valueAt } from "../lib/engage.js";
+
+// Chart components load after the page, in their own chunks; the fixed-height skeleton keeps the layout from jumping.
+const FadePanel = lazy(() => import("../components/effort/FadePanel.jsx"));
+const Fingerprint = lazy(() => import("../components/effort/Fingerprint.jsx"));
+const FightReplay = lazy(() => import("../components/effort/FightReplay.jsx"));
+const FadeSkeleton = lazy(() => import("../components/effort/FadePanel.jsx").then((m) => ({ default: m.FadeSkeleton })));
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const P = (e) => (e.payload && typeof e.payload === "object" && !Array.isArray(e.payload) ? e.payload : {});
@@ -52,7 +59,7 @@ function GhostLine({ best, session, events, t, show, onToggle }) {
   if (b.reason === "no_events") {
     return <p className="mt-2 text-xs font-medium text-[var(--muted)]">Your best earlier run on {levelName(session.level)} (score {formatNumber(b.best.score)}) has no swing or health samples, so there is no curve to compare.</p>;
   }
-  const hits = events.filter((e) => e.type === "hit" && isNum(P(e).swingSpeed)).map((e) => ({ t: e.t, speed: P(e).swingSpeed }));
+  const hits = events.filter((e) => e.type === "hit" && isNum(P(e).swingSpeed)).map((e) => ({ t: e.t, speed: clampSpeed(P(e).swingSpeed) }));
   const hpNow = events.filter((e) => isNum(P(e).monsterHp) && P(e).monsterMaxHp > 0).map((e) => ({ t: e.t, f: P(e).monsterHp / P(e).monsterMaxHp }));
   const summary = ghostSummary({ durationSec: session.durationSec, outcome: session.outcome, hits }, b);
   const pct = (f) => (isNum(f) ? `${Math.round(f * 100)}%` : "—");
@@ -221,6 +228,39 @@ function Replay({ events, duration, live, best = null, session = null }) {
   );
 }
 
+// Once the page title has scrolled under the top bar: who, which level, how it ended and the score stay in view, with jumps
+// to the three main sections. It sits in a zero-height sticky slot, so showing it moves nothing on the page.
+function BattleBar({ s, show, telemetry }) {
+  if (!show) return null;
+  const jumps = [
+    s.status !== "live" && ["#battle-fade", "Effort fade"],
+    ["#battle-replay", "Replay"],
+    ["#battle-fingerprint", "Fingerprint"],
+  ].filter(Boolean);
+  return (
+    <div className="sticky top-[4.25rem] z-10 h-0">
+      <div className="arena-rise flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 shadow-[var(--shadow-lift)]">
+        <span className="min-w-0 truncate text-sm font-extrabold text-[var(--ink)]">
+          {s.playerName} <span className="font-semibold text-[var(--muted)]">· {levelName(s.level)}</span>
+        </span>
+        {s.status === "live" ? <LiveChip /> : <OutcomeBadge outcome={s.outcome} />}
+        <span className="text-sm font-extrabold tabular-nums text-[var(--ink)]">
+          {formatNumber(s.score)} <span className="text-xs font-semibold text-[var(--muted)]">pts</span>
+        </span>
+        <span className="hidden text-sm font-semibold tabular-nums text-[var(--ink-secondary)] sm:inline">{formatDuration(s.durationSec)}</span>
+        <nav aria-label="Jump to" className="ml-auto hidden items-center gap-1 md:flex">
+          {jumps.map(([href, label]) => (
+            <a key={href} href={href} className="press rounded-md px-2 py-1 text-xs font-semibold text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--accent)]">
+              {label}
+            </a>
+          ))}
+        </nav>
+        {!telemetry && <span className="sr-only">No fight telemetry for this session</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function SessionDetailView({ onDeleted }) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -231,6 +271,9 @@ export default function SessionDetailView({ onDeleted }) {
     else if (type === "player_renamed" && payload.oldName === data?.session?.playerName) reload();
   });
   const [confirm, setConfirm] = useState(false);
+  const [headRef, headOnScreen] = useOnScreen("-64px 0px 0px 0px");
+  const headSeen = useRef(false); // the observer reports "not on screen" before its first callback: only show the bar after the header was seen
+  if (headOnScreen) headSeen.current = true;
   const [busy, setBusy] = useState(false);
   const [recap, setRecap] = useState(false);
 
@@ -286,6 +329,7 @@ export default function SessionDetailView({ onDeleted }) {
 
   return (
     <div className="space-y-6">
+      <div ref={headRef}>
       <PageHeader
         eyebrow={
           <Link to="/dashboard/sessions" className="press inline-flex items-center gap-1 rounded hover:underline">
@@ -307,6 +351,8 @@ export default function SessionDetailView({ onDeleted }) {
           )
         }
       />
+      </div>
+      {s && <BattleBar s={s} show={headSeen.current && !headOnScreen} telemetry={telemetry} />}
 
       {error && !data ? (
         <Card>
@@ -314,6 +360,9 @@ export default function SessionDetailView({ onDeleted }) {
         </Card>
       ) : (
         <>
+          {/* what this fight beat on its level (never for a first fight, an abandoned one or one still being played) */}
+          <PbBanner records={data?.newRecords} fireKey={s.id} />
+
           <Card className="overflow-hidden">
             <CardHeader title="Summary" />
             <dl className="stagger grid grid-cols-2 gap-x-6 gap-y-4 px-5 py-5 sm:grid-cols-3 lg:grid-cols-5">
@@ -339,64 +388,48 @@ export default function SessionDetailView({ onDeleted }) {
 
           <PersonalBestsHeld records={data.personalBestsSet} />
 
+          {/* 01 how the effort held up, 02 the fight itself, 03 the player behind it, then the detail */}
           {s.status !== "live" && (
-            <div className="grid gap-6 xl:grid-cols-2">
+            <section id="battle-fade" aria-labelledby="battle-fade-title" className="scroll-mt-32 space-y-4">
+              <SectionRule index="01" id="battle-fade-title" title="Effort" />
               <Card className="overflow-hidden">
-                <CardHeader
-                  title={data.feedback ? "Player rating" : "Rate this session"}
-                  subtitle={data.feedback ? `Saved ${formatDateTime(data.feedback.createdAt)}` : "Enjoyment (1 to 5) and perceived exertion (Borg 6 to 20), stored with the session for research"}
-                />
-                <div className="px-5 py-5">{data.feedback ? <RatingSummary feedback={data.feedback} /> : <RatingForm sessionId={s.id} onSaved={reload} />}</div>
+                <CardHeader title="Effort fade" subtitle="Did your swings slow down? Average swing speed in the last third of the fight against the first third" />
+                <Suspense fallback={<FadeSkeleton />}>
+                  <FadePanel sessionId={s.id} />
+                </Suspense>
               </Card>
-              <Card className="overflow-hidden">
-                <CardHeader
-                  title="Recap card"
-                  subtitle="A shareable image of this session"
-                  actions={
-                    <Button icon={recap ? "chevronUp" : "chevronDown"} onClick={() => setRecap((r) => !r)} aria-expanded={recap}>
-                      {recap ? "Hide" : "Show"}
-                    </Button>
-                  }
-                />
-                <div className="px-5 py-5">{recap ? <RecapPanel data={data} /> : <p className="text-sm font-medium text-[var(--muted)]">Create a 1080 × 1350 card with the player, result, estimated energy use, peak swing speed, XP and any badges earned.</p>}</div>
-              </Card>
-            </div>
+            </section>
           )}
 
-          {data.fitness && (
-            <div className="grid gap-6 xl:grid-cols-2">
-              <Card className="overflow-hidden">
-                <CardHeader title="How hard the swings were" subtitle="Share of this fight's swings in each strength band" />
-                <div className="px-3 pb-4 pt-4 sm:px-5">
-                  <SwingTierChart breakdown={data.fitness.swingIntensity} />
-                </div>
+          <section id="battle-replay" aria-labelledby="battle-replay-title" className="scroll-mt-32 space-y-4">
+            <SectionRule index="02" id="battle-replay-title" title="The fight" />
+            {!telemetry ? (
+              <Card>
+                <EmptyState icon="clock" title="No fight telemetry for this session" description="It was recorded before the live-telemetry build of the game, so only the final result above exists." />
               </Card>
-              <Card className="overflow-hidden">
-                <CardHeader title="Effort over the course of the fight" subtitle="Average swing strength in each fifth of the fight, start to finish (x axis is % of the fight)" />
-                <div className="px-3 pb-4 pt-4 sm:px-5">
-                  <ExertionChart trend={data.fitness.exertionTrend} />
-                </div>
-              </Card>
-              {isNum(data.fitness.estimatedCalories) && (
-                <Card className="overflow-hidden xl:col-span-2">
-                  <CardHeader title="Estimated energy use" subtitle="An estimate from fight length and swing strength, not a measurement" />
-                  <div className="px-5 py-4">
-                    <CalorieEstimate kcal={data.fitness.estimatedCalories} walkingMinutes={data.fitness.estimatedWalkingMinutes} joggingMinutes={data.fitness.estimatedJoggingMinutes} />
-                  </div>
-                  <EstimateNote>
-                    {data.fitness.estimate.note} Assumes {data.fitness.estimate.assumedBodyMassKg} kg body mass; intensity factor {data.fitness.estimate.metUsed} MET (assumed range {data.fitness.estimate.metRange[0]} to {data.fitness.estimate.metRange[1]}).
-                  </EstimateNote>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {!telemetry ? (
-            <Card>
-              <EmptyState icon="clock" title="No fight telemetry for this session" description="It was recorded before the live-telemetry build of the game, so only the final result above exists." />
+            ) : (
+            <Card className="overflow-hidden">
+              <CardHeader title="Fight replay" subtitle="The whole fight on one line: swings, monster attacks, clashes and damage taken. Press play or drag the slider" />
+              <Suspense fallback={<div style={{ minHeight: 520 }} aria-hidden><div className="skeleton m-5 h-[188px] rounded-xl" /></div>}>
+                <FightReplay events={events} durationSec={duration} />
+              </Suspense>
             </Card>
-          ) : (
-            <>
+            )}
+          </section>
+
+          <section id="battle-fingerprint" aria-labelledby="battle-fingerprint-title" className="scroll-mt-32 space-y-4">
+            <SectionRule index="03" id="battle-fingerprint-title" title={`The player · ${s.playerName}`} />
+            <Card className="overflow-hidden">
+              <CardHeader title="Effort fingerprint" subtitle={`${s.playerName}'s last 10 fights with swing data, so this one is seen in context`} />
+              <Suspense fallback={<div style={{ minHeight: 560 }} aria-hidden><div className="skeleton m-5 h-[26rem] rounded-xl" /></div>}>
+                <Fingerprint name={s.playerName} />
+              </Suspense>
+            </Card>
+          </section>
+
+          {telemetry && (
+            <section aria-labelledby="battle-detail-title" className="space-y-4">
+              <SectionRule index="04" id="battle-detail-title" title="Moment by moment" />
               <Card className="overflow-hidden">
                 <CardHeader title="Timeline replay" subtitle="Step through the fight: health at the chosen moment, and everything that had happened by then" />
                 <Replay events={events} duration={duration} live={s.status === "live"} best={best} session={s} />
@@ -449,7 +482,65 @@ export default function SessionDetailView({ onDeleted }) {
                   </div>
                 </Card>
               </div>
-            </>
+            </section>
+          )}
+
+          {data.fitness && (
+            <section aria-labelledby="battle-fitness-title" className="space-y-4">
+              <SectionRule index={telemetry ? "05" : "04"} id="battle-fitness-title" title="Swing strength and energy" />
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Card className="overflow-hidden">
+                <CardHeader title="How hard the swings were" subtitle="Share of this fight's swings in each strength band" />
+                <div className="px-3 pb-4 pt-4 sm:px-5">
+                  <SwingTierChart breakdown={data.fitness.swingIntensity} />
+                </div>
+              </Card>
+              <Card className="overflow-hidden">
+                <CardHeader title="Effort over the course of the fight" subtitle="Average swing strength in each fifth of the fight, start to finish (x axis is % of the fight)" />
+                <div className="px-3 pb-4 pt-4 sm:px-5">
+                  <ExertionChart trend={data.fitness.exertionTrend} />
+                </div>
+              </Card>
+              {isNum(data.fitness.estimatedCalories) && (
+                <Card className="overflow-hidden xl:col-span-2">
+                  <CardHeader title="Estimated energy use" subtitle="An estimate from fight length and swing strength, not a measurement" />
+                  <div className="px-5 py-4">
+                    <CalorieEstimate kcal={data.fitness.estimatedCalories} walkingMinutes={data.fitness.estimatedWalkingMinutes} joggingMinutes={data.fitness.estimatedJoggingMinutes} />
+                  </div>
+                  <EstimateNote>
+                    {data.fitness.estimate.note} Assumes {data.fitness.estimate.assumedBodyMassKg} kg body mass; intensity factor {data.fitness.estimate.metUsed} MET (assumed range {data.fitness.estimate.metRange[0]} to {data.fitness.estimate.metRange[1]}).
+                  </EstimateNote>
+                </Card>
+              )}
+            </div>
+            </section>
+          )}
+
+          {s.status !== "live" && (
+            <section aria-labelledby="battle-share-title" className="space-y-4">
+              <SectionRule id="battle-share-title" title="Rate and share" />
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Card className="overflow-hidden">
+                <CardHeader
+                  title={data.feedback ? "Player rating" : "Rate this session"}
+                  subtitle={data.feedback ? `Saved ${formatDateTime(data.feedback.createdAt)}` : "Enjoyment (1 to 5) and perceived exertion (Borg 6 to 20), stored with the session for research"}
+                />
+                <div className="px-5 py-5">{data.feedback ? <RatingSummary feedback={data.feedback} /> : <RatingForm sessionId={s.id} onSaved={reload} />}</div>
+              </Card>
+              <Card className="overflow-hidden">
+                <CardHeader
+                  title="Recap card"
+                  subtitle="A shareable image of this session"
+                  actions={
+                    <Button icon={recap ? "chevronUp" : "chevronDown"} onClick={() => setRecap((r) => !r)} aria-expanded={recap}>
+                      {recap ? "Hide" : "Show"}
+                    </Button>
+                  }
+                />
+                <div className="px-5 py-5">{recap ? <RecapPanel data={data} /> : <p className="text-sm font-medium text-[var(--muted)]">Create a 1080 × 1350 card with the player, result, estimated energy use, peak swing speed, XP and any badges earned.</p>}</div>
+              </Card>
+            </div>
+            </section>
           )}
         </>
       )}

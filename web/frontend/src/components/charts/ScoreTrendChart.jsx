@@ -1,5 +1,6 @@
 import { useId, useMemo, useState } from "react";
-import { formatDateTime, formatShortDate } from "../../lib/format.js";
+import { formatDateTime, formatNumber, formatShortDate } from "../../lib/format.js";
+import { smoothPath } from "../../lib/effort.js";
 import { sessionTime } from "../../lib/derive.js";
 import { OutcomeBadge } from "../ui/Badge.jsx";
 import { EmptyState } from "../ui/Feedback.jsx";
@@ -32,7 +33,8 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
     const x = (i) => PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
     const y = (v) => PAD.top + innerH - (v / maxY) * innerH;
     const points = sessions.map((s, i) => ({ x: x(i), y: y(Number(s.score) || 0), s, i }));
-    const line = points.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+    // a monotone curve: smooth, but it never overshoots a real score (lib/effort.js smoothPath)
+    const line = smoothPath(points.map((p) => ({ x: Number(p.x.toFixed(1)), y: Number(p.y.toFixed(1)) })));
     const base = PAD.top + innerH;
     const area = n > 1 ? `${line} L${points[n - 1].x.toFixed(1)},${base} L${points[0].x.toFixed(1)},${base} Z` : null;
     const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => ({ v: Math.round(maxY * f), y: y(maxY * f) }));
@@ -97,7 +99,7 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
           <g key={t.v}>
             <line x1={PAD.left} x2={width - PAD.right} y1={t.y} y2={t.y} stroke={t.v === 0 ? "var(--border-strong)" : "var(--grid)"} />
             <text x={PAD.left - 8} y={t.y + 3.5} textAnchor="end" fontSize="11" fill="var(--muted)" className="tabular-nums">
-              {t.v}
+              {formatNumber(t.v)}
             </text>
           </g>
         ))}
@@ -109,19 +111,31 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
 
         {hover && <line x1={hover.x} x2={hover.x} y1={PAD.top} y2={geo.base} stroke="var(--border-strong)" strokeDasharray="3 3" />}
 
-        {geo.points.map((p) => (
-          <circle
-            key={p.s.id}
-            cx={p.x}
-            cy={p.y}
-            r={active === p.i ? 5.5 : 4}
-            fill={active === p.i ? "var(--accent)" : "var(--surface)"}
-            stroke="var(--accent)"
-            strokeWidth={active === p.i ? 2.5 : 2}
-            className="dot-in"
-            style={{ "--i": Math.min(p.i, 30) }}
-          />
-        ))}
+        {geo.points.map((p) => {
+          const last = p.i === geo.points.length - 1;
+          const on = active === p.i;
+          // small dots for the history; the latest battle is a filled point with a halo and its score beside it
+          return (
+            <g key={p.s.id}>
+              {last && <circle cx={p.x} cy={p.y} r="10" fill="var(--accent)" opacity="0.14" />}
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={on || last ? 5.5 : geo.points.length > 24 ? 2.5 : 3.5}
+                fill={on || last ? "var(--accent)" : "var(--surface)"}
+                stroke="var(--accent)"
+                strokeWidth={on || last ? 2.5 : 1.75}
+                className="dot-in"
+                style={{ "--i": Math.min(p.i, 30) }}
+              />
+              {last && !hover && (
+                <text x={p.x - 10} y={Math.max(PAD.top + 10, p.y - 12)} textAnchor="end" fontSize="12" fontWeight="800" fill="var(--ink)" className="tabular-nums">
+                  {formatNumber(p.s.score)} pts
+                </text>
+              )}
+            </g>
+          );
+        })}
 
         {geo.points.map((p) => {
           const last = p.i === geo.points.length - 1;
@@ -146,7 +160,9 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
           }}
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-base font-bold tabular-nums text-[var(--ink)]">{hover.s.score}</span>
+            <span className="text-base font-bold tabular-nums text-[var(--ink)]">
+              {formatNumber(hover.s.score)} <span className="text-xs font-semibold text-[var(--muted)]">pts</span>
+            </span>
             <OutcomeBadge outcome={hover.s.outcome} />
           </div>
           <p className="mt-1 truncate text-[var(--ink-secondary)]">

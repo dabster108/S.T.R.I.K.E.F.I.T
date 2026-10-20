@@ -8,7 +8,7 @@ const VARIANTS = {
     "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-secondary)] shadow-sm hover:border-[var(--border-strong)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)] active:bg-[var(--bg)]",
   ghost: "border-transparent bg-transparent text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)] active:bg-[var(--bg)]",
   danger:
-    "border-[var(--border)] bg-[var(--surface)] text-[var(--bad)] shadow-sm hover:border-red-200 hover:bg-[var(--bad-soft)] active:bg-red-100",
+    "border-[var(--border)] bg-[var(--surface)] text-[var(--bad-ink)] shadow-sm hover:border-red-200 hover:bg-[var(--bad-soft)] active:bg-red-100",
   dangerSolid: "border-transparent bg-[var(--bad)] text-white shadow-sm hover:bg-red-700 active:bg-red-800",
 };
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Button from "../ui/Button.jsx";
+import { copyText } from "../../lib/toast.js";
 
 // "Challenge a friend": shares /challenge/<sessionId>. The link carries only the session id; the page reads the score
 // from the API, so the target can't be edited in the URL. Web Share where the browser has it, else copy the link,
@@ -18,7 +19,7 @@ export default function ShareChallenge({ sessionId, playerName, level, size = "s
         await navigator.share({ title: "STRIKEFIT challenge", text, url });
         return;
       }
-      await navigator.clipboard.writeText(url);
+      if (!(await copyText(url, "Challenge link"))) throw new Error("copy refused");
       setState("copied");
       clearTimeout(timer.current);
       timer.current = setTimeout(() => setState(null), 2500);

@@ -8,6 +8,8 @@ import Icon from "../components/ui/Icon.jsx";
 import { useBroadcast } from "../hooks/useBroadcast.js";
 import { LiveOverlay } from "../components/live/LiveHud.jsx";
 import { ReactionBar, ReactionLayer } from "../components/live/Reactions.jsx";
+import { CaptionBar, CommentaryOverlay, useStageCommentary } from "../components/live/arena/Commentary.jsx";
+import CommentaryControls from "../components/live/arena/CommentaryControls.jsx";
 import { useLiveIds, useLiveSession } from "../live/LiveProvider.jsx";
 
 // strikefit.vercel.app/broadcast — the headset's view, live. Opening the page is the
@@ -15,7 +17,7 @@ import { useLiveIds, useLiveSession } from "../live/LiveProvider.jsx";
 // has to touch the Quest. ?room=<name> picks a room other than the default.
 
 const PHASES = {
-  disconnected: { label: "Disconnected", icon: "offline", dot: "bg-[var(--bad)]", cls: "bg-[var(--bad-soft)] text-[var(--bad)] ring-red-200" },
+  disconnected: { label: "Disconnected", icon: "offline", dot: "bg-[var(--bad)]", cls: "bg-[var(--bad-soft)] text-[var(--bad-ink)] ring-red-200" },
   connecting: { label: "Connecting", icon: "loader", dot: "bg-[var(--warn)] status-live", cls: "bg-[var(--warn-soft)] text-[var(--warn-ink)] ring-amber-200" },
   negotiating: { label: "Negotiating Handshake", icon: "loader", dot: "bg-[var(--accent)] status-live", cls: "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-[var(--accent-ring)]" },
   live: { label: "LIVE", icon: "radio", dot: "bg-[var(--good)] status-live", cls: "bg-[var(--good-soft)] text-[var(--good-ink)] ring-emerald-200" },
@@ -73,6 +75,25 @@ function CheerLayer() {
   const fight = useFirstFight();
   return fight ? <ReactionLayer sessionId={fight.id} tone="overlay" /> : null;
 }
+// The live commentary of the fight on the video, across the top of the frame (the viewer can hide it or have it read aloud).
+function CommentaryLayer() {
+  const fight = useFirstFight();
+  return fight ? <CommentaryOverlay id={fight.id} /> : null;
+}
+// With no headset video yet, the same commentary sits as a bar under the player, so anyone watching still follows the fight.
+function CommentaryBar({ id }) {
+  const entry = useLiveSession(id);
+  const commentary = useStageCommentary(id, entry, { speak: true });
+  return (
+    <div className="mt-3">
+      <CaptionBar commentary={commentary} />
+    </div>
+  );
+}
+function CommentaryBelow() {
+  const fight = useFirstFight();
+  return fight ? <CommentaryBar id={fight.id} /> : null;
+}
 
 // Player, status and stream health. Shared by the public page and the dashboard page.
 function BroadcastPanel({ room, header }) {
@@ -106,6 +127,7 @@ function BroadcastPanel({ room, header }) {
         <video ref={video} autoPlay playsInline muted className={`h-full w-full object-contain ${live ? "" : "invisible"}`} />
         {live && <LiveOverlay />}
         {live && <CheerLayer />}
+        {live && <CommentaryLayer />}
         {live ? (
           <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-[var(--bad)] px-2 py-1 text-xs font-extrabold tracking-wider text-white">
             <span className="h-1.5 w-1.5 rounded-full bg-white status-live" aria-hidden /> LIVE
@@ -125,10 +147,14 @@ function BroadcastPanel({ room, header }) {
         )}
       </div>
 
+      {!live && <CommentaryBelow />}
       <CheerBar />
+      <div className="mt-3">
+        <CommentaryControls />
+      </div>
 
       {error && (
-        <p className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-[var(--bad-soft)] px-4 py-3 text-sm font-semibold text-[var(--bad)]">
+        <p className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-[var(--bad-soft)] px-4 py-3 text-sm font-semibold text-[var(--bad-ink)]">
           <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0" /> {error}
         </p>
       )}

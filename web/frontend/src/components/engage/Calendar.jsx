@@ -62,7 +62,21 @@ export function ActivityCalendar({ data, site = false }) {
     move(current + step);
   };
 
+  // A month's name goes over the first week that starts in it, but never closer than 3 weeks to the previous name: a first
+  // column that straddles two months used to print "Apr" and "May" on top of each other.
+  const monthLabels = [];
   let lastMonth = null;
+  let lastShown = -9;
+  weeks.forEach((week, w) => {
+    const label = monthOf(week[0].date);
+    const changed = label !== lastMonth;
+    lastMonth = label;
+    const room = weeks.slice(w, w + 3).every((x) => monthOf(x[0].date) === label) || w === weeks.length - 1;
+    if (changed && w - lastShown >= 3 && (w > 0 || room)) {
+      monthLabels[w] = label;
+      lastShown = w;
+    } else monthLabels[w] = "";
+  });
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -89,13 +103,10 @@ export function ActivityCalendar({ data, site = false }) {
             onKeyDown={onKey}
           >
             {weeks.map((week, w) => {
-              const label = monthOf(week[0].date);
-              const showMonth = label !== lastMonth;
-              lastMonth = label;
               return (
                 <div key={week[0].date} role="row" className="grid grid-cols-[0.75rem] grid-rows-[1rem_repeat(7,0.75rem)] gap-[3px]">
                   <span className="w-3 overflow-visible whitespace-nowrap text-[0.6rem] font-semibold leading-3 text-[var(--muted)]" aria-hidden>
-                    {showMonth ? label : ""}
+                    {monthLabels[w]}
                   </span>
                   {week.map((d, k) => {
                     const i = w * 7 + k;

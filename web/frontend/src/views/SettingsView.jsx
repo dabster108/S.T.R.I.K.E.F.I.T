@@ -214,6 +214,8 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
         </ul>
       </Card>
 
+      {/* Deleting every session is a one-click wipe on a site with no login: offered on a local dev build only (npm run dev:safe). */}
+      {import.meta.env.DEV && (
       <Card className="border-red-200">
         <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
           <div>
@@ -225,6 +227,7 @@ export default function SettingsView({ connection, health, checkHealth, pingRoun
           </Button>
         </div>
       </Card>
+      )}
 
       <ConfirmDialog
         open={confirm}

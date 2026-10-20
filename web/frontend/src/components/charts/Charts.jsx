@@ -279,6 +279,7 @@ export function BarChart({ categories, series, height = 200, yFormat = fmtDefaul
                       height={ih}
                       fill="transparent"
                       tabIndex={0}
+                      role="img"
                       className="outline-none"
                       aria-label={`${c}, ${s.label}: ${yFormat(v)}`}
                       onMouseEnter={() => setHot({ ci, si })}

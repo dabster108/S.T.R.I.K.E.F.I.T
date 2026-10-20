@@ -4,11 +4,13 @@ import { useScroll } from "../../hooks/motion.js";
 import { buttonClass } from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
 
+// In page order: the story the landing tells.
 export const SECTIONS = [
   ["problem", "Problem"],
   ["how", "How it works"],
+  ["gameplay", "Play"],
   ["levels", "Levels"],
-  ["combat", "Combat"],
+  ["monsters", "Story"],
   ["numbers", "Numbers"],
   ["thesis", "Thesis"],
 ];
@@ -75,7 +77,7 @@ export default function LandingNav({ live }) {
         <a href="#top" className="press rounded-xl" aria-label="STRIKEFIT, back to top">
           <Brand />
         </a>
-        <nav aria-label="Sections" className="hidden flex-1 items-center justify-center gap-7 lg:flex">
+        <nav aria-label="Sections" className="hidden flex-1 items-center justify-center gap-5 lg:flex xl:gap-7">
           {SECTIONS.map(([id, label]) => (
             <a
               key={id}
@@ -86,7 +88,7 @@ export default function LandingNav({ live }) {
               {label}
             </a>
           ))}
-          <Link to="/monsters" className="nav-link rounded text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:text-[var(--accent)]">
+          <Link to="/monsters" className="nav-link hidden rounded text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:text-[var(--accent)] xl:inline">
             Monsters
           </Link>
         </nav>

@@ -3,6 +3,8 @@ import { Route, Routes } from "react-router-dom";
 import Landing from "./views/Landing.jsx";
 import { OverviewSkeleton } from "./components/ui/Skeletons.jsx";
 import { LiveProvider } from "./live/LiveProvider.jsx";
+import DemoRibbon from "./demo/DemoRibbon.jsx";
+import { isDemo } from "./demo/mode.js";
 
 // The dashboard (charts, live stream, every inner page) is its own chunk, so the
 // public landing page never downloads it.
@@ -11,7 +13,12 @@ const BroadcastView = lazy(() => import("./views/BroadcastView.jsx"));
 const FeedbackView = lazy(() => import("./views/FeedbackView.jsx"));
 const MonstersView = lazy(() => import("./views/MonstersView.jsx"));
 const ChallengeView = lazy(() => import("./views/ChallengeView.jsx"));
+const NotFoundView = lazy(() => import("./views/NotFoundView.jsx"));
+const MethodView = lazy(() => import("./views/MethodView.jsx"));
+const StudyView = lazy(() => import("./views/StudyView.jsx"));
 const StoryPublicView = lazy(() => import("./views/StoryPublicView.jsx"));
+// STRIKEFIT Wrapped: a player's week as a five-slide story. Its own chunk, so it costs nothing until someone opens it.
+const WrappedView = lazy(() => import("./views/WrappedView.jsx"));
 
 function DashboardFallback() {
   return (
@@ -24,6 +31,15 @@ function DashboardFallback() {
 }
 
 export default function App() {
+  return (
+    <>
+      {isDemo() && <DemoRibbon />}
+      <AppRoutes />
+    </>
+  );
+}
+
+function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
@@ -84,6 +100,31 @@ export default function App() {
         }
       />
       <Route
+        path="/wrapped/:player"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <WrappedView />
+          </Suspense>
+        }
+      />
+      {/* the playtest study: consent, participant code, before and after forms. Public, no login. */}
+      <Route
+        path="/study"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <StudyView />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/about/method"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <MethodView />
+          </Suspense>
+        }
+      />
+      <Route
         path="/monsters"
         element={
           <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
@@ -91,7 +132,14 @@ export default function App() {
           </Suspense>
         }
       />
-      <Route path="*" element={<Landing />} />
+      <Route
+        path="*"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <NotFoundView />
+          </Suspense>
+        }
+      />
     </Routes>
   );
 }

@@ -1,18 +1,26 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useTelemetry } from "./hooks/useTelemetry.js";
 import { filterByRange } from "./lib/derive.js";
+import { GO_WINDOW_MS, goTarget } from "./lib/shortcuts.js";
+import { TITLES } from "./lib/breadcrumbs.js";
 import { formatNumber } from "./lib/format.js";
 import { LiveProvider, useLiveIds, useLiveMessages } from "./live/LiveProvider.jsx";
+import { liveStore } from "./live/liveStore.js";
 import { MobileNav, Sidebar } from "./components/layout/Sidebar.jsx";
 import Topbar from "./components/layout/Topbar.jsx";
 import CommandPalette from "./components/layout/CommandPalette.jsx";
+import { isDemo, setDemo } from "./demo/mode.js";
+import OverviewHeader from "./views/OverviewHeader.jsx";
 import ShortcutsOverlay, { isTypingTarget } from "./components/layout/ShortcutsOverlay.jsx";
 import { ToastStack, useToasts } from "./components/ui/Toasts.jsx";
 import { anotherModalOpen, AUTO_START_DELAY_MS, hasSeenTour, markTourSeen, TOUR_EVENT, tourAutoStartAllowed } from "./components/onboarding/tourState.js";
 import {
   AnalyticsSkeleton,
   CompareSkeleton,
+  EngagementSkeleton,
+  ExportSkeleton,
+  LabSkeleton,
   GenericSkeleton,
   LeaderboardSkeleton,
   LiveSkeleton,
@@ -33,6 +41,9 @@ const PlayersView = lazy(() => import("./views/PlayersView.jsx"));
 const PlayerView = lazy(() => import("./views/PlayerView.jsx"));
 const CompareView = lazy(() => import("./views/CompareView.jsx"));
 const AnalyticsView = lazy(() => import("./views/AnalyticsView.jsx"));
+const SettingsView = lazy(() => import("./views/SettingsView.jsx"));
+const DashboardNotFound = lazy(() => import("./views/NotFoundView.jsx").then((m) => ({ default: m.DashboardNotFound })));
+const LabView = lazy(() => import("./views/LabView.jsx"));
 const EngagementView = lazy(() => import("./views/EngagementView.jsx"));
 const ExportView = lazy(() => import("./views/ExportView.jsx"));
 const GuideView = lazy(() => import("./views/GuideView.jsx"));
@@ -41,20 +52,6 @@ const Tour = lazy(() => import("./components/onboarding/Tour.jsx"));
 
 const RANGE_KEY = "vrfitness.range";
 const SIDEBAR_KEY = "strikefit.sidebar";
-const TITLES = {
-  "": "Overview",
-  live: "Live Arena",
-  players: "Players",
-  player: "Player",
-  sessions: "Sessions",
-  session: "Session",
-  leaderboard: "Leaderboard",
-  compare: "Compare",
-  analytics: "Analytics",
-  engagement: "Engagement",
-  export: "Export",
-  guide: "User guide",
-};
 const SKELETONS = {
   "": OverviewSkeleton,
   live: LiveSkeleton,
@@ -65,6 +62,9 @@ const SKELETONS = {
   leaderboard: LeaderboardSkeleton,
   compare: CompareSkeleton,
   analytics: AnalyticsSkeleton,
+  lab: LabSkeleton,
+  export: ExportSkeleton,
+  engagement: EngagementSkeleton,
 };
 
 const read = (key, fallback) => {
@@ -97,7 +97,11 @@ function Dashboard() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { toasts, push, dismiss } = useToasts();
-  const liveCount = useLiveIds().length;
+  // Fights that are being played, not ones lingering for their result moment: the badge must agree with the Live Arena page.
+  const liveIds = useLiveIds();
+  const [, recount] = useReducer((n) => n + 1, 0);
+  useLiveMessages((type) => (type === "session_started" || type === "session_finished" || type === "session_deleted") && recount());
+  const liveCount = liveIds.filter((id) => liveStore.getSession(id)?.session.status === "live").length;
 
   const onSession = useCallback(
     (s) =>
@@ -109,7 +113,8 @@ function Dashboard() {
     [push]
   );
 
-  const t = useTelemetry({ onSession });
+  // The recent-events list (about 130 kB) only feeds the Overview's "Latest activity": every other page skips it.
+  const t = useTelemetry({ onSession, withEvents: section === "" });
 
   // Guided tour. It starts by itself only when the visitor is on the Overview, has not seen it, and nothing else is open;
   // it waits AUTO_START_DELAY_MS so the page has painted, and re-checks all of that when the wait is over. The header's
@@ -157,29 +162,41 @@ function Dashboard() {
   const openSession = useCallback((id) => navigate(`/dashboard/session/${encodeURIComponent(id)}`), [navigate]);
 
   useEffect(() => {
-    document.title = `${TITLES[section] || "Dashboard"} · STRIKEFIT`;
+    document.title = `${TITLES[section] || "Page not found"} · STRIKEFIT`;
     if (renamed) return;
     window.scrollTo({ top: 0 });
     setMenuOpen(false);
   }, [pathname, section, renamed]);
 
   useEffect(() => {
+    let armedAt = 0; // "G" pressed: the next letter jumps to a page
     const onKey = (e) => {
+      const plain = !e.metaKey && !e.ctrlKey && !e.altKey;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((o) => !o);
-      } else if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingTarget(e.target)) {
+      } else if (e.key === "?" && plain && !isTypingTarget(e.target)) {
         e.preventDefault();
         setShortcutsOpen((o) => !o);
+      } else if (plain && !e.shiftKey && !isTypingTarget(e.target) && !overlayOpen.current && !anotherModalOpen()) {
+        const k = e.key.toLowerCase();
+        if (armedAt && Date.now() - armedAt < GO_WINDOW_MS && goTarget(k)) {
+          e.preventDefault();
+          armedAt = 0;
+          navigate(goTarget(k));
+        } else {
+          armedAt = k === "g" ? Date.now() : 0;
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [navigate]);
 
   // Pages that load their own data don't need to wait for the telemetry snapshot.
   const needsTelemetry = ["", "sessions", "leaderboard", "players"].includes(section);
   const Fallback = SKELETONS[section] || GenericSkeleton;
+  const playerName = section === "player" ? decodeURIComponent(pathname.split("/")[3] || "") : ""; // the player page draws its heading from the URL at once
   const overview = <DashboardView sessions={filtered} allSessions={t.sessions} events={t.events} eventsReady={t.eventsReady} range={range} onRange={setRange} openSession={openSession} />;
 
   return (
@@ -195,12 +212,14 @@ function Dashboard() {
 
       <div className="min-w-0 lg:pl-[var(--sb)]">
         <Topbar onMenu={() => setMenuOpen(true)} onSearch={() => setPaletteOpen(true)} />
-        <main id="main" className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          {t.loading && needsTelemetry ? (
-            <Fallback />
-          ) : (
-            <div key={pageKey.current} className="page-in min-w-0">
-              <Suspense fallback={<Fallback />}>
+        {/* the Live Arena gets a wider column: it is meant to be read from across a room on a projector */}
+        <main id="main" className={`mx-auto min-h-[calc(100svh-4.5rem)] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 ${section === "live" ? "max-w-[1760px]" : "max-w-7xl"}`}>
+          <div key={pageKey.current} className="page-in min-w-0">
+            {section === "" && <OverviewHeader shown={filtered.length} total={t.sessions.length} loading={t.loading} range={range} onRange={setRange} />}
+            {t.loading && needsTelemetry ? (
+              <Fallback />
+            ) : (
+              <Suspense fallback={<Fallback name={playerName} />}>
                 <Routes>
                   <Route index element={overview} />
                   <Route path="live" element={<LiveView />} />
@@ -215,27 +234,50 @@ function Dashboard() {
                   <Route path="leaderboard" element={<LeaderboardView sessions={t.sessions} openSession={openSession} />} />
                   <Route path="compare" element={<CompareView />} />
                   <Route path="analytics" element={<AnalyticsView />} />
+                  <Route path="lab" element={<LabView />} />
                   <Route path="engagement" element={<EngagementView />} />
                   <Route path="export" element={<ExportView />} />
                   <Route path="guide" element={<GuideView />} />
+                  {/* the Connection page was linked from the top bar, the guide and the palette but had lost its route */}
+                  <Route
+                    path="connection"
+                    element={<SettingsView connection={t.connection} health={t.health} checkHealth={t.checkHealth} pingRoundTrip={t.pingRoundTrip} refresh={t.refresh} toast={push} />}
+                  />
                   <Route path="story" element={<Suspense fallback={<GenericSkeleton />}><StoryView /></Suspense>} />
-                  <Route path="*" element={overview} />
+                  <Route path="*" element={<DashboardNotFound />} />
                 </Routes>
               </Suspense>
-            </div>
-          )}
+            )}
+          </div>
 
-          <footer className="pt-10 text-center text-xs font-semibold text-[var(--muted)]">
-            STRIKEFIT · VR combat telemetry · <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">Ctrl</kbd> +{" "}
-            <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">K</kbd> to jump anywhere ·{" "}
-            <button type="button" onClick={() => setShortcutsOpen(true)} className="press rounded font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline">
-              <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">?</kbd> shortcuts
+          <footer className="mt-12 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-[var(--border)] pt-6 text-xs font-semibold text-[var(--muted)]">
+            <p>STRIKEFIT · VR fitness research prototype</p>
+            <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {[
+                ["/dashboard/guide", "User guide"],
+                ["/dashboard/connection", "Connection"],
+                ["/dashboard/export", "Export data"],
+                ["/", "Public site"],
+              ].map(([to, label]) => (
+                <Link key={to} to={to} className="press rounded hover:text-[var(--accent)] hover:underline">
+                  {label}
+                </Link>
+              ))}
+            </nav>
+            <button type="button" onClick={() => setDemo(!isDemo())} className="press rounded font-semibold text-[var(--muted)] hover:text-[var(--accent)] hover:underline" title="Runs the whole site on scripted data: no server or internet needed">
+              {isDemo() ? "Exit demo mode" : "Demo mode"}
             </button>
+            <p className="flex items-center gap-1.5">
+              <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">Ctrl</kbd>+<kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">K</kbd> jump ·
+              <button type="button" onClick={() => setShortcutsOpen(true)} className="press rounded font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline">
+                <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1 font-sans">?</kbd> shortcuts
+              </button>
+            </p>
           </footer>
         </main>
       </div>
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onShortcuts={() => setShortcutsOpen(true)} />
       <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       {touring && !t.loading && (
         <Suspense fallback={null}>

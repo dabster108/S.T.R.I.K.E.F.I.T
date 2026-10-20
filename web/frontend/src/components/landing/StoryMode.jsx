@@ -40,7 +40,7 @@ export default function StoryMode() {
   return (
     <section id="monsters" aria-labelledby="story-mode-title" className="mx-auto max-w-6xl px-4 pb-28 pt-4 sm:px-6 lg:pt-8">
       <Reveal className="max-w-2xl">
-        <Kicker index="05">Story Mode</Kicker>
+        <Kicker index="06">Story Mode</Kicker>
         <h2 id="story-mode-title" className="t-h2 mt-5 text-[var(--ink)]">
           Three chapters. Three guardians.
         </h2>

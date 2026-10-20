@@ -9,6 +9,7 @@ import LiveNumbers from "../components/landing/LiveNumbers.jsx";
 import Thesis from "../components/landing/Thesis.jsx";
 import HowTo60 from "../components/landing/HowTo60.jsx";
 import Faq from "../components/landing/Faq.jsx";
+import SectionDivider from "../components/landing/SectionDivider.jsx";
 import { FinalCta } from "../components/landing/FinalCta.jsx";
 
 // Everything below the first screen. Landing loads this chunk once the first screen has painted and the browser is idle (or at
@@ -24,10 +25,14 @@ export default function LandingRest() {
     <>
       <Problem />
       <HowItWorks />
+      {/* the story: the problem, how it works, playing it (the headset, then the fight), the levels, the story, what was recorded, the thesis */}
       <GameplayShowcase />
-      <Levels />
-      <StoryMode />
+      <SectionDivider />
       <Combat />
+      <SectionDivider />
+      <Levels />
+      <SectionDivider />
+      <StoryMode />
       <LiveNumbers />
       <Thesis />
       <HowTo60 />

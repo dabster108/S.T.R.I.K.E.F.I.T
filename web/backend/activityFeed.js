@@ -7,6 +7,7 @@
 
 const { query } = require("./db");
 const analytics = require("./analytics");
+const ranksStore = require("./ranksStore");
 
 const FEED_MAX = 20;
 const CACHE_MS = 30_000;
@@ -19,7 +20,7 @@ const iso = (v) => new Date(v).toISOString();
 
 async function build() {
   const since = new Date(Date.now() - BADGE_RECENT_DAYS * 864e5).toISOString();
-  const [cleared, records, goalsMet, challengesDone, active] = await Promise.all([
+  const [cleared, records, goalsMet, challengesDone, active, rankUps] = await Promise.all([
     query(`SELECT id, player_name, level, ended_at FROM sessions WHERE status = 'finished' AND outcome = 'victory' ORDER BY ended_at DESC LIMIT $1`, [FEED_MAX]),
     // A new personal record: a higher score than every earlier finished fight of the same player on the same level
     // (a first fight on a level has nothing to beat, so it is not a record).
@@ -37,12 +38,14 @@ async function build() {
       `SELECT player_name, max(ended_at) AS last FROM sessions WHERE status = 'finished' AND ended_at >= $1 GROUP BY player_name ORDER BY last DESC LIMIT $2`,
       [new Date(Date.now() - BADGE_ACTIVE_DAYS * 864e5).toISOString(), BADGE_PLAYERS_MAX]
     ),
+    ranksStore.recentRankUps().catch(() => []), // "<Name> reached <Rank>": derived from the sessions, so it can never appear twice
   ]);
   const rows = [
     ...cleared.rows.map((r) => ({ id: `clear:${r.id}`, type: "level_cleared", playerName: r.player_name, label: levelLabel(r.level), at: iso(r.ended_at), sessionId: r.id })),
     ...records.rows.map((r) => ({ id: `pb:${r.id}`, type: "personal_record", playerName: r.player_name, label: levelLabel(r.level), at: iso(r.ended_at), sessionId: r.id })),
     ...goalsMet.rows.map((r) => ({ id: `goal:${r.player_name}:${r.day}`, type: "goal_met", playerName: r.player_name, label: "Daily goal", at: iso(r.completed_at) })),
     ...challengesDone.rows.map((r) => ({ id: `ch:${r.player_name}:${r.challenge_key}`, type: "challenge_done", playerName: r.player_name, label: r.title, at: iso(r.completed_at) })),
+    ...rankUps,
   ];
   const badgeLists = await Promise.all(active.rows.map((p) => analytics.playerAchievements(p.player_name, {}).catch(() => null)));
   for (const a of badgeLists) {

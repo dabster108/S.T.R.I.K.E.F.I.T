@@ -36,6 +36,10 @@ function sessionFacts(row, zone) {
     startedAt: row.startedAt,
     endedAt: row.endedAt,
     durationSec: Number(row.durationSec) || 0,
+    // Added for ranks, records, milestones and Wrapped: the counted swings (the same "counted" the player page shows), XP and damage.
+    swings: Number(row.hitCount) || 0,
+    xp: Number(row.xp) || 0,
+    damageDealt: Number(row.damageDealt) || 0,
     day: fitness.dayIn(new Date(row.startedAt), zone),
     kcal: effort.estimatedCalories,
     walkingMinutes: effort.estimatedWalkingMinutes,

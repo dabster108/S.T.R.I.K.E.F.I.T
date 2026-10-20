@@ -100,6 +100,10 @@ InitTestScene*.unity*
 # Optional local env / secrets
 .env
 .env.*
+!.env.example
+!.env.development.example
+# Local development database (PGlite data, npm run dev:db)
+web/backend/.dev-db/
 
 # Backend data now lives in Neon Postgres; the old JSON store and its backup stay local
 web/backend/db.json

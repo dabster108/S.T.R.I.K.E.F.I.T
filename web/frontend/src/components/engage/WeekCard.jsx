@@ -12,6 +12,7 @@ import Button from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
 import { WorkoutEquivalent } from "../fitness/Fitness.jsx";
 import { CARD_H, CARD_W, renderPng } from "../recap/RecapCard.jsx";
+import { toast } from "../../lib/toast.js";
 
 // "Your week": Monday to Sunday in the API's local zone, this week so far or last week. Only recorded numbers; "vs
 // previous week" only when that week had a session. The PNG export reuses the session recap card's renderer and size.
@@ -98,8 +99,12 @@ export function WeekCard({ name }) {
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
         setNote("Saved the PNG.");
+        toast.good("Image saved", file.name);
       } catch {
-        if (!off) setNote("Couldn't create the image. Try again.");
+        if (!off) {
+          setNote("Couldn't create the image. Try again.");
+          toast.bad("Couldn't create the image", "Try again in a moment.");
+        }
       } finally {
         if (!off) setExporting(false);
       }

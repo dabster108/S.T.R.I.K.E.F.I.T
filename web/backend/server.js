@@ -19,6 +19,9 @@ const goalsStore = require("./goalsStore");
 const engage = require("./engage");
 const engageStore = require("./engageStore");
 const activityFeed = require("./activityFeed");
+const outcomes = require("./outcomes");
+const featureRoutes = require("./featureRoutes");
+const sessionEnd = require("./sessionEnd");
 
 const PORT = Number(process.env.PORT) || 4000;
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
@@ -169,25 +172,31 @@ async function insertEvents(client, events) {
   );
 }
 
+// Per-group summary. winRate follows the one shared rule (outcomes.js): victories / (victories + defeats), abandoned fights
+// left out and reported as `abandoned`. This legacy shape has always carried a number, so "nothing decided" stays 0 here
+// (check `decided`); avgScore is the mean over decided fights, so abandoned zero-score fights don't drag it down.
 function summarize(sessions) {
   const n = sessions.length;
-  const victories = sessions.filter((s) => s.outcome === "victory").length;
-  const sum = (key) => sessions.reduce((a, s) => a + num(s[key]), 0);
+  const o = outcomes.countOutcomes(sessions.map((s) => s.outcome));
+  const decided = sessions.filter((s) => outcomes.isDecided(s.outcome));
+  const sum = (key, list = sessions) => list.reduce((a, s) => a + num(s[key]), 0);
   return {
     sessions: n,
-    victories,
-    defeats: sessions.filter((s) => s.outcome === "defeat").length,
-    winRate: n ? round1((victories / n) * 100) : 0,
+    victories: o.victories,
+    defeats: o.defeats,
+    abandoned: o.abandoned,
+    decided: o.decided,
+    winRate: o.winRate ?? 0,
     bestScore: sessions.reduce((m, s) => Math.max(m, num(s.score)), 0),
-    avgScore: n ? Math.round(sum("score") / n) : 0,
+    avgScore: decided.length ? Math.round(sum("score", decided) / decided.length) : 0,
     avgDurationSec: n ? round1(sum("durationSec") / n) : 0,
   };
 }
 
 function computeStats(sessions) {
   const totalSessions = sessions.length;
-  const victories = sessions.filter((s) => s.outcome === "victory").length;
-  const defeats = sessions.filter((s) => s.outcome === "defeat").length;
+  const overall = summarize(sessions);
+  const { victories, defeats } = overall;
   const sum = (key) => sessions.reduce((a, s) => a + num(s[key]), 0);
 
   // Streaks, oldest -> newest.
@@ -229,9 +238,11 @@ function computeStats(sessions) {
     totalTaps: sum("tapCount"),
     totalDurationSec: round1(sum("durationSec")),
     bestScore: sessions.reduce((m, s) => Math.max(m, num(s.score)), 0),
-    avgScore: totalSessions ? Math.round(sum("score") / totalSessions) : 0,
+    avgScore: overall.avgScore,
     avgDurationSec: totalSessions ? round1(sum("durationSec") / totalSessions) : 0,
-    winRate: totalSessions ? round1((victories / totalSessions) * 100) : 0,
+    winRate: overall.winRate,
+    abandoned: overall.abandoned,
+    decided: overall.decided,
     currentWinStreak,
     bestWinStreak,
     playerCount: new Set(sessions.map((s) => s.playerName)).size,
@@ -291,10 +302,11 @@ async function reloadLiveActivity() {
   for (const r of rows) liveActivity.set(r.id, r.last_event_at ? new Date(r.last_event_at).getTime() : Date.now());
 }
 
-function broadcastSession(kind, session, liveState) {
+// extra: fields added to a finished fight's message (sessionEnd.js: rankUp, newRecords). The original { session, liveState } stay as they were.
+function broadcastSession(kind, session, liveState, extra = null) {
   const type = { started: "session_started", updated: "session_updated", finished: "session_finished" }[kind];
   if (!type) return;
-  stream.broadcast(type, { session, liveState }, session.playerName);
+  stream.broadcast(type, extra ? { session, liveState, ...extra } : { session, liveState }, session.playerName);
 }
 
 // Folds a batch of events into the session's latest state, oldest first.
@@ -408,7 +420,7 @@ async function sweepStaleSessions() {
   for (const row of rows) {
     const { session, liveState } = sessionFromRow(row);
     console.log(`[live] ${session.playerName} ${session.id} finished after ${LIVE_TIMEOUT_MS / 1000}s without events (${session.outcome})`);
-    broadcastSession("finished", session, liveState);
+    broadcastSession("finished", session, liveState, await sessionEnd.extras(session));
     io.emit("session", session);
     await evaluateGoalAfter(session);
     await evaluateEngagementAfter(session);
@@ -519,8 +531,9 @@ app.get("/api/sessions/:id", route(async (req, res) => {
   const events = rows.map(fromRow);
   // Added: swing-tier breakdown, exertion trend and calorie estimate (see fitness.js), the
   // post-session rating (null when unrated) and the personal bests this session holds.
-  const [rating, personalBestsSet] = await Promise.all([feedback.getFeedback(session.id), analytics.sessionPersonalBests(session)]);
-  res.json({ session, events, liveState, fitness: analytics.sessionFitness(session, events), feedback: rating, personalBestsSet });
+  const [rating, personalBestsSet, newRecords] = await Promise.all([feedback.getFeedback(session.id), analytics.sessionPersonalBests(session), featureRoutes.newRecordsFor(session)]);
+  // newRecords (added): what this fight beat on its level, [{ metric, value, previous }]; empty for a first fight, an abandoned one or a live one.
+  res.json({ session, events, liveState, fitness: analytics.sessionFitness(session, events), feedback: rating, personalBestsSet, newRecords });
 }));
 
 app.get("/api/stats", route(async (_req, res) => {
@@ -698,6 +711,25 @@ app.post("/api/live/react", route(async (req, res) => {
   res.status(202).json({ ok: true, ...payload });
 }));
 
+// Effort fade: first third vs last third of a fight, from the stored hit events (effort.js). Read-only.
+app.get("/api/sessions/:id/fade", route(async (req, res) => {
+  const out = await analytics.sessionFade(String(req.params.id));
+  if (!out) return res.status(404).json({ ok: false, error: "Session not found" });
+  res.json(out);
+}));
+app.get("/api/players/:name/fade", route(async (req, res) => {
+  const out = await analytics.playerFade(String(req.params.name), req.query.last);
+  if (!out) return res.status(404).json({ ok: false, error: "Player not found" });
+  res.json(out);
+}));
+
+// Effort fingerprint: five 0-100 axes from the player's recent fights (effort.js). Read-only.
+app.get("/api/players/:name/fingerprint", route(async (req, res) => {
+  const out = await analytics.playerFingerprint(String(req.params.name));
+  if (!out) return res.status(404).json({ ok: false, error: "Player not found" });
+  res.json(out);
+}));
+
 // Plain-language insights (insights.js): only sentences with enough data behind them; the rest listed with their minimum.
 app.get("/api/players/:name/insights", route(async (req, res) => {
   const result = await analytics.playerInsights(String(req.params.name));
@@ -761,6 +793,8 @@ app.patch("/api/players/:name", route(async (req, res) => {
   console.log(`[player] renamed "${oldName}" -> "${newName}" (${result.sessions} session rows, ${result.events} event rows)`);
   const change = { oldName, newName, sessions: result.sessions, events: result.events };
   // Sent to every client (no player scope), including ones watching the old name.
+  featureRoutes.invalidateAll();
+  activityFeed.invalidate();
   stream.broadcast("player_renamed", change);
   io.emit("player_renamed", change);
   io.emit("stats", computeStats(await allSessions()));
@@ -904,7 +938,10 @@ app.post("/api/sessions", route(async (req, res) => {
 
   const wasLive = before && before.status === "live";
   if (session.status === "live") broadcastSession(wasLive ? "updated" : "started", session, liveState);
-  else broadcastSession(wasLive || !before ? "finished" : "updated", session, liveState);
+  else {
+    const kind = wasLive || !before ? "finished" : "updated";
+    broadcastSession(kind, session, liveState, kind === "finished" ? await sessionEnd.extras(session) : null);
+  }
   if (event) stream.broadcast("event_created", event, event.playerName);
   if (session.status === "finished") await evaluateGoalAfter(session);
   if (session.status === "finished") await evaluateEngagementAfter(session);
@@ -931,7 +968,7 @@ app.post("/api/events", route(async (req, res) => {
   for (const e of events) stream.broadcast("event_created", e, e.playerName);
   for (const c of changes) {
     trackLive(c.session);
-    broadcastSession(c.kind, c.session, c.liveState);
+    broadcastSession(c.kind, c.session, c.liveState, c.kind === "finished" ? await sessionEnd.extras(c.session) : null);
     if (c.kind === "finished") io.emit("session", c.session);
   }
   for (const c of changes) if (c.kind === "finished") await evaluateGoalAfter(c.session);
@@ -969,6 +1006,8 @@ app.delete("/api/sessions/:id", route(async (req, res) => {
   });
   if (!deleted) return res.status(404).json({ ok: false, error: "Session not found" });
   liveActivity.delete(req.params.id);
+  featureRoutes.invalidatePlayer(deleted.playerName);
+  activityFeed.invalidate();
   io.emit("session_deleted", { id: req.params.id });
   io.emit("stats", computeStats(await allSessions()));
   stream.broadcast("session_deleted", { id: req.params.id, playerName: deleted.playerName }, deleted.playerName);
@@ -981,6 +1020,8 @@ app.delete("/api/sessions", route(async (_req, res) => {
     await client.query("DELETE FROM sessions");
   });
   liveActivity.clear();
+  featureRoutes.invalidateAll();
+  activityFeed.invalidate();
   io.emit("stats", computeStats([]));
   io.emit("cleared", { at: new Date().toISOString() });
   stream.broadcast("session_deleted", { all: true });
@@ -989,6 +1030,17 @@ app.delete("/api/sessions", route(async (_req, res) => {
 
 // Public scoreboard shared by the headset menu and the web Leaderboard page (added; rule in leaderboard.js).
 require("./leaderboardRoute").mount(app, { query, route });
+featureRoutes.mount(app, { route }); // rank (and the other read-only engagement endpoints): featureRoutes.js
+require("./commentaryAi").mount(app, { route }); // AI match commentary (Groq) and its voice (Google TTS): commentaryAi.js
+
+// Ghost pace for the Live Arena: a player's personal-best fight on a level as cumulative damage over time (pace.js, cached 60 s).
+require("./pace").mount(app, { query });
+
+// Playtest study (/study): consent, participant codes, pre/post forms, research CSV (study.js).
+require("./study").mount(app, { route });
+
+// Thesis Lab: return rate, RPE vs swing speed, level table, research CSV (lab.js). Read-only.
+require("./lab").mount(app, { route });
 
 app.use("/api", (_req, res) => {
   res.status(404).json({ ok: false, error: "Unknown API route" });

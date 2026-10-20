@@ -5,6 +5,8 @@ import Icon from "../ui/Icon.jsx";
 // focus goes to the Close button and returns to where it was. It never opens while you are typing in a field.
 const KEYS = [
   [["Ctrl", "K"], "Jump to any page or player (Cmd + K on a Mac)"],
+  [["G", "letter"], "Go to a page: O Overview, L Live Arena, P Players, S Sessions, A Analytics, T Thesis Lab, E Export"],
+  [["F"], "On the Live Arena: full screen for projecting (Esc leaves it)"],
   [["?"], "Show this list"],
   [["Esc"], "Close a menu, a dialog, the tour or this list"],
   [["←", "→"], "Move between the options of a range or filter picker"],

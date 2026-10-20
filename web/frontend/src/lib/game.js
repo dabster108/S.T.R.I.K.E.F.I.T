@@ -52,6 +52,43 @@ export const LEVELS = {
 };
 
 export const LEVEL_KEYS = ["Easy", "Medium", "Hard"];
+
+// How many levels can be played / are still planned, counted from each level's `status` above. Never typed into copy:
+// the landing page said "2 levels playable, 1 planned" for weeks after Level 3 shipped.
+export function levelCounts(levels = LEVELS) {
+  const list = Object.values(levels);
+  return { playable: list.filter((l) => l.status === "playable").length, planned: list.filter((l) => l.status === "planned").length, total: list.length };
+}
+
+// "3 levels playable" / "2 levels playable, 1 planned".
+export function levelCountsText(levels = LEVELS) {
+  const { playable, planned } = levelCounts(levels);
+  return `${playable} level${playable === 1 ? "" : "s"} playable${planned ? `, ${planned} planned` : ""}.`;
+}
+
+// The speed bands of the swing gauge, per level: below `min` the swing is ignored ("No hit"), then tap, light, medium, full power.
+// Boundaries are XPManager.weakSwingSpeed / mediumSwingSpeed / fullSwingSpeed in each scene (Level1_Easy 1.5 / 3 / 5, Level2_Medium and
+// Level3_Hard 1.4 / 2.8 / 4.6); `min` is the level's minimum counted swing (1.2 for Levels 1 and 2; Level 3 reports 1.6 in its weak_swing events).
+const BAND_SOURCE = {
+  Easy: { min: 1.2, light: 1.5, medium: 3.0, full: 5.0 },
+  Medium: { min: 1.2, light: 1.4, medium: 2.8, full: 4.6 },
+  Hard: { min: 1.6, light: 1.4, medium: 2.8, full: 4.6 },
+};
+export function swingBands(levelKey, max = 8) {
+  const b = BAND_SOURCE[levelKey] || BAND_SOURCE.Easy;
+  return [
+    { id: "none", label: "No hit", from: 0, to: b.min },
+    { id: "tap", label: "Tap", from: b.min, to: Math.max(b.min, b.light) },
+    { id: "light", label: "Light", from: Math.max(b.min, b.light), to: b.medium },
+    { id: "medium", label: "Medium", from: b.medium, to: b.full },
+    { id: "full", label: "Full power", from: b.full, to: max },
+  ].filter((x) => x.to > x.from);
+}
+
+// The swing speed the game stops scaling damage at (m/s). Stored swing speeds are the raw controller speed and can be higher;
+// anything that reports a speed clamps to this (mirror of SWING_SPEED_CAP in backend/levels.js, checked by game.test.js).
+export const SWING_SPEED_CAP = 8;
+export const clampSpeed = (v) => (Number.isFinite(v) ? Math.min(v, SWING_SPEED_CAP) : v);
 export const levelName = (key) => LEVELS[key]?.name || key || "Unknown";
 export const levelShort = (key) => (LEVELS[key] ? `L${LEVELS[key].number}` : key || "?");
 

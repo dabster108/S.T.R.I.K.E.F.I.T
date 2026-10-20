@@ -13,7 +13,13 @@
     "player": "/api/players/:name",
     "overview": "/api/overview",
     "publicStats": "/api/public-stats",
-    "analytics": "/api/analytics"
+    "analytics": "/api/analytics",
+    "sessionFade": "/api/sessions/:id/fade",
+    "playerFade": "/api/players/:name/fade",
+    "playerFingerprint": "/api/players/:name/fingerprint",
+    "playerBestPace": "/api/players/:name/best-pace?level=N",
+    "lab": "/api/lab",
+    "labCsv": "/api/lab/sessions.csv"
   },
   "unity": "SessionReporter.baseUrl defaults to the production URL (https is required on Quest). Use http://localhost:4000 in the Editor only."
 }

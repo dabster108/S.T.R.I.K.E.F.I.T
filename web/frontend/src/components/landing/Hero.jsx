@@ -3,7 +3,9 @@ import { LEVELS } from "../../lib/game.js";
 import { useMagnetic, useParallax } from "../../hooks/motion.js";
 import { buttonClass } from "../ui/Button.jsx";
 import Icon from "../ui/Icon.jsx";
+import { usePauseOffscreen } from "../../motion/usePauseOffscreen.js";
 import DashboardDemo from "./DashboardDemo.jsx";
+import SwingTicker from "./SwingTicker.jsx";
 
 const LINES = [
   ["Swing", "harder."],
@@ -79,22 +81,18 @@ const SPECS = [
 
 function SpecStrip() {
   return (
-    <div className="fade-up relative border-t border-[var(--border)] bg-white/60 backdrop-blur-sm" style={{ "--d": "620ms" }}>
-      <dl className="mx-auto grid max-w-6xl grid-cols-2 px-4 sm:px-6 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+    <div className="fade-up relative border-t border-[var(--border)] bg-[var(--surface)]/80" style={{ "--d": "620ms" }}>
+      <p className="mx-auto max-w-6xl px-4 pt-4 text-xs font-semibold text-[var(--muted)] sm:px-6">The game's own numbers, measured at the moment of impact</p>
+      <dl className="mx-auto grid max-w-6xl grid-cols-2 px-4 sm:px-6 lg:grid-cols-4">
         {SPECS.map((s, i) => (
           <div key={s.label} className={`border-[var(--border)] py-5 pr-4 ${i ? "lg:pl-6" : ""} ${i % 2 ? "border-l pl-4" : ""} ${i === 2 ? "lg:border-l" : ""} ${i > 1 ? "border-t lg:border-t-0" : ""}`}>
             <dt className="t-kicker">{s.label}</dt>
             <dd className="readout mt-2 flex items-baseline gap-1 text-[var(--ink)]">
-              <span className="text-2xl font-extrabold tracking-tight">{s.value}</span>
+              <span className="text-2xl font-extrabold tracking-tight tabular-nums">{s.value}</span>
               {s.unit && <span className="text-sm font-bold text-[var(--muted)]">{s.unit}</span>}
             </dd>
           </div>
         ))}
-        <p className="hidden items-center border-l border-[var(--border)] pl-6 text-xs font-semibold leading-relaxed text-[var(--muted)] lg:flex">
-          Measured at the
-          <br />
-          moment of impact
-        </p>
       </dl>
     </div>
   );
@@ -103,18 +101,19 @@ function SpecStrip() {
 export default function Hero({ status }) {
   const bg = useParallax(0.25);
   const art = useParallax(-0.06);
+  const pause = usePauseOffscreen(); // the drifting gradient and the dashboard preview stop while the hero is scrolled away
   let w = 0;
   return (
-    <section id="top" aria-labelledby="hero-title" className="relative -mt-[var(--nav-h)] overflow-hidden bg-[var(--surface)] pt-[var(--nav-h)]">
+    <section ref={pause} id="top" aria-labelledby="hero-title" className="relative -mt-[var(--nav-h)] overflow-hidden bg-[var(--surface)] pt-[var(--nav-h)]">
       <div ref={bg} className="pointer-events-none absolute inset-0" aria-hidden>
         <div className="blob left-[55%] top-[-12%] h-[34rem] w-[34rem] bg-[var(--accent-ring)] opacity-70" />
         <div className="blob blob-b left-[-10%] top-[30%] h-[26rem] w-[26rem] bg-[var(--blue-100)] opacity-90" />
         <div className="blob blob-c left-[70%] top-[45%] h-[22rem] w-[22rem] bg-[var(--blue-300)] opacity-35" />
         <div
-          className="absolute inset-0 opacity-60"
+          className="absolute inset-0 opacity-80"
           style={{
-            backgroundImage: "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
-            backgroundSize: "56px 56px",
+            backgroundImage: "radial-gradient(circle at 1px 1px, var(--border-strong) 1.1px, transparent 1.6px)",
+            backgroundSize: "26px 26px",
             maskImage: "radial-gradient(ellipse 70% 60% at 50% 35%, #000 20%, transparent 75%)",
             WebkitMaskImage: "radial-gradient(ellipse 70% 60% at 50% 35%, #000 20%, transparent 75%)",
           }}
@@ -162,6 +161,9 @@ export default function Hero({ status }) {
           </div>
           <div className="mt-6 min-h-[2rem]" aria-live="polite">
             <LivePill status={status} />
+          </div>
+          <div className="fade-up mt-6" style={{ "--d": "560ms" }}>
+            <SwingTicker />
           </div>
         </div>
 

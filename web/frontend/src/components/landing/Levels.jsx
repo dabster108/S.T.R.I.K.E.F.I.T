@@ -1,7 +1,9 @@
-import { LEVELS } from "../../lib/game.js";
+import { LEVELS, swingBands } from "../../lib/game.js";
 import { useTilt } from "../../hooks/motion.js";
 import { LevelBadge } from "../ui/Badge.jsx";
 import Icon from "../ui/Icon.jsx";
+import MonsterPortrait from "../ui/MonsterPortrait.jsx";
+import { usePauseOffscreen } from "../../motion/index.js";
 import { Kicker, Reveal } from "./shared.jsx";
 
 // Behaviour text: Assets/Documentation/context.md (2026-10-02 / 2026-10-09 entries), as of 2026-10-11.
@@ -13,22 +15,20 @@ const BEHAVIOUR = {
 };
 
 const MAX_V = 8;
+const BAND_COLOR = { none: "var(--border)", tap: "var(--tier-tap)", light: "var(--tier-light)", medium: "var(--tier-medium)", full: "var(--tier-full)" };
 
-// Tier bands on a 0–8 m/s ruler, with the thresholds printed under their ticks.
-function TierRuler({ swing }) {
-  const segs = [
-    [0, swing.min, "var(--border)"],
-    [swing.min, swing.tiers.light, "var(--tier-tap)"],
-    [swing.tiers.light, swing.tiers.medium, "var(--tier-light)"],
-    [swing.tiers.medium, swing.tiers.full, "var(--tier-medium)"],
-    [swing.tiers.full, MAX_V, "var(--tier-full)"],
-  ];
-  const ticks = [swing.min, swing.tiers.medium, swing.tiers.full];
+// Tier bands on a 0–8 m/s ruler (the same bands as the Live Arena gauge), thresholds printed under their ticks. The bar draws
+// left to right once the card is revealed.
+function TierRuler({ levelKey }) {
+  const bands = swingBands(levelKey, MAX_V);
+  const first = bands.find((b) => b.id !== "none");
+  const full = bands.find((b) => b.id === "full");
+  const ticks = bands.filter((b) => b.id === "tap" || b.id === "medium" || b.id === "full").map((b) => b.from);
   return (
-    <div className="mt-6" role="img" aria-label={`Swings count from ${swing.min} m/s; full power from ${swing.tiers.full} m/s`}>
-      <div className="flex h-2.5 gap-[2px] overflow-hidden rounded-full">
-        {segs.map(([a, b, c]) => (
-          <span key={a} style={{ width: `${((b - a) / MAX_V) * 100}%`, background: c }} />
+    <div className="mt-6" role="img" aria-label={`Swings count from ${first.from} m/s; full power from ${full.from} m/s`}>
+      <div className="draw-x flex h-2.5 gap-[2px] overflow-hidden rounded-full" style={{ "--w": 1, "--bar-delay": "200ms" }}>
+        {bands.map((b) => (
+          <span key={b.id} style={{ width: `${((b.to - b.from) / MAX_V) * 100}%`, background: BAND_COLOR[b.id] }} />
         ))}
       </div>
       <div className="readout relative mt-1.5 h-4 text-[0.6875rem] font-bold text-[var(--muted)]" aria-hidden>
@@ -44,7 +44,7 @@ function TierRuler({ swing }) {
 }
 
 function PlayableCard({ l, wide }) {
-  const tilt = useTilt(wide ? 4 : 6);
+  const tilt = useTilt(8);
   const facts = l.swing
     ? [
         ["Weapons", l.weapons],
@@ -71,10 +71,11 @@ function PlayableCard({ l, wide }) {
             <h3 className="mt-3 flex items-center gap-2 text-2xl font-extrabold tracking-tight text-[var(--ink)]">
               {l.name} <LevelBadge level={l.key} />
             </h3>
+            <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--good-soft)] px-2.5 py-1 text-xs font-bold text-[var(--good-ink)] ring-1 ring-inset ring-emerald-200">
+              <Icon name="check" className="h-3.5 w-3.5" strokeWidth={2.4} /> Playable
+            </span>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--good-soft)] px-2.5 py-1 text-xs font-bold text-[var(--good-ink)] ring-1 ring-inset ring-emerald-200">
-            <Icon name="check" className="h-3.5 w-3.5" strokeWidth={2.4} /> Playable
-          </span>
+          <MonsterPortrait level={l.key} size="sm" glow={false} className={`!w-28 shrink-0 [mask-image:radial-gradient(ellipse_at_center,#000_58%,transparent_92%)] ${wide ? "sm:!w-44" : "sm:!w-36"}`} />
         </div>
 
         <dl className={`mt-6 grid gap-x-6 border-t border-[var(--border)] text-sm ${wide ? "sm:grid-cols-2" : ""}`}>
@@ -86,7 +87,7 @@ function PlayableCard({ l, wide }) {
           ))}
         </dl>
         <p className="measure mt-5 text-sm font-medium leading-relaxed text-[var(--ink-secondary)]">{BEHAVIOUR[l.key]}</p>
-        {l.swing ? <TierRuler swing={l.swing} /> : <p className="mt-6 text-xs font-semibold text-[var(--muted)]">Swing thresholds vary by the weapon you pick up; the count still works the same way.</p>}
+        <TierRuler levelKey={l.key} />
       </div>
     </article>
   );
@@ -94,11 +95,12 @@ function PlayableCard({ l, wide }) {
 
 export default function Levels() {
   const { Easy, Medium, Hard } = LEVELS;
+  const pause = usePauseOffscreen();
   return (
-    <section id="levels" aria-labelledby="levels-title" className="mx-auto max-w-6xl px-4 pb-28 pt-24 sm:px-6 lg:pb-36 lg:pt-32">
+    <section ref={pause} id="levels" aria-labelledby="levels-title" className="mx-auto max-w-6xl px-4 pb-28 pt-24 sm:px-6 lg:pb-36 lg:pt-32">
       {/* heading sits on the right; the cards below start from the left */}
       <Reveal className="lg:ml-[41.666%]">
-        <Kicker index="04">Levels</Kicker>
+        <Kicker index="05">Levels</Kicker>
         <h2 id="levels-title" className="t-h2 mt-5 max-w-xl text-[var(--ink)]">
           Three arenas, each a step up
         </h2>

@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { RANGES, levelRank, sessionTime, summarize, toCsv } from "../lib/derive.js";
 import { formatNumber } from "../lib/format.js";
@@ -8,6 +9,8 @@ import { EmptyState } from "../components/ui/Feedback.jsx";
 import Button from "../components/ui/Button.jsx";
 import { FigureStrip } from "../components/ui/StatTile.jsx";
 import { SessionList, SessionTimeline } from "../components/sessions/SessionCards.jsx";
+import { toast } from "../lib/toast.js";
+import { useRecordFlags } from "../hooks/useRecordFlags.js";
 
 const PAGE_SIZE = 20;
 const OUTCOMES = [
@@ -33,12 +36,18 @@ function download(name, text) {
   a.download = name;
   a.click();
   URL.revokeObjectURL(url);
+  toast.good("CSV downloaded", name);
 }
 
 export default function SessionsView({ sessions, range, onRange, openSession }) {
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState("all");
-  const [level, setLevel] = useState("all");
+  const [params] = useSearchParams();
+  const [level, setLevel] = useState(() => params.get("level") || "all"); // the palette's "jump to level" arrives as ?level=Easy
+  const levelParam = params.get("level");
+  useEffect(() => {
+    if (levelParam) setLevel(levelParam); // also when the page is already open
+  }, [levelParam]);
   const [sortId, setSortId] = useState("newest");
   const [page, setPage] = useState(0);
   const sort = SORTS.find((s) => s.id === sortId);
@@ -64,6 +73,7 @@ export default function SessionsView({ sessions, range, onRange, openSession }) 
 
   const pageCount = Math.ceil(rows.length / PAGE_SIZE);
   const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const pbBySession = useRecordFlags(pageRows); // which of these fights set a personal best (the PB chip)
   const summary = useMemo(() => summarize(rows), [rows]);
   const chronological = sort.key === "endedAt";
 
@@ -108,7 +118,7 @@ export default function SessionsView({ sessions, range, onRange, openSession }) 
         {pageRows.length ? (
           <>
             <div key={`${sortId}-${page}`} className="p-4 sm:p-5">
-              {chronological ? <SessionTimeline rows={pageRows} onSelect={(s) => openSession(s.id)} /> : <SessionList rows={pageRows} onSelect={(s) => openSession(s.id)} />}
+              {chronological ? <SessionTimeline rows={pageRows} pbBySession={pbBySession} onSelect={(s) => openSession(s.id)} /> : <SessionList rows={pageRows} pbBySession={pbBySession} onSelect={(s) => openSession(s.id)} />}
             </div>
             <Pagination page={page} pageCount={pageCount} onPage={setPage} total={rows.length} pageSize={PAGE_SIZE} />
           </>

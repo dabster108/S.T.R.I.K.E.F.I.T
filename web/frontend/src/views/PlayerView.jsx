@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { levelName } from "../lib/game.js";
+import { wrappedPath } from "../lib/wrapped.js";
 import { formatDuration, formatNumber, formatPercent, formatRelative, formatShortDate } from "../lib/format.js";
 import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useFeed, useLiveForPlayer, useLiveMessages } from "../live/LiveProvider.jsx";
@@ -16,6 +17,7 @@ import { buttonClass } from "../components/ui/Button.jsx";
 import Icon from "../components/ui/Icon.jsx";
 import { FigureStrip } from "../components/ui/StatTile.jsx";
 import PlayerName from "../components/players/PlayerName.jsx";
+import { Avatar } from "../components/players/PlayerTitle.jsx";
 import { SessionList } from "../components/sessions/SessionCards.jsx";
 import EventList, { collapseRepeats } from "../components/sessions/EventList.jsx";
 import { LiveArenaCard, LiveChip } from "../components/live/LiveFight.jsx";
@@ -30,6 +32,13 @@ import { ChallengesCard, useChallenges } from "../components/engage/Challenges.j
 import { JourneyStrip, NextStepCard } from "../components/engage/Mastery.jsx";
 import { WeekCard } from "../components/engage/WeekCard.jsx";
 import { PlayerCalendar } from "../components/engage/Calendar.jsx";
+import RankSummary from "../components/rank/RankSummary.jsx";
+import MilestoneTimeline from "../components/milestones/MilestoneTimeline.jsx";
+
+const ProfileSummary = lazy(() => import("../components/players/ProfileSummary.jsx"));
+const Fingerprint = lazy(() => import("../components/effort/Fingerprint.jsx"));
+const FadeAverage = lazy(() => import("../components/effort/FadeAverage.jsx"));
+const FadeSkeleton = lazy(() => import("../components/effort/FadePanel.jsx").then((m) => ({ default: m.FadeSkeleton })));
 
 const LEVELS = [
   { id: "all", label: "All levels" },
@@ -44,14 +53,6 @@ const OUTCOMES = [
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const speed = (v) => (isNum(v) ? `${v.toFixed(1)} m/s` : "—");
 const share = (r) => (isNum(r) ? formatPercent(r * 100) : "—");
-
-function Avatar({ name }) {
-  return (
-    <span className="pop-in flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--blue-800)] text-xl font-extrabold text-white shadow-[var(--shadow-glow)] sm:h-16 sm:w-16">
-      {name.slice(0, 2).toUpperCase()}
-    </span>
-  );
-}
 
 // Win streaks from finished fights, oldest to newest.
 function streaks(sessions) {
@@ -190,6 +191,13 @@ export default function PlayerView() {
   });
   const [level, setLevel] = useState("all");
   const [outcome, setOutcome] = useState("all");
+  // which of this player's fights set a record on their level (the PB chip in the history below); refreshed when a fight ends
+  const records = useApi(() => api.playerRecords(name), [name]);
+  const refreshRecords = useThrottledCallback(records.reload, 4000);
+  useLiveMessages((type, payload) => {
+    if (payload?.session?.playerName === name && (type === "session_finished" || type === "session_deleted")) refreshRecords();
+  });
+  const pbBySession = records.data && records.data.playerName === name ? records.data.bySession : undefined;
 
   const history = useMemo(
     () => (p?.sessions || []).filter((s) => s.status !== "live" && (level === "all" || s.level === level) && (outcome === "all" || s.outcome === outcome)),
@@ -217,8 +225,8 @@ export default function PlayerView() {
       </div>
     );
   }
-  if (!p && !error) return <PlayerSkeleton />;
-
+  // No early return while the profile loads: the header (and its one <h1>) is drawn at once and stays, and only the body below it waits.
+  // That keeps a single heading element from the first paint, which is also what the browser's largest-paint measure follows.
   const t = p?.totals;
   const series = (p?.series || []).map((s, i) => ({ ...s, n: i + 1 })).filter((s) => s.status !== "live");
   const played = [...new Set(series.map((s) => s.level))].filter((l) => LEVEL_COLORS[l]);
@@ -268,10 +276,17 @@ export default function PlayerView() {
             )}
           </div>
         </div>
-        <Link to={`/dashboard/compare?a=${encodeURIComponent(name)}`} className={buttonClass("secondary", "sm")}>
-          <Icon name="compare" className="h-3.5 w-3.5" />
-          Compare with…
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <RankSummary name={name} />
+          <Link to={wrappedPath(name)} className={buttonClass("secondary", "sm")}>
+            <Icon name="sparkles" className="h-3.5 w-3.5" />
+            Wrapped
+          </Link>
+          <Link to={`/dashboard/compare?a=${encodeURIComponent(name)}`} className={buttonClass("secondary", "sm")}>
+            <Icon name="compare" className="h-3.5 w-3.5" />
+            Compare with…
+          </Link>
+        </div>
       </header>
 
       {p && (rankIndex >= 0 || streak.best >= 2 || latestIsBest || best) && (
@@ -300,7 +315,17 @@ export default function PlayerView() {
         </div>
       )}
 
-      {error && !p ? (
+      {p && (
+        <Suspense fallback={<div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)]" style={{ minHeight: 300 }} aria-hidden />}>
+          <ProfileSummary name={name} bests={p.personalBests} />
+        </Suspense>
+      )}
+
+      {!p && !error ? (
+        <div className="mt-6">
+          <PlayerSkeleton />
+        </div>
+      ) : error && !p ? (
         <Card className="mt-6">
           <EmptyState icon="players" title="This profile will appear here" description="It loads as soon as the server answers." />
         </Card>
@@ -327,6 +352,9 @@ export default function PlayerView() {
             <AchievementsSection name={name} latestSessionId={p.sessions.find((x) => x.status !== "live")?.id} />
           </div>
           <div className="mt-6">
+            <MilestoneTimeline name={name} />
+          </div>
+          <div className="mt-6">
             <InsightsCard name={name} />
           </div>
 
@@ -343,7 +371,19 @@ export default function PlayerView() {
           />
 
           <SectionRule index="03" title="Effort over time" className="mt-12" />
-          <div className="mt-4 grid gap-6 xl:grid-cols-12">
+          <Card id="player-fade" className="mt-4 scroll-mt-24 overflow-hidden">
+            <CardHeader title="Effort fade" subtitle="Average across this player's last 10 fights: do the swings slow down by the end?" />
+            <Suspense fallback={<FadeSkeleton />}>
+              <FadeAverage name={name} />
+            </Suspense>
+          </Card>
+          <Card id="player-fingerprint" className="mt-6 scroll-mt-24 overflow-hidden">
+            <CardHeader title="Effort fingerprint" subtitle="Power, consistency, stamina, dodge and guard timing, each scored 0 to 100 from this player's recent fights" />
+            <Suspense fallback={<div style={{ minHeight: 560 }} aria-hidden><div className="skeleton m-5 h-[26rem] rounded-xl" /></div>}>
+              <Fingerprint name={name} />
+            </Suspense>
+          </Card>
+          <div className="mt-6 grid gap-6 xl:grid-cols-12">
             <Card className="overflow-hidden xl:col-span-8">
               <CardHeader title="Damage over time" subtitle="Total damage in each fight, in the order played" />
               <div className="px-3 pb-4 pt-4 sm:px-5">
@@ -511,7 +551,7 @@ export default function PlayerView() {
             />
             {history.length ? (
               <div className="p-4 sm:p-5">
-                <SessionList rows={history} onSelect={(s) => navigate(`/dashboard/session/${encodeURIComponent(s.id)}`)} />
+                <SessionList rows={history} pbBySession={pbBySession} onSelect={(s) => navigate(`/dashboard/session/${encodeURIComponent(s.id)}`)} />
               </div>
             ) : (
               <EmptyState icon="search" title="No sessions match these filters" />

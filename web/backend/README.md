@@ -169,3 +169,54 @@ All additions; no existing route or field changed. Names are validated like the 
 | `GET /api/live/reactions`, `POST /api/live/react` | cheers (validated, rate limited, never stored; SSE `reaction`) |
 
 Table `challenge_completions` is created by `schema.sql` on boot. `REACTIONS_ENABLED=false` (Render environment) switches cheers off. To add a challenge, append one object to `CHALLENGES` in `challenges.js` (the comment above the array lists the fields); every target is clamped to `SAFETY_CAPS`.
+
+## Effort and Thesis Lab routes (additive, read-only `GET`)
+
+No existing route or response shape changed, and no schema change: everything is computed from the `sessions`, `events` and `session_feedback` rows already stored. The maths lives in `effort.js` (fade, fingerprint, pace curve, Pearson r, return rate), the win-rate rule in `outcomes.js`, the level list and the 8 m/s swing cap in `levels.js`.
+
+| Route | What it returns |
+| --- | --- |
+| `GET /api/sessions/:id/fade` | effort fade of one fight: average swing speed in the last third against the first third, the swing series, the level's full-power speed. `status: "insufficient"` with fewer than 6 swings |
+| `GET /api/players/:name/fade?last=10` | each of the player's last N finished fights with its fade, and their average |
+| `GET /api/players/:name/fingerprint` | five 0-100 axes (power, consistency, stamina, dodge, guard timing) with their formulas; an axis with no data is `null` |
+| `GET /api/players/:name/best-pace?level=1\|2\|3\|Easy\|Medium\|Hard` | the player's personal-best finished fight on that level as cumulative damage over time (the Live Arena ghost). `best: null` when there is none. Cached 60 s per player + level |
+| `GET /api/lab` | Thesis Lab: return rate within 1 / 3 / 7 days (with n), RPE against average swing speed (Pearson r from 8 pairs), level-by-level table. Cached 30 s |
+| `GET /api/lab/sessions.csv` | one row per session: player, level, outcome, score, hits, avg_swing, fade_pct, duration_sec, started_at. No IP or device information (none is stored) |
+
+## Rank, personal bests, Wrapped and milestones (additive, read-only `GET`)
+
+No schema change: everything is computed from the stored `sessions` and `events` rows. Each route is cached 30 to 60 s in memory (`ttlCache.js`) and the cache for a player is dropped when one of their fights ends, is deleted or the player is renamed (`featureRoutes.js`); answers carry an `ETag` and `Cache-Control: no-cache`. The rules are pure modules with their numbers in `config/`: `ranks.js`, `records.js`, `wrapped.js`, `milestones.js`.
+
+| Route | What it returns |
+| --- | --- |
+| `GET /api/players/:name/rank` | `rank`, `effortPoints`, `nextRank`, `pointsToNext`, `progress` (0 to 1), the `ladder` and the points rule. Effort points = counted swings x 1 + full-power swings x 2 + victories x 40 + Level 3 victories 60 more. Rookie 0, Brawler 300, Warrior 1,200, Guardian 3,500 (`config/ranks.js`) |
+| `GET /api/ranks?players=Ava,Ben` | the same for up to 50 players in one request (leaderboard rows) |
+| `GET /api/players/:name/records` | `bySession`: which fights set a personal best on their level (the PB chip) |
+| `GET /api/players/:name/wrapped?weekStart=YYYY-MM-DD` | one week (Monday to Sunday, Asia/Kathmandu; default the current week): fights, wins (shared win-rate rule), swings, fastest swing (clamped to 8 m/s), full-power share, active minutes, average fade, best day, favourite monster (level; the page adds the name and portrait from `story.json`), XP, longest win streak, the week list for the picker and the effort personality from the Fingerprint scores of that week |
+| `GET /api/players/:name/milestones` | what the player reached and when (first fight, first victory and on each level, first full-power swing, 100 / 500 / 1,000 swings, 10 fights, 3- and 7-day streaks, each rank) and the next three with a progress fraction |
+
+`GET /api/sessions/:id` gains `newRecords: [{ metric, value, previous }]`: what that fight beat on its level (peak swing speed clamped to 8 m/s, damage dealt, score, effort fade). A record needs at least one earlier decided fight on the same level, equal values are not records, an abandoned fight never sets one, and only fights that started earlier count, so the answer is the same whenever it is read. The stream's `session_finished` message gains `newRecords` and `rankUp` (`{ from, to, effortPoints }` or `null`) next to the unchanged `session` and `liveState`. A rank-up also appears in `GET /api/activity` as `rank_up` ("<Name> reached <Rank>"); the row id is player + rank, so finishing or re-reporting a session twice cannot repeat it.
+
+`GET /api/players/:name/best-pace` now answers `Cache-Control: private, no-cache` (it was `max-age=15`) and its server cache is dropped when a fight ends, so a fight that starts soon after another compares against the new best.
+
+**Win rate** is one rule everywhere: `victories / (victories + defeats)`, abandoned fights excluded and counted separately (`abandoned`). **Swing speeds** are stored raw by the game; every aggregate clamps them to the 8 m/s cap and `swingsOverCap` / `rawPeakSwingSpeed` report what was clamped.
+
+## AI match commentary and its voice (added 2026-10-20; additive, optional)
+
+The Live Arena's commentary can be worded like a football match by an AI and read aloud by Google's voice. Both are optional: with no key, or when a service is down, the site shows the plain template lines and the browser's own voice, as before. The keys stay on the server (`commentaryAi.js`, numbers and the instruction text in `config/commentaryAi.js`); the browser never sees them.
+
+| Variable (`web/backend/.env`) | What it does |
+| --- | --- |
+| `GROQ_API_KEY` (or `GORQ_API_KEY`, the spelling the existing `.env` uses) | switches the AI commentator on (Groq chat model) |
+| `GROQ_COMMENTARY_MODEL` | the model; default `qwen/qwen3.8-27b` (Groq no longer lists a Mistral model; any chat model Groq serves works) |
+| `GOOGLE_TTS_API_KEY` | switches Google Cloud Text-to-Speech on (a Cloud Text-to-Speech API key); `GOOGLE_TTS_VOICE` changes the voice (default `en-GB-Neural2-B`) |
+| `COMMENTARY_AI=off` | switches both off without removing the keys |
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/commentary/status` | `{ ai, voice, model, voiceName }`: what is switched on (never a key) |
+| `POST /api/commentary/line` | `{ situation, base, monster, player, level, monsterPct, playerPct, combo, phase, recent[] }` -> `{ text }`. `base` is the plain line the game already made, so the model only rewords facts it is given; an answer with a link, an emoji, a number that is not in the facts or the wrong length is refused (422) and the browser keeps `base` |
+| `POST /api/commentary/summary` | the totals of a finished fight (`outcome`, `monster`, `player`, `level`, `durationSec`, `score`, `damageDealt`, `hitCount`, `fullSwings`, `peakCombo`) and `base` (the plain report) -> `{ text }`: a 2 to 3 sentence full-time report, under the same checks (at most 60 words, no number that is not in the facts) |
+| `POST /api/commentary/speech` | `{ text }` (3 to 400 characters) -> `audio/mpeg` |
+
+Limits: per IP 12 line requests in a burst then 15 a minute, 21 a minute in total (Groq's free tier allows 8,000 tokens a minute and 1,000 requests a day per model; a request is about 250 tokens), the same moment asked by several viewers of one fight is one request (8 s cache), a Groq 429 rests the service for its `retry-after`, three other failures in a row rest it for 30 s. The browser only asks about colourful moments (not the advice and guard lines) and at most 12 times a minute per fight, with the big moments (result, phase change, low health) exempt.

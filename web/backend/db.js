@@ -1,9 +1,10 @@
-const path = require("path");
 const { Pool } = require("pg");
+const envLoader = require("./envLoader");
 
-// Local dev reads web/backend/.env; on Render the variable comes from the dashboard
-// and there is no .env file, which dotenv treats as a no-op. Existing env vars win.
-require("dotenv").config({ path: path.join(__dirname, ".env"), quiet: true });
+// Production (Render): web/backend/.env if present, else the platform's variables, exactly as before. On a laptop: .env.development,
+// and a remote DATABASE_URL (the production Neon string in .env) is refused unless ALLOW_PROD_DB=1. See envLoader.js.
+envLoader.loadEnv(__dirname);
+envLoader.enforce();
 
 if (!process.env.DATABASE_URL) {
   console.error("[db] DATABASE_URL is not set — add it to web/backend/.env locally or to the Render environment.");
@@ -23,7 +24,8 @@ const isLocal = ["localhost", "127.0.0.1", "::1"].includes(connectionUrl.hostnam
 const pool = new Pool({
   connectionString: connectionUrl.toString(),
   ssl: isLocal ? false : { rejectUnauthorized: true },
-  max: 5,
+  // Development sets DB_POOL_MAX=1: the local PGlite database is single-session, and one connection keeps transactions whole.
+  max: Number(process.env.DB_POOL_MAX) > 0 ? Number(process.env.DB_POOL_MAX) : 5,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,
 });

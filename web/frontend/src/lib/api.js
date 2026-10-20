@@ -99,6 +99,9 @@ export const api = {
   liveQuiet: () => request("/api/live", { quiet: true, timeoutMs: 12000 }),
   publicStatsQuiet: () => request("/api/public-stats", { quiet: true, timeoutMs: 20000 }),
   analytics: (filters) => request(`/api/analytics${qs(filters)}`),
+  // Thesis Lab: return rate, RPE vs swing speed, level table; and the research CSV (one row per session).
+  lab: () => request("/api/lab", { timeoutMs: 45000 }),
+  labCsvUrl: () => `${API_BASE}/api/lab/sessions.csv`,
   // Post-session survey (public, no auth) and the perceived-vs-measured effort aggregate.
   submitFeedback: (sessionId, body) => request(`/api/sessions/${enc(sessionId)}/feedback`, { method: "POST", body, timeoutMs: 20000 }),
   feedbackAnalytics: () => request("/api/analytics/feedback"),
@@ -108,6 +111,15 @@ export const api = {
   playerGoalToday: (name) => request(`/api/players/${enc(name)}/goal/today`, { timeoutMs: 20000 }),
   playerGoals: (name, days = 14) => request(`/api/players/${enc(name)}/goals${qs({ days })}`, { timeoutMs: 20000 }),
   setPlayerGoal: (name, body) => request(`/api/players/${enc(name)}/goal`, { method: "PUT", body, timeoutMs: 20000 }),
+  // Effort fade (first third vs last third of a fight) for one session, and a player's last N fights.
+  sessionFade: (id) => request(`/api/sessions/${enc(id)}/fade`, { timeoutMs: 30000 }),
+  playerFade: (name, last = 10) => request(`/api/players/${enc(name)}/fade${qs({ last })}`, { timeoutMs: 30000 }),
+  // The player's personal-best finished fight on a level, as cumulative damage over time (the Live Arena's ghost line).
+  commentaryStatus: () => request("/api/commentary/status", { quiet: true, timeoutMs: 6000 }),
+  commentaryLine: (body, timeoutMs) => request("/api/commentary/line", { method: "POST", body, quiet: true, timeoutMs }),
+  commentarySummary: (body, timeoutMs) => request("/api/commentary/summary", { method: "POST", body, quiet: true, timeoutMs }),
+  playerBestPace: (name, level) => request(`/api/players/${enc(name)}/best-pace${qs({ level })}`, { quiet: true, timeoutMs: 15000 }),
+  playerFingerprint: (name) => request(`/api/players/${enc(name)}/fingerprint`, { timeoutMs: 30000 }),
   playerInsights: (name) => request(`/api/players/${enc(name)}/insights`),
   playerChecklist: (name) => request(`/api/players/${enc(name)}/checklist`),
   // Engagement (challenges, calendar, weekly recap, best run, public challenge page, activity feed, live cheers).
@@ -121,8 +133,20 @@ export const api = {
   challengeCard: (sessionId) => request(`/api/challenge/${enc(sessionId)}`, { timeoutMs: 30000 }),
   challengeCheck: (sessionId, name) => request(`/api/challenge/${enc(sessionId)}/check${qs({ name })}`, { timeoutMs: 20000 }),
   activity: (limit = 20) => request(`/api/activity${qs({ limit })}`),
+  // Rank ladder: one player (rank, effort points, next rank, progress, the ladder itself), or many at once for the leaderboard rows.
+  playerRank: (name) => request(`/api/players/${enc(name)}/rank`, { quiet: true, timeoutMs: 20000 }),
+  playerMilestones: (name) => request(`/api/players/${enc(name)}/milestones`, { quiet: true, timeoutMs: 30000 }),
+  playerWrapped: (name, weekStart) => request(`/api/players/${enc(name)}/wrapped${qs({ weekStart })}`, { quiet: true, timeoutMs: 45000 }),
+  playerRecords: (name) => request(`/api/players/${enc(name)}/records`, { quiet: true, timeoutMs: 20000 }),
+  ranks: (names) => request(`/api/ranks${qs({ players: names.join(",") })}`, { quiet: true, timeoutMs: 20000 }),
   reactionsStatus: () => request("/api/live/reactions", { quiet: true, timeoutMs: 15000 }),
   react: (sessionId, kind) => request("/api/live/react", { method: "POST", body: { sessionId, kind }, quiet: true, timeoutMs: 8000 }),
+  // Playtest study (public /study page). The Borg RPE goes through submitFeedback, like any other fight rating.
+  studyEnroll: () => request("/api/study/participants", { method: "POST", body: { consent: true }, quiet: true, timeoutMs: 30000 }),
+  studyStatus: (code) => request(`/api/study/participants/${enc(code)}`, { quiet: true, timeoutMs: 20000 }),
+  studyPre: (code, body) => request(`/api/study/participants/${enc(code)}/pre`, { method: "POST", body, quiet: true, timeoutMs: 30000 }),
+  studyPost: (code, body) => request(`/api/study/participants/${enc(code)}/post`, { method: "POST", body, quiet: true, timeoutMs: 30000 }),
+  studyCsvUrl: () => `${API_BASE}/api/study/export.csv`,
   exportUrl: (kind, filters) => `${API_BASE}/api/export/${kind}.csv${qs(filters)}`,
   streamUrl: () => `${API_BASE}/api/stream`,
 };

@@ -6,6 +6,7 @@
 // Components subscribe to narrow slices (one session, the id list, the feed,
 // the connection state) so an event only re-renders what it changed.
 
+import { whenIdle } from "../lib/idle.js";
 import { api } from "../lib/api.js";
 import { shouldResync } from "../lib/startup.js";
 import { bindPageLifecycle } from "../lib/pagelife.js";
@@ -14,7 +15,7 @@ const FEED_MAX = 250;
 const POLL_MS = 3000;
 const WATCHDOG_MS = 35_000; // server heartbeats every 15 s: two missed beats = dead
 const BACKOFF = [1000, 2000, 4000, 8000, 15000, 30000];
-const FINISHED_LINGER_MS = 12_000; // a finished fight stays on the arena briefly
+const FINISHED_LINGER_MS = 30_000; // a finished fight stays in the store a little longer than the arena shows it (RESULT_HOLD_MS in lib/arena.js)
 const QUIET_TYPES = new Set(["hp", "ping"]); // stored, but too frequent for the feed
 
 const state = {
@@ -62,10 +63,17 @@ function recomputeIds() {
 
 const lingerTimers = new Map();
 
-function upsertSession(session, liveState) {
+// extra: the fields a finished fight's message adds (newRecords: the personal bests it set, rankUp: a rank it reached). They are kept
+// on the entry so the result moment can show them; later messages for the same fight do not wipe them.
+function upsertSession(session, liveState, extra) {
   if (!session?.id) return;
   const prev = state.sessions.get(session.id);
-  const entry = { session, liveState: liveState ?? prev?.liveState ?? null };
+  const entry = {
+    session,
+    liveState: liveState ?? prev?.liveState ?? null,
+    newRecords: extra && "newRecords" in extra ? extra.newRecords : prev?.newRecords,
+    rankUp: extra && "rankUp" in extra ? extra.rankUp : prev?.rankUp,
+  };
   if (session.status !== "live") {
     if (!prev) return; // a finished fight we never saw live: nothing to show
     entry.finishedAt = prev.finishedAt || Date.now();
@@ -165,8 +173,10 @@ function handle(type, payload) {
   switch (type) {
     case "session_started":
     case "session_updated":
-    case "session_finished":
       upsertSession(payload.session, payload.liveState);
+      break;
+    case "session_finished":
+      upsertSession(payload.session, payload.liveState, payload);
       break;
     case "event_created":
       pushFeed([payload]);
@@ -196,9 +206,13 @@ let lastResyncAt = 0;
 async function resync({ seedFeed }) {
   lastResyncAt = Date.now();
   try {
-    const [live, events] = await Promise.all([api.live(), seedFeed ? api.events({ limit: 80 }) : Promise.resolve(null)]);
+    const live = await api.live();
     applySnapshot(live.sessions || []);
-    if (events) pushFeed(events, { seeded: true });
+    if (seedFeed) {
+      // The kill feed is only on screen on the Live Arena and Broadcast pages; elsewhere its 35 kB seed waits for an idle moment.
+      if (!/^\/dashboard\/(live|broadcast)/.test(location.pathname)) await whenIdle();
+      pushFeed(await api.events({ limit: 80 }), { seeded: true });
+    }
   } catch {
     /* the connection state already tells the user */
   }

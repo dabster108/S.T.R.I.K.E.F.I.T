@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
+@import "./styles/fonts.css";
 
 @layer base {
   html,
@@ -155,6 +156,7 @@
   }
   /* callout figures, set well above the stat size */
   .t-figure {
+    font-variant-numeric: tabular-nums; /* a counting number keeps its width: nothing beside it moves */
     font-size: clamp(3.25rem, 2rem + 4.6vw, 6rem);
     font-weight: var(--fw-heading);
     letter-spacing: -0.05em;
@@ -162,6 +164,7 @@
     font-variant-numeric: tabular-nums;
   }
   .t-figure-md {
+    font-variant-numeric: tabular-nums;
     font-size: clamp(2.25rem, 1.7rem + 2vw, 3.4rem);
     font-weight: var(--fw-heading);
     letter-spacing: -0.04em;
@@ -203,10 +206,31 @@
   animation: status-pulse 2s ease-in-out infinite;
 }
 
-@keyframes flash-in {
+/* Two older names that rules further down still use (.fade-up, .chart-area). Item 1's consolidation dropped them and left those rules
+   animating nothing, which kept the hero's lower half and every chart area at opacity 0; motion.test.js now fails on any animation
+   name that has no @keyframes. */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The two keyframes every entrance uses (motion/tokens.js has the matching numbers). */
+@keyframes motion-fade {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes motion-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-rise), 0);
   }
   to {
     opacity: 1;
@@ -214,25 +238,17 @@
   }
 }
 .flash-in {
-  animation: flash-in 0.25s ease-out;
+  animation: motion-fade var(--motion-base) var(--motion-ease);
 }
-
-@keyframes view-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.view-in {
+  animation: motion-rise var(--motion-slow) var(--motion-ease);
 }
-.view-in,
+/* A route change is a 150 ms cross-fade, opacity only: nothing moves, so the layout cannot jump. */
 .page-in {
-  animation: view-in 0.22s var(--ease-out);
+  animation: motion-fade var(--motion-fast) linear;
 }
 .route-in {
-  animation: fade-in 0.2s ease-out;
+  animation: motion-fade var(--motion-base) var(--motion-ease);
 }
 
 @keyframes drawer-in {
@@ -247,16 +263,8 @@
   animation: drawer-in 0.3s var(--ease-out);
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
 .fade-in {
-  animation: fade-in 0.2s ease-out;
+  animation: motion-fade var(--motion-base) var(--motion-ease);
 }
 
 @keyframes pop-in {
@@ -270,33 +278,23 @@
   }
 }
 .pop-in {
-  animation: pop-in 0.22s var(--ease-out);
+  animation: pop-in var(--motion-base) var(--motion-ease);
 }
 
 /* staggered card entrance: children fade up one after another */
-@keyframes card-in {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
 /* backwards, not both: once finished the animation lets go of transform, so
-   .lift / .press on the same element still work. */
+   .lift / .press on the same element still work. One step per sibling, capped at 8 (motion/tokens.js staggerDelay). */
 .stagger > * {
-  animation: card-in 0.5s var(--ease-out) backwards;
+  animation: motion-rise var(--motion-slow) var(--motion-ease) backwards;
 }
-.stagger > *:nth-child(2) { animation-delay: 60ms; }
-.stagger > *:nth-child(3) { animation-delay: 120ms; }
-.stagger > *:nth-child(4) { animation-delay: 180ms; }
-.stagger > *:nth-child(5) { animation-delay: 240ms; }
-.stagger > *:nth-child(6) { animation-delay: 300ms; }
-.stagger > *:nth-child(7) { animation-delay: 360ms; }
-.stagger > *:nth-child(8) { animation-delay: 420ms; }
-.stagger > *:nth-child(n + 9) { animation-delay: 480ms; }
+.stagger > *:nth-child(2) { animation-delay: calc(var(--motion-stagger) * 1); }
+.stagger > *:nth-child(3) { animation-delay: calc(var(--motion-stagger) * 2); }
+.stagger > *:nth-child(4) { animation-delay: calc(var(--motion-stagger) * 3); }
+.stagger > *:nth-child(5) { animation-delay: calc(var(--motion-stagger) * 4); }
+.stagger > *:nth-child(6) { animation-delay: calc(var(--motion-stagger) * 5); }
+.stagger > *:nth-child(7) { animation-delay: calc(var(--motion-stagger) * 6); }
+.stagger > *:nth-child(8) { animation-delay: calc(var(--motion-stagger) * 7); }
+.stagger > *:nth-child(n + 9) { animation-delay: calc(var(--motion-stagger) * 8); }
 
 /* skeleton: a light sweep slides across (transform), no background repaint.
    In the components layer so rounded-* utilities can override the radius. */
@@ -446,26 +444,54 @@
 }
 
 /* ---------------------------------------------------------------- landing */
-.reveal {
+/* <Reveal> (motion/Reveal.jsx): opacity + a 12 px rise, once, when it scrolls into view. */
+.m-reveal {
   opacity: 0;
-  transform: translateY(18px);
+  transform: translate3d(0, var(--motion-rise), 0);
   transition:
-    opacity 0.7s var(--ease-out),
-    transform 0.7s var(--ease-out);
-  transition-delay: var(--reveal-delay, 0ms);
+    opacity var(--motion-slow) var(--motion-ease),
+    transform var(--motion-slow) var(--motion-ease);
+  transition-delay: var(--m-delay, 0ms);
 }
-.reveal[data-reveal="left"] {
-  transform: translateX(-24px);
-}
-.reveal[data-reveal="right"] {
-  transform: translateX(24px);
-}
-.reveal[data-reveal="scale"] {
-  transform: scale(0.96);
-}
-.reveal.is-visible {
+.m-reveal.is-visible {
   opacity: 1;
   transform: none;
+}
+
+/* <Spotlight> / [data-spotlight] (motion/spotlight.js): a soft highlight that follows the cursor inside a card. The highlight is
+   one pseudo-element moved with transform and faded with opacity, so a pointer move never repaints the card. It sits behind the
+   card's content (isolation + z-index -1). Off on touch (the listener never fires), under reduced motion and in Calm mode. */
+.spotlight {
+  position: relative;
+  isolation: isolate;
+}
+.spotlight::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  width: 420px;
+  height: 420px;
+  margin: -210px 0 0 -210px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(37 99 235 / 0.1), rgb(37 99 235 / 0.04) 40%, transparent 68%);
+  transform: translate3d(var(--spot-x, 50%), var(--spot-y, 50%), 0);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-base) var(--motion-ease);
+  will-change: opacity, transform;
+}
+.spotlight:hover::before {
+  opacity: 1;
+}
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .spotlight::before {
+    display: none;
+  }
+}
+:root[data-calm] .spotlight::before {
+  display: none;
 }
 
 /* nav: the white bar and shadow fade in on a pseudo-element after scrolling */
@@ -474,9 +500,8 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: rgb(255 255 255 / 0.82);
-  backdrop-filter: saturate(1.4) blur(14px);
-  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  /* solid, not a backdrop blur: a full-width blur on a sticky bar is re-rendered on every scroll frame (integrated GPUs) */
+  background: rgb(255 255 255 / 0.97);
   box-shadow: 0 1px 0 var(--border), 0 8px 24px -16px rgb(16 24 40 / 0.18);
   opacity: 0;
   transition: opacity var(--dur) var(--ease-out);
@@ -1213,7 +1238,7 @@
   100% { transform: translate3d(var(--dx), 260px, 0) rotate(var(--rot)); opacity: 0; }
 }
 .confetti-piece {
-  animation: confetti-fall 1.4s var(--ease-out) var(--d) both;
+  animation: confetti-fall var(--dur, 1.4s) var(--ease-out) var(--d) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1262,8 +1287,7 @@
     display: none;
   }
 
-  .reveal,
-  .reveal[data-reveal] {
+  .m-reveal {
     opacity: 1;
     transform: none;
   }
@@ -1337,7 +1361,7 @@
 :root[data-calm] .stagger > * {
   animation: none !important;
 }
-:root[data-calm] .reveal {
+:root[data-calm] .m-reveal {
   opacity: 1;
   transform: none;
   transition: none;
@@ -1346,4 +1370,255 @@
 :root[data-calm] .press:active {
   transition: none;
   transform: none;
+}
+
+/* Fight replay scrubber (components/effort/FightReplay.jsx): a native range input, so the keyboard works without any script. */
+.replay-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.5rem;
+  background: transparent;
+  cursor: pointer;
+}
+.replay-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+}
+.replay-range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+}
+.replay-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border-radius: 999px;
+  border: 3px solid var(--surface);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 1px 3px rgb(16 24 40 / 0.25);
+}
+.replay-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 3px solid var(--surface);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 1px 3px rgb(16 24 40 / 0.25);
+}
+.replay-range:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+
+/* ---- Live Arena (components/live/arena/*): transform and opacity only, small elements only. Reduced motion is covered by the global
+   rule; the Calm-mode rules below give the same static result. ---- */
+@keyframes arena-feed-in {
+  from { opacity: 0; transform: translate3d(0, -8px, 0); }
+  to { opacity: 1; transform: none; }
+}
+.arena-feed-in { animation: arena-feed-in var(--motion-base) var(--motion-ease) both; }
+/* the attack telegraph: a bar that fills over the wind-up time (--wind), so the player sees how long they have */
+@keyframes arena-telegraph {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.arena-telegraph { transform-origin: left center; animation: arena-telegraph var(--wind, 1s) linear both; }
+@keyframes arena-clash {
+  0% { opacity: 0; transform: scale(0.85); }
+  20% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 0; transform: scale(1); }
+}
+.arena-clash { animation: arena-clash 0.7s var(--ease-out) both; }
+@keyframes arena-rise {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; transform: none; }
+}
+.arena-rise { animation: motion-rise var(--motion-base) var(--motion-ease) both; }
+.arena-needle { transition: transform 0.18s ease-out; }
+.arena-fill { transition: transform 0.35s var(--ease-out); }
+.arena-trail { transition: transform 0.8s var(--ease-out) 0.25s; }
+:root[data-calm] .arena-feed-in,
+:root[data-calm] .arena-telegraph,
+:root[data-calm] .arena-clash,
+:root[data-calm] .arena-rise {
+  animation: none !important;
+}
+:root[data-calm] .arena-needle,
+:root[data-calm] .arena-fill,
+:root[data-calm] .arena-trail {
+  transition: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .arena-telegraph, .arena-feed-in, .arena-clash, .arena-rise { animation: none !important; }
+  .arena-needle, .arena-fill, .arena-trail { transition: none !important; }
+}
+
+/* Everything that loops (hero gradient, marquee, spinning card borders, travelling dots) stops while its section is off-screen
+   or the tab is hidden: motion/usePauseOffscreen.js sets data-offscreen on the section. */
+[data-offscreen="true"],
+[data-offscreen="true"] *,
+[data-offscreen="true"] *::before,
+[data-offscreen="true"] *::after {
+  animation-play-state: paused !important;
+}
+
+/* Landing motion: bars that grow when their card scrolls into view (transform only). Reduced motion and Calm show the end state. */
+.draw-x {
+  transform-origin: left center;
+  transform: scaleX(var(--w, 1));
+  transition: transform var(--motion-slow) var(--motion-ease) var(--bar-delay, 0ms);
+}
+.m-reveal:not(.is-visible) .draw-x {
+  transform: scaleX(0);
+}
+:root[data-calm] .draw-x {
+  transition: none !important;
+  transform: scaleX(var(--w, 1)) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .draw-x {
+    transition: none !important;
+    transform: scaleX(var(--w, 1)) !important;
+  }
+}
+
+/* "Type it in": nothing to style (TypedLine writes text). Damage curve draws itself; dots travel along the data-path lines. */
+.curve .curve-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 900ms var(--motion-ease);
+}
+.curve .curve-area {
+  opacity: 0;
+  transition: opacity var(--motion-slow) var(--motion-ease) 700ms;
+}
+.curve.is-drawn .curve-line { stroke-dashoffset: 0; }
+.curve.is-drawn .curve-area { opacity: 0.9; }
+:root[data-calm] .curve .curve-line { stroke-dashoffset: 0 !important; transition: none !important; }
+:root[data-calm] .curve .curve-area { opacity: 0.9 !important; transition: none !important; }
+.flow-dots {
+  stroke-dasharray: 0.1 36;
+  animation: flow-dots 2.4s linear infinite;
+  animation-delay: var(--flow-delay, 0s);
+}
+@keyframes flow-dots {
+  to { stroke-dashoffset: -36; }
+}
+:root[data-calm] .flow-dots { animation: none !important; stroke-dasharray: 0.1 36; }
+@media (prefers-reduced-motion: reduce) {
+  .curve .curve-line { stroke-dashoffset: 0 !important; transition: none !important; }
+  .curve .curve-area { opacity: 0.9 !important; transition: none !important; }
+  .flow-dots { animation: none !important; }
+}
+
+/* While a page is a skeleton its height is a guess, so the footer waits (invisible, not collapsed) instead of jumping when the page lands. */
+#main:has([aria-busy="true"]) > footer {
+  visibility: hidden;
+}
+
+/* Method page (/about/method): a clean A4 document from the browser's Print dialog. White paper, no navigation, cards that do not
+   split across pages, and the address of every external link printed after it. */
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm 14mm;
+  }
+  html,
+  body,
+  .method-page {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .method-page .no-print {
+    display: none !important;
+  }
+  .method-page > div {
+    display: block !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .method-page main {
+    max-width: none !important;
+  }
+  .method-page * {
+    box-shadow: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+  .method-page .method-section {
+    break-inside: auto;
+    padding-top: 7mm !important;
+  }
+  .method-page .method-card,
+  .method-page figure,
+  .method-page table,
+  .method-page li,
+  .method-page blockquote {
+    break-inside: avoid;
+  }
+  .method-page h1,
+  .method-page h3,
+  .method-page .t-kicker {
+    break-after: avoid;
+  }
+  .method-page .overflow-x-auto {
+    overflow: visible !important;
+  }
+  .method-page table {
+    min-width: 0 !important;
+    font-size: 9.5pt;
+  }
+  .method-page .curve .curve-line {
+    stroke-dashoffset: 0 !important;
+  }
+  .method-page .curve .curve-area {
+    opacity: 0.9 !important;
+  }
+  .method-page main a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 8pt;
+    color: #555;
+  }
+  .method-page .t-h1 {
+    font-size: 22pt;
+  }
+}
+
+/* ---- live commentary: the caption types in one character at a time (opacity only). Instant under reduced motion and in Calm mode;
+   paused while the bar is off screen (motion/usePauseOffscreen.js sets data-offscreen). ---- */
+@keyframes cm-char-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.cm-char {
+  opacity: 0;
+  white-space: pre-wrap;
+  animation: cm-char-in 110ms var(--motion-ease) var(--cm-delay, 0ms) forwards;
+}
+:root[data-calm] .cm-char {
+  animation: none;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-char { animation: none; opacity: 1; }
+}
+
+/* ---- STRIKEFIT Wrapped: the story's progress bar fills over a slide's time when auto-play is on (transform only) ---- */
+@keyframes wr-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.wr-progress {
+  animation: wr-progress var(--wr-ms, 6s) linear both;
+}
+:root[data-calm] .wr-progress {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wr-progress { animation: none; }
 }

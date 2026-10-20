@@ -42,7 +42,7 @@ export function Skeleton({ className = "h-4 w-full" }) {
 export function Banner({ tone = "bad", title, children, action }) {
   const cls =
     tone === "bad"
-      ? "border-red-200 bg-[var(--bad-soft)] text-[var(--bad)]"
+      ? "border-red-200 bg-[var(--bad-soft)] text-[var(--bad-ink)]"
       : tone === "warn"
         ? "border-amber-200 bg-[var(--warn-soft)] text-amber-700"
         : "border-blue-200 bg-[var(--accent-soft)] text-[var(--accent-strong)]";
@@ -100,7 +100,7 @@ export function ConfirmDialog({ open, title, description, confirmLabel = "Confir
         className="pop-in w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bad-soft)] text-[var(--bad)]">
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bad-soft)] text-[var(--bad-ink)]">
           <Icon name="trash" className="h-5 w-5" />
         </span>
         <h2 id="confirm-title" className="mt-4 text-base font-bold text-[var(--ink)]">
@@ -132,7 +132,8 @@ export function ProgressBar({ value, max = 100, tone = "accent", label }) {
       aria-valuemax={100}
       aria-label={label}
     >
-      <div className="h-full transition-[width] duration-500" style={{ width: `${pct}%` }}>
+      {/* scaleX, not width: only transform animates (the grow-x entrance, then any later change) */}
+      <div className="h-full origin-left transition-transform duration-500" style={{ transform: `scaleX(${pct / 100})` }}>
         <div className={`grow-x h-full w-full rounded-full ${bar}`} />
       </div>
     </div>

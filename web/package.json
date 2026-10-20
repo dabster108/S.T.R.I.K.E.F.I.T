@@ -1,0 +1,14 @@
+{
+  "name": "strikefit-web",
+  "private": true,
+  "description": "Convenience scripts for the web platform; the packages are web/backend and web/frontend (installed separately).",
+  "scripts": {
+    "dev:safe": "node backend/scripts/dev-safe.js",
+    "dev:db": "node backend/scripts/dev-db.js",
+    "dev:seed": "node backend/scripts/seed-dev.js",
+    "demo:snapshot": "node tools/make-demo-snapshot.mjs",
+    "dev:seed-study": "node backend/scripts/seed-study.js",
+    "simulate": "node backend/scripts/simulate-live.js",
+    "test": "npm --prefix backend test && npm --prefix frontend test"
+  }
+}

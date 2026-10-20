@@ -1,67 +1,36 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { LEVELS } from "../../lib/game.js";
+import { SHOWCASE_SHOTS, shotType } from "../../content/showcaseShots.js";
 import { useOnScreen, useReducedMotion } from "../../hooks/motion.js";
 import Icon from "../ui/Icon.jsx";
 import { Reveal, SectionHead } from "./shared.jsx";
 
-// ─── Screenshot walkthrough: edit shots and captions here ────────────────────
-// Put the real captures in web/frontend/public/showcase/ under these exact file
-// names (Vite serves /public from the site root: /showcase/<file>). Any file that
-// isn't there yet shows the "Screenshot coming soon" placeholder instead.
-// Captions only state what the game does; keep them that way.
-export const SHOWCASE_SHOTS = [
-  {
-    file: "showcase-1-start.jpg",
-    tab: "Start",
-    title: "Pick a name, press Start",
-    caption: "Point at your name and pull the trigger, then press Start. The fight appears on the dashboard as it begins.",
-    alt: "The name picker and Start button in front of the arena",
-  },
-  {
-    file: "showcase-2-combat.jpg",
-    tab: "Swing",
-    title: "Swing to hit",
-    caption: `Dual hammers on Level 1, dual swords on Level 2. Swings under ${LEVELS.Easy.swing.min} m/s don't count; faster ones hit harder.`,
-    alt: "Swinging at the monster in the arena",
-  },
-  {
-    file: "showcase-3-defend.jpg",
-    tab: "Read",
-    title: "Read the monster",
-    caption: "Every attack winds up before it lands, and while it raises its guard your hits deal 70% less damage.",
-    alt: "The monster winding up an attack",
-  },
-  {
-    file: "showcase-4-impact.jpg",
-    tab: "Impact",
-    title: "Feel the impact",
-    caption: "Damage numbers appear where the hit lands, with a heavier impact sound for bigger swings.",
-    alt: "Damage numbers popping up where a hit landed",
-  },
-  {
-    file: "showcase-5-result.jpg",
-    tab: "Result",
-    title: "Win or lose",
-    caption: "The fight ends in victory or defeat, and the result lands on the dashboard within a second.",
-    alt: "The end-of-fight result screen",
-  },
-];
-
-const SHOWCASE_DIR = `${import.meta.env.BASE_URL}showcase/`;
+const BASE = import.meta.env.BASE_URL;
 const CYCLE_MS = 6000; // time on each shot while auto-cycling
-// ─────────────────────────────────────────────────────────────────────────────
+const urlOf = (path) => (path ? BASE + path.replace(/^\//, "") : null);
+const srcOf = (shot) => urlOf(shot.path);
 
-// file -> "ok" | "missing". Preloads off-DOM so a missing file never shows a broken image.
-function useShotStatus(files) {
+// path -> "ok" | "missing". Checks off-DOM so a missing file never shows a broken image; a shot with no path is "missing" from the
+// start (it shows the empty-state card, with no network request). A video is checked with a HEAD request that must answer with a
+// video content type: a missing file on this site answers 200 with the HTML shell, which must not count as a clip.
+function useShotStatus(shots) {
   const [status, setStatus] = useState({});
-  const key = files.join("|");
+  const key = shots.map((s) => `${shotType(s)}:${s.path || ""}`).join("|");
   useEffect(() => {
     let alive = true;
-    for (const file of files) {
+    const set = (path, v) => alive && setStatus((s) => ({ ...s, [path]: v }));
+    for (const shot of shots) {
+      const src = srcOf(shot);
+      if (!src) continue;
+      if (shotType(shot) === "video") {
+        fetch(src, { method: "HEAD" })
+          .then((r) => set(shot.path, r.ok && /^video\//.test(r.headers.get("content-type") || "") ? "ok" : "missing"))
+          .catch(() => set(shot.path, "missing"));
+        continue;
+      }
       const img = new Image();
-      img.onload = () => alive && setStatus((s) => ({ ...s, [file]: img.naturalWidth > 0 ? "ok" : "missing" }));
-      img.onerror = () => alive && setStatus((s) => ({ ...s, [file]: "missing" }));
-      img.src = SHOWCASE_DIR + file;
+      img.onload = () => set(shot.path, img.naturalWidth > 0 ? "ok" : "missing");
+      img.onerror = () => set(shot.path, "missing");
+      img.src = src;
     }
     return () => {
       alive = false;
@@ -71,28 +40,65 @@ function useShotStatus(files) {
   return status;
 }
 
-function Placeholder({ shot, index }) {
+// A clip: muted, looping, inline (iOS), lazy (metadata only until it is the shot on show). It plays only while it is the active
+// shot, on screen, and the visitor has not asked for reduced motion; otherwise it sits on its poster with the browser's own controls.
+function ShotVideo({ shot, on, playing, reduced, index }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (playing && on) v.play().catch(() => {});
+    else v.pause();
+  }, [playing, on]);
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-[var(--accent-soft)] via-[var(--surface)] to-[var(--surface-muted)] px-6 text-center">
-      {/* faint grid so the empty frame still reads as a screen */}
-      <div
-        className="absolute inset-0 opacity-70"
-        style={{
-          backgroundImage: "linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px)",
-          backgroundSize: "2.5rem 2.5rem",
-        }}
-        aria-hidden
-      />
-      <span className="relative flex h-11 w-11 items-center justify-center rounded-xl sm:h-14 sm:w-14 sm:rounded-2xl bg-[var(--surface)] text-[var(--accent)] shadow-[var(--shadow-lift)] ring-1 ring-[var(--border)]" aria-hidden>
-        <Icon name="headset" className="h-5 w-5 sm:h-7 sm:w-7" />
-      </span>
-      <div className="relative">
-        <p className="t-kicker">Screenshot coming soon</p>
-        <p className="mt-2 text-base font-extrabold tracking-tight text-[var(--ink)] sm:text-lg">
-          <span className="t-index mr-2 align-middle">{String(index + 1).padStart(2, "0")}</span>
-          {shot.title}
-        </p>
-        {import.meta.env.DEV && <p className="readout mt-2 text-xs font-semibold text-[var(--muted)]">public/showcase/{shot.file}</p>}
+    <video
+      ref={ref}
+      src={srcOf(shot)}
+      poster={urlOf(shot.poster) || undefined}
+      muted
+      loop
+      playsInline
+      controls={reduced}
+      preload={index === 0 || on ? "metadata" : "none"}
+      aria-label={on ? shot.alt : undefined}
+      aria-hidden={on ? undefined : true}
+      className="h-full w-full object-cover"
+    />
+  );
+}
+
+// The designed empty state for a frame that has no capture yet: a gradient frame around a soft grid, the frame number,
+// the heading, and a small caption. Same aspect ratio as a real image, so swapping one in shifts nothing.
+function EmptyShot({ shot, index, count }) {
+  return (
+    <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent-ring)] via-[var(--border)] to-[var(--accent-soft)] p-[1.5px]" data-empty-shot>
+      <div className="relative flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-[0.95rem] bg-gradient-to-br from-[var(--accent-soft)] via-[var(--surface)] to-[var(--surface-muted)] px-6 text-center">
+        <div
+          className="absolute inset-0 opacity-60"
+          style={{
+            backgroundImage: "linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px)",
+            backgroundSize: "2.5rem 2.5rem",
+            maskImage: "radial-gradient(ellipse at center, #000 30%, transparent 78%)",
+            WebkitMaskImage: "radial-gradient(ellipse at center, #000 30%, transparent 78%)",
+          }}
+          aria-hidden
+        />
+        {/* viewfinder corners, inset below the counter and the pause button */}
+        <div className="pointer-events-none absolute inset-x-4 bottom-4 top-14" aria-hidden>
+          {["left-0 top-0 border-l-2 border-t-2 rounded-tl-lg", "right-0 top-0 border-r-2 border-t-2 rounded-tr-lg", "left-0 bottom-0 border-l-2 border-b-2 rounded-bl-lg", "right-0 bottom-0 border-r-2 border-b-2 rounded-br-lg"].map((c) => (
+            <span key={c} className={`absolute h-4 w-4 border-[var(--accent-ring)] sm:h-5 sm:w-5 ${c}`} />
+          ))}
+        </div>
+        <span className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--surface)] text-[var(--accent)] shadow-[var(--shadow-lift)] ring-1 ring-[var(--border)] sm:h-14 sm:w-14 sm:rounded-2xl" aria-hidden>
+          <Icon name="headset" className="h-5 w-5 sm:h-7 sm:w-7" />
+        </span>
+        <div className="relative">
+          <p className="t-kicker">
+            Frame {String(index + 1).padStart(2, "0")} of {String(count).padStart(2, "0")}
+          </p>
+          <p className="mt-2 text-base font-extrabold tracking-tight text-[var(--ink)] sm:text-lg">{shot.title}</p>
+          <p className="measure-tight mx-auto mt-2 text-xs font-medium leading-relaxed text-[var(--muted)]">Capture to be added: {shot.alt.charAt(0).toLowerCase() + shot.alt.slice(1)}.</p>
+        </div>
       </div>
     </div>
   );
@@ -105,7 +111,7 @@ export default function GameplayShowcase() {
   const [focused, setFocused] = useState(false);
   const [stopped, setStopped] = useState(false);
   const [viewRef, inView] = useOnScreen();
-  const status = useShotStatus(SHOWCASE_SHOTS.map((s) => s.file));
+  const status = useShotStatus(SHOWCASE_SHOTS);
   const list = useRef(null);
   const tabs = useRef([]);
   const [dot, setDot] = useState(null);
@@ -175,11 +181,13 @@ export default function GameplayShowcase() {
               {SHOWCASE_SHOTS.map((s, i) => {
                 const on = i === active;
                 return (
-                  <div key={s.file} className={`showcase-shot absolute inset-0 ${on ? "is-active" : ""}`} aria-hidden={!on}>
-                    {status[s.file] === "ok" ? (
-                      <img src={SHOWCASE_DIR + s.file} alt={on ? s.alt : ""} className="h-full w-full object-cover" loading={i ? "lazy" : "eager"} decoding="async" />
+                  <div key={s.title} className={`showcase-shot absolute inset-0 ${on ? "is-active" : ""}`} aria-hidden={!on}>
+                    {s.path && status[s.path] === "ok" && shotType(s) === "video" ? (
+                      <ShotVideo shot={s} on={on} playing={!reduced && !stopped && inView} reduced={reduced} index={i} />
+                    ) : s.path && status[s.path] === "ok" ? (
+                      <img src={srcOf(s)} alt={on ? s.alt : ""} className="h-full w-full object-cover" loading={i ? "lazy" : "eager"} decoding="async" />
                     ) : (
-                      <Placeholder shot={s} index={i} />
+                      <EmptyShot shot={s} index={i} count={SHOWCASE_SHOTS.length} />
                     )}
                   </div>
                 );
@@ -233,7 +241,7 @@ export default function GameplayShowcase() {
                   const on = i === active;
                   return (
                     <button
-                      key={s.file}
+                      key={s.title}
                       ref={(el) => (tabs.current[i] = el)}
                       id={`showcase-tab-${i}`}
                       type="button"

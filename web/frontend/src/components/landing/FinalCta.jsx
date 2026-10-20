@@ -1,3 +1,4 @@
+import { isDemo, setDemo } from "../../demo/mode.js";
 import { Link } from "react-router-dom";
 import Icon from "../ui/Icon.jsx";
 import { Brand, SECTIONS } from "./LandingNav.jsx";
@@ -75,13 +76,16 @@ export function Footer() {
           </ol>
         </nav>
         <nav aria-label="Dashboard" className="lg:col-span-2">
-          <p className={head}>Dashboard</p>
+          <p className={head}>Dashboard and research</p>
           <ul className="space-y-2 text-sm">
             {[
               ["/dashboard", "Overview"],
               ["/dashboard/live", "Live Arena"],
               ["/dashboard/leaderboard", "Leaderboard"],
               ["/dashboard/analytics", "Analytics"],
+              ["/dashboard/lab", "Thesis Lab"],
+              ["/about/method", "Method"],
+              ["/study", "Join the study"],
             ].map(([to, label]) => (
               <li key={to}>
                 <Link to={to} className={link}>
@@ -96,6 +100,9 @@ export function Footer() {
           <a href={GITHUB} target="_blank" rel="noreferrer" className={`${link} inline-flex items-center gap-1.5 text-sm`}>
             <Icon name="github" className="h-4 w-4" /> GitHub
           </a>
+          <button type="button" onClick={() => setDemo(!isDemo())} className={`${link} mt-3 flex items-center gap-1.5 text-sm`} title="Runs the whole site on scripted data: no server or internet needed">
+            <Icon name="play" className="h-4 w-4" /> {isDemo() ? "Exit demo mode" : "Demo mode"}
+          </button>
         </div>
         <div className="lg:col-span-2">
           <p className={head}>Credits</p>

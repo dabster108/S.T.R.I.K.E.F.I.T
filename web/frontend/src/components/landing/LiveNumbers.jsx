@@ -1,6 +1,7 @@
 import { formatRelative } from "../../lib/format.js";
 import { useCountUp, useInView } from "../../hooks/motion.js";
 import Icon from "../ui/Icon.jsx";
+import { levelCountsText } from "../../lib/game.js";
 import { Reveal, SectionHead, card, usePublicStats } from "./shared.jsx";
 
 function Count({ value, start }) {
@@ -55,7 +56,7 @@ export default function LiveNumbers() {
                     <br />
                   </>
                 )}
-                {s.levelsAvailable} levels playable, {s.levelsPlanned} planned.
+                {levelCountsText()}
               </p>
             </Reveal>
           )}
@@ -86,9 +87,12 @@ export default function LiveNumbers() {
                 {s ? "0" : "—"}
               </span>
               <div>
-                <p className="text-lg font-extrabold tracking-tight text-[var(--ink)]">No sessions yet</p>
+                {/* s is null when the server has not answered (it sleeps on the free tier): that is not "no sessions". */}
+                <p className="text-lg font-extrabold tracking-tight text-[var(--ink)]">{s ? "No sessions yet" : "Waiting for the server"}</p>
                 <p className="measure-tight mt-1 text-sm font-medium text-[var(--muted)]">
-                  The first finished fight will show up here{s?.liveSessions ? "; one is being played right now." : "."}
+                  {s
+                    ? `The first finished fight will show up here${s.liveSessions ? "; one is being played right now." : "."}`
+                    : "The numbers appear as soon as it answers; this page keeps trying."}
                 </p>
               </div>
               <Icon name="headset" className="h-6 w-6 text-[var(--accent)] sm:ml-auto" />

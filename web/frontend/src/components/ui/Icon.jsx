@@ -28,6 +28,7 @@ import {
   Download,
   ExternalLink,
   FileSpreadsheet,
+  FlaskConical,
   Filter,
   Flame,
   Gauge,
@@ -44,6 +45,7 @@ import {
   List,
   LoaderCircle,
   Maximize,
+  Minimize,
   Medal,
   Menu,
   Monitor,
@@ -78,6 +80,11 @@ import {
   WifiOff,
   X,
   Zap,
+  Award,
+  Captions,
+  Milestone,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 // Lucide line icons (24px grid). One place so every icon matches; views ask by name.
@@ -123,6 +130,7 @@ const ICONS = {
   arrowRight: ArrowRight,
   compare: ArrowLeftRight,
   analytics: ChartColumn,
+  lab: FlaskConical,
   shield: Shield,
   shieldCheck: ShieldCheck,
   swords: Swords,
@@ -154,6 +162,7 @@ const ICONS = {
   external: ExternalLink,
   pencil: PencilLine,
   maximize: Maximize,
+  minimize: Minimize,
   // engagement pass
   star: Star,
   thumbsUp: ThumbsUp,
@@ -162,6 +171,12 @@ const ICONS = {
   moon: Moon,
   compass: Compass,
   coffee: Coffee,
+  // engagement features: commentary, rank, personal bests, Wrapped, milestones
+  award: Award,
+  captions: Captions,
+  milestone: Milestone,
+  volume: Volume2,
+  volumeOff: VolumeX,
 };
 
 // Lucide dropped brand marks, so GitHub keeps its own outline path in the same style.

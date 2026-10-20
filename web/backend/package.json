@@ -10,7 +10,11 @@
     "db:schema": "node scripts/apply-schema.js",
     "db:migrate": "node scripts/migrate-json-to-postgres.js",
     "simulate": "node scripts/simulate-live.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "dev:db": "node scripts/dev-db.js",
+    "dev:seed": "node scripts/seed-dev.js",
+    "dev:seed-study": "node scripts/seed-study.js",
+    "dev:safe": "node scripts/dev-safe.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -23,5 +27,9 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "@electric-sql/pglite-socket": "^0.2.13"
   }
 }

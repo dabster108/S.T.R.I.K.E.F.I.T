@@ -7,6 +7,8 @@
 // not measurements: the headset reports no heart rate or oxygen use. Every API field that
 // carries an estimate sits next to `estimate: { ... }` metadata saying so.
 
+const { SWING_SPEED_CAP } = require("./levels");
+
 const TIERS = ["tap", "light", "medium", "full"];
 
 // Weight of one swing by tier, used as a simple "how hard was this swing" score (1 to 4).
@@ -156,7 +158,7 @@ function estimateEffort(durationSec, avgTierWeight, swingsRecorded = true) {
 function sessionSummary(session, hits) {
   const tiers = tierBreakdown(hits.map((h) => h.tier));
   const effort = estimateEffort(session.durationSec, tiers.avgTierWeight, tiers.total > 0 || Number(session.hitCount) > 0);
-  const speeds = hits.map((h) => h.speed).filter(isNum);
+  const speeds = hits.map((h) => h.speed).filter(isNum).map((v) => Math.min(v, SWING_SPEED_CAP)); // never above what the game can use (levels.js)
   return {
     id: session.id,
     level: session.level,
