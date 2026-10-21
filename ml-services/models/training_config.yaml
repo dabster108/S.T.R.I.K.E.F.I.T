@@ -1,0 +1,61 @@
+# Settings for the motion forecaster. Every step of the pipeline reads this file, so no number is repeated in the code.
+# Task: look at the last 1.0 s of head and two-hand movement, then predict where the three tracked points will be
+# 0.25, 0.5, 0.75 and 1.0 s later.
+
+sample_rate_hz: 20            # every recording is resampled to this rate (frames per second)
+window_frames: 20             # model input: 20 frames = 1.0 s at 20 Hz
+horizons_frames: [5, 10, 15, 20]   # how far ahead to predict, in frames: 0.25, 0.5, 0.75, 1.0 s
+stride_frames: 2              # step between two neighbouring windows
+units_scale_to_m: 0.01        # the data audit showed the raw positions are in centimetres
+seed: 42
+
+paths:
+  raw_dir: data/raw/touche_sword_strikes/gesture_detection/data/strikes/captures
+  interim_dir: data/interim   # resampled recordings
+  models_dir: models          # the final model and everything needed to use it
+  figures_dir: reports/figures
+  reports_dir: reports
+
+data:
+  max_gap_s: 0.1              # a jump in time larger than this cuts a recording into separate pieces
+  min_segment_frames: 2       # a piece shorter than this cannot be resampled and is dropped
+  velocity_mean_frames: 3     # constant-velocity baseline: average the speed over the last N frames
+
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+  min_files_for_holdout: 10   # with fewer recordings than this, use cross-validation instead of one hold-out split
+  cv_folds: 5
+
+model:
+  type: gru                   # model type used in the final export if it wins; the MLP is always trained for comparison
+  hidden: 64                  # GRU size
+  layers: 1
+  mlp_hidden: 128             # MLP size: two hidden layers of this width
+  max_params: 200000          # upper limit so the model stays small enough for a Quest 2
+
+train:
+  lr: 0.002
+  weight_decay: 0.0001
+  batch_size: 256
+  max_epochs: 60
+  patience: 8                 # stop after this many epochs without improvement on the validation files
+  loss: huber
+  huber_delta: 1.0
+  val_fraction_of_train_files: 0.15   # share of the training recordings kept back to decide when to stop
+
+evaluation:
+  bootstrap_resamples: 1000   # used for the confidence intervals
+  ci_level: 0.95
+
+export:
+  opset: 15
+  parity_tolerance: 1.0e-4    # largest allowed difference between PyTorch and ONNX outputs
+  # files written to models_dir
+  onnx_file: motion_forecaster.onnx
+  weights_file: motion_forecaster.pt
+  norm_file: norm.json
+  golden_vector_file: golden_vector.json
+  model_card_file: model_card.md
+  config_file: training_config.yaml
