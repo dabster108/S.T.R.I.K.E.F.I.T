@@ -143,3 +143,5 @@ web/tools/render-portraits/node_modules/
 
 # Logs anywhere in the tree (render-portraits wrote a tracked server.log)
 *.log
+ml-services/datasets/
+ml-services/.venv/
