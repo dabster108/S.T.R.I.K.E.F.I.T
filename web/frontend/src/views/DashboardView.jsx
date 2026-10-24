@@ -6,11 +6,13 @@ import { GoalsMetToday } from "../components/fitness/DailyGoal.jsx";
 import { LiveArenaCard } from "../components/live/LiveFight.jsx";
 import { formatDuration, formatNumber } from "../lib/format.js";
 import { deltaChip, lastN } from "../lib/delta.js";
-import { SectionRule } from "../components/ui/Card.jsx";
 import LazyBlock from "../components/ui/LazyBlock.jsx";
 import { OverviewMoreSkeleton } from "../components/ui/Skeletons.jsx";
 import StatTile from "../components/ui/StatTile.jsx";
 import Highlights from "../components/engage/Highlights.jsx";
+import { Card, CardHeader, SectionRule } from "../components/ui/Card.jsx";
+import { EmptyState } from "../components/ui/Feedback.jsx";
+import { LevelBars, OutcomeMeter } from "../components/charts/GlanceCharts.jsx";
 
 // Everything under the headline figures is its own chunk, fetched when the visitor scrolls near it (see OverviewMore.jsx).
 const OverviewMore = lazy(() => import("./OverviewMore.jsx"));
@@ -69,6 +71,53 @@ function previousWindow(allSessions, rangeId) {
 const fmtSpeed = (v) => (Number.isFinite(v) ? `${v.toFixed(1)} m/s` : "—");
 const fmtShare = (v) => (Number.isFinite(v) ? `${Math.round(v * 100)}%` : "—");
 
+// The busiest player in the range (most battles; ties go to the name first in the list).
+function busiestPlayer(sessions) {
+  const counts = new Map();
+  for (const s of sessions) counts.set(s.playerName, (counts.get(s.playerName) || 0) + 1);
+  let best = null;
+  for (const [name, n] of counts) if (!best || n > best.n) best = { name, n };
+  return best;
+}
+
+// The first thing on the Overview, for the selected range: the outcome split (win rate, meter, counts) and battles per level split
+// by outcome. Players are one line under them (the Players page has the full list).
+function AtAGlance({ sessions, stats, levels, rangeLabel }) {
+  const top = busiestPlayer(sessions);
+  return (
+    <Card className="overflow-hidden" aria-label="At a glance">
+      <CardHeader title={`At a glance · ${rangeLabel}`} subtitle="Point at a bar, or tab to a level, for its numbers" />
+      {sessions.length ? (
+        <>
+          <div className="stagger grid divide-y divide-[var(--border)] lg:grid-cols-5 lg:divide-x lg:divide-y-0">
+            <div className="min-w-0 px-5 py-5 lg:col-span-2">
+              <h3 className="t-kicker mb-4 text-[var(--ink-secondary)]">Outcomes</h3>
+              <OutcomeMeter stats={stats} />
+            </div>
+            <div className="min-w-0 px-5 py-5 lg:col-span-3">
+              <h3 className="t-kicker mb-4 text-[var(--ink-secondary)]">Battles by level</h3>
+              <LevelBars levels={levels} />
+            </div>
+          </div>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--border)] px-5 py-3 text-sm font-medium text-[var(--muted)]">
+            <span className="font-bold text-[var(--ink)]">{formatNumber(stats.players)}</span> {stats.players === 1 ? "player" : "players"}
+            {top && (
+              <>
+                <span aria-hidden>·</span> most battles: <span className="font-semibold text-[var(--ink-secondary)]">{top.name}</span> ({formatNumber(top.n)})
+              </>
+            )}
+            <Link to="/dashboard/players" className={`${link} ml-auto`}>
+              All players
+            </Link>
+          </p>
+        </>
+      ) : (
+        <EmptyState icon="analytics" title="No battles in this range" description="Pick a longer range, or play a round in the headset." />
+      )}
+    </Card>
+  );
+}
+
 // The page title and the range picker are OverviewHeader, rendered by the dashboard shell so they paint without waiting for this chunk.
 export default function DashboardView({ sessions, allSessions, events, eventsReady = true, range, openSession }) {
   const stats = useMemo(() => summarize(sessions), [sessions]);
@@ -112,7 +161,11 @@ export default function DashboardView({ sessions, allSessions, events, eventsRea
 
   return (
     <div>
-      <div className="mt-6">
+      <section className="mt-6">
+        <AtAGlance sessions={sessions} stats={stats} levels={levels} rangeLabel={rangeLabel} />
+      </section>
+
+      <div className="mt-6 empty:hidden">
         <PlayingNow />
       </div>
 
