@@ -35,6 +35,7 @@ public static class Level3SceneBuilder
         BuildEnvironment(log);
         BuildWeaponStaging(log);
         ConfigureRendering(log);
+        log.Append(QuestShadowTrim.ApplyToOpenScene());
         log.Append(Level3EngagementBuilder.ApplyToOpenScene(false));
 
         EditorSceneManager.MarkSceneDirty(l3);
@@ -214,13 +215,24 @@ public static class Level3SceneBuilder
             lt.type = LightType.Point; lt.color = new Color(1f, 0.62f, 0.32f); lt.intensity = 2.4f; lt.range = 7f; lt.shadows = LightShadows.None;
         }
 
-        // Storm: the pack's rain, retuned for Quest (URP material, half the particles).
+        // Storm: the pack's rain, retuned for Quest (URP material). No world collision: drops die on one collision plane at the
+        // dock top (the splash sub-emitter still fires there) and live 0.6 s at most, so none fall on unseen under the sea. With
+        // world collision and 5 s drops the 600 cap filled with drops under the sea and the rain came in bursts every ~5 s.
+        // 200 drops/s keeps ~64 in view at once; the caps sit above the steady state (~64 drops, ~44 splashes).
         var rain = Place("Rain", new Vector3(0f, 9f, 0f), 0f, envRoot.transform);
         rain.isStatic = false;
+        var rainFloor = new GameObject("RainFloor").transform; rainFloor.SetParent(rain.transform, false);
+        rainFloor.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
         foreach (var ps in rain.GetComponentsInChildren<ParticleSystem>())
         {
-            var main = ps.main; main.maxParticles = Mathf.Min(main.maxParticles, 600);
-            var em = ps.emission; if (ps.name == "Rain") em.rateOverTime = 600f;
+            var main = ps.main; main.maxParticles = ps.name == "Rain" ? 120 : 80;
+            var em = ps.emission;
+            if (ps.name == "Rain")
+            {
+                em.rateOverTime = 200f; main.startLifetime = 0.6f;
+                var col = ps.collision; col.enabled = true; col.type = ParticleSystemCollisionType.Planes; col.SetPlane(0, rainFloor);
+                for (int i = 1; i < col.planeCount; i++) col.SetPlane(i, null);
+            }
             var r = ps.GetComponent<ParticleSystemRenderer>();
             r.sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(Level3Builder.MatDir + "/M_L3_Rain.mat");
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;

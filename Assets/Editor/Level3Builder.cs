@@ -208,9 +208,10 @@ public static class Level3Builder
             SavePrefab(BuildKatana(h, true), WeaponPrefabPath(WeaponType.Katana, h));
         }
         // Staged props: visuals only (no physics / combat components), for leaning in the arena.
-        SavePrefab(BuildMace(Hand.Right, false), StagedPrefabPath(WeaponType.Mace));
-        SavePrefab(BuildFlail(Hand.Right, false), StagedPrefabPath(WeaponType.Flail));
-        SavePrefab(BuildKatana(Hand.Right, false), StagedPrefabPath(WeaponType.Katana));
+        // staged props cast no shadows on Quest (QuestShadowTrim: every part is under 1 m)
+        SavePrefab(NoShadows(BuildMace(Hand.Right, false)), StagedPrefabPath(WeaponType.Mace));
+        SavePrefab(NoShadows(BuildFlail(Hand.Right, false)), StagedPrefabPath(WeaponType.Flail));
+        SavePrefab(NoShadows(BuildKatana(Hand.Right, false)), StagedPrefabPath(WeaponType.Katana));
         log.AppendLine("Weapon prefabs: Mace / Flail / Katana x Right, Left + staged props.");
     }
 
@@ -363,8 +364,11 @@ public static class Level3Builder
             AddSwing(root, hand, Flail, Sfx("L3_Flail_Swing"));
         }
         else sim.enabled = false; // staged prop keeps its authored pose (chain laid by the scene builder)
+        QuestShadowTrim.ChainLinksOff(root); // 17 links per flail would each be drawn again into the shadow map on Quest
         return root;
     }
+
+    static GameObject NoShadows(GameObject g) { QuestShadowTrim.AllOff(g); return g; }
 
     // ======================================================================= helpers
     static Transform Child(Transform parent, string name, Vector3 localPos)

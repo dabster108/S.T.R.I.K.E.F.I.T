@@ -78,7 +78,15 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 70870f8725d974c128a7a96d90ccbe97, type: 3}
       insertIndex: -1
       addedObject: {fileID: 7106805307913920253}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 70870f8725d974c128a7a96d90ccbe97, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 8832243376918555068}
   m_SourcePrefab: {fileID: 100100000, guid: 70870f8725d974c128a7a96d90ccbe97, type: 3}
+--- !u!23 &5257991026592706564 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: 70870f8725d974c128a7a96d90ccbe97, type: 3}
+  m_PrefabInstance: {fileID: 6861717108185459840}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &6050830788936618449 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 70870f8725d974c128a7a96d90ccbe97, type: 3}
@@ -123,13 +131,54 @@ MonoBehaviour:
   maxForceMultiplier: 2.5
   facingBonusMultiplier: 1.25
   hitCooldown: 0.35
+  momentumMaxBonus: 0
+  momentumBuildSeconds: 0.6
   hitParticles: {fileID: 0}
   audioSource: {fileID: 0}
   hitSound: {fileID: 0}
   heavyHitSound: {fileID: 0}
   heavySwingSpeedThreshold: 4.8
   clashSound: {fileID: 8300000, guid: 37f035f19f96147c5a8ee49476309659, type: 3}
+  blockedHitSound: {fileID: 0}
+  blockedHitVolume: 0.8
   soundButtonFallback: {fileID: 0}
+  hitSounds: 1
+  varyHitSounds: 1
+  hitVariants: []
+  heavyHitVariants: []
+  pitchJitter: 0.06
+  oneContactPerSwing: 1
+  rearmOutsideSeconds: 0.12
+  clashNeedsSwingOrAttack: 1
+  sharedClashSoundWindow: 0.15
+  ignoreDuringEntrance: 1
+  sweptDetection: 1
+  sweepStep: 0.03
+  maxSweepSubSteps: 32
+  sweepRange: 4
+  clashBodyLockSeconds: 0.3
+  clashSwingLockMax: 1
+  clashPairCooldown: 0.25
+  clashPitchVariants: 1
+  clashPitches: {x: 0.93, y: 1, z: 1.08}
   hammerTag: Hammer
   playerHandTag: PlayerHand
   hand: 0
+--- !u!114 &8832243376918555068
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6050830788936618449}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac2a1b97a1bb2448abc690b6a459a85d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerWeaponGlow
+  slots:
+  - renderer: {fileID: 5257991026592706564}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  profile: {fileID: 11400000, guid: df7fd80de3a104e33a65e1314e0c263c, type: 2}

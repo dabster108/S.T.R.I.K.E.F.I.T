@@ -472,6 +472,8 @@ public static partial class Level3DualAxeBuilder
         var existing = AssetDatabase.LoadAssetAtPath<Mesh>(WeakMeshPath);
         if (existing != null) { EditorUtility.CopySerialized(copy, existing); Object.DestroyImmediate(copy); copy = existing; }
         else AssetDatabase.CreateAsset(copy, WeakMeshPath);
+        // No runtime script reads this mesh and skinning runs on the GPU: drop the CPU copy from the Quest build.
+        var so = new SerializedObject(copy); so.FindProperty("m_IsReadable").boolValue = false; so.ApplyModifiedPropertiesWithoutUndo();
         return copy;
     }
 

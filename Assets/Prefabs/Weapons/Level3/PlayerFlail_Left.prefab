@@ -49,7 +49,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 38825489979469047}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -139,7 +139,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 580475634912899414}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -229,7 +229,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1120747926201947568}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -480,6 +480,25 @@ MonoBehaviour:
   blockedHitSound: {fileID: 0}
   blockedHitVolume: 0.8
   soundButtonFallback: {fileID: 0}
+  hitSounds: 1
+  varyHitSounds: 1
+  hitVariants: []
+  heavyHitVariants: []
+  pitchJitter: 0.06
+  oneContactPerSwing: 1
+  rearmOutsideSeconds: 0.12
+  clashNeedsSwingOrAttack: 1
+  sharedClashSoundWindow: 0.15
+  ignoreDuringEntrance: 1
+  sweptDetection: 1
+  sweepStep: 0.03
+  maxSweepSubSteps: 32
+  sweepRange: 4
+  clashBodyLockSeconds: 0.3
+  clashSwingLockMax: 1
+  clashPairCooldown: 0.25
+  clashPitchVariants: 1
+  clashPitches: {x: 0.93, y: 1, z: 1.08}
   hammerTag: Hammer
   playerHandTag: PlayerHand
   hand: 1
@@ -532,7 +551,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2177838919377139611}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -622,7 +641,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2753951538059355238}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -712,7 +731,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3147438826962600153}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -766,6 +785,7 @@ GameObject:
   - component: {fileID: 1293854431070171162}
   - component: {fileID: 6623746264078902704}
   - component: {fileID: 2662567813776782261}
+  - component: {fileID: 6431538653860233430}
   m_Layer: 0
   m_Name: PlayerFlail_Left
   m_TagString: Hammer
@@ -973,7 +993,98 @@ MonoBehaviour:
   rearmSpeed: 1.2
   fullSpeed: 6
   minInterval: 0.35
+  sustainSeconds: 0.04
   reversalAngle: 150
+--- !u!114 &6431538653860233430
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3840039801734551687}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac2a1b97a1bb2448abc690b6a459a85d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerWeaponGlow
+  slots:
+  - renderer: {fileID: 2438611705018942579}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 784093133933547112}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 4983262781383097293}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 5978017559969937406}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 8298822571356717340}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 5786247875684192355}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 6459502503696607011}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 6683584339660088056}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 2848503427573477467}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 2291229206271619493}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 7474162953416315581}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 5188443922770218332}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 3597041547180607431}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 1441225351801684770}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 5265024524214066935}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 3308808462839042983}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 9097483416566162698}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 3346162226170906075}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 7454386178533291510}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  profile: {fileID: 11400000, guid: df7fd80de3a104e33a65e1314e0c263c, type: 2}
 --- !u!1 &4188257294089188182
 GameObject:
   m_ObjectHideFlags: 0
@@ -1023,7 +1134,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4188257294089188182}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -1113,7 +1224,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4423652157424678011}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -1203,7 +1314,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5041582362557026832}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -1293,7 +1404,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5090852527987888856}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -1383,7 +1494,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6035606633225299700}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -1473,7 +1584,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6328005975140507598}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -1563,7 +1674,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6614153084591655658}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -1743,7 +1854,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7683378862296469410}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -2002,7 +2113,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8524266318963765771}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -2092,7 +2203,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8746433402956534178}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -2182,7 +2293,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8927325616129020807}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
