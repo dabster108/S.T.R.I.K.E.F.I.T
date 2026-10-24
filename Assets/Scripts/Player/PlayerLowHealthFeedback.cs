@@ -89,7 +89,7 @@ public class PlayerLowHealthFeedback : MonoBehaviour
             {
                 vignette.GetPropertyBlock(mpb);
                 var c = vignetteColor; c.a = VignetteAlpha;
-                mpb.SetColor("_BaseColor", c);
+                mpb.SetColor(ShaderIds.BaseColor, c);
                 vignette.SetPropertyBlock(mpb);
             }
         }

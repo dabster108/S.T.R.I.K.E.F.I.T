@@ -103,6 +103,8 @@ public class MonsterGlow : MonoBehaviour
     private float puStart = -1f, rippleStart = -1f;
     private bool rippleDone;
     private MaterialPropertyBlock rippleMpb;
+    // With the compositor the glow is a layer (BodyGlow) and this script never writes the body's property blocks.
+    private MonsterColorCompositor colors;
 
     void Awake()
     {
@@ -110,6 +112,7 @@ public class MonsterGlow : MonoBehaviour
         health = GetComponent<MonsterHealth>();
         controller = GetComponent<MonsterController>();
         phases = GetComponent<BossPhaseController>();
+        colors = GetComponent<MonsterColorCompositor>();
         mpb = new MaterialPropertyBlock();
         rippleMpb = new MaterialPropertyBlock();
         if (rippleRenderer != null) rippleRenderer.enabled = false;
@@ -238,10 +241,11 @@ public class MonsterGlow : MonoBehaviour
 
         CurrentColor = c; CurrentIntensity = intensity;
         Color e = c * intensity;
-        foreach (int i in materialIndices)
+        if (colors != null) colors.SetBodyGlow(e);
+        else foreach (int i in materialIndices)
         {
             bodyRenderer.GetPropertyBlock(mpb, i);
-            mpb.SetColor("_EmissionColor", e);
+            mpb.SetColor(ShaderIds.EmissionColor, e);
             bodyRenderer.SetPropertyBlock(mpb, i);
         }
 
@@ -267,7 +271,7 @@ public class MonsterGlow : MonoBehaviour
         rippleRenderer.transform.localScale = new Vector3(r, 1f, r);
         var col = rippleColor; col.a *= Mathf.Pow(1f - k, 1.5f);
         rippleRenderer.GetPropertyBlock(rippleMpb);
-        rippleMpb.SetColor("_BaseColor", col);
+        rippleMpb.SetColor(ShaderIds.BaseColor, col);
         rippleRenderer.SetPropertyBlock(rippleMpb);
     }
 }

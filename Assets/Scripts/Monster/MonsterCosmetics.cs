@@ -114,6 +114,7 @@ public class MonsterCosmetics : MonoBehaviour
     bool HasTrigger(string name)
     {
         if (string.IsNullOrEmpty(name) || animator == null || animator.runtimeAnimatorController == null) return false;
+        if (anim != null && anim.animator == animator) return anim.HasTrigger(name);   // cached per controller, no allocation
         foreach (var p in animator.parameters) if (p.type == AnimatorControllerParameterType.Trigger && p.name == name) return true;
         return false;
     }

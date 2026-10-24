@@ -94,6 +94,7 @@ public class MonsterFireAura : MonoBehaviour
         ai = GetComponent<MonsterAI>();
         health = GetComponent<MonsterHealth>();
         entrance = GetComponent<MonsterEntrance>();
+        colors = GetComponent<MonsterColorCompositor>();
         mpb = new MaterialPropertyBlock();
         CacheBones();
         Build();
@@ -261,12 +262,15 @@ public class MonsterFireAura : MonoBehaviour
     }
 
     float shownPulse = -1f;
+    // With the compositor the smoulder is its AuraPulse layer (added to the material's own emission there).
+    MonsterColorCompositor colors;
 
     void SetPulse(float intensity)
     {
         if (bodyRenderer == null || baseEmission == null) return;
         if (Mathf.Abs(intensity - shownPulse) < 0.002f) return;
         shownPulse = intensity;
+        if (colors != null) { colors.SetAura(pulseColor * intensity); return; }
         // Read-modify-write of the renderer-wide block: MonsterAI's telegraph / guard tints (_BaseColor) stay untouched.
         bodyRenderer.GetPropertyBlock(mpb);
         mpb.SetColor(EmissionId, baseEmission.Length > 0 ? baseEmission[0] + pulseColor * intensity : pulseColor * intensity);

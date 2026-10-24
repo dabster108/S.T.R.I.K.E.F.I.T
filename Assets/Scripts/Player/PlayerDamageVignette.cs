@@ -111,7 +111,7 @@ public class PlayerDamageVignette : MonoBehaviour
             shownAlpha = a;
             vignette.GetPropertyBlock(mpb);
             var c = color; c.a = a;
-            mpb.SetColor("_BaseColor", c);
+            mpb.SetColor(ShaderIds.BaseColor, c);
             vignette.SetPropertyBlock(mpb);
         }
     }

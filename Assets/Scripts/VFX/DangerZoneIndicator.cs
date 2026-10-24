@@ -71,7 +71,7 @@ public class DangerZoneIndicator : MonoBehaviour
         {
             fillRenderer.GetPropertyBlock(mpb);
             var c = fillColor; c.a *= Mathf.Lerp(0.4f, 1f, t);
-            mpb.SetColor("_BaseColor", c);
+            mpb.SetColor(ShaderIds.BaseColor, c);
             fillRenderer.SetPropertyBlock(mpb);
         }
     }

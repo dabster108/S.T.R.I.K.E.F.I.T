@@ -81,10 +81,14 @@ public class BossPhaseController : MonoBehaviour
     private MonsterEntrance entrance;
     private bool active;
 
+    // Rage colour goes through the monster's colour writer when it has one.
+    private MonsterColorCompositor colors;
+
     void Awake()
     {
         health = GetComponent<MonsterHealth>();
         ai = GetComponent<MonsterAI>();
+        colors = GetComponent<MonsterColorCompositor>();
         anim = GetComponent<MonsterAnimator>();
         controller = GetComponent<MonsterController>();
         entrance = GetComponent<MonsterEntrance>();
@@ -224,6 +228,7 @@ public class BossPhaseController : MonoBehaviour
             t += Time.deltaTime;
             float k = Mathf.Clamp01(t / enrageRoarSeconds);
             if (ai != null) { ai.restingTint = Color.Lerp(Color.white, enrageTint, k); ai.ApplyRestingTint(); }
+            if (colors != null) colors.SetRage(k, enrageTint);   // the rage layer (base tint + rim): ApplyRestingTint is a no-op then
             if (enrageAura != null) enrageAura.intensity = enrageAuraIntensity * k;
             yield return null;
         }
