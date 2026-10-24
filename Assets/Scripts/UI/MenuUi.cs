@@ -26,6 +26,9 @@ public static class MenuUi
             if (shader == null) return;
             onTop = new Material(shader) { name = "UI_OnTop" };
             onTop.SetInt("unity_GUIZTestMode", (int)UnityEngine.Rendering.CompareFunction.Always);
+            // After every transparent object too: a dying monster's transparent materials and the weapons' glow, closer to the
+            // eye than the panel, were sorted after it and drew over a story card (depth test off alone does not order them).
+            onTop.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Overlay;
         }
         foreach (var g in root.GetComponentsInChildren<Graphic>(true)) g.material = onTop;
     }

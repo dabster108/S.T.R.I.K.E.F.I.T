@@ -176,6 +176,8 @@ public class CombatUIController : MonoBehaviour
     private readonly StringBuilder resultSb = new StringBuilder(256);
     /// <summary>Text of the last result extras block (verification).</summary>
     public string LastResultExtras { get; private set; }
+    /// <summary>The player's own daily goal line on the result panel ("Goal: ..."), updated when the backend answers.</summary>
+    public string GoalLine => goalResultLine;
 
     // Pooled numbers: created once, animated in Update without allocating.
     private TextMeshPro[] numPool;
@@ -268,7 +270,18 @@ public class CombatUIController : MonoBehaviour
         }
         lastMonsterHp = current; lastMonsterMax = max;
         string phase = string.IsNullOrEmpty(monsterPhaseLabel) ? "" : $"  {monsterPhaseLabel}";
-        SetText(monsterHealthText, monsterHealthTMP, $"Enemy {Mathf.CeilToInt(current)}/{Mathf.CeilToInt(max)}{phase}");
+        string aiTag = string.IsNullOrEmpty(monsterAiTag) ? "" : $"  [{monsterAiTag}]";
+        SetText(monsterHealthText, monsterHealthTMP, $"Enemy {Mathf.CeilToInt(current)}/{Mathf.CeilToInt(max)}{phase}{aiTag}");
+    }
+
+    string monsterAiTag = "";
+
+    /// <summary>Level 3 Expert mode tag next to the enemy line ("EXPERT AI", or "AI offline - normal behaviour" after a fallback).
+    /// Empty = no tag (Normal mode, Levels 1 and 2).</summary>
+    public void SetMonsterAiTag(string tag)
+    {
+        monsterAiTag = tag ?? "";
+        if (lastMonsterMax > 1f) UpdateMonsterHealth(lastMonsterHp, lastMonsterMax);   // the next HP update shows it otherwise
     }
 
     [Header("Boss phases (Level 3)")]
@@ -407,7 +420,7 @@ public class CombatUIController : MonoBehaviour
         }
         else if (verboseDamageLogs)
         {
-            Debug.Log($"Damage: {amount:0.0} at {worldPos}");
+            DevLog.Log($"Damage: {amount:0.0} at {worldPos}");
         }
     }
 
@@ -951,6 +964,9 @@ public class CombatUIController : MonoBehaviour
         }
         if (extra != null) extra.text = LastResultExtras + goalResultLine;
         if (footer != null) footer.text = string.IsNullOrEmpty(player) ? ratePrompt : player + "  \u00b7  " + ratePrompt;
+
+        // The engagement result screen (rank, best on this level, next goal, today's goals) replaces the old lines when it can.
+        ResultScreen.Show(this, panel, victory);
 
         // XP count-up on the existing XP line.
         var xpLabel = victory ? victoryXPText : defeatXPText;

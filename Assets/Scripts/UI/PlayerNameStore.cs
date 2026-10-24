@@ -91,6 +91,7 @@ public static class PlayerNameStore
         ReplaceIn(d.recent, oldName, newName);
         ReplaceIn(d.server, oldName, newName);
         Save(d);
+        PlayerProgressStore.Rename(oldName, newName);   // rank, bests and goals move with the name
     }
 
     /// <summary>

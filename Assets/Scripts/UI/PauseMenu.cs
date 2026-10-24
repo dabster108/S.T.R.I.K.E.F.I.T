@@ -302,7 +302,9 @@ public class PauseMenu : MonoBehaviour
         no.onClick.AddListener(() => { if (!Busy) { Play(clickClip); ShowMain(); } });
 
         // UI sounds: short synthesised tones on a 2D source that ignores the listener pause (no asset, nothing to include in a build).
-        uiAudio = root.AddComponent<AudioSource>();
+        // On this component's own object, not the panel: Resume hides the panel first and then plays the close tone, which a source
+        // on the hidden panel refused ("Can not play a disabled audio source", no close sound).
+        uiAudio = gameObject.AddComponent<AudioSource>();
         uiAudio.playOnAwake = false;
         uiAudio.spatialBlend = 0f;
         uiAudio.ignoreListenerPause = true;

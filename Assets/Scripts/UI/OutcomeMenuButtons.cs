@@ -63,19 +63,29 @@ public class OutcomeMenuButtons : MonoBehaviour
         var group = row.gameObject.AddComponent<CanvasGroup>();
         groups.Add(group);
         MenuUi.Label(row, "Prompt", story != null ? story.PromptFor(victory) : prompt, 28, Color.white, TextAnchor.MiddleCenter, new Vector2(0f, 40f), new Vector2(panelWidth, 34f), FontStyle.Bold);
-        float gap = (panelWidth - buttonSize.x * 3f) / 4f;
-        float x0 = -(buttonSize.x + gap);
+        // Play Again (Retry) is the most prominent button: bigger, brighter and with a soft breathing glow; the other two are smaller.
+        var bigSize = new Vector2(buttonSize.x * 1.38f, buttonSize.y * 1.28f);
+        var smallSize = new Vector2(buttonSize.x * 0.94f, buttonSize.y * 0.9f);
+        float gap = (panelWidth - bigSize.x - smallSize.x * 2f) / 4f;
+        float xAgain = -panelWidth / 2f + gap + bigSize.x / 2f;
+        float xSelect = xAgain + bigSize.x / 2f + gap + smallSize.x / 2f;
+        float xExit = xSelect + smallSize.x + gap;
         string againText = story != null && !victory ? "Retry" : "Play Again";
         string middleText = story == null ? "Level Select" : victory ? "Continue story" : "Story menu";
-        var again = MenuUi.MakeButton(row, "PlayAgainButton", againText, fontSize, playAgainColor, new Vector2(x0, -18f), buttonSize);
-        var select = MenuUi.MakeButton(row, story != null ? (victory ? "ContinueStoryButton" : "StoryMenuButton") : "LevelSelectButton", middleText, fontSize, levelSelectColor, new Vector2(0f, -18f), buttonSize);
-        var exit = MenuUi.MakeButton(row, "ExitGameButton", "Exit Game", fontSize, exitColor, new Vector2(-x0, -18f), buttonSize);
+        var glow = MenuUi.Panel(row, "PlayAgainGlow", new Vector2(xAgain, -18f), bigSize + new Vector2(22f, 20f), new Color(0.45f, 1f, 0.55f, 0.3f));
+        glow.raycastTarget = false;
+        var pulse = glow.gameObject.AddComponent<PulseGlow>(); pulse.graphic = glow;
+        var brighter = new Color(Mathf.Min(1f, playAgainColor.r * 1.35f), Mathf.Min(1f, playAgainColor.g * 1.35f), Mathf.Min(1f, playAgainColor.b * 1.35f), 1f);
+        var again = MenuUi.MakeButton(row, "PlayAgainButton", againText, fontSize + 8, brighter, new Vector2(xAgain, -18f), bigSize);
+        var select = MenuUi.MakeButton(row, story != null ? (victory ? "ContinueStoryButton" : "StoryMenuButton") : "LevelSelectButton", middleText, fontSize - 2, levelSelectColor, new Vector2(xSelect, -18f), smallSize);
+        var exit = MenuUi.MakeButton(row, "ExitGameButton", "Exit Game", fontSize - 2, exitColor, new Vector2(xExit, -18f), smallSize);
         if (showRankLine)
         {
             var line = MenuUi.Label(row, "RankLine", "", 26, new Color(1f, 0.88f, 0.45f), TextAnchor.MiddleCenter, new Vector2(0f, -76f), new Vector2(panelWidth, 32f), FontStyle.Bold);
             line.gameObject.AddComponent<OutcomeRankLine>().label = line;
         }
-        again.onClick.AddListener(() => Pressed(again, group, SceneFlow.PlayAgain()));
+        if (story != null && !victory) again.onClick.AddListener(() => { if (!SceneFlow.Busy) { group.interactable = false; story.Retry(); } });   // through black
+        else again.onClick.AddListener(() => Pressed(again, group, SceneFlow.PlayAgain()));
         if (story == null) select.onClick.AddListener(() => Pressed(select, group, SceneFlow.LevelSelect()));
         else if (victory) select.onClick.AddListener(() => story.ContinueStory());
         else select.onClick.AddListener(() => story.StoryMenu());

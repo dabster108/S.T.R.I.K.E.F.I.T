@@ -159,6 +159,30 @@ public class HitBloodFx : MonoBehaviour
         ClashBursts++;
     }
 
+    /// <summary>
+    /// A short celebratory burst (the result screen's NEW BEST / RANK UP): sparks from the active monster's pooled system, through the
+    /// same reused EmitParams, so nothing is allocated. Returns false when there is no pooled system yet (no hit landed this fight).
+    /// </summary>
+    public bool Celebrate(Vector3 point, Vector3 dir, int count, Color a, Color b)
+    {
+        var monster = BattleManager.Instance != null ? BattleManager.Instance.ActiveMonster : null;
+        if (monster == null) return false;
+        var pool = PoolFor(monster);
+        if (pool.ps == null) return false;
+        if (sparksMaterial != null && pool.renderer.sharedMaterial != sparksMaterial) pool.renderer.sharedMaterial = sparksMaterial;
+        emit.position = point;
+        for (int i = 0; i < count; i++)
+        {
+            Vector3 d = Vector3.Slerp(dir, Random.onUnitSphere, 0.55f);
+            emit.velocity = d * Random.Range(1.2f, 2.6f);
+            emit.startLifetime = Random.Range(0.45f, 0.9f);
+            emit.startSize = Random.Range(size.x, size.y) * 0.7f;
+            emit.startColor = Color.Lerp(a, b, Random.value);
+            pool.ps.Emit(emit, 1);
+        }
+        return true;
+    }
+
     void OnMonsterDied(MonsterController monster)
     {
         if (mode != Mode.Blood || !deathBurst || monster == null) return;
