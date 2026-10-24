@@ -307,7 +307,7 @@ public class PlayerExertionAudio : MonoBehaviour
         tier = want;
         tierChangedAt = Time.time;
         if (logTierChanges)
-            Debug.Log($"[StrikeFitBreath] tier {tier} exertion {exertion01:0.00} lowHp {lowHpActive} heavyVol {mediumVolume:0.00} fastVol {fastVolume:0.00}");
+            DevLog.Log($"[StrikeFitBreath] tier {tier} exertion {exertion01:0.00} lowHp {lowHpActive} heavyVol {mediumVolume:0.00} fastVol {fastVolume:0.00}");
     }
 
     void ApplyVolumes(float dt)
