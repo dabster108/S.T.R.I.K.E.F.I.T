@@ -1,0 +1,14 @@
+{
+    "name": "StrikeFit.ColorCore",
+    "rootNamespace": "StrikeFit.ColorFx",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
