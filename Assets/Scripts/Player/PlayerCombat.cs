@@ -68,8 +68,9 @@ public class PlayerCombat : MonoBehaviour
     public bool weaponSurfaceProxy = true;
     [Tooltip("Faint unlit material for the ghost of the real controller pose (M_WeaponGhost).")]
     public Material weaponGhostMaterial;
-    [Tooltip("Show the ghost of the real pose when the drawn weapon is more than 6 cm from the controller.")]
-    public bool weaponGhost = true;
+    [Tooltip("Show a faint copy of the weapon at the real controller pose when the drawn weapon is more than 6 cm from it. Off by default: " +
+             "it read as a white shadow of the sword that appeared on every swing into the monster.")]
+    public bool weaponGhost = false;
 
     [Header("Own-weapon collisions")]
     [Tooltip("Physics.IgnoreCollision between every pair of active colliders under this rig (both held weapons, any hand " +

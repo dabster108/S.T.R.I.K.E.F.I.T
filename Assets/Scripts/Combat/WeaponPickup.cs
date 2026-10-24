@@ -103,7 +103,7 @@ public class WeaponPickup : MonoBehaviour
         MarkerPulse = Mathf.Lerp(markerPulseMin, 1f, 0.5f + 0.5f * Mathf.Sin((Time.time * markerPulseSpeed + (int)weaponType * 0.37f) * Mathf.PI * 2f));
         Color c = markerColor; c.a = Mathf.Clamp01(markerColor.a * (0.6f + 1.4f * MarkerPulse));
         markerRing.GetPropertyBlock(markerMpb);
-        markerMpb.SetColor("_BaseColor", c);
+        markerMpb.SetColor(ShaderIds.BaseColor, c);
         markerRing.SetPropertyBlock(markerMpb);
         markerRing.transform.Rotate(0f, markerSpinSpeed * Time.deltaTime, 0f, Space.World);
     }

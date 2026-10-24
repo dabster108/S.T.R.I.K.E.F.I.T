@@ -75,6 +75,9 @@ public class WeaponSelectionStage : MonoBehaviour
 
     bool OutcomeShown()
     {
+        // A finished fight counts even with its panel hidden: Story Mode hides the end panel behind its cards, and a weapon swap
+        // then re-showed Start over the Victory / Story complete cards (a second fight could start there).
+        if (BattleManager.Instance != null && BattleManager.Instance.OutcomeHandled) return true;
         var ui = CombatUIController.Instance;
         return ui != null && ((ui.victoryPanel != null && ui.victoryPanel.activeSelf) || (ui.defeatPanel != null && ui.defeatPanel.activeSelf));
     }

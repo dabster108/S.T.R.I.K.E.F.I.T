@@ -136,6 +136,8 @@ public class WeaponSurfaceProxy : MonoBehaviour
             nr.shadowCastingMode = own.shadowCastingMode; nr.receiveShadows = own.receiveShadows;
             nr.lightProbeUsage = own.lightProbeUsage; nr.reflectionProbeUsage = own.reflectionProbeUsage;
             own.enabled = false;
+            var glow = GetComponentInParent<PlayerWeaponGlow>();
+            if (glow != null) glow.ReplaceRenderer(own, nr);   // the colour writer follows the renderer that is actually drawn
             AddPiece(go.transform, nr, nf, 1f, pieces);
         }
         // 2. Renderers on children (swords, mace, katana, the flail's ball): the top-level child holding each one moves.
