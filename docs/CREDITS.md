@@ -51,6 +51,12 @@ licence terms before any public release build.**
 - Every file prefixed `L2_` or `L3_` (for example `L2_Slam_Impact`, `L3_Roar_Enrage`) has no uploader name
   in its filename, so its source is unrecorded. **TODO.**
 
+## Data
+
+- **Touché** sword-strike recordings (gesture-detection set), used to train the Level 3 Expert motion forecaster in
+  `ml-services/`: J. Dehesa, A. Vidler, C. Lutteroth and J. Padget, "Touché: Data-Driven Interactive Sword Fighting in Virtual
+  Reality", CHI 2020. Licence CC BY 4.0. The raw data is not redistributed in this repository.
+
 ## People
 
 - Softwarica College — resources and environment for this thesis project.
@@ -58,6 +64,8 @@ licence terms before any public release build.**
 
 ## Tools
 
-- Unity, the Meta XR SDK, Mixamo, Node.js, PostgreSQL (Neon), React, Vite and Tailwind CSS, per `README.md`.
+- Unity, the Meta XR SDK, Unity Inference Engine, Mixamo, Node.js, PostgreSQL (hosted on Layerbase, earlier Neon), React, Vite and
+  Tailwind CSS, per `README.md`.
+- Python, PyTorch, ONNX / ONNX Runtime, NumPy, pandas, SciPy, scikit-learn, Matplotlib, JupyterLab and uv for `ml-services/`.
 - The three monster portraits on this site were rendered from the project's own Unity models with
   three.js, not drawn or sourced separately — see `web/tools/render-portraits/README.md`.
