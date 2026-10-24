@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b4e120833bc94a769b88f3d34906932, type: 3}
+  m_Name: PlayerWeaponGlow_Profile
+  m_EditorClassIdentifier: StrikeFit.ColorCore::StrikeFit.ColorFx.WeaponGlowProfile
+  blend:
+    maxEmission: 1.2
+    telegraphMinWeight: 0
+    telegraphMinEmission: 0
+    telegraphReserve: 0
+  tint: {r: 1, g: 1, b: 1, a: 1}
+  emission: {r: 0, g: 0, b: 0, a: 1}
+  tapColor: {r: 0.9, g: 0.92, b: 1, a: 1}
+  lightColor: {r: 1, g: 0.9, b: 0.25, a: 1}
+  mediumColor: {r: 1, g: 0.55, b: 0.12, a: 1}
+  fullColor: {r: 1, g: 0.16, b: 0.14, a: 1}
+  tapIntensity: 0.3
+  lightIntensity: 0.55
+  mediumIntensity: 0.85
+  fullIntensity: 1.1
+  tapSeconds: 0.15
+  lightSeconds: 0.17
+  mediumSeconds: 0.2
+  fullSeconds: 0.25
+  hitWeight: 0.4
+  clashColor: {r: 1, g: 0.85, b: 0.45, a: 1}
+  parryColor: {r: 0.55, g: 0.85, b: 1, a: 1}
+  clashSeconds: 0.22
+  parrySeconds: 0.32
+  clashIntensity: 0.9
+  clashWeight: 0.4
+  hurtColor: {r: 1, g: 0.12, b: 0.1, a: 1}
+  hurtSeconds: 0.25
+  hurtIntensity: 0.45
+  hurtWeight: 0.3
