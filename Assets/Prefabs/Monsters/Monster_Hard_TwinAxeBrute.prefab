@@ -110,59 +110,6 @@ CapsuleCollider:
   m_Height: 0.36096317
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
---- !u!1 &89133041593905099
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 3592423426179873184}
-  - component: {fileID: 8986603420612716120}
-  m_Layer: 8
-  m_Name: ClashBox_4
-  m_TagString: MonsterWeapon
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &3592423426179873184
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 89133041593905099}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1246083921878239841}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &8986603420612716120
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 89133041593905099}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.16097775, y: 0.2561772, z: 0.38381365}
-  m_Center: {x: 0.00040882826, y: 0.7394642, z: 0.11131017}
 --- !u!1 &382115849368687034
 GameObject:
   m_ObjectHideFlags: 0
@@ -259,6 +206,59 @@ Transform:
   - {fileID: 2601702344821197265}
   m_Father: {fileID: 3057370859493029129}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &683312840023115170
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2268706167707828486}
+  - component: {fileID: 2068213865767527468}
+  m_Layer: 8
+  m_Name: ClashBox_2
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2268706167707828486
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 683312840023115170}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2139677900755572132}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &2068213865767527468
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 683312840023115170}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.12529156, y: 0.25617713, z: 0.36868516}
+  m_Center: {x: 0.0002698172, y: 0.35510978, z: 0.12160222}
 --- !u!1 &817630140519709720
 GameObject:
   m_ObjectHideFlags: 0
@@ -443,59 +443,6 @@ Transform:
   - {fileID: 5445675897678783383}
   m_Father: {fileID: 8314909786343932915}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &914395597875001228
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2965767903239261590}
-  - component: {fileID: 6828518830135357617}
-  m_Layer: 8
-  m_Name: ClashBox_3
-  m_TagString: MonsterWeapon
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2965767903239261590
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 914395597875001228}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1246083921878239841}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &6828518830135357617
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 914395597875001228}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.12548593, y: 0.25617725, z: 0.3661462}
-  m_Center: {x: 0.0010454915, y: 0.547287, z: 0.12165886}
 --- !u!1 &922727280110331954
 GameObject:
   m_ObjectHideFlags: 0
@@ -641,6 +588,59 @@ Transform:
   - {fileID: 3568873677063384206}
   m_Father: {fileID: 2261254571267004896}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1163668007349498000
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7285638013673226625}
+  - component: {fileID: 503059236385263818}
+  m_Layer: 8
+  m_Name: ClashBox_4
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7285638013673226625
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1163668007349498000}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2139677900755572132}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &503059236385263818
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1163668007349498000}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.16097777, y: 0.2561772, z: 0.38381362}
+  m_Center: {x: 0.0004085675, y: 0.7394641, z: 0.111310236}
 --- !u!1 &1273910353849009518
 GameObject:
   m_ObjectHideFlags: 0
@@ -698,6 +698,9 @@ GameObject:
   - component: {fileID: 8976103026171938891}
   - component: {fileID: 916228325732955231}
   - component: {fileID: 9023956306001982432}
+  - component: {fileID: 3388645814927147419}
+  - component: {fileID: 7368731641172690778}
+  - component: {fileID: 1700873296956312245}
   m_Layer: 9
   m_Name: Monster_Hard_TwinAxeBrute
   m_TagString: Monster
@@ -1038,6 +1041,7 @@ MonoBehaviour:
   playerTag: Player
   useHeadTarget: 1
   thinkInterval: 0.15
+  approachHysteresis: 0.1
   stopDistance: 1.45
   facePlayer: 1
   canMove: 1
@@ -1670,7 +1674,7 @@ MonoBehaviour:
   lowHpCooldownScale: 0.85
   swingSfxLead: 0.12
   tempoScale: 1
-  chainChanceByPhase: {x: 0.65, y: 0.75, z: 0.85}
+  chainChanceByPhase: {x: 0.5, y: 0.6, z: 0.8}
   chainMaxAttacks: 3
   chainGap: {x: 0.35, y: 0.6}
   telegraphJitter: 0.15
@@ -2114,6 +2118,7 @@ MonoBehaviour:
   handClearance: 0.35
   weaponClearance: 0
   weaponHeadClearance: 0
+  maxPushSpeed: 4
   iterations: 4
 --- !u!114 &9023956306001982432
 MonoBehaviour:
@@ -2138,7 +2143,7 @@ MonoBehaviour:
   recentreDeadZone: 0.08
   recentreSpeed: 0.35
   recentreGain: 2
-  detectSpeed: 2.5
+  detectSpeed: 1.2
   detectRange: 1.9
   detectConeAngle: 40
   guardTarget: {fileID: 5038271403177728474}
@@ -2174,7 +2179,7 @@ MonoBehaviour:
   guardReach: 1.36
   sideOverlap: 0.1
   sideGuards: 1
-  lowGuard: 0
+  lowGuard: 1
   sideLeftGuardTrigger: Defend
   sideRightGuardTrigger: Defend
   lowPoseGuardTrigger: Defend
@@ -2182,10 +2187,10 @@ MonoBehaviour:
   blockPitchJitter: 0.04
   adaptiveGuard: 1
   memoryLength: 6
-  repeatThreshold: 3
+  repeatThreshold: 2
   repeatWindow: 8
-  adaptiveStep: 0.15
-  adaptiveMaxBoost: 0.15
+  adaptiveStep: 0.2
+  adaptiveMaxBoost: 0.22
   decayPerVariedSwing: 0.05
   decayPerSecond: 0.02
   maxGuardChance: 0.8
@@ -2225,6 +2230,83 @@ MonoBehaviour:
   dodgeDistance: 0.7
   dodgeSeconds: 0.45
   dodgeArenaRadius: 3.5
+--- !u!114 &3388645814927147419
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1559859882870524655}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 33bee852315324a719416a890feede30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterTactics
+  profile: {fileID: 11400000, guid: 24607d91711af4cfc9698010a084b007, type: 2}
+  logDecisions: 1
+--- !u!114 &7368731641172690778
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1559859882870524655}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4fb4da17e9824f44bc5b3e7c14e3002, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterExpertBrain
+  config: {fileID: 11400000, guid: 08f99c14860184762a345bf8d3c3f50f, type: 2}
+--- !u!114 &1700873296956312245
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1559859882870524655}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd9848ceeb4704fe590e2e45ddc27219, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterColorCompositor
+  slots:
+  - renderer: {fileID: 7198746877670911408}
+    materialIndex: 0
+    group: 4
+    addMaterialEmission: 0
+  - renderer: {fileID: 7198746877670911408}
+    materialIndex: 1
+    group: 4
+    addMaterialEmission: 0
+  - renderer: {fileID: 7198746877670911408}
+    materialIndex: 2
+    group: 8
+    addMaterialEmission: 0
+  - renderer: {fileID: 1867469735797008631}
+    materialIndex: 0
+    group: 32
+    addMaterialEmission: 1
+  - renderer: {fileID: 1867469735797008631}
+    materialIndex: 1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 1867469735797008631}
+    materialIndex: 2
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 242537780403551858}
+    materialIndex: 0
+    group: 32
+    addMaterialEmission: 1
+  - renderer: {fileID: 242537780403551858}
+    materialIndex: 1
+    group: 16
+    addMaterialEmission: 1
+  - renderer: {fileID: 242537780403551858}
+    materialIndex: 2
+    group: 16
+    addMaterialEmission: 1
+  palette: {fileID: 11400000, guid: 8a6f77949264847ef86acd8a7e3fa456, type: 2}
 --- !u!1 &1762257859119017079
 GameObject:
   m_ObjectHideFlags: 0
@@ -12286,6 +12368,112 @@ CapsuleCollider:
   m_Height: 0.39258015
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!1 &2307657431475161809
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8722185938937616863}
+  - component: {fileID: 2903928240071396355}
+  m_Layer: 8
+  m_Name: ClashBox_2
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8722185938937616863
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2307657431475161809}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1246083921878239841}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &2903928240071396355
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2307657431475161809}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.12529153, y: 0.25617722, z: 0.3686852}
+  m_Center: {x: 0.00027008727, y: 0.3551098, z: 0.121602185}
+--- !u!1 &2517264909008839543
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6617168305263526072}
+  - component: {fileID: 8428792024582298819}
+  m_Layer: 8
+  m_Name: ClashBox_0
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6617168305263526072
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2517264909008839543}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1246083921878239841}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &8428792024582298819
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2517264909008839543}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.19410345, y: 0.2561772, z: 0.3492549}
+  m_Center: {x: 0.00069044903, y: -0.029244598, z: 0.07805276}
 --- !u!1 &2522751545283729023
 GameObject:
   m_ObjectHideFlags: 0
@@ -22399,6 +22587,59 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &3624133692138632597
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 475820246273482346}
+  - component: {fileID: 6496198572585183970}
+  m_Layer: 8
+  m_Name: ClashBox_1
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &475820246273482346
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3624133692138632597}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1246083921878239841}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &6496198572585183970
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3624133692138632597}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.108555876, y: 0.25617722, z: 0.36023286}
+  m_Center: {x: 0.0015841164, y: 0.16293262, z: 0.12392093}
 --- !u!1 &3787370840466682529
 GameObject:
   m_ObjectHideFlags: 0
@@ -22727,59 +22968,6 @@ TrailRenderer:
   m_Autodestruct: 0
   m_Emitting: 0
   m_ApplyActiveColorSpace: 1
---- !u!1 &3969788617546278793
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 3109118088708621540}
-  - component: {fileID: 4722325614509848055}
-  m_Layer: 8
-  m_Name: ClashBox_1
-  m_TagString: MonsterWeapon
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &3109118088708621540
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3969788617546278793}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 2139677900755572132}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &4722325614509848055
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3969788617546278793}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.10855589, y: 0.25617716, z: 0.36023283}
-  m_Center: {x: 0.0015838407, y: 0.16293262, z: 0.123920955}
 --- !u!1 &4126827207375894514
 GameObject:
   m_ObjectHideFlags: 0
@@ -22953,11 +23141,11 @@ Transform:
   m_Children:
   - {fileID: 6775191611917582908}
   - {fileID: 95355833105528322}
-  - {fileID: 4088758837399941568}
-  - {fileID: 5656855749866399286}
-  - {fileID: 1607191708983476366}
-  - {fileID: 2965767903239261590}
-  - {fileID: 3592423426179873184}
+  - {fileID: 6617168305263526072}
+  - {fileID: 475820246273482346}
+  - {fileID: 8722185938937616863}
+  - {fileID: 5839296174879135896}
+  - {fileID: 5325225374367632440}
   m_Father: {fileID: 2079501041508135216}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!82 &2972785474999850262
@@ -28140,59 +28328,6 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
---- !u!1 &4845961264607913901
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2165538179647708610}
-  - component: {fileID: 8715532235473434200}
-  m_Layer: 8
-  m_Name: ClashBox_3
-  m_TagString: MonsterWeapon
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2165538179647708610
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4845961264607913901}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 2139677900755572132}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &8715532235473434200
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4845961264607913901}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.12548594, y: 0.2561772, z: 0.3661462}
-  m_Center: {x: 0.0010452196, y: 0.5472869, z: 0.1216589}
 --- !u!1 &4889883394590618278
 GameObject:
   m_ObjectHideFlags: 0
@@ -28580,6 +28715,59 @@ Transform:
   - {fileID: 616652409782409540}
   m_Father: {fileID: 9054700963632635126}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &5383604026146968960
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5325225374367632440}
+  - component: {fileID: 9070539077619563346}
+  m_Layer: 8
+  m_Name: ClashBox_4
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5325225374367632440
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5383604026146968960}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1246083921878239841}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &9070539077619563346
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5383604026146968960}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.16097775, y: 0.2561772, z: 0.38381365}
+  m_Center: {x: 0.00040882826, y: 0.7394642, z: 0.11131017}
 --- !u!1 &5400707579346450456
 GameObject:
   m_ObjectHideFlags: 0
@@ -28613,6 +28801,59 @@ Transform:
   - {fileID: 2660702378808102408}
   m_Father: {fileID: 7723762810235580911}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &5459718804530995615
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1781784747610708263}
+  - component: {fileID: 5667932190519316959}
+  m_Layer: 8
+  m_Name: ClashBox_0
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1781784747610708263
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5459718804530995615}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2139677900755572132}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &5667932190519316959
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5459718804530995615}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.1941035, y: 0.25617713, z: 0.3492549}
+  m_Center: {x: 0.00069016963, y: -0.029244527, z: 0.07805277}
 --- !u!1 &5726952466165727104
 GameObject:
   m_ObjectHideFlags: 0
@@ -28711,6 +28952,59 @@ Transform:
   - {fileID: 2855602233214852767}
   m_Father: {fileID: 79535867071715627}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &6001703090908544198
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2776392195916889560}
+  - component: {fileID: 227435857410825882}
+  m_Layer: 8
+  m_Name: ClashBox_1
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2776392195916889560
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6001703090908544198}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2139677900755572132}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &227435857410825882
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6001703090908544198}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.10855589, y: 0.25617716, z: 0.36023283}
+  m_Center: {x: 0.0015838407, y: 0.16293262, z: 0.123920955}
 --- !u!1 &6276156470441650429
 GameObject:
   m_ObjectHideFlags: 0
@@ -28886,59 +29180,6 @@ Transform:
   - {fileID: 3578822637529929621}
   m_Father: {fileID: 8658468619180792613}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &6480674550724878680
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1340020235087654832}
-  - component: {fileID: 9091827801408619402}
-  m_Layer: 8
-  m_Name: ClashBox_4
-  m_TagString: MonsterWeapon
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1340020235087654832
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6480674550724878680}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 2139677900755572132}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &9091827801408619402
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6480674550724878680}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.16097777, y: 0.2561772, z: 0.38381362}
-  m_Center: {x: 0.0004085675, y: 0.7394641, z: 0.111310236}
 --- !u!1 &6497112833239621824
 GameObject:
   m_ObjectHideFlags: 0
@@ -29156,59 +29397,6 @@ Transform:
   - {fileID: 4563821379262628351}
   m_Father: {fileID: 2079501041508135216}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &6612848782089436758
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 6395602259817087356}
-  - component: {fileID: 4814378573607874508}
-  m_Layer: 8
-  m_Name: ClashBox_2
-  m_TagString: MonsterWeapon
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &6395602259817087356
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6612848782089436758}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 2139677900755572132}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &4814378573607874508
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6612848782089436758}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.12529156, y: 0.25617713, z: 0.36868516}
-  m_Center: {x: 0.0002698172, y: 0.35510978, z: 0.12160222}
 --- !u!1 &6737963144294246939
 GameObject:
   m_ObjectHideFlags: 0
@@ -29428,20 +29616,28 @@ MonoBehaviour:
   twoWeapons: 1
   rightWeapon: {fileID: 2139677900755572132}
   leftWeapon: {fileID: 1246083921878239841}
-  maxHandSpeed: 2.5
+  maxHandSpeed: 5
   reachFraction: 0.9
   minForward: 0.3
   maxCross: 0.15
-  minHeight: 0.35
-  blendIn: 8
+  minHeight: 0.2
+  blendIn: 12
   blendOut: 5
   positionWeight: 1
   keepClipHandRotation: 1
-  highAnchor: {x: 0, y: 0.95, z: 0.35}
-  sideAnchor: {x: 0.45, y: 0.75, z: 0.6}
-  lowAnchor: {x: 0, y: 0.4, z: 0.4}
-  ikOnHighPose: 0
-  followContact: 0.5
+  highAnchor: {x: 0, y: 1, z: 0.45}
+  sideAnchor: {x: 0.45, y: 0.72, z: 0.55}
+  lowAnchor: {x: 0, y: 0.22, z: 0.45}
+  ikOnHighPose: 1
+  followContact: 0.65
+  orientWeapon: 0
+  highAxis: {x: 1, y: 0.08, z: 0.1}
+  sideAxis: {x: 0.12, y: 1, z: 0.3}
+  lowAxis: {x: 0.75, y: -0.55, z: 0.35}
+  crossSideAxis: {x: -0.7, y: 0.7, z: 0.25}
+  twinHighLow: 1
+  twinSpread: 0.16
+  maxHandTurn: 900
 --- !u!1 &6841976671193130950
 GameObject:
   m_ObjectHideFlags: 0
@@ -29539,6 +29735,59 @@ Transform:
   - {fileID: 1970441949543992813}
   m_Father: {fileID: 9054700963632635126}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &6982969679619921486
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5839296174879135896}
+  - component: {fileID: 4815428127178329004}
+  m_Layer: 8
+  m_Name: ClashBox_3
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5839296174879135896
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6982969679619921486}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1246083921878239841}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &4815428127178329004
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6982969679619921486}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.12548593, y: 0.25617725, z: 0.3661462}
+  m_Center: {x: 0.0010454915, y: 0.547287, z: 0.12165886}
 --- !u!1 &6992491565092998091
 GameObject:
   m_ObjectHideFlags: 0
@@ -29658,59 +29907,6 @@ Transform:
   - {fileID: 7084157168397882567}
   m_Father: {fileID: 9054700963632635126}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &7307010195250181570
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1607191708983476366}
-  - component: {fileID: 5435521746723804144}
-  m_Layer: 8
-  m_Name: ClashBox_2
-  m_TagString: MonsterWeapon
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1607191708983476366
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7307010195250181570}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1246083921878239841}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &5435521746723804144
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7307010195250181570}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.12529153, y: 0.25617722, z: 0.3686852}
-  m_Center: {x: 0.00027008727, y: 0.3551098, z: 0.121602185}
 --- !u!1 &7410618778861571838
 GameObject:
   m_ObjectHideFlags: 0
@@ -29808,11 +30004,11 @@ Transform:
   m_Children:
   - {fileID: 7912658371293210373}
   - {fileID: 3784152325827287473}
-  - {fileID: 1520710315155037851}
-  - {fileID: 3109118088708621540}
-  - {fileID: 6395602259817087356}
-  - {fileID: 2165538179647708610}
-  - {fileID: 1340020235087654832}
+  - {fileID: 1781784747610708263}
+  - {fileID: 2776392195916889560}
+  - {fileID: 2268706167707828486}
+  - {fileID: 1441170906990426853}
+  - {fileID: 7285638013673226625}
   m_Father: {fileID: 9054700963632635126}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!82 &3397194174659892429
@@ -30036,59 +30232,6 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!1 &7579756538103865598
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 5656855749866399286}
-  - component: {fileID: 2348275562217321234}
-  m_Layer: 8
-  m_Name: ClashBox_1
-  m_TagString: MonsterWeapon
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &5656855749866399286
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7579756538103865598}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1246083921878239841}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &2348275562217321234
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7579756538103865598}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.108555876, y: 0.25617722, z: 0.36023286}
-  m_Center: {x: 0.0015841164, y: 0.16293262, z: 0.12392093}
 --- !u!1 &7597213780298207406
 GameObject:
   m_ObjectHideFlags: 0
@@ -30300,6 +30443,59 @@ CapsuleCollider:
   m_Height: 0.36096302
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!1 &7754762578728661438
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1441170906990426853}
+  - component: {fileID: 8887572686062542416}
+  m_Layer: 8
+  m_Name: ClashBox_3
+  m_TagString: MonsterWeapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1441170906990426853
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7754762578728661438}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2139677900755572132}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &8887572686062542416
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7754762578728661438}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.12548594, y: 0.2561772, z: 0.3661462}
+  m_Center: {x: 0.0010452196, y: 0.5472869, z: 0.1216589}
 --- !u!1 &7872438288936917825
 GameObject:
   m_ObjectHideFlags: 0
@@ -35741,59 +35937,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 7219602588954596450}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &8482343282613767360
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1520710315155037851}
-  - component: {fileID: 3629041593100714974}
-  m_Layer: 8
-  m_Name: ClashBox_0
-  m_TagString: MonsterWeapon
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1520710315155037851
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8482343282613767360}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 2139677900755572132}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &3629041593100714974
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8482343282613767360}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.1941035, y: 0.25617713, z: 0.3492549}
-  m_Center: {x: 0.00069016963, y: -0.029244527, z: 0.07805277}
 --- !u!1 &8541417055035977220
 GameObject:
   m_ObjectHideFlags: 0
@@ -40989,59 +41132,6 @@ Transform:
   - {fileID: 857759348483436175}
   m_Father: {fileID: 5038271403177728474}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &8957765793526680086
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 4088758837399941568}
-  - component: {fileID: 2656391991285532102}
-  m_Layer: 8
-  m_Name: ClashBox_0
-  m_TagString: MonsterWeapon
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &4088758837399941568
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8957765793526680086}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1246083921878239841}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &2656391991285532102
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8957765793526680086}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.19410345, y: 0.2561772, z: 0.3492549}
-  m_Center: {x: 0.00069044903, y: -0.029244598, z: 0.07805276}
 --- !u!1 &9014889688624596692
 GameObject:
   m_ObjectHideFlags: 0

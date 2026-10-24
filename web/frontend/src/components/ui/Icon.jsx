@@ -49,6 +49,7 @@ import {
   Medal,
   Menu,
   Monitor,
+  MousePointer2,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
@@ -64,6 +65,7 @@ import {
   Share2,
   Shield,
   ShieldCheck,
+  Smartphone,
   Sparkles,
   Star,
   Swords,
@@ -177,6 +179,9 @@ const ICONS = {
   milestone: Milestone,
   volume: Volume2,
   volumeOff: VolumeX,
+  // practice page
+  phone: Smartphone,
+  pointer: MousePointer2,
 };
 
 // Lucide dropped brand marks, so GitHub keeps its own outline path in the same style.

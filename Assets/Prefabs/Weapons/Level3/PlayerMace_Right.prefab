@@ -104,6 +104,7 @@ GameObject:
   - component: {fileID: 7535134402719308396}
   - component: {fileID: 1710222557580859564}
   - component: {fileID: 2772760755387717166}
+  - component: {fileID: 7490768214124223608}
   m_Layer: 0
   m_Name: PlayerMace_Right
   m_TagString: Hammer
@@ -301,6 +302,25 @@ MonoBehaviour:
   blockedHitSound: {fileID: 0}
   blockedHitVolume: 0.8
   soundButtonFallback: {fileID: 0}
+  hitSounds: 1
+  varyHitSounds: 1
+  hitVariants: []
+  heavyHitVariants: []
+  pitchJitter: 0.06
+  oneContactPerSwing: 1
+  rearmOutsideSeconds: 0.12
+  clashNeedsSwingOrAttack: 1
+  sharedClashSoundWindow: 0.15
+  ignoreDuringEntrance: 1
+  sweptDetection: 1
+  sweepStep: 0.03
+  maxSweepSubSteps: 32
+  sweepRange: 4
+  clashBodyLockSeconds: 0.3
+  clashSwingLockMax: 1
+  clashPairCooldown: 0.25
+  clashPitchVariants: 1
+  clashPitches: {x: 0.93, y: 1, z: 1.08}
   hammerTag: Hammer
   playerHandTag: PlayerHand
   hand: 0
@@ -325,4 +345,23 @@ MonoBehaviour:
   rearmSpeed: 1.2
   fullSpeed: 6
   minInterval: 0.45
+  sustainSeconds: 0.04
   reversalAngle: 150
+--- !u!114 &7490768214124223608
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4009292522886635611}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac2a1b97a1bb2448abc690b6a459a85d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerWeaponGlow
+  slots:
+  - renderer: {fileID: 1166393044099096626}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  profile: {fileID: 11400000, guid: df7fd80de3a104e33a65e1314e0c263c, type: 2}

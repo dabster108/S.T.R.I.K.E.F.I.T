@@ -42,6 +42,8 @@ public class BattleManager : MonoBehaviour
 
     [Header("Runtime")]
     public bool IsBattleActive { get; private set; }
+    /// <summary>The fight has ended (Victory or Defeat sequence started); stays true until the scene reloads or a new fight starts.</summary>
+    public bool OutcomeHandled => outcomeHandled;
     public int CurrentScore { get; private set; }
     public float TotalDamageDealt { get; private set; }
     public MonsterController ActiveMonster { get; private set; }
@@ -120,6 +122,7 @@ public class BattleManager : MonoBehaviour
         }
 
         outcomeHandled = false;
+        MonsterAIModeSetting.FreezeForFight();   // Normal / Expert (Level 3 only) is fixed for this fight
         BattleStartFrame = Time.frameCount;
         CurrentScore = 0;
         TotalDamageDealt = 0f;

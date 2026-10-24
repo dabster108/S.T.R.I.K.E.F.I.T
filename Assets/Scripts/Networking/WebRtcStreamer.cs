@@ -94,7 +94,12 @@ public class WebRtcStreamer : MonoBehaviour
     {
         if (Instance != null && Instance != this)
         {
-            Debug.LogWarning("[WebRtcStreamer] A second streamer was found and disabled; keep one per game.");
+            // A level that carries its own BroadcastSystems, loaded while the persistent one (DontDestroyOnLoad) already streams:
+            // the normal case after the first level, so not a warning. Two streamers in one scene is still a setup mistake.
+            if (Instance.gameObject.scene.name == "DontDestroyOnLoad")
+                DevLog.Log("[WebRtcStreamer] The persistent streamer is already running; this scene's copy stays disabled.");
+            else
+                Debug.LogWarning("[WebRtcStreamer] A second streamer was found and disabled; keep one per game.");
             enabled = false;
             return;
         }

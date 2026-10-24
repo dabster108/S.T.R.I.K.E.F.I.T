@@ -25,14 +25,28 @@ public static class CombatTuning
     static readonly float[] DetectRange = { 2.5f, 2.2f, 1.9f };         // m from the chest: swing speed x reaction delay + margin
     // Reactive guard (fairness limits from the brief)
     static readonly float[] ReactionDelay = { 0.35f, 0.25f, 0.18f };
-    static readonly float[] GuardChance = { 0.15f, 0.35f, 0.50f };        // adaptive pass 2026-10-09 (was 0.15 / 0.30 / 0.45)
+    static readonly float[] GuardChance = { 0.15f, 0.35f, 0.50f };        // unchanged by the 2026-10-20 pass: the gain came from DetectSpeed (below), not from a higher chance
     static readonly float[] GuardChanceEnraged = { 0.15f, 0.35f, 0.50f }; // L3 phases add GuardChancePerPhase instead
-    static readonly float[] MinGuardGap = { 6f, 3.5f, 2.5f };             // was 6 / 4.5 / 3.5
-    static readonly float[] MaxUptime = { 0.12f, 0.22f, 0.30f };          // was 0.12 / 0.18 / 0.25
+    static readonly float[] MinGuardGap = { 6f, 3.5f, 2.5f };
+    static readonly float[] MaxUptime = { 0.12f, 0.22f, 0.30f };
     static readonly float[] TimedGuardInterval = { 12f, 9f, 8f };
+    // The slowest swing the guard notices (m/s). The game counts a swing from PlayerCombat.minSwingVelocity (1.2); the guard used to ignore everything
+    // under 2.5, and real swings accelerate from rest, so it saw them only at the last moment (or never: a median Level 2 swing peaks near 2.1).
+    // MonsterDefense uses max(detectSpeed, minSwingVelocity), so 1.2 means "every counted swing is seen from the start of the stroke".
+    static readonly float[] DetectSpeed = { 2.5f, 1.2f, 1.2f };
     // Guard meter / break
     static readonly int[] GuardBreakHits = { 5, 4, 3 };
-    static readonly float[] GuardChancePerPhase = { 0f, 0f, 0.05f };   // L3: 45 % / 50 % / 55 % by boss phase
+    static readonly float[] GuardChancePerPhase = { 0f, 0f, 0.05f };   // L3: +5 points per boss phase
+    // How fast the guard learns the player's habit: swings of one class / side inside repeatWindow that count as a pattern, the guard chance each
+    // repeat adds, and the most it can add. Level 3 notices a repeated side after two swings and defends it harder.
+    static readonly int[] RepeatThreshold = { 3, 3, 2 };
+    static readonly float[] AdaptiveStep = { 0.15f, 0.15f, 0.20f };
+    static readonly float[] AdaptiveMaxBoost = { 0.15f, 0.15f, 0.22f };
+    static readonly float[] FollowContact = { 0.5f, 0.5f, 0.65f };      // how far the guard hand goes from the pose anchor toward where the swing will land
+    // Movement polish (L1 keeps the old behaviour): walk-in band so the monster approaches steadily, and a limit on how fast the personal-space
+    // clamp may push the monster away (it used to snap up to 0.4 m in one frame).
+    static readonly float[] ApproachBand = { 0f, 0.10f, 0.10f };
+    static readonly float[] MaxPushSpeed = { 0f, 4f, 4f };
     static readonly float[] CounterChance = { 0f, 0.20f, 0.35f };
     static readonly float[] StaggerSeconds = { 2.5f, 2.0f, 1.6f };
     // Hit clip time to its exit (s at speed 1): L1 1.60 x 0.70, L2 1.60 / 1.2 x 0.70, L3 1.05 x 0.95
@@ -52,7 +66,7 @@ public static class CombatTuning
     public const float L3EnrageTempo = 1.18f;          // +18 % (was 1.15); the 0.45 s telegraph floor (L3MinTelegraph) holds the shortest wind-up
     public const float L3Phase2Tempo = 1.08f;          // +8 % in phase 2 (was 1.0)
     public const float L3Phase2CooldownScale = 0.9f;   // phase 2 cooldown x0.9 (enraged keeps x0.7)
-    public static Vector3 L3ChainChance = new Vector3(0.65f, 0.75f, 0.85f);   // per phase; 2-3 linked attacks
+    public static Vector3 L3ChainChance = new Vector3(0.50f, 0.60f, 0.80f);   // per phase; 2-3 linked attacks (was 0.65 / 0.75 / 0.85: it attacked ~60 % of the time and could not guard)
     public const float L3TelegraphJitter = 0.15f, L3MinTelegraph = 0.45f;
     public static Vector3 L3SlamWeightByPhase = new Vector3(1f, 2f, 1f);     // must-dodge more often from phase 2 (enraged already uses its own weight 34)
     public const float L3BurstPerSecond = 1f / 76f;   // fastest possible kill about 76 s + phase pauses
@@ -85,12 +99,13 @@ public static class CombatTuning
 
         var ps = root.GetComponent<MonsterPersonalSpace>();
         if (ps == null) ps = root.AddComponent<MonsterPersonalSpace>();
+        ps.maxPushSpeed = MaxPushSpeed[i];
         ps.clampEnabled = true; ps.headClearance = 0.6f; ps.handClearance = 0.35f; ps.iterations = 4; ps.weaponHeadClearance = 0f; ps.weaponClearance = 0f;
 
         var d = root.GetComponent<MonsterDefense>();
         if (d == null) d = root.AddComponent<MonsterDefense>();
         d.turnToFacePlayer = true; d.turnSpeed = TurnSpeed[i];
-        d.detectSpeed = 2.5f; d.detectRange = DetectRange[i]; d.detectConeAngle = 40f; d.guardTarget = Chest(root);
+        d.detectSpeed = DetectSpeed[i]; d.detectRange = DetectRange[i]; d.detectConeAngle = 40f; d.guardTarget = Chest(root);
         d.reactiveGuard = true; d.reactionDelay = ReactionDelay[i]; d.guardChance = GuardChance[i]; d.guardChanceEnraged = GuardChanceEnraged[i];
         d.minGuardGap = MinGuardGap[i]; d.guardDuration = new Vector2(0.8f, 1.2f); d.maxGuardUptime = MaxUptime[i];
         d.timedGuard = true; d.timedGuardInterval = TimedGuardInterval[i]; d.timedGuardJitter = 0.3f;
@@ -132,6 +147,7 @@ public static class CombatTuning
         if (ai != null)
         {
             bool l3 = level == 3;
+            ai.approachHysteresis = ApproachBand[i];
             ai.chainChanceByPhase = l3 ? L3ChainChance : Vector3.zero;
             ai.chainMaxAttacks = 3; ai.chainGap = new Vector2(0.35f, 0.6f);
             ai.telegraphJitter = l3 ? L3TelegraphJitter : 0f;
@@ -185,8 +201,8 @@ public static class CombatTuning
         d.sideGuards = GuardIK && SideGuardIK[i]; d.lowGuard = GuardIK && LowGuardIK[i];
         d.sideLeftGuardTrigger = d.sideRightGuardTrigger = d.lowPoseGuardTrigger = "Defend"; // one guard clip; the pose comes from the IK
         d.posePitch = new Vector4(1.18f, 1.06f, 0.95f, 0.82f); d.blockPitchJitter = 0.04f;
-        d.adaptiveGuard = true; d.memoryLength = 6; d.repeatThreshold = 3; d.repeatWindow = 8f;
-        d.adaptiveStep = 0.15f; d.adaptiveMaxBoost = 0.15f; d.decayPerVariedSwing = 0.05f; d.decayPerSecond = 0.02f; d.maxGuardChance = 0.8f;
+        d.adaptiveGuard = true; d.memoryLength = 6; d.repeatThreshold = RepeatThreshold[i]; d.repeatWindow = 8f;
+        d.adaptiveStep = AdaptiveStep[i]; d.adaptiveMaxBoost = AdaptiveMaxBoost[i]; d.decayPerVariedSwing = 0.05f; d.decayPerSecond = 0.02f; d.maxGuardChance = 0.8f;
         d.maxBlocksInARow = 3; d.forcedOpeningWindow = 1.0f;
         d.openingClip = Clip(OpeningClip[i]); d.openingVolume = 0.7f; d.openingPitch = 1.15f;
         d.openingFlashColor = Color.white; d.openingFlashSeconds = 0.08f;
@@ -204,7 +220,7 @@ public static class CombatTuning
             ik.ikOnHighPose = false;   // the guard clip is the high guard; IK put the blade into the head
             ik.maxHandSpeed = 2.5f; ik.reachFraction = 0.9f; ik.minForward = 0.3f; ik.minHeight = 0.35f;
             ik.maxCross = level == 3 ? 0.15f : 0.35f;   // one weapon crosses the body for the far side; Level 3 has a hand per side
-            ik.keepClipHandRotation = true; ik.followContact = 0.5f;
+            ik.keepClipHandRotation = true; ik.followContact = FollowContact[i];
             ik.highAnchor = new Vector3(0f, 0.95f, 0.35f); ik.sideAnchor = SideAnchor[i]; ik.lowAnchor = new Vector3(0f, 0.4f, 0.4f);
             ik.blendIn = 8f; ik.blendOut = 5f; ik.positionWeight = 1f;
             var sh = an.GetBoneTransform(HumanBodyBones.RightUpperArm); var el = an.GetBoneTransform(HumanBodyBones.RightLowerArm);
@@ -222,6 +238,7 @@ public static class CombatTuning
                 EditorUtility.SetDirty(ctrl);
             }
         }
+        DefenseSetup.Configure(root, level);   // Levels 2-3: MonsterTactics + the distinct guard poses (Level 1: none)
     }
 
     static Transform WeaponUnder(Transform hand)

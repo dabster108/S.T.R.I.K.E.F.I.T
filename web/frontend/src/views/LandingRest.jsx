@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import DemoShowcase from "../components/landing/DemoShowcase.jsx";
 import Problem from "../components/landing/Problem.jsx";
 import HowItWorks from "../components/landing/HowItWorks.jsx";
 import GameplayShowcase from "../components/landing/GameplayShowcase.jsx";
@@ -23,6 +24,7 @@ export default function LandingRest() {
   }, []);
   return (
     <>
+      <DemoShowcase />
       <Problem />
       <HowItWorks />
       {/* the story: the problem, how it works, playing it (the headset, then the fight), the levels, the story, what was recorded, the thesis */}

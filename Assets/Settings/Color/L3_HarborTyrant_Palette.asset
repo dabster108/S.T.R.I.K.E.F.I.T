@@ -1,0 +1,76 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3894cbede455e40c897d2b65f90aa270, type: 3}
+  m_Name: L3_HarborTyrant_Palette
+  m_EditorClassIdentifier: StrikeFit.ColorCore::StrikeFit.ColorFx.MonsterColorPalette
+  blend:
+    maxEmission: 2
+    telegraphMinWeight: 0.55
+    telegraphMinEmission: 0.4
+    telegraphReserve: 0.6
+  bodyTint: {r: 1, g: 1, b: 1, a: 1}
+  bodyEmission: {r: 0, g: 0, b: 0, a: 1}
+  accentTint: {r: 1, g: 1, b: 1, a: 1}
+  accentEmission: {r: 0, g: 0, b: 0, a: 1}
+  glowTint: {r: 0.97, g: 0.95, b: 1, a: 1}
+  weaponTint: {r: 0.95, g: 0.95, b: 1, a: 1}
+  weaponEmission: {r: 0, g: 0, b: 0, a: 1}
+  weaponAccentTint: {r: 1, g: 1, b: 1, a: 1}
+  weaponAccentEmission: {r: 0.16, g: 0.05, b: 0.01, a: 1}
+  auraScale: 1
+  woundColor: {r: 0.5, g: 0.1, b: 0.06, a: 1}
+  woundMaxWeight: 0.35
+  woundEmission: {r: 0.45, g: 0.04, b: 0.02, a: 1}
+  woundMaxIntensity: 0.6
+  woundStartsBelow: 0.95
+  rageRimColor: {r: 1, g: 0.38, b: 0.06, a: 1}
+  rageRimIntensity: 0.35
+  guardColor: {r: 0.62, g: 0.8, b: 1, a: 1}
+  guardWeight: 0.8
+  guardIntensity: 0.9
+  cueWeight: 0.6
+  cueIntensity: 0.7
+  tapColor: {r: 0.9, g: 0.92, b: 1, a: 1}
+  lightColor: {r: 1, g: 0.9, b: 0.25, a: 1}
+  mediumColor: {r: 1, g: 0.55, b: 0.12, a: 1}
+  fullColor: {r: 1, g: 0.16, b: 0.14, a: 1}
+  weakPointColor: {r: 0.55, g: 1, b: 0.35, a: 1}
+  blockedColor: {r: 0.55, g: 0.75, b: 1, a: 1}
+  resistedColor: {r: 0.62, g: 0.62, b: 0.66, a: 1}
+  tapIntensity: 0.5
+  lightIntensity: 0.8
+  mediumIntensity: 1.2
+  fullIntensity: 1.7
+  weakIntensity: 1.7
+  tapSeconds: 0.15
+  lightSeconds: 0.17
+  mediumSeconds: 0.2
+  fullSeconds: 0.25
+  weakSeconds: 0.25
+  hitWeight: 0.5
+  clashColor: {r: 1, g: 0.85, b: 0.45, a: 1}
+  parryColor: {r: 0.55, g: 0.85, b: 1, a: 1}
+  clashSeconds: 0.22
+  parrySeconds: 0.32
+  clashIntensity: 0.9
+  clashWeight: 0.45
+  rimIntensity: 0.5
+  strikeSeconds: 0.2
+  strikeIntensity: 0.7
+  strikeWeight: 0.35
+  telegraphPulseHz: 3
+  telegraphWeight: 0.85
+  telegraphIntensity: 0.55
+  deathColor: {r: 0.14, g: 0.13, b: 0.15, a: 1}
+  deathWeight: 0.7
+  deathDelay: 0.6
+  deathFadeSeconds: 1.6

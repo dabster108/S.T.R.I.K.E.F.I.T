@@ -15,6 +15,9 @@
 // blockedHits, damagePrevented, openings, reactive, broken, seconds) and opening_hit (swingClass, bonusDamage) go into the
 // same bounded buffer and the same batched requests as every other event, so the request rate is unchanged. clash
 // (hand, swingSpeed) was already sent. A failed batch is dropped silently, as before.
+// Levels 2 and 3 (MonsterTactics, sendGuardEvents): predicted_block (zone, confidence, timeToImpact, reactionDelay, swingSpeed, phase,
+// guardMeter), parry (zone, swingSpeed, phase, guardMeter), counter (attack, zone, phase) and guard_break (zone, phase), on the same
+// path. No existing event or field changes.
 //
 // Networking never touches gameplay: events go into a bounded buffer, at most one request is in
 // flight, requests are sent every flushInterval seconds, and any failure drops that batch silently.
@@ -228,6 +231,7 @@ public class SessionReporter : MonoBehaviour
         PlayerHealth.DamageTaken += OnPlayerDamageTaken;
         MonsterDefense.GuardEnded += OnMonsterGuardEnded;
         MonsterDefense.OpeningLanded += OnOpeningLanded;
+        MonsterTactics.Reported += OnTacticsReport;
         DragonHazard.FireResolved += OnDragonFire;
     }
 
@@ -242,6 +246,7 @@ public class SessionReporter : MonoBehaviour
         PlayerHealth.DamageTaken -= OnPlayerDamageTaken;
         MonsterDefense.GuardEnded -= OnMonsterGuardEnded;
         MonsterDefense.OpeningLanded -= OnOpeningLanded;
+        MonsterTactics.Reported -= OnTacticsReport;
         DragonHazard.FireResolved -= OnDragonFire;
     }
 
@@ -464,6 +469,95 @@ public class SessionReporter : MonoBehaviour
             });
     }
 
+    // ─────────────────────────── Engagement (rank, best on a level, today's challenges) ───────────────────────────
+    // Background GETs for EngagementTracker. Each calls back once; ok = false when the backend did not answer (offline, 404 for a
+    // player with no fights yet, unreadable). Nothing waits on them: the headset falls back to what it remembers.
+    [Serializable] class RankJson { public int effortPoints; }
+    [Serializable] class BestRunJson { public float score; }
+    [Serializable] class BestJson { public BestRunJson best; }
+    [Serializable] public class ChallengeCardJson
+    {
+        public string key, title, description, metric, level, tier;
+        public float target, value, maxDamagePercent;
+        public int bonusXp;
+        public bool completed;
+    }
+    [Serializable] class ChallengesJson { public ChallengeCardJson[] daily; }
+
+    /// <summary>GET /api/players/:name/rank -> effort points (the website's rank formula).</summary>
+    public void FetchRank(string name, Action<bool, int> done)
+    {
+        SendNow(UnityWebRequest.kHttpVerbGET, ApiUrl("/api/players/" + Uri.EscapeDataString(name ?? "") + "/rank"), null, bestsTimeoutSeconds, "rank",
+            (answered, code, body, error) =>
+            {
+                if (!answered || code != 200) { done(false, 0); return; }
+                try { var r = JsonUtility.FromJson<RankJson>(body); done(r != null, r != null ? r.effortPoints : 0); }
+                catch (Exception) { done(false, 0); }
+            });
+    }
+
+    /// <summary>GET /api/players/:name/best?level= -> the best decided score on that level (0 = none yet).</summary>
+    public void FetchLevelBest(string name, string level, Action<bool, int> done)
+    {
+        string url = ApiUrl("/api/players/" + Uri.EscapeDataString(name ?? "") + "/best?level=" + Uri.EscapeDataString(level ?? ""));
+        SendNow(UnityWebRequest.kHttpVerbGET, url, null, bestsTimeoutSeconds, "level best",
+            (answered, code, body, error) =>
+            {
+                if (!answered || code != 200) { done(false, 0); return; }
+                try { var r = JsonUtility.FromJson<BestJson>(body); done(r != null, r != null && r.best != null ? Mathf.RoundToInt(r.best.score) : 0); }
+                catch (Exception) { done(false, 0); }
+            });
+    }
+
+    /// <summary>GET /api/players/:name/challenges -> today's daily cards (progress from the fights the website already has).</summary>
+    public void FetchChallenges(string name, Action<bool, ChallengeCardJson[]> done)
+    {
+        SendNow(UnityWebRequest.kHttpVerbGET, ApiUrl("/api/players/" + Uri.EscapeDataString(name ?? "") + "/challenges"), null, bestsTimeoutSeconds, "challenges",
+            (answered, code, body, error) =>
+            {
+                if (!answered || code != 200) { done(false, null); return; }
+                try { var r = JsonUtility.FromJson<ChallengesJson>(body); done(r != null && r.daily != null && r.daily.Length > 0, r != null ? r.daily : null); }
+                catch (Exception) { done(false, null); }
+            });
+    }
+
+    /// <summary>Raised at the very start of ReportSessionComplete (victory, defeat or abandoned), before any value is read, so
+    /// EngagementTracker can finish its fight summary (and add a local goal's bonus XP) in time.</summary>
+    public static event Action<string> SessionCompleting;
+
+    /// <summary>In-fight event: a perfect clash (EngagementTracker). New event type; no existing field changes. The payload avoids
+    /// the backend's live-state keys (xp, score, hits...) so it never overwrites the session's live numbers.</summary>
+    public void ReportPerfectClash(float offsetSeconds, float windowSeconds, int bonusXp, float swingSpeed, string attack, int count)
+    {
+        if (!Recording()) return;
+        Begin("perfect_clash", "Perfect clash (" + offsetSeconds.ToString("0.00", CultureInfo.InvariantCulture) + " s before the hit)");
+        Num("offsetSec", offsetSeconds);
+        Num("windowSec", windowSeconds);
+        Num("bonusXp", bonusXp);
+        Num("swingSpeed", swingSpeed);
+        Str("attack", attack ?? "");
+        Num("count", count);
+        End();
+    }
+
+    /// <summary>
+    /// The end-of-fight engagement summary (EngagementTracker): one "engagement_summary" event sent WITHOUT a sessionId, so the
+    /// backend stores it in events (payload verbatim) and never folds it into a session (an event naming a finished, abandoned
+    /// session would resume it as live). The fight's id travels inside the payload as fightId. <paramref name="payloadFields"/> is
+    /// a JSON object body without braces ("\"a\":1,\"b\":true").
+    /// </summary>
+    /// <summary>The last engagement summary queued (tests and diagnostics).</summary>
+    public static string LastEngagementSummaryJson { get; private set; } = "";
+
+    public void ReportEngagementSummary(string playerName, string message, string payloadFields)
+    {
+        var e = new StringBuilder(256 + (payloadFields != null ? payloadFields.Length : 0));
+        e.Append("{\"type\":\"engagement_summary\",\"sessionId\":\"\",\"playerName\":\"").Append(Escape(playerName ?? ""))
+         .Append("\",\"message\":\"").Append(Escape(message ?? "engagement summary")).Append("\",\"payload\":{").Append(payloadFields ?? "").Append("}}");
+        LastEngagementSummaryJson = e.ToString();
+        requests.Enqueue(new PendingRequest { url = EventsUrl, json = LastEngagementSummaryJson, label = "engagement summary" });
+    }
+
     // ─────────────────────────── Daily goal (background, never blocks Start) ───────────────────────────
     [Header("Daily goal")]
     [Tooltip("Timeout (s) for the goal fetch and save. Short: nothing waits on them.")]
@@ -593,7 +687,7 @@ public class SessionReporter : MonoBehaviour
 
             if (this == null) return; // scene unloaded mid-request: nobody is waiting any more
             if (!answered) Debug.LogWarning($"[SessionReporter] {label}: no answer ({error}). Backend: {baseUrl}");
-            else if (verbose) Debug.Log($"[SessionReporter] {label}: {method} {url} → {code}");
+            else if (verbose) DevLog.Log($"[SessionReporter] {label}: {method} {url} → {code}");
             try
             {
                 done(answered, code, body ?? "", error);
@@ -616,6 +710,7 @@ public class SessionReporter : MonoBehaviour
         pausedAtBegin = GamePause.PausedSeconds;
         BattleStats.Begin(sessionStartedAt); // HUD kcal and the telemetry share this start time
         hitCount = 0;
+        playerHitsTaken = 0;
         sessionOpen = true;
         hasPendingSwing = false;
         monsterHealth = null;
@@ -626,7 +721,7 @@ public class SessionReporter : MonoBehaviour
         // posted on the next Update with the real starting values.
         startPending = true;
         nextSnapshotTime = GamePause.ActiveRealtime + snapshotInterval;
-        if (verboseLogging) Debug.Log($"[SessionReporter] Session {currentSessionId} ({sessionPlayerName}) → {baseUrl}");
+        if (verboseLogging) DevLog.Log($"[SessionReporter] Session {currentSessionId} ({sessionPlayerName}) → {baseUrl}");
     }
 
     /// <summary>Called by BattleManager for every hit that counted (after score was added).</summary>
@@ -682,6 +777,8 @@ public class SessionReporter : MonoBehaviour
         float monsterHpRemaining,
         string notes = "")
     {
+        try { SessionCompleting?.Invoke(outcome); }
+        catch (Exception e) { Debug.LogException(e); }   // a listener must never stop the result from being sent
         if (!sessionOpen) BeginSession();
         if (startPending) SendSessionStart();
 
@@ -692,6 +789,7 @@ public class SessionReporter : MonoBehaviour
             Begin("hp", "Final state");
             AppendState(score);
             End();
+            SendAiSummary();
             ReportGoalTelemetry();
         }
 
@@ -717,6 +815,7 @@ public class SessionReporter : MonoBehaviour
         JStr("endedAt", DateTime.UtcNow.ToString("o"));
         JStr("source", "unity");
         JStr("notes", notes ?? "");
+        JStr("aiMode", MonsterAIModeSetting.TelemetryName);   // new field (ignored by the current backend's session row)
         sb.Append('}');
 
         HasLastResult = true;
@@ -744,6 +843,7 @@ public class SessionReporter : MonoBehaviour
         JStr("level", CurrentLevel());
         JStr("status", "live");
         JStr("mode", SessionMode);
+        JStr("aiMode", MonsterAIModeSetting.TelemetryName);   // new field: "normal" / "expert" (the backend keeps only known session fields)
         JStr("startedAt", DateTime.UtcNow.AddSeconds(-(GamePause.ActiveRealtime - sessionStartedAt + SessionPausedSeconds)).ToString("o"));
         JStr("source", "unity");
         AppendStateFields(BattleManager.Instance != null ? BattleManager.Instance.CurrentScore : 0);
@@ -753,6 +853,7 @@ public class SessionReporter : MonoBehaviour
         Begin("session_start", $"{sessionPlayerName} started {LevelLabel(CurrentLevel())}");
         Str("level", CurrentLevel());
         Str("mode", SessionMode);
+        Str("aiMode", MonsterAIModeSetting.TelemetryName);   // stored with the event payload
         AppendState(BattleManager.Instance != null ? BattleManager.Instance.CurrentScore : 0);
         End();
         FlushGoalSet();
@@ -847,6 +948,64 @@ public class SessionReporter : MonoBehaviour
         End();
     }
 
+    /// <summary>One per fight: the Monster AI mode and, for a Level 3 Expert fight, how the forecaster did.</summary>
+    void SendAiSummary()
+    {
+        bool expert = MonsterAIModeSetting.ExpertThisFight;
+        var s = expert && MonsterExpertBrain.HasLast ? MonsterExpertBrain.Last : default;
+        Begin("monster_ai_summary", expert ? (s.fallbacks > 0 ? "Expert AI fell back to normal" : "Expert AI fight") : "Normal AI fight");
+        Str("aiMode", MonsterAIModeSetting.TelemetryName);
+        Bool("modelLoaded", expert && s.modelLoaded);
+        Num("inferences", s.inferences);
+        Num("avgInferenceMs", s.avgMs);
+        Num("maxInferenceMs", s.maxMs);
+        Num("fallbacks", s.fallbacks);
+        Num("decisionsChanged", s.decisionsChanged);
+        Num("hitsOnPlayer", playerHitsTaken);
+        if (expert)
+        {
+            Bool("handPrediction", s.handPrediction);           // false by default: the head prediction only
+            Num("maxHorizonSeconds", s.maxHorizonSeconds);       // furthest horizon the monster logic read (0.75 s by default)
+        }
+        if (expert && !string.IsNullOrEmpty(s.fallbackReason)) Str("fallbackReason", s.fallbackReason);
+        End();
+    }
+
+    /// <summary>Levels 2-3 decision events: predicted_block, parry, counter, guard_break.</summary>
+    void OnTacticsReport(MonsterTactics tactics, MonsterTactics.Report r)
+    {
+        if (!Recording() || !sendGuardEvents) return;
+        string zone = r.zone.ToString().ToUpperInvariant();
+        switch (r.kind)
+        {
+            case MonsterTactics.EventKind.PredictedBlock:
+                Begin("predicted_block", $"Monster read a {zone} swing and guarded");
+                Str("zone", zone);
+                Num("confidence", r.confidence);
+                Num("timeToImpact", r.timeToImpact);
+                Num("reactionDelay", r.reactionDelay);
+                Num("swingSpeed", r.swingSpeed);
+                break;
+            case MonsterTactics.EventKind.Parry:
+                Begin("parry", $"Monster parried a {zone} swing");
+                Str("zone", zone);
+                Num("swingSpeed", r.swingSpeed);
+                break;
+            case MonsterTactics.EventKind.Counter:
+                Begin("counter", $"Monster countered with {r.attack}");
+                Str("attack", r.attack ?? "");
+                Str("zone", zone);
+                break;
+            default:
+                Begin("guard_break", "Monster guard broken");
+                Str("zone", zone);
+                break;
+        }
+        Num("phase", r.phase + 1);
+        if (r.kind != MonsterTactics.EventKind.Counter) Num("guardMeter", r.guardMeter);
+        End();
+    }
+
     /// <summary>One dragon fire strip resolved (Level 3 dragons): whether the player was in the zone and what it cost.</summary>
     void OnDragonFire(DragonHazard.FireReport r)
     {
@@ -861,8 +1020,11 @@ public class SessionReporter : MonoBehaviour
         End();
     }
 
+    int playerHitsTaken;   // damaging hits on the player this session (monster_ai_summary)
+
     void OnPlayerDamageTaken(float amount, bool blocked, float healthAfter)
     {
+        if (amount > 0.001f && sessionOpen) playerHitsTaken++;
         if (!Recording()) return;
         bool fromDragon = DragonHazard.DamageSourceOverride != null;
         Begin(amount > 0.001f ? "player_hurt" : "block",
@@ -972,7 +1134,7 @@ public class SessionReporter : MonoBehaviour
             }
             else if (verbose)
             {
-                Debug.Log($"[SessionReporter] {label} OK ({req.responseCode})");
+                DevLog.Log($"[SessionReporter] {label} OK ({req.responseCode})");
             }
             req.Dispose();
             if (!fireAndForget) requestInFlight = false;

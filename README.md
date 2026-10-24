@@ -30,6 +30,10 @@ A fitness game that only rewards you when you actually move like you mean it.
 - [Controls](#controls)
 - [Monsters](#monsters)
 - [Levels](#levels)
+- [Story Mode](#story-mode)
+- [The monster's defence AI](#the-monsters-defence-ai)
+- [Expert mode (Level 3, optional)](#expert-mode-level-3-optional)
+- [Reasons to play again](#reasons-to-play-again)
 - [Combat system, real values](#combat-system-real-values)
 - [Design principles](#design-principles)
 - [Design and development process](#design-and-development-process)
@@ -38,8 +42,11 @@ A fitness game that only rewards you when you actually move like you mean it.
 - [Tools and technologies](#tools-and-technologies)
 - [Technologies used](#technologies-used)
 - [Web dashboard](#web-dashboard)
+- [Telemetry pipeline](#telemetry-pipeline)
+- [Machine learning: the motion forecaster](#machine-learning-the-motion-forecaster)
 - [Run it locally](#run-it-locally)
 - [Project structure](#project-structure)
+- [Limitations](#limitations)
 - [Who it is for](#who-it-is-for)
 - [Future prospects](#future-prospects)
 - [Acknowledgements](#acknowledgements)
@@ -71,7 +78,7 @@ The player holds a weapon in each hand: hammers in Level 1, swords in Level 2, a
 The monster is not a passive target. It attacks on its own timer, with a clear wind-up before the hit lands, giving the player a real window to notice and react rather than an unavoidable scripted hit. If the player isn't in range when the attack resolves, it simply misses. In Level 2 every attack also has a swing arc, so physically stepping back or sidestepping out of the arc is a real dodge.
 
 **3. The fight has rhythm instead of being one repeated animation.**
-The monster chooses between different attacks based on its own remaining health. Heavier, slower and more dangerous attacks become more common as it gets hurt, and a desperation attack is reserved for when it's close to defeat. It also periodically raises its guard into a short defend state, during which incoming damage is reduced rather than fully applied, so a fight isn't just a flat race to zero.
+The monster chooses between different attacks based on its own remaining health. Heavier, slower and more dangerous attacks become more common as it gets hurt, and a desperation attack is reserved for when it's close to defeat. In Level 1 it periodically raises its guard into a short defend state, during which incoming damage is reduced rather than fully applied. In Levels 2 and 3 the guard is driven by a [defence AI](#the-monsters-defence-ai) that predicts where the player's swing will land and blocks that side, within fixed fairness limits, so a fight isn't just a flat race to zero.
 
 **4. Every hit gives immediate feedback.**
 Landing a hit on the monster's body, clashing weapon against weapon, taking a hit, and finishing the monster off all have their own distinct sound, layered against background music that's kept deliberately quiet so the combat effects stay clear. Swings themselves whoosh whether they land or not. A hit on the player triggers a brief screen flash and camera shake, so feedback lands through more than one sense at once.
@@ -83,7 +90,7 @@ Health, score, timer, and experience points are shown on a panel fixed in place 
 Every landed hit earns experience points on a scale tied to how full the swing actually was, so scoring reinforces the same thing the damage system does: real effort, not just touching the target.
 
 **7. Every session is recorded.**
-Each battle can be reported to a small web backend, which shows live hits and past sessions on a dashboard: outcome, damage dealt, hit count, duration and HP remaining. This gives the evaluation half of the thesis real data instead of relying on memory or self-report alone.
+Each battle is streamed to a small web backend while it is played (see the [telemetry pipeline](#telemetry-pipeline)). The dashboard shows live hits and past sessions: outcome, damage dealt, hit count, swing speed, duration and HP remaining. This gives the evaluation half of the thesis real data instead of relying on memory or self-report alone.
 
 ---
 
@@ -165,6 +172,73 @@ The final fight, in the Old Sea Port dock arena. The player picks up a mace, war
 
 ---
 
+## Story Mode
+
+<p align="center">
+  <img src="Captures/StoryFlow/card_chapter2.png" alt="The Chapter 2 card in the Level 2 arena: The Crimson Warden, Guardian of the Vaults Below, with Skip and Begin buttons" width="70%">
+  <br>
+  <sub>The chapter card before the Level 2 fight (Editor capture).</sub>
+</p>
+
+Story Mode plays the three levels as one run of three chapters. Before each fight a chapter card introduces the guardian; after a victory the chapter is saved and "Continue story" plays the line between fights and loads the next chapter; after the third chapter the ending and a "Story complete" card follow. A defeat offers Retry or the story menu and saves nothing. Free play is unchanged. The story text lives in one file, [`content/story.json`](content/story.json), shared by the game and the website's [story page](https://strikefit.vercel.app/story). Sessions played in Story Mode are tagged `story` in the telemetry.
+
+---
+
+## The monster's defence AI
+
+Levels 2 and 3 share one decision order for the monster ([`MonsterTactics`](Assets/Scripts/Monster/MonsterTactics.cs), [`DefensePolicy`](Assets/Scripts/Monster/Defense/DefensePolicy.cs)):
+
+1. Never interrupt an attack the monster has started. Its recovery is the player's window to punish.
+2. Defend a predicted swing. A hand-written **swing predictor** (no machine learning) fits a short curve to the last controller samples of each weapon and projects it 0.15 to 0.35 s ahead to find where and when it would hit the monster's body (left, right, high, low or thrust). If the prediction is confident and there is time to react, the monster guards that side.
+3. Riposte right after a block or parry.
+4. Punish a missed swing or a retreat.
+5. Otherwise pick from the weighted attack table.
+
+The defence is limited on purpose so it stays beatable: a random reaction delay, a speed floor that fast swings beat, one predicted block per cooldown, a hard cap on the block rate per phase (never above 55 %), and a guard meter that every block drains and that breaks into a stagger when empty. Every value is in a per-level `DefenseProfile` asset in `Assets/Settings/Defense/`. Level 1 has no profile and keeps its simple periodic guard.
+
+---
+
+## Expert mode (Level 3, optional)
+
+<p align="center">
+  <img src="Captures/ExpertAI/L3_prefight_toggle_expert.png" alt="Level 3 before the fight: the Start Battle button with the purple 'Monster AI: Expert (AI model)' toggle under it" width="80%">
+  <br>
+  <sub>The Monster AI toggle under the Start button in Level 3 (Editor capture).</sub>
+</p>
+
+Level 3 has a **Monster AI** toggle: **Normal** (the default) or **Expert (AI model)**. It can be changed on the menu's Level 3 card or before a Level 3 fight, is locked during a fight, and is greyed out as "Level 3 only" everywhere else. Levels 1 and 2 never load the model: the rule is checked in code and by tests.
+
+In Expert mode the monster uses a small learned **motion predictor** (see [Machine learning](#machine-learning-the-motion-forecaster)). Twenty times a second the game records the player's head and both controllers; ten times a second the model predicts where they will be 0.25 to 1.0 s later. The monster uses **only the predicted head position, and only up to 0.75 s ahead**, because that is where the prediction measurably beat "the player stays where they are" in the game (see [Limitations](#limitations)):
+
+- **Attack choice:** if the player is predicted to dodge sideways, a narrow attack can be swapped for a sweep that covers where they are going.
+- **Timing:** if the player is predicted to close in, a due strike is held back for at most 0.25 s.
+- **Aim:** at the start of a wind-up the monster turns toward the predicted position by at most 25°; a gap-closing rush runs along that line and thrown axes are led by at most 0.6 m.
+
+The hand predictions are off by default (`useHandPrediction = false` in the Expert config), so the guard works exactly as in Normal mode. Telegraphs, damage, health, projectile speed and recovery are never changed. A **fairness governor** stops every prediction-based choice while the window is not full, the player is nearly still, the prediction is stale, or the player has already taken more than Normal's hit rate + 20 % in the last minute, and an attack aimed with the prediction never chains into a follow-up. If anything goes wrong (the model is missing, an output is NaN or infinite, inference throws or averages over 3 ms), Expert switches itself off for the rest of the fight, the HUD shows "AI offline - normal behaviour", and the fight continues as Normal.
+
+Development builds include an on-device diagnostics panel (hold **both thumbsticks** pressed in for 2 s) and a log file; see [Run it locally](#run-it-locally).
+
+---
+
+## Reasons to play again
+
+<p align="center">
+  <img src="docs/screenshots/engagement-2026-10-24/Level1_Easy_newbest_rankup_result.jpg" alt="Level 1 result screen: VICTORY, a NEW BEST sticker on the score, six stat tiles, the Brawler rank bar with +61 effort, the next goal and today's three goals, with a large Play Again button" width="80%">
+  <br>
+  <sub>The result screen after a fight that beat the player's best and reached a new rank (Editor capture).</sub>
+</p>
+
+The headset gives players something to come back for, and every piece is logged so the thesis can measure it ([`Assets/Scripts/Engagement/`](Assets/Scripts/Engagement)):
+
+- **Result screen.** Score, best swing, full-power share, damage, XP and best combo, compared with the player's best on that level. Beating it shows **NEW BEST**. There is always one clear next goal ("Beat your best on Level 2: score 121 more points"), and Play Again is the biggest button.
+- **Rank.** Rookie, Brawler (300), Warrior (1,200) and Guardian (3,500) effort points: counted swings + 2 per full-power swing + 40 per win (+60 more for a Level 3 win), the same formula as the website. The rank shows beside the name in the menu and on the HUD, with a **RANK UP** banner once per new rank.
+- **Today's goals.** Three goals a day: the website's daily challenges when the backend answers, otherwise three seeded local goals. A completed goal shows once and gives a small XP bonus.
+- **Perfect clash.** Meeting the monster's strike in the last 0.15 s before it lands gives bonus XP, a distinct flash, haptics and a short stagger once the attack is over. It never changes the monster's damage.
+- **Weapon glow palettes.** Cosmetic resting colours for the weapons, unlocked by rank and chosen per player in the menu.
+- **Measurement.** Each fight ends with an `engagement_summary` event (rank before and after, new best, goals completed, perfect clashes, fights today). See [`docs/engagement-inventory.md`](docs/engagement-inventory.md).
+
+---
+
 ## Combat system, real values
 
 These values were read from the live scenes and verified in Play mode when this section was written (README of 29 September 2026). They are development values: tuning has continued since, so treat the table as a snapshot and see [`project_progress.md`](Assets/Documentation/project_progress.md) for later changes. Player and monster health are left out because the web config and the running scene disagree for Level 2.
@@ -243,13 +317,16 @@ flowchart LR
     HD --> MC[MonsterController]
     MC --> MH[MonsterHealth]
     AI[MonsterAI<br/>attack table / tiers, defend] --> MC
+    MT[MonsterTactics<br/>swing prediction, guard<br/>Levels 2-3] --> AI
+    EX[MonsterExpertBrain<br/>head forecast, Level 3 Expert only] -.-> AI
+    FC[MotionForecaster<br/>ONNX, Inference Engine] --> EX
     MC --> MA[MonsterAnimator]
     MC -->|attack hit| PH[PlayerHealth]
     BM[BattleManager<br/>start, spawn, victory, defeat] --> MC
     BM --> UI[CombatUIController<br/>HUD + panels]
     BM --> SR[SessionReporter]
     SR -->|HTTPS| BE[Node backend<br/>Render]
-    BE --> PG[(Postgres<br/>Neon)]
+    BE --> PG[(Postgres<br/>hosted)]
     BE -->|Server-Sent Events| DB[React dashboard<br/>Vercel]
 ```
 
@@ -266,6 +343,11 @@ flowchart LR
 | `Monster/MonsterAnimator` | Animator trigger handling (resets every trigger to prevent stale transitions) |
 | `Monster/MonsterHealth` | Monster HP |
 | `Monster/TwoHandedWeaponIK` | Keeps the monster's left hand on a two-handed weapon |
+| `Monster/MonsterTactics`, `Monster/Defense/*` | Levels 2-3 decision order: swing prediction, predicted blocks, ripostes, punishes, fairness limits |
+| `Monster/MonsterExpertBrain` | Level 3 Expert only: turns the head forecast into attack choice, timing and aim, through the fairness governor |
+| `Monster/ExpertMotionPredictor`, `Monster/ExpertAI/*` | 20 Hz sampling, feature building, the ONNX model run over several frames, fallback rules |
+| `Monster/ExpertDiagnostics` | Development builds only: the diagnostics panel and `expert_diagnostics.txt` |
+| `Combat/StoryDirector` | Story Mode: chapter cards, saving progress, loading the next chapter |
 | `Manager/LevelManager` | Per-level difficulty values and weapon loadouts |
 | `Manager/GameStateManager`, `RoundManager`, `XPManager` | Game state, round timer, experience points |
 | `UI/CombatUIController` | HUD bars, texts and Victory/Defeat panels |
@@ -330,6 +412,7 @@ flowchart LR
 | Language | **C#** | All gameplay code: combat, AI, networking, UI |
 | Target device | **Meta Quest 2** (Android) | Standalone headset the game is built and tested on |
 | Characters and animation | **Mixamo** clips on Humanoid rigs, **Animator Controllers**, humanoid **IK** | Monster movement and attacks, two-handed axe grip in Level 2 |
+| Inference | **Unity Inference Engine 2.6** (`com.unity.ai.inference`), CPU backend | Runs the motion forecaster (ONNX) in Level 3 Expert mode |
 | Effects | **Particle Systems**, baked **reflection probes** | Axe fire, ground impact bursts, readable metal on weapons |
 | Environments | **Elementary Dungeon Pack Lite** (Gridness Studios), **Old Sea Port** | Level 1 and 2 arena, Level 3 setting (Unity Asset Store) |
 | Audio | Layered SFX and music (some Level 2 effects synthesised for the project) | Distinct sounds for swings, hits, clashes, telegraphs, defends, damage and death |
@@ -339,18 +422,28 @@ flowchart LR
 | Area | Technology | What it does in STRIKEFIT |
 |---|---|---|
 | API | **Node.js** + **Express 4** | Receives sessions and combat events from the headset, serves stats |
-| Database | **PostgreSQL** on **Neon** (serverless) | Stores every session and event for analysis |
+| Database | **PostgreSQL** (hosted on Layerbase, earlier on Neon) | Stores every session and event for analysis |
 | Realtime | **Server-Sent Events** | Pushes hits and HP changes to open dashboards as they happen |
 | Dashboard | **React 18**, **React Router 6**, **Vite 6** | Live arena, players, sessions, leaderboard, compare, analytics, export |
 | Styling | **Tailwind CSS 4**, **Lucide** icons | Consistent, responsive UI on desktop and phone |
 | Hosting | **Render** (API), **Vercel** (dashboard) | Public https endpoints the headset and browsers can reach |
-| Monitoring | **UptimeRobot** | Keeps the free-tier API awake and alerts if it goes down |
+
+### Machine learning (`ml-services/`)
+
+| Area | Technology | What it does in STRIKEFIT |
+|---|---|---|
+| Language and packaging | **Python 3.12+**, **uv** | Reproducible environment from `uv.lock` |
+| Model | **PyTorch** | GRU and MLP forecasters, training with early stopping |
+| Data and evaluation | **NumPy**, **pandas**, **SciPy**, **scikit-learn**, **Matplotlib** | Cleaning, features, cross-validation, bootstrap intervals, figures |
+| Export | **ONNX** (opset 15), **ONNX Runtime** | The model file Unity loads, checked against PyTorch |
+| Notebooks and tests | **JupyterLab**, **pytest** | One notebook per pipeline step; tests that need no dataset |
 
 ### Development workflow
 
 | Area | Technology | What it does in STRIKEFIT |
 |---|---|---|
 | Editor | **Cursor** | Code editing and AI-assisted development |
+| Tests | **Unity Test Framework** (EditMode), Node's test runner, pytest | Game logic, model parity and fairness rules; web logic; the ML pipeline |
 | Editor integration | **Unity MCP** (MCP for Unity) | Inspecting and testing the live Unity Editor: scenes, components, Play mode |
 | Version control | **Git** + **GitHub** | History, with a Unity-specific `.gitignore` and `.gitattributes` to keep generated files and large binaries out |
 
@@ -375,9 +468,53 @@ What the dashboard does:
 - **Challenges.** Daily and weekly targets per player, mastery stars per level and a suggested next step.
 - **Scoreboard.** Best score per player, by week, all time or level.
 - **Survey.** A short rating form for players after a session.
+- **Practice (`/practice`).** Try the swing-to-damage rule without a headset, with phone motion, a mouse or touch. Nothing is sent.
 - Also: session history, player pages, compare, analytics, calendar and weekly recap, CSV export and the story page.
 
-The backend is Node and Express on Render, storing every session and event in Postgres on Neon. The dashboard is React on Vercel and listens to the backend over Server-Sent Events.
+The backend is Node and Express on Render, storing every session and event in Postgres (hosted on Layerbase, earlier on Neon). The dashboard is React on Vercel and listens to the backend over Server-Sent Events.
+
+---
+
+## Telemetry pipeline
+
+```
+Quest headset ── SessionReporter ──HTTPS──▶ Node/Express API ──▶ Postgres
+                                                 │
+                                                 └─ Server-Sent Events ──▶ dashboard, Live Arena, /watch
+```
+
+- **At battle start** the headset opens a live session (player, level, mode `free` or `story`, Monster AI mode).
+- **During the fight** combat events go into a bounded buffer and are sent in batches, with an HP snapshot every second: hits (swing speed, power tier, hand, damage, combo), the player being hurt, weapon clashes, the guard events of Levels 2-3 (`predicted_block`, `parry`, `counter`, `guard_break`) and an effort and calorie estimate.
+- **At the end** the final stats go out, plus one `monster_ai_summary` per fight: Normal or Expert, whether the model loaded, the number of inferences, average and maximum inference time, fallbacks and their reason, how many decisions the prediction changed, damaging hits on the player, and (Expert) whether hand prediction was on and the furthest horizon used.
+- **Networking never blocks gameplay.** At most one request is in flight; a failed batch is dropped.
+
+The backend stores sessions and events in Postgres and pushes every change to open dashboards over Server-Sent Events. Calories are an estimate from fight length and swing strength with an assumed body mass, not a measurement.
+
+---
+
+## Machine learning: the motion forecaster
+
+The full write-up is in [`ml-services/model.md`](ml-services/model.md); the code and how to run it are in [`ml-services/README.md`](ml-services/README.md).
+
+- **Task.** From the last 1.0 s of head and two-hand positions, predict where each of the three will be 0.25, 0.5, 0.75 and 1.0 s later (36 numbers).
+- **Data.** The public **Touché** sword-strike recordings (Dehesa, Vidler, Lutteroth, Padget, CHI 2020, CC BY 4.0): 8 recordings, 12.1 minutes of sword strikes in a lab (probably by very few people), resampled to 20 Hz and converted from centimetres to metres.
+- **Features.** 22 per frame over 20 frames: positions relative to the current head, velocities, both hand speeds, head height and grip.
+- **Splits.** Only 8 recordings and no participant IDs, so 5-fold cross-validation **by recording**: every recording is test data exactly once, for a model that never saw it. Normalisation uses training data only.
+- **Baselines.** "Stays still" (predict no movement) and "constant velocity".
+- **Models.** A GRU (19,236 parameters) and an MLP (77,604), Huber loss, AdamW, early stopping.
+
+Mean error in cm on the test recordings (lower is better; 95 % bootstrap interval over recordings):
+
+| model | overall | 0.25 s | 0.50 s | 0.75 s | 1.00 s |
+|---|---|---|---|---|---|
+| stays still (baseline) | 46.8 [45.5, 48.1] | 30.9 | 48.3 | 54.2 | 53.8 |
+| constant velocity (baseline) | 101.6 [97.7, 105.4] | 39.0 | 85.8 | 124.7 | 157.0 |
+| MLP | 31.7 [29.9, 33.3] | 19.0 | 31.3 | 36.8 | 39.6 |
+| **GRU (used in the game)** | **31.0 [29.2, 32.7]** | **18.4** | **30.8** | **36.1** | **38.7** |
+
+On this dataset the GRU is about a third more accurate than the best baseline. A re-run of the whole pipeline on 23 October 2026 gave the same baseline and GRU numbers (the MLP moved by 0.08 cm overall).
+
+**Export and use in Unity.** The GRU is exported to ONNX (opset 15, fixed shapes) with the GRU written out as plain matrix operations so Unity needs no special operator; PyTorch and ONNX agree to 1e-6. The model, `norm.json` (scaling) and `golden_vector.json` (one real input with its expected output) are copied to `Assets/Models/ExpertAI/` by `ml-services/scripts/sync_model_to_unity.sh`, which checks the SHA-256 of every copy. In the game, Unity's Inference Engine runs the model on the CPU, spread over several frames; an EditMode test checks that Unity's output matches the golden vector within 1e-4.
 
 ---
 
@@ -389,6 +526,32 @@ The backend is Node and Express on Render, storing every session and event in Po
 2. Open the `VR-Gamification-Fitness` folder in Unity Hub. The first import takes a while.
 3. Open a scene under `Assets/Scenes/` (`MainMenu`, `Level1_Easy`, `Level2_Medium` or `Level3_Hard`) and press Play. Without a headset the weapons rest in front of the camera so a scene can still be inspected.
 4. To build for Quest, switch the platform to Android, put the scenes in the build list with `MainMenu` first, and choose Build And Run.
+
+**Game tests and compile check from the command line** (Unity closed):
+
+```bash
+UNITY=/Applications/Unity/Hub/Editor/6000.5.11f1/Unity.app/Contents/MacOS/Unity   # adjust to your install
+$UNITY -batchmode -nographics -quit -projectPath "$PWD" -logFile compile.log
+$UNITY -batchmode -nographics -projectPath "$PWD" -runTests -testPlatform EditMode -testResults results.xml -logFile tests.log
+```
+
+**Expert mode diagnostics** (Development builds and the Editor only). Hold both thumbsticks pressed in for 2 s to show or hide a panel with: Expert on/off, model loaded, average and maximum inference time over the last 5 s, fallbacks, the outputs in use, the axis mapping, the window fill and the frame time. The same numbers are written once a second during a Level 3 Expert fight to `expert_diagnostics.txt` in the app's persistent data folder. From a Quest:
+
+```bash
+adb pull /sdcard/Android/data/com.UnityTechnologies.com.unity.template.urpblank/files/expert_diagnostics.txt
+```
+
+(The Android package name is still the Unity template's; change the path if you change the package name.) Pressing both thumbsticks also toggles the combat debug readout, as before.
+
+**Machine learning.** Python 3.12+ and [uv](https://docs.astral.sh/uv/). The raw Touché data is not in the repository (see `ml-services/README.md`).
+
+```bash
+cd ml-services
+uv sync                                   # install
+uv run pytest -q                          # tests that need no dataset
+uv run python -m strikefit_ml.pipeline    # the whole pipeline (needs the data; rewrites models/ and reports/)
+scripts/sync_model_to_unity.sh --check    # are the Unity copies identical to models/?
+```
 
 **Web.** Node.js 18 or newer.
 
@@ -423,6 +586,7 @@ The headset build points at the hosted backend through **SessionReporter, Base U
 | `web/backend/` | Express API, Postgres schema, live stream |
 | `web/frontend/` | React site and dashboard |
 | `web/tools/` | Local-only tools: monster portrait renderer, README media capture |
+| `ml-services/` | The motion forecaster: data pipeline, training, evaluation, ONNX export, notebooks, tests |
 | `content/` | `story.json`, the story text shared by the game and the site |
 | `docs/` | Credits and the images used in this README |
 
@@ -434,9 +598,11 @@ The headset build points at the hosted backend through **SessionReporter, Base U
 VR-Gamification-Fitness/
 ├── Assets/
 │   ├── Scenes/           MainMenu, Level1_Easy, Level2_Medium, Level3_Hard, Results
-│   ├── Scripts/          Combat, Player, Monster, Manager, UI, Networking (+ Legacy)
+│   ├── Scripts/          Combat, Player, Monster (+ Defense, ExpertAI), Manager, UI, Networking (+ Legacy)
 │   ├── Prefabs/          Monsters and weapons
-│   ├── Models/           Monster and weapon models
+│   ├── Models/           Monster and weapon models; ExpertAI/ holds the ONNX model, norm.json, golden_vector.json
+│   ├── Settings/Defense/ Defence profiles per level and the Level 3 Expert config
+│   ├── Tests/EditMode/   Defence and Expert AI tests
 │   ├── Animations/       Monster Animator Controllers and Mixamo clips
 │   ├── Materials/        URP materials per level
 │   ├── Audio/            Music and SFX
@@ -446,11 +612,31 @@ VR-Gamification-Fitness/
 │   ├── backend/          Node + Express API, Postgres schema, live stream
 │   ├── frontend/         React + Vite dashboard and landing page
 │   └── tools/            Local-only tools: monster portrait renderer, README media capture
+├── ml-services/
+│   ├── src/strikefit_ml/ One module per pipeline step
+│   ├── notebooks/        One notebook per step, with plots
+│   ├── configs/          Every setting of the pipeline
+│   ├── models/           The exported model and its files (data/ is not committed)
+│   ├── reports/          Result tables and figures
+│   └── scripts/          sync_model_to_unity.sh
 ├── content/              story.json, the story text shared by the game and the site
 ├── docs/                 Credits and the images used in this README
 ├── Packages/
 └── ProjectSettings/
 ```
+
+---
+
+## Limitations
+
+- **Small public dataset, different movement.** The motion forecaster learned from 8 recordings (about 12 minutes) of sword strikes in a lab, probably by very few people. Players in STRIKEFIT dodge and attack a monster, which is different movement.
+- **Hand predictions are not used.** On the dataset the model beat "stays still" for every point. In the game, measured on the same moments with scripted player motion ([`Captures/ExpertAI/L3_expert_60s.txt`](Captures/ExpertAI/L3_expert_60s.txt)), the head prediction beat "stays still" up to 0.75 s (for example 8.0 against 14.1 cm at 0.25 s, 32.3 against 35.6 cm at 0.75 s) and not at 1.0 s, while the dominant-hand prediction was worse at every horizon (43.0 against 17.3 cm at 0.25 s). That is why Expert mode reads the head only, up to 0.75 s.
+- **Never measured on a Quest yet.** Inference times (1.4 ms average in the Editor harness) and the diagnostics have only run in the Unity Editor. Frame time and inference cost on a Quest 2 are still to be measured.
+- **Axis mapping unverified on real tracking.** The mapping between Unity's axes and the dataset's was chosen with synthetic walking motion; it has not been checked against real arm movement.
+- **No measurable gameplay difference yet.** In 60-second scripted fights Expert and Normal were about the same (21 against 20 monster attacks, 24 against 26 damaging hits on the player per minute). Whether Expert changes how a fight feels is open.
+- **No user study yet.** The playtest study (consent, questionnaires, exertion ratings) is built into the website but has not been run, so there are no results about exertion, engagement or enjoyment yet.
+- **Estimates, not measurements.** Calories are estimated from fight length and swing strength with an assumed body mass. There is no heart-rate input.
+- **Tuning is ongoing.** The values in [Combat system, real values](#combat-system-real-values) are a snapshot.
 
 ---
 
@@ -463,6 +649,8 @@ This project was built as an undergraduate thesis at **Softwarica College**, und
 ## Future prospects
 
 - Headset-test and balance Levels 2 and 3 with real players. Tuning is in progress.
+- Measure Expert mode on a Quest 2 (inference time, frame time, fallbacks) with the diagnostics log, and check the axis mapping with real movement.
+- Record STRIKEFIT's own movement data and retrain the forecaster on it, then re-test whether hand predictions help.
 - Run the whole flow (menu, Level 1, Level 2, Level 3, results) on the headset as one build and confirm it end to end.
 - Rebalance health, damage and cooldown values using real playtesting data.
 - Add heart-rate input. The dashboard already shows calories as an estimate from fight length and swing strength, which is not a measurement.
@@ -481,13 +669,18 @@ Known limitations and the detailed status of each level are kept in [`project_pr
 | [`Assets/Documentation/context.md`](Assets/Documentation/context.md) | Project overview, levels, asset locations |
 | [`Assets/Documentation/SETUP_GUIDE.md`](Assets/Documentation/SETUP_GUIDE.md) | Level scenes and weapon setup |
 | [`web/README.md`](web/README.md) | Web backend and dashboard |
+| [`ml-services/README.md`](ml-services/README.md), [`ml-services/model.md`](ml-services/model.md) | The motion forecaster: how to run it, data, model, results and limits |
+| [`docs/engagement-inventory.md`](docs/engagement-inventory.md) | The engagement features (web and headset), how the summary event is stored, and what was verified |
+| [`docs/performance-audit.md`](docs/performance-audit.md) | Quest 2 performance audit: measurements, the changes made and what only a headset can confirm |
+| [`docs/color-audit.md`](docs/color-audit.md) | The colour compositor: layers, priorities and per-level palettes |
+| [`docs/demo-clip.md`](docs/demo-clip.md) | How the Level 2 demo clip on the landing page was recorded and encoded |
 | [`docs/CREDITS.md`](docs/CREDITS.md) | Credits for models, animation, audio and environments |
 
 ---
 
 ## Acknowledgements
 
-Softwarica College, for the resources and environment to build this project, and Manoj Shrestha, for supervision throughout its development. Thanks also to Gridness Studios for the Elementary Dungeon Pack Lite, the creators of the Old Sea Port environment pack, Adobe Mixamo for characters and animation, and the Unity and Meta XR SDK communities whose documentation made a project of this scope possible for a single developer working toward a thesis deadline.
+Softwarica College, for the resources and environment to build this project, and Manoj Shrestha, for supervision throughout its development. The motion forecaster is trained on the **Touché** dataset: J. Dehesa, A. Vidler, C. Lutteroth and J. Padget, "Touché: Data-Driven Interactive Sword Fighting in Virtual Reality", CHI 2020, licensed CC BY 4.0. Thanks also to Gridness Studios for the Elementary Dungeon Pack Lite, the creators of the Old Sea Port environment pack, Adobe Mixamo for characters and animation, and the Unity and Meta XR SDK communities whose documentation made a project of this scope possible for a single developer working toward a thesis deadline.
 
 ---
 

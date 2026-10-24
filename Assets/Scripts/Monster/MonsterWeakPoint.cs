@@ -41,9 +41,13 @@ public class MonsterWeakPoint : MonoBehaviour
     private MaterialPropertyBlock mpb;
     private float flashUntil = -1f;
 
+    // The monster's colour writer (Level 3): the weak-point pulse is its WeakPointGlow layer.
+    private MonsterColorCompositor colors;
+
     void Awake()
     {
         mpb = new MaterialPropertyBlock();
+        colors = GetComponentInParent<MonsterColorCompositor>();
     }
 
     void Update()
@@ -51,8 +55,9 @@ public class MonsterWeakPoint : MonoBehaviour
         if (glowRenderer == null) return;
         float pulse = Mathf.Lerp(pulseMin, 1f, 0.5f + 0.5f * Mathf.Sin(Time.time * pulseSpeed * Mathf.PI));
         Color c = Time.time < flashUntil ? glowColor * 3f : glowColor * pulse;
+        if (colors != null) { colors.SetWeakPointGlow(c); return; }
         glowRenderer.GetPropertyBlock(mpb, glowMaterialIndex);
-        mpb.SetColor("_EmissionColor", c);
+        mpb.SetColor(ShaderIds.EmissionColor, c);
         glowRenderer.SetPropertyBlock(mpb, glowMaterialIndex);
     }
 

@@ -53,7 +53,7 @@ public class GroundRuneVFX : MonoBehaviour
         Color c = color * (pulse + flash * 2f);
         c.a = color.a * Alpha;
         runeRenderer.GetPropertyBlock(mpb);
-        mpb.SetColor("_BaseColor", c);
+        mpb.SetColor(ShaderIds.BaseColor, c);
         runeRenderer.SetPropertyBlock(mpb);
         if (glowLight != null) glowLight.intensity = glowLightIntensity * Alpha * pulse;
     }

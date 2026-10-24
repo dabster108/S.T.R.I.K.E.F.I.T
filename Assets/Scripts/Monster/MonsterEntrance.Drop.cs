@@ -426,7 +426,7 @@ public partial class MonsterEntrance
                 float f = flicker && torchFlickerHz > 0f ? 1f + torchFlickerDepth * Mathf.Sin((Time.time * torchFlickerHz + i * 0.37f) * 2f * Mathf.PI) : 1f;
                 float lv = Mathf.Clamp01(level * f * dip);
                 flames[i].GetPropertyBlock(flameMpb);
-                flameMpb.SetColor("_BaseColor", new Color(flameBase[i].r * lv, flameBase[i].g * lv, flameBase[i].b * lv, flameBase[i].a));
+                flameMpb.SetColor(ShaderIds.BaseColor, new Color(flameBase[i].r * lv, flameBase[i].g * lv, flameBase[i].b * lv, flameBase[i].a));
                 flames[i].SetPropertyBlock(flameMpb);
             }
         }
@@ -442,14 +442,25 @@ public partial class MonsterEntrance
     // ───────────────────────── emission ─────────────────────────
     void SetEmission(Color c)
     {
+        var colors = Colors;
+        if (colors != null) { colors.SetEntranceEmission(c); return; }   // replaces the body's own emission while it shows
         if (emissionRenderer == null) return;
         emissionRenderer.GetPropertyBlock(mpb);   // read-modify-write: tints (_BaseColor) stay untouched
         mpb.SetColor(EmissionId, c);
         emissionRenderer.SetPropertyBlock(mpb);
     }
 
+    MonsterColorCompositor colorsCache;
+    bool colorsLooked;
+    MonsterColorCompositor Colors
+    {
+        get { if (!colorsLooked) { colorsCache = GetComponent<MonsterColorCompositor>(); colorsLooked = true; } return colorsCache; }
+    }
+
     void RestoreEmission()
     {
+        var colors = Colors;
+        if (colors != null) { colors.ClearEntranceEmission(); return; }
         if (emissionRenderer == null) return;
         SetEmission(baseEmission);
     }

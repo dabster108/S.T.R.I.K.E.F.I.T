@@ -2,8 +2,9 @@
 // Purpose: The main menu's Story Mode page. Continue ("Chapter N: <guardian>", shown when 1 or 2 chapters are cleared), New Story
 //          (asks first when there is progress to lose), Watch intro (the story slides, then back here), Back. A new story plays the
 //          intro, then loads Chapter 1; Continue loads the next chapter. Both start a story run (StoryProgress), which the level
-//          scenes read. Progress is per player name (the menu's "Playing as" name). One [StrikeFitStory] log line per action.
-// Dependencies: StoryProgress, StoryContent, StoryPanel, MainMenuController, SceneFlow, UiBack, MenuLog
+//          scenes read. Progress is per player name (the menu's "Playing as" name). A chapter load fades to black first and the
+//          chapter scene opens black and fades in (ScreenFade). One [StrikeFitStory] log line per action.
+// Dependencies: StoryProgress, StoryContent, StoryPanel, MainMenuController, SceneFlow, ScreenFade, UiBack, MenuLog
 // Attach to: MenuSystems in MainMenu.unity (built by Editor/MenuSceneBuilder)
 
 using System.Collections;
@@ -130,7 +131,9 @@ public class StoryModePanel : MonoBehaviour
         Refresh();
         if (continueButton != null && continueButton.gameObject.activeSelf && continueLabel != null) continueLabel.text = loadingText;
         if (statusText != null) statusText.text = "Chapter " + chapter + ". " + loadingText;
-        StartCoroutine(Load(chapter));
+        ScreenFade.CarryBlack = true;   // the chapter scene opens black and fades in
+        if (ScreenFade.Alpha >= 0.99f) StartCoroutine(Load(chapter));   // already black (the prologue's Begin)
+        else ScreenFade.Out(() => StartCoroutine(Load(chapter)));
     }
 
     IEnumerator Load(int chapter)
@@ -141,6 +144,8 @@ public class StoryModePanel : MonoBehaviour
         if (!SceneFlow.Load(scene))
         {
             Loading = false;
+            ScreenFade.CarryBlack = false;
+            ScreenFade.In();
             StoryProgress.EndRun("load refused");
             Refresh();
         }

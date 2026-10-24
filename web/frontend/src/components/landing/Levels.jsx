@@ -1,6 +1,10 @@
+import { useState } from "react";
+import { DEMO_CLIP } from "../../content/showcaseShots.js";
+import { demoCredit } from "../../lib/demoCredit.js";
 import { LEVELS, swingBands } from "../../lib/game.js";
 import { useTilt } from "../../hooks/motion.js";
 import { LevelBadge } from "../ui/Badge.jsx";
+import DemoVideo from "../ui/DemoVideo.jsx";
 import Icon from "../ui/Icon.jsx";
 import MonsterPortrait from "../ui/MonsterPortrait.jsx";
 import { usePauseOffscreen } from "../../motion/index.js";
@@ -40,6 +44,32 @@ function TierRuler({ levelKey }) {
         <span className="absolute right-0">{MAX_V} m/s</span>
       </div>
     </div>
+  );
+}
+
+// Same box as the clip, so a missing file (or one still being checked) shifts nothing.
+function ClipFallback({ l }) {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-[var(--accent-soft)] via-[var(--surface)] to-[var(--surface-muted)] px-4 text-center" data-empty-shot>
+      <Icon name="headset" className="h-6 w-6 text-[var(--accent)]" aria-hidden />
+      <p className="text-xs font-semibold text-[var(--muted)]">A clip of the {l.name} fight goes here.</p>
+    </div>
+  );
+}
+
+// The demo clip of this level's fight (Levels: Level 2), muted and looping while on screen.
+function LevelClip({ l }) {
+  const [status, setStatus] = useState("checking");
+  return (
+    <figure className="mt-6">
+      <div className="relative aspect-video overflow-hidden rounded-xl bg-[var(--surface-muted)] ring-1 ring-[var(--border)]">
+        <DemoVideo mp4={DEMO_CLIP.mp4} webm={DEMO_CLIP.webm} poster={DEMO_CLIP.poster} label={DEMO_CLIP.alt} fallback={<ClipFallback l={l} />} onStatus={setStatus} />
+      </div>
+      {/* the credit describes a real clip: hidden (space kept, nothing shifts) while there is none */}
+      <figcaption className={`mt-2 text-xs font-medium leading-relaxed text-[var(--muted)] ${status === "ok" ? "" : "invisible"}`} aria-hidden={status !== "ok"}>
+        {demoCredit()}
+      </figcaption>
+    </figure>
   );
 }
 
@@ -87,6 +117,7 @@ function PlayableCard({ l, wide }) {
           ))}
         </dl>
         <p className="measure mt-5 text-sm font-medium leading-relaxed text-[var(--ink-secondary)]">{BEHAVIOUR[l.key]}</p>
+        {l.key === DEMO_CLIP.level && <LevelClip l={l} />}
         <TierRuler levelKey={l.key} />
       </div>
     </article>

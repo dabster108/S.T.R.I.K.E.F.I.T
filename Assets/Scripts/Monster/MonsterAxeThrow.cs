@@ -96,7 +96,7 @@ public class MonsterAxeThrow : MonoBehaviour
             multiplier = multiplier, catchAt = catchAt, launchedAt = owner.AiTime,
         };
         f.pivot = axe.TransformPoint(spinPivotLocal);
-        Vector3 aim = owner.playerTarget.position + Vector3.down * aimDrop;
+        Vector3 aim = owner.ThrowAimPoint(owner.CurrentAttack) + Vector3.down * aimDrop;   // Expert may lead the throw (same flight speed)
         Vector3 dir = aim - f.pivot;
         f.outLength = dir.magnitude + overshoot;
         f.velocity = dir.normalized * flightSpeed;

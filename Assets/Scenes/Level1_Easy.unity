@@ -789,6 +789,7 @@ MonoBehaviour:
   playAgainColor: {r: 0.12, g: 0.55, b: 0.25, a: 0.95}
   levelSelectColor: {r: 0.2, g: 0.35, b: 0.6, a: 0.95}
   exitColor: {r: 0.45, g: 0.45, b: 0.5, a: 0.95}
+  showRankLine: 1
   built: []
   confirm: {fileID: 0}
 --- !u!1 &176467249
@@ -1294,6 +1295,9 @@ MonoBehaviour:
   - Guest
   autoSelectSeconds: 10
   startButtonPath: CombatCanvas/StartBattleUIButton
+  menuMode: 0
+  templateButton: {fileID: 0}
+  confirmRename: 1
 --- !u!114 &214438337
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5521,7 +5525,7 @@ MonoBehaviour:
   weaponSets: []
   weaponSurfaceProxy: 1
   weaponGhostMaterial: {fileID: 2100000, guid: 549c22bd7a05d48248634a5b4b4a4ee7, type: 2}
-  weaponGhost: 1
+  weaponGhost: 0
   ignoreOwnWeaponCollisions: 1
   showWeaponsBeforeBattle: 0
   swingController: 2
@@ -8103,6 +8107,7 @@ GameObject:
   - component: {fileID: 2018423425}
   - component: {fileID: 2018423424}
   - component: {fileID: 2018423429}
+  - component: {fileID: 2018423430}
   m_Layer: 0
   m_Name: PlayerHammer_Left
   m_TagString: Hammer
@@ -8384,6 +8389,24 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &2018423430
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2018423422}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac2a1b97a1bb2448abc690b6a459a85d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerWeaponGlow
+  slots:
+  - renderer: {fileID: 2018423427}
+    materialIndex: -1
+    group: 16
+    addMaterialEmission: 1
+  profile: {fileID: 11400000, guid: df7fd80de3a104e33a65e1314e0c263c, type: 2}
 --- !u!1 &2027306338
 GameObject:
   m_ObjectHideFlags: 0

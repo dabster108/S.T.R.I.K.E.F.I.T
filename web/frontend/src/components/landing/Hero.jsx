@@ -159,10 +159,17 @@ export default function Hero({ status }) {
               </Link>
             </Magnetic>
           </div>
+          <p className="fade-up mt-4 text-sm font-semibold text-[var(--ink-secondary)]" style={{ "--d": "520ms" }}>
+            No headset?{" "}
+            <Link to="/practice" className="inline-flex items-center gap-1 font-bold text-[var(--accent)] underline decoration-2 underline-offset-4 hover:text-[var(--accent-strong)]">
+              Practice a swing with your phone or mouse <Icon name="arrowRight" className="h-3.5 w-3.5" strokeWidth={2.4} />
+            </Link>
+          </p>
           <div className="mt-6 min-h-[2rem]" aria-live="polite">
             <LivePill status={status} />
           </div>
-          <div className="fade-up mt-6" style={{ "--d": "560ms" }}>
+          {/* rise, not fade-up: its big number is the largest text on a phone, so it must count as painted from the first frame */}
+          <div className="rise mt-6" style={{ "--d": "560ms" }}>
             <SwingTicker />
           </div>
         </div>

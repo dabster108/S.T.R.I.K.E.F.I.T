@@ -13,7 +13,23 @@ import { LEVELS } from "../lib/game.js";
 //   tab      short name for the phone tab row
 //   title    heading shown with the frame
 //   caption  one sentence about what the game does; keep it factual
+//   webm     video only, optional: a VP9 copy offered before the MP4 (smaller; browsers that cannot play it take the MP4)
+//   seconds  video only, optional: how long the walkthrough stays on this shot (the clip's length), instead of 6 s
+//   credit   video only, optional: "demo" adds the demo clip's credit line (level, monster, how it was recorded) on the clip
 export const SHOT_TYPES = ["image", "video"];
+
+// The Level 2 demo clip (Unity Editor capture, see docs/demo-clip.md): encoded by web/tools/encode-demo-video.sh into
+// public/video/. Used by the walkthrough below and the Level 2 card in the Levels section. To replace it with real Quest
+// footage, encode the new recording to the same three file names (or change the paths here) and update `note`.
+export const DEMO_CLIP = {
+  mp4: "video/level2-demo.mp4",
+  webm: "video/level2-demo.webm",
+  poster: "video/level2-demo.jpg",
+  level: "Medium", // LEVELS key: the credit names this level and its guardian (story.json)
+  seconds: 21,
+  note: "Scripted demo footage recorded in the Unity Editor (not a live player)",
+  alt: "A Level 2 fight against the Crimson Warden: it winds up a slam, the player sidesteps and lands a medium then a full-power sword hit, a guarded hit does 7 damage, the weapons clash, it counters, and a last full-power hit takes it to 12% health",
+};
 export const shotType = (shot) => (shot.type === "video" ? "video" : "image");
 
 export const SHOWCASE_SHOTS = [
@@ -26,10 +42,13 @@ export const SHOWCASE_SHOTS = [
     caption: "Point at your name and pull the trigger, then press Start. The fight appears on the dashboard as it begins.",
   },
   {
-    type: "video", // a swing clip works best here
-    path: null, // e.g. "showcase/showcase-2-combat.mp4"
-    poster: null, // e.g. "showcase/showcase-2-combat.jpg"
-    alt: "Swinging at the monster in the arena",
+    type: "video",
+    path: DEMO_CLIP.mp4,
+    webm: DEMO_CLIP.webm,
+    poster: DEMO_CLIP.poster,
+    seconds: DEMO_CLIP.seconds,
+    credit: "demo",
+    alt: DEMO_CLIP.alt,
     tab: "Swing",
     title: "Swing to hit",
     caption: `Dual hammers on Level 1, dual swords on Level 2. Swings under ${LEVELS.Easy.swing.min} m/s don't count; faster ones hit harder.`,

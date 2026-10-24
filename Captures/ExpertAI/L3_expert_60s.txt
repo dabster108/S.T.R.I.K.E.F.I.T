@@ -1,0 +1,17 @@
+== Level3_Hard EXPERT | FightMode Expert, ExpertThisFight True, brain active True, predictor running, advisor set True, early warning set True
+   mapping: dataset x = -Unity x, dataset y = -Unity z, dataset z = +Unity y | head height above the arena floor 1.60 m (training mean 1.53 +- 0.06), floor used by the predictor at runtime: see below | warm-up 18.5 ms for 3 runs at load
+  60 s: monster attacks 21 (21.0/min), damaging hits on the player 24 (24.0/min)
+  phase 1: incoming swings 10, guards 0 -> block rate 0 % (cap 55 %)
+  phase 2: incoming swings 5, guards 0 -> block rate 0 % (cap 55 %)
+  phase 3: incoming swings 3, guards 0 -> block rate 0 % (cap 55 %)
+  prediction error (cm), model vs stay-still baseline on the same moments:
+    0.25 s (n=539): head 8.0 vs 14.1 | dominant hand 43.0 vs 17.3
+    0.50 s (n=537): head 19.3 vs 25.7 | dominant hand 73.0 vs 31.4
+    0.75 s (n=535): head 32.3 vs 35.6 | dominant hand 83.2 vs 43.4
+    1.00 s (n=532): head 44.0 vs 43.8 | dominant hand 81.7 vs 52.9
+  inference: 594 runs, avg 1.383 ms, p95 1.569 ms, max 3.805 ms, over the 1.5 ms budget 70 | fallbacks 0
+  managed allocations on the main thread during the run (whole game, not only the predictor): 0 KB
+  decisions the prediction changed: 13 (held strikes 0, swapped to a sweep 1, aimed wind-ups 12, led throws 0) | early warnings used by the guard 4 | governor: prediction blocked by the hit cap 0 times, hit cap 30.0/min
+  floor height used 0.00 m -> head height fed to the model 1.60 m
+  HUD enemy line: Enemy 1225/5600  ENRAGED  [EXPERT AI]
+DONE

@@ -145,3 +145,9 @@ web/tools/render-portraits/node_modules/
 *.log
 ml-services/datasets/
 ml-services/.venv/
+
+# Raw Unity Recorder output of the demo capture (CinematicCapture); the encoded web copies live in web/frontend/public/video/
+Captures/Demo/
+
+# Local pre-change backups of scenes / prefabs / scripts (git history holds the same state once committed)
+Backups/

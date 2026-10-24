@@ -35,6 +35,9 @@
 //          - Opening cue: a hit on a zone the raised guard leaves open plays openingClip and a brief white flash.
 //          - Telemetry: GuardEnded (one report per guard) and OpeningLanded (one per opening hit) static events.
 //          - Dodge (needs sidestep/backstep clips; off unless enabled).
+//          - Levels 2 and 3 (a MonsterTactics with a DefenseProfile on the same object): MonsterTactics predicts the swings and decides
+//            every guard (RaisePlannedGuard), its guard meter breaks the guard (BreakGuardNow) and it strafes through Recentre. The
+//            detection roll, timed guard, blocks-in-a-row rule, hit-count meter and counter here then stand down. Level 1 is unchanged.
 // Dependencies: MonsterAI, MonsterController, MonsterAnimator, PlayerCombat, HitDetection, XPManager (tiers),
 //               CombatUIController (guard meter), MonsterEntrance / BossPhaseController (optional)
 // Attach to: Monster root (with MonsterAI)
@@ -321,6 +324,10 @@ public class MonsterDefense : MonoBehaviour
     private MonsterAnimator anim;
     private MonsterEntrance entrance;
     private BossPhaseController phases;
+    private MonsterTactics tactics;
+    /// <summary>Levels 2 and 3: MonsterTactics (with a DefenseProfile) predicts swings and decides every guard; this component's own
+    /// detection roll, timed guard, blocks-in-a-row rule, hit-count meter and counter stand down. Level 1 has no tactics.</summary>
+    public bool TacticsActive => tactics != null && tactics.Active;
     private float fightStart = -1f;
     private float pendingGuardAt = -1f;
     private GuardDirection pendingDir;
@@ -368,6 +375,7 @@ public class MonsterDefense : MonoBehaviour
         anim = GetComponent<MonsterAnimator>();
         entrance = GetComponent<MonsterEntrance>();
         phases = GetComponent<BossPhaseController>();
+        tactics = GetComponent<MonsterTactics>();
     }
 
     void Start()
@@ -405,7 +413,7 @@ public class MonsterDefense : MonoBehaviour
             lastGuardEnd = Time.time;
             ReportGuardEnd();
             // Counter: the guard soaked up enough hits; answer with a fast attack shortly after it drops.
-            if (counterEnabled && absorbedThisGuard >= counterMinAbsorbed && !IsStaggered)
+            if (counterEnabled && !TacticsActive && absorbedThisGuard >= counterMinAbsorbed && !IsStaggered)
             {
                 CounterRolls++;
                 if (Random.value < counterChance) counterAt = Time.time + Random.Range(0.05f, Mathf.Max(0.06f, counterWithin));
@@ -420,6 +428,7 @@ public class MonsterDefense : MonoBehaviour
 
         Turn();
         Recentre();
+        if (TacticsActive) return;   // MonsterTactics predicts the swings and raises every guard
         DecayBoosts(Time.deltaTime);
         DetectSwings();
 
@@ -499,7 +508,9 @@ public class MonsterDefense : MonoBehaviour
         LateralOffset = Vector3.Dot(rel, right);
         bool free = !ctrl.isAttacking && !ai.IsBusy && !ai.holdActions && !IsStaggered && !InFlinch;
         if (!recentre || !free) { recentreVel = 0f; return; }
-        float want = Mathf.Abs(LateralOffset) < recentreDeadZone ? 0f : Mathf.Clamp(-LateralOffset * recentreGain, -recentreSpeed, recentreSpeed);
+        // MonsterTactics strafes by moving the line it eases back to (0 = the centre line).
+        float off = LateralOffset - (TacticsActive ? tactics.StrafeOffset : 0f);
+        float want = Mathf.Abs(off) < recentreDeadZone ? 0f : Mathf.Clamp(-off * recentreGain, -recentreSpeed, recentreSpeed);
         recentreVel = Mathf.MoveTowards(recentreVel, want, 1.5f * Time.deltaTime);   // eases in and out, no snap
         if (recentreVel != 0f) transform.position += right * (recentreVel * Time.deltaTime);
     }
@@ -782,7 +793,9 @@ public class MonsterDefense : MonoBehaviour
             {
                 // The guard clips (both monsters' HIGH guard) hold the weapon across the front of the upper body: above the waist.
                 case GuardPose.High: return f >= legsTop;
-                case GuardPose.Low: return f < torsoSplit;
+                // With MonsterTactics the low guard is the low / thrust guard: the weapon slants across the front of the body, so a
+                // thrust at the belly or chest centre is covered too.
+                case GuardPose.Low: return f < torsoSplit || (TacticsActive && f < headBottom && Mathf.Abs(x) <= 0.25f);
                 case GuardPose.SideLeft: return f >= legsTop && f < headBottom && x >= -sideOverlap;
                 default: return f >= legsTop && f < headBottom && x <= sideOverlap;
             }
@@ -938,6 +951,34 @@ public class MonsterDefense : MonoBehaviour
 
     float ChanceBase() => (ai.enraged ? guardChanceEnraged : guardChance) + guardChancePerPhase * (phases != null ? phases.Phase : 0);
 
+    /// <summary>MonsterTactics: raise the guard for a predicted swing now, for <paramref name="duration"/> seconds. Only the rules that
+    /// keep a committed or helpless monster from guarding apply here (fight, attacking, guarding, busy, stagger / lockout, flinch,
+    /// phase shift); the gap, uptime and blocks-in-a-row rules are replaced by MonsterTactics' cooldown, rate cap and guard meter.</summary>
+    public bool RaisePlannedGuard(SwingClass c, GuardPose pose, Vector3 contact, float duration)
+    {
+        int code = RefusalCode();
+        lastRefusalCode = code == 6 || code == 8 || code == 9 ? -1 : code;
+        if (lastRefusalCode >= 0) return false;
+        string trigger = pose == GuardPose.High ? highGuardTrigger : pose == GuardPose.Low ? lowPoseGuardTrigger
+            : pose == GuardPose.SideLeft ? sideLeftGuardTrigger : sideRightGuardTrigger;
+        if (!ai.BeginGuard(duration, true, trigger, guardFlashColor, guardFlashSeconds)) { lastRefusalCode = 3; return false; }
+        ReactiveGuards++;
+        GuardZone zone = pose == GuardPose.High ? GuardZone.High : pose == GuardPose.Low ? GuardZone.Low : GuardZone.Mid;
+        if (zone == GuardZone.High) HighGuards++; else SideGuards++;
+        GuardsByZone[(int)zone]++;
+        ActiveZone = zone;
+        LastGuardDirection = zone == GuardZone.High ? GuardDirection.High : GuardDirection.Side;
+        ActiveClass = c; ActivePose = pose; PredictedContact = contact; LastClass = c;
+        ClassGuards[(int)c]++;
+        PoseGuards[(int)pose]++;
+        activeReactive = true; activeChance = 1f; guardStartedAt = Time.time;
+        absorbedThisGuard = 0; openingsThisGuard = 0; preventedThisGuard = 0f; guardBroke = false;
+        return true;
+    }
+
+    /// <summary>MonsterTactics: its guard meter is empty.</summary>
+    public void BreakGuardNow() => BreakGuard();
+
     // ───────────────────────── guard meter / break ─────────────────────────
     /// <summary>MonsterController: a body hit was absorbed by the guard (weapon parries never reach here).</summary>
     public void OnGuardAbsorbedHit() => OnGuardAbsorbedHit(0f);
@@ -955,6 +996,7 @@ public class MonsterDefense : MonoBehaviour
         ClassPrevented[(int)ActiveClass] += prevented;
         BlocksInARow++;
         if (BlocksInARow > MaxBlocksInARowSeen) MaxBlocksInARowSeen = BlocksInARow;
+        if (TacticsActive) { tactics.OnGuardAbsorbed(); return; }   // its guard meter drains per block and breaks the guard
         if (maxBlocksInARow > 0 && BlocksInARow >= maxBlocksInARow) forceOpenNext = true;
         if (!guardBreakEnabled || guardBreakHits <= 0) return;
         GuardMeter++;
@@ -983,7 +1025,7 @@ public class MonsterDefense : MonoBehaviour
 
     void PushMeter()
     {
-        if (!showGuardMeter || CombatUIController.Instance == null || GuardMeter == shownMeter) return;
+        if (TacticsActive || !showGuardMeter || CombatUIController.Instance == null || GuardMeter == shownMeter) return;   // MonsterTactics drives the bar
         shownMeter = GuardMeter;
         CombatUIController.Instance.SetGuardMeter(GuardMeter, guardBreakEnabled ? guardBreakHits : 0);
     }
@@ -1033,12 +1075,7 @@ public class MonsterDefense : MonoBehaviour
         return true;
     }
 
-    bool HasTrigger(string trigger)
-    {
-        foreach (var p in anim.animator.parameters)
-            if (p.type == AnimatorControllerParameterType.Trigger && p.name == trigger) return true;
-        return false;
-    }
+    bool HasTrigger(string trigger) => anim.HasTrigger(trigger);   // cached per controller in MonsterAnimator (no allocation)
 
     /// <summary>Resets the counters (test harness).</summary>
     public void ResetStats()

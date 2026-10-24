@@ -35,9 +35,7 @@ export function EmptyState({ icon = "headset", title, description, action, tone 
   );
 }
 
-export function Skeleton({ className = "h-4 w-full" }) {
-  return <div className={`skeleton rounded-lg ${className}`} aria-hidden />;
-}
+export { Skeleton } from "./Skeleton.jsx";
 
 export function Banner({ tone = "bad", title, children, action }) {
   const cls =

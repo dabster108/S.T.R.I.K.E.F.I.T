@@ -85,6 +85,7 @@ public class MonsterController : MonoBehaviour
     {
         health = GetComponent<MonsterHealth>();
         ai = GetComponent<MonsterAI>();
+        colors = GetComponent<MonsterColorCompositor>();
         monsterAnimator = GetComponent<MonsterAnimator>();
         defense = GetComponent<MonsterDefense>();
         phases = GetComponent<BossPhaseController>();
@@ -155,6 +156,13 @@ public class MonsterController : MonoBehaviour
 
     /// <summary>Seconds until CanAttack() would be true on cooldown alone (read-only; MonsterCosmetics uses it to keep flourishes out of a due attack).</summary>
     public float SecondsUntilAttackReady => Mathf.Max(0f, lastAttackTime + attackCooldown - Time.time);
+
+    /// <summary>MonsterTactics: an attack started <paramref name="seconds"/> before the cooldown was over; the next one waits that much
+    /// longer, so counters and punishes do not raise the attack frequency.</summary>
+    public void DeferNextAttack(float seconds)
+    {
+        if (seconds > 0f) lastAttackTime += seconds;
+    }
 
     public bool CanAttack()
     {
@@ -245,6 +253,7 @@ public class MonsterController : MonoBehaviour
         dmg *= Mathf.Max(0.1f, damageMultiplier);
 
         OnMonsterAttackDamage?.Invoke(dmg);
+        if (colors != null) colors.Strike(ai != null && ai.CurrentAttack != null ? ai.CurrentAttack.telegraphColor : (ai != null ? ai.telegraphColor : Color.red));
 
         // Route through PlayerHealth — which checks PlayerCombat.IsBlocking for shield block.
         var playerHealth = FindAnyObjectByType<PlayerHealth>();
@@ -258,6 +267,9 @@ public class MonsterController : MonoBehaviour
         if (isAlive)
             SetAnimState(MonsterAnimState.Idle);
     }
+
+    // Colour writer: the hit flash (tier of the swing) and the weapon strike flash go through it.
+    private MonsterColorCompositor colors;
 
     public void OnTakeDamage(float amount, Vector3 hitPoint)
     {
@@ -285,7 +297,7 @@ public class MonsterController : MonoBehaviour
             if (defense != null) defense.OnGuardAbsorbedHit(amount, unguarded - amount); // fills the guard meter (weapon parries never get here)
             style = CombatUIController.DamageStyle.Blocked;
             if (ai.verboseAttackLogs)
-                Debug.Log($"[Monster] Blocked! Reduced damage to {amount:0.#}");
+                DevLog.Log($"[Monster] Blocked! Reduced damage to {amount:0.#}");
         }
         else if (guarding && defense != null)
         {
@@ -331,6 +343,7 @@ public class MonsterController : MonoBehaviour
         LastDamageTaken = amount;
         RecordDamage(amount);
 
+        if (colors != null) colors.NotifyDamage(style);   // hit flash in the colour of the swing tier (visual only)
         health.TakeDamage(amount, hitPoint, style);
 
         if (health.IsDead)

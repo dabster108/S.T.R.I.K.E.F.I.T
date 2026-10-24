@@ -80,6 +80,11 @@ public class MainMenuController : MonoBehaviour
     int selected = -1;
     bool loading;
 
+    /// <summary>The selected level card (0-based), -1 when none (MonsterAIModeToggle reads it).</summary>
+    public int SelectedIndex => selected;
+    /// <summary>Raised when a level card is selected (or the selection is cleared: -1).</summary>
+    public event Action<int> LevelSelected;
+
     void Awake()
     {
         for (int i = 0; i < levels.Length; i++)
@@ -163,12 +168,20 @@ public class MainMenuController : MonoBehaviour
         ShowHome();
     }
 
+    /// <summary>Raised whenever the "Playing as" line is (re)written, with the player's name (MenuProgressPanel follows it).</summary>
+    public static event System.Action<string> PlayingAsChanged;
+
     public void RefreshPlayingAs()
     {
-        if (playingAsLabel == null) return;
-        playingAsLabel.gameObject.SetActive(showPlayingAs);
         string name = PlayerNameStore.LastUsed;
-        playingAsLabel.text = string.IsNullOrEmpty(name) ? "No name yet: press Change Name" : "Playing as " + name;
+        if (playingAsLabel != null)
+        {
+            playingAsLabel.gameObject.SetActive(showPlayingAs);
+            // the rank sits beside the name (the website's ladder, from this headset's progress and the website's when it answered)
+            string rank = string.IsNullOrEmpty(name) ? "" : "  \u00b7  " + StrikeFit.Engagement.RankLadder.RankFor(PlayerProgressStore.Load(name).effortPoints).name;
+            playingAsLabel.text = string.IsNullOrEmpty(name) ? "No name yet: press Change Name" : "Playing as " + name + rank;
+        }
+        PlayingAsChanged?.Invoke(name);
     }
 
     // ───────────────────────── Start Game / levels ─────────────────────────
@@ -204,6 +217,7 @@ public class MainMenuController : MonoBehaviour
             playButton.interactable = index >= 0;
         }
         if (playLabel != null) playLabel.text = index >= 0 ? $"{playText} Level {index + 1}" : selectPrompt;
+        LevelSelected?.Invoke(index);
     }
 
     void OnPlay()

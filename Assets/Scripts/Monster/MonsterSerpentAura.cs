@@ -129,7 +129,7 @@ public class MonsterSerpentAura : MonoBehaviour
                 // Thin at both ends (born at the feet, dissolving at the head).
                 o.widthMultiplier = width * Mathf.Sqrt(Mathf.Sin(Mathf.PI * u));
                 o.GetPropertyBlock(mpb);
-                mpb.SetColor("_BaseColor", new Color(bright, bright, bright, Visibility));
+                mpb.SetColor(ShaderIds.BaseColor, new Color(bright, bright, bright, Visibility));
                 o.SetPropertyBlock(mpb);
             }
         }

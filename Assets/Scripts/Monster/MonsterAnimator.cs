@@ -37,6 +37,34 @@ public class MonsterAnimator : MonoBehaviour
     [System.NonSerialized] public string NextHitTrigger;
 
     private MaterialPropertyBlock mpb;
+
+    // Trigger and bool parameters of the current controller, as name hashes. animator.parameters builds a new array of new
+    // objects on every call, and it used to be read on every trigger set and reset (several times per attack, hit and guard);
+    // now it is read once per controller. An empty read (Animator not initialised yet) is not cached, so it is retried.
+    private RuntimeAnimatorController paramController;
+    private Animator paramAnimator;
+    private int[] triggerHashes = new int[0];
+    private int triggerCount;
+    private readonly System.Collections.Generic.HashSet<int> triggerSet = new System.Collections.Generic.HashSet<int>();
+    private readonly System.Collections.Generic.HashSet<int> boolSet = new System.Collections.Generic.HashSet<int>();
+
+    void EnsureParamCache()
+    {
+        var rc = animator != null ? animator.runtimeAnimatorController : null;
+        if (rc == paramController && animator == paramAnimator) return;
+        triggerSet.Clear(); boolSet.Clear(); triggerCount = 0;
+        paramController = null; paramAnimator = null;
+        if (rc == null) return;
+        var ps = animator.parameters;
+        if (ps.Length == 0) return;
+        if (triggerHashes.Length < ps.Length) triggerHashes = new int[ps.Length];
+        foreach (var p in ps)
+        {
+            if (p.type == AnimatorControllerParameterType.Trigger) { if (triggerSet.Add(p.nameHash)) triggerHashes[triggerCount++] = p.nameHash; }
+            else if (p.type == AnimatorControllerParameterType.Bool) boolSet.Add(p.nameHash);
+        }
+        paramController = rc; paramAnimator = animator;
+    }
     private Color baseColor = Color.white;
     private MonsterAnimState lastState;
 
@@ -123,18 +151,15 @@ public class MonsterAnimator : MonoBehaviour
             ok = TrySetTrigger(attackTrigger);
 
         if (verboseAttackLogs)
-            Debug.Log($"[MonsterAnimator] PlayAttackVariant pattern={pattern} trigger={chosen} ok={ok}");
+            DevLog.Log($"[MonsterAnimator] PlayAttackVariant pattern={pattern} trigger={chosen} ok={ok}");
     }
 
-    bool HasTrigger(string name)
+    /// <summary>Does the current controller have this trigger parameter? Cached per controller (no allocation).</summary>
+    public bool HasTrigger(string name)
     {
         if (string.IsNullOrEmpty(name) || animator == null) return false;
-        foreach (var p in animator.parameters)
-        {
-            if (p.type == AnimatorControllerParameterType.Trigger && p.name == name)
-                return true;
-        }
-        return false;
+        EnsureParamCache();
+        return triggerSet.Contains(Animator.StringToHash(name));
     }
 
     public void PlayDefend()
@@ -167,7 +192,7 @@ public class MonsterAnimator : MonoBehaviour
         if (!ok)
             Debug.LogWarning($"[MonsterAnimator] Attack trigger '{trigger}' is not a trigger of '{animator.runtimeAnimatorController.name}'; this attack plays no animation.");
         if (verboseAttackLogs)
-            Debug.Log($"[MonsterAnimator] PlayAttackTrigger {trigger} ok={ok}");
+            DevLog.Log($"[MonsterAnimator] PlayAttackTrigger {trigger} ok={ok}");
         return ok;
     }
 
@@ -181,20 +206,18 @@ public class MonsterAnimator : MonoBehaviour
 
     public void SetBoolIfPresent(string name, bool value)
     {
-        if (animator == null || animator.runtimeAnimatorController == null) return;
-        foreach (var p in animator.parameters)
-            if (p.type == AnimatorControllerParameterType.Bool && p.name == name) { animator.SetBool(name, value); return; }
+        if (animator == null || animator.runtimeAnimatorController == null || string.IsNullOrEmpty(name)) return;
+        EnsureParamCache();
+        int h = Animator.StringToHash(name);
+        if (boolSet.Contains(h)) animator.SetBool(h, value);
     }
 
     /// <summary>Resets every trigger parameter the controller has (not only the named defaults).</summary>
     void ResetAllTriggers()
     {
         if (animator == null) return;
-        foreach (var p in animator.parameters)
-        {
-            if (p.type == AnimatorControllerParameterType.Trigger)
-                animator.ResetTrigger(p.name);
-        }
+        EnsureParamCache();
+        for (int i = 0; i < triggerCount; i++) animator.ResetTrigger(triggerHashes[i]);
     }
 
     void SafeSetTrigger(string name)
@@ -205,16 +228,15 @@ public class MonsterAnimator : MonoBehaviour
     bool TrySetTrigger(string name)
     {
         if (string.IsNullOrEmpty(name) || animator == null) return false;
-        foreach (var p in animator.parameters)
+        EnsureParamCache();
+        int h = Animator.StringToHash(name);
+        if (triggerSet.Contains(h))
         {
-            if (p.type == AnimatorControllerParameterType.Trigger && p.name == name)
-            {
-                animator.SetTrigger(name);
-                return true;
-            }
+            animator.SetTrigger(h);
+            return true;
         }
         // Parameter missing — try cross-fade by state name
-        if (animator.HasState(0, Animator.StringToHash(name)))
+        if (animator.HasState(0, h))
         {
             animator.CrossFade(name, 0.1f);
             return true;
@@ -225,14 +247,9 @@ public class MonsterAnimator : MonoBehaviour
     void SafeResetTrigger(string name)
     {
         if (string.IsNullOrEmpty(name) || animator == null) return;
-        foreach (var p in animator.parameters)
-        {
-            if (p.type == AnimatorControllerParameterType.Trigger && p.name == name)
-            {
-                animator.ResetTrigger(name);
-                return;
-            }
-        }
+        EnsureParamCache();
+        int h = Animator.StringToHash(name);
+        if (triggerSet.Contains(h)) animator.ResetTrigger(h);
     }
 
     void HandleFallback(MonsterAnimState state)
@@ -256,13 +273,15 @@ public class MonsterAnimator : MonoBehaviour
 
     System.Collections.IEnumerator Flash(Color c, float duration)
     {
+        var colors = GetComponent<MonsterColorCompositor>();
+        if (colors != null) { colors.Cue(c, duration); yield break; }   // the compositor owns the body's property blocks
         fallbackRenderer.GetPropertyBlock(mpb);
-        mpb.SetColor("_BaseColor", c);
-        mpb.SetColor("_Color", c);
+        mpb.SetColor(ShaderIds.BaseColor, c);
+        mpb.SetColor(ShaderIds.Color, c);
         fallbackRenderer.SetPropertyBlock(mpb);
         yield return new WaitForSeconds(duration);
-        mpb.SetColor("_BaseColor", baseColor);
-        mpb.SetColor("_Color", baseColor);
+        mpb.SetColor(ShaderIds.BaseColor, baseColor);
+        mpb.SetColor(ShaderIds.Color, baseColor);
         fallbackRenderer.SetPropertyBlock(mpb);
     }
 

@@ -27,6 +27,9 @@ public class MonsterPersonalSpace : MonoBehaviour
     [Tooltip("EXPERIMENTAL, off: the monster's weapon (MonsterWeapon colliders) may not come closer than this to the head (m). A swing path crosses the head zone by design, so a horizontal push cannot clear it and it pushed the body into a hand in testing. Attacks still " +
              "reach: the push-back is added to MonsterAI's range check. 0 = off.")]
     public float weaponHeadClearance = 0f;
+    [Tooltip("Fastest the root may be pushed away (m/s). 0 = no limit (the old behaviour: the full correction in one frame, which showed as a " +
+             "0.3-0.4 m pop when an arm swung close to the head). > 0: the push is spread over a few frames, so the monster is eased back, not snapped.")]
+    public float maxPushSpeed = 0f;
     [Tooltip("Push passes per frame (a curved body part can need a second pass).")]
     [Range(1, 6)] public int iterations = 4;
 
@@ -214,6 +217,12 @@ public class MonsterPersonalSpace : MonoBehaviour
             // A point above / below the body part cannot be cleared by sliding the root sideways one-for-one: scale the
             // slide by the horizontal share of the separation (capped so a point directly overhead cannot fling it).
             Vector3 step = dir * Mathf.Min(need / Mathf.Max(0.3f, fh), 0.4f);
+            if (maxPushSpeed > 0f)
+            {
+                float room = maxPushSpeed * Time.deltaTime - LastPush;   // what this frame may still move the root
+                if (room <= 1e-5f) break;
+                if (step.magnitude > room) step = step.normalized * room;
+            }
             transform.position += step;
             LastPush += step.magnitude;
             if (attacking) AttackPushback += Mathf.Max(0f, -Vector3.Dot(step, Flat(transform.forward)));
@@ -285,14 +294,14 @@ public class MonsterPersonalSpace : MonoBehaviour
             {
                 Vector3 ls = t.lossyScale;
                 pw[w][0] = t.TransformPoint(sp.center); pwCount[w] = 1;
-                pwRadius[w] = sp.radius * Mathf.Max(Mathf.Abs(ls.x), Mathf.Abs(ls.y), Mathf.Abs(ls.z));
+                pwRadius[w] = sp.radius * Mathf.Max(Mathf.Abs(ls.x), Mathf.Max(Mathf.Abs(ls.y), Mathf.Abs(ls.z)));
             }
             else if (col is CapsuleCollider cc)
             {
                 Vector3 axis = cc.direction == 0 ? Vector3.right : cc.direction == 1 ? Vector3.up : Vector3.forward;
                 Vector3 ls = t.lossyScale;
                 for (int k = 0; k < 5; k++) pw[w][k] = t.TransformPoint(cc.center + axis * (cc.height * (k / 4f - 0.5f)));
-                pwCount[w] = 5; pwRadius[w] = cc.radius * Mathf.Max(Mathf.Abs(ls.x), Mathf.Abs(ls.y), Mathf.Abs(ls.z));
+                pwCount[w] = 5; pwRadius[w] = cc.radius * Mathf.Max(Mathf.Abs(ls.x), Mathf.Max(Mathf.Abs(ls.y), Mathf.Abs(ls.z)));
             }
         }
     }

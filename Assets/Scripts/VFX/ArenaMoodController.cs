@@ -81,6 +81,10 @@ public class ArenaMoodController : MonoBehaviour
 
     void HandleVictory(int score) { victory = true; }
 
+    MonsterController moodMonster;
+    MonsterHealth moodHealth;
+    MonsterAI moodAi;
+
     void Update()
     {
         if (GamePause.IsPaused) return;   // the mood blends on real time; it holds while paused
@@ -89,8 +93,9 @@ public class ArenaMoodController : MonoBehaviour
         if (victory || (m != null && !m.isAlive)) { target = cleared; CurrentMoodName = "cleared"; }
         else if (m != null)
         {
-            var h = m.GetComponent<MonsterHealth>();
-            var ai = m.GetComponent<MonsterAI>();
+            if (m != moodMonster) { moodMonster = m; moodHealth = m.GetComponent<MonsterHealth>(); moodAi = m.GetComponent<MonsterAI>(); }   // once per monster, not per frame
+            var h = moodHealth;
+            var ai = moodAi;
             float hp = h != null && h.maxHealth > 0f ? h.currentHealth / h.maxHealth : 1f;
             bool enr = ai != null && ai.enraged;
             if (enr && hp <= finalHpFraction) { target = final; CurrentMoodName = "final"; }

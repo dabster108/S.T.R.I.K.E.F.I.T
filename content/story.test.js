@@ -47,3 +47,15 @@ test("guardian portraits: three PNGs, 1024 px at most, under 6 MB together, and 
   assert.ok(total < 6 * 1024 * 1024, `portraits ${total} bytes`);
   for (const p of sync.PORTRAITS) assert.ok(fs.readFileSync(p.from).equals(fs.readFileSync(p.to)), p.to);
 });
+
+test("Story Mode presentation fields: prologue (3 to 4 lines), guardian titles, card titles", () => {
+  const story = JSON.parse(fs.readFileSync(sync.SOURCE, "utf8"));
+  assert.ok(story.prologue.lines.length >= 3 && story.prologue.lines.length <= 4);
+  assert.ok(story.prologue.lineSeconds > 0);
+  assert.ok(story.guardians.every((g) => typeof g.title === "string" && g.title.trim()));
+  assert.ok(story.cards.interlude.includes("{0}"));
+  const bad = JSON.parse(JSON.stringify(story)); bad.prologue.lines = ["one"];
+  assert.ok(sync.validate(bad).some((e) => e.includes("prologue.lines")));
+  const noCard = JSON.parse(JSON.stringify(story)); delete noCard.cards.defeat;
+  assert.ok(sync.validate(noCard).some((e) => e.includes("cards.defeat")));
+});

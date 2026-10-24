@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Brand } from "../components/landing/LandingNav.jsx";
 import { buttonClass } from "../components/ui/Button.jsx";
-import { PageHeader } from "../components/ui/Card.jsx";
+import { Card, CardHeader, PageHeader } from "../components/ui/Card.jsx";
 import { useDocTitle } from "../hooks/useDocTitle.js";
 import Icon from "../components/ui/Icon.jsx";
 import { useBroadcast } from "../hooks/useBroadcast.js";
@@ -11,6 +11,7 @@ import { ReactionBar, ReactionLayer } from "../components/live/Reactions.jsx";
 import { CaptionBar, CommentaryOverlay, useStageCommentary } from "../components/live/arena/Commentary.jsx";
 import CommentaryControls from "../components/live/arena/CommentaryControls.jsx";
 import { useLiveIds, useLiveSession } from "../live/LiveProvider.jsx";
+import { copyText } from "../lib/toast.js";
 
 // strikefit.vercel.app/broadcast — the headset's view, live. Opening the page is the
 // trigger: it connects to the signaling relay and asks the game for video, so nobody
@@ -42,13 +43,75 @@ function waitingText(phase, headsetOnline) {
   return "Headset found. Exchanging the WebRTC handshake…";
 }
 
-function Stat({ label, value }) {
+function waitingTitle(phase, headsetOnline) {
+  if (phase === "disconnected") return "Server unreachable";
+  if (phase === "connecting" && headsetOnline === false) return "Waiting for the headset";
+  if (phase === "connecting") return "Connecting to the server";
+  return "Starting the stream";
+}
+
+// The three steps to a picture as a stepper: done steps get a tick, the current one pulses, later ones stay dim.
+function Stepper({ step }) {
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{label}</div>
-      <div className="mt-1 text-lg font-bold tabular-nums text-[var(--ink)]">{value ?? "—"}</div>
+    <ol className="flex w-full max-w-md items-start" aria-label="Connection progress">
+      {STEPS.slice(1).map((s, i) => {
+        const n = i + 1;
+        const state = n < step || (n === step && s === "live") ? "done" : n === step ? "current" : "todo";
+        return (
+          <li key={s} className="flex flex-1 flex-col items-center gap-2 text-center" aria-current={state === "current" ? "step" : undefined}>
+            <div className="flex w-full items-center">
+              <span className={`h-0.5 flex-1 rounded-full ${i === 0 ? "opacity-0" : n <= step ? "bg-white/80" : "bg-white/15"}`} aria-hidden />
+              <span
+                className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-extrabold ${
+                  state === "done" ? "bg-white text-[var(--blue-900)]" : state === "current" ? "bg-[var(--accent)] text-white ring-4 ring-white/20" : "bg-white/10 text-[var(--blue-100)] ring-1 ring-inset ring-white/20"
+                }`}
+              >
+                {state === "current" && <span className="bc-ping absolute inset-0 rounded-full bg-[var(--blue-400)]" aria-hidden />}
+                <span className="relative">{state === "done" ? <Icon name="check" className="h-4 w-4" /> : n}</span>
+              </span>
+              <span className={`h-0.5 flex-1 rounded-full ${n === 3 ? "opacity-0" : n < step ? "bg-white/80" : "bg-white/15"}`} aria-hidden />
+            </div>
+            <span className={`px-1 text-xs font-bold ${state === "todo" ? "text-[var(--blue-300)]" : "text-white"}`}>{PHASES[s].label === "LIVE" ? "Live" : PHASES[s].label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// mm:ss since the picture arrived, for the LIVE badge.
+function useElapsed(running) {
+  const [sec, setSec] = useState(0);
+  useEffect(() => {
+    if (!running) return setSec(0);
+    const t0 = Date.now();
+    const id = setInterval(() => setSec(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [running]);
+  return `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
+}
+
+function Stat({ icon, label, value }) {
+  return (
+    <div className="flex items-center gap-3 bg-[var(--surface)] px-4 py-3.5">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]" aria-hidden>
+        <Icon name={icon} className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <div className="t-kicker truncate">{label}</div>
+        <div className={`mt-0.5 truncate text-base font-extrabold tabular-nums tracking-tight ${value == null ? "text-[var(--muted)]" : "text-[var(--ink)]"}`}>{value ?? "—"}</div>
+      </div>
     </div>
   );
+}
+
+// One word for the stream's state, from the numbers the player already reports (shown with its label, never colour alone).
+function health(live, stats) {
+  if (!live || !stats) return { label: "No video yet", cls: "bg-[var(--surface-muted)] text-[var(--muted)] ring-[var(--border)]", dot: "bg-[var(--border-strong)]" };
+  const smooth = (stats.fps == null || stats.fps >= 24) && (stats.rttMs == null || stats.rttMs < 200);
+  return smooth
+    ? { label: "Smooth", cls: "bg-[var(--good-soft)] text-[var(--good-ink)] ring-emerald-200", dot: "bg-[var(--good)]" }
+    : { label: "Unstable", cls: "bg-[var(--warn-soft)] text-[var(--warn-ink)] ring-amber-200", dot: "bg-[var(--warn)]" };
 }
 
 // Cheers for the fight on the video (the first live fight, the same one LiveOverlay shows): the bar under the player,
@@ -100,6 +163,7 @@ function BroadcastPanel({ room, header }) {
   const { phase, headsetOnline, error, stream, stats, retry } = useBroadcast(room);
   const video = useRef(null);
   const frame = useRef(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (video.current && video.current.srcObject !== stream) video.current.srcObject = stream;
@@ -107,9 +171,24 @@ function BroadcastPanel({ room, header }) {
 
   const live = phase === "live";
   const step = STEPS.indexOf(phase);
+  const elapsed = useElapsed(live);
+  const h = health(live, stats);
+  const waitingIcon = phase === "disconnected" ? "offline" : headsetOnline === false ? "headset" : "loader";
+
+  const copyLink = async () => {
+    const url = `${window.location.origin}/broadcast${room === "strikefit" ? "" : `?room=${encodeURIComponent(room)}`}`;
+    if (await copyText(url, "Broadcast link")) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   const actions = (
     <>
       <PhaseBadge phase={phase} />
+      <button type="button" className={buttonClass("secondary", "md")} onClick={copyLink}>
+        <Icon name={copied ? "check" : "link"} className="h-4 w-4" /> {copied ? "Copied" : "Copy link"}
+      </button>
       <button type="button" className={buttonClass("secondary", "md")} onClick={retry} disabled={phase === "disconnected"}>
         <Icon name="refresh" className="h-4 w-4" /> Reconnect
       </button>
@@ -123,29 +202,57 @@ function BroadcastPanel({ room, header }) {
     <>
       {header(actions)}
 
-      <div ref={frame} className="relative mt-5 aspect-video w-full overflow-hidden rounded-[var(--radius-xl)] bg-[var(--blue-900)] shadow-[var(--shadow-card)]">
-        <video ref={video} autoPlay playsInline muted className={`h-full w-full object-contain ${live ? "" : "invisible"}`} />
+      <div ref={frame} className={`bc-stage relative mt-5 aspect-video w-full overflow-hidden rounded-[var(--radius-xl)] shadow-[0_24px_60px_-24px_var(--accent-glow)] ring-1 ring-[var(--blue-800)] ${live ? "" : "max-sm:aspect-auto max-sm:min-h-[21rem]"}`}
+      >
+        <video ref={video} autoPlay playsInline muted className={`relative h-full w-full object-contain ${live ? "" : "invisible"}`} />
         {live && <LiveOverlay />}
         {live && <CheerLayer />}
         {live && <CommentaryLayer />}
         {live ? (
-          <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-[var(--bad)] px-2 py-1 text-xs font-extrabold tracking-wider text-white">
-            <span className="h-1.5 w-1.5 rounded-full bg-white status-live" aria-hidden /> LIVE
+          <span className="absolute left-3 top-3 z-[3] inline-flex items-center gap-2 rounded-lg bg-black/45 py-1 pl-1 pr-2.5 text-xs font-extrabold tracking-wider text-white ring-1 ring-inset ring-white/15 backdrop-blur-md">
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--bad)] px-2 py-0.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-white status-live" aria-hidden /> LIVE
+            </span>
+            <span className="tabular-nums" aria-label={`Live for ${elapsed}`}>{elapsed}</span>
           </span>
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center text-white">
-            <Icon name={phase === "disconnected" ? "offline" : headsetOnline === false ? "headset" : "loader"} className={`h-10 w-10 text-[var(--blue-300)] ${phase !== "disconnected" && headsetOnline !== false ? "animate-spin" : ""}`} />
-            <p className="max-w-md text-[0.95rem] font-semibold">{waitingText(phase, headsetOnline)}</p>
-            <ol className="flex flex-wrap justify-center gap-2" aria-label="Connection progress">
-              {STEPS.slice(1).map((s, i) => (
-                <li key={s} className={`rounded-full px-2.5 py-1 text-xs font-bold ${i + 1 <= step ? "bg-white text-[var(--blue-900)]" : "bg-white/10 text-[var(--blue-100)]"}`}>
-                  {i + 1}. {PHASES[s].label}
-                </li>
-              ))}
-            </ol>
-          </div>
+          <>
+            <div className="absolute inset-x-3 top-3 z-[2] flex items-center justify-between gap-2 sm:inset-x-4 sm:top-4">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-[var(--blue-100)] ring-1 ring-inset ring-white/15 backdrop-blur-md">
+                <Icon name="signal" className="h-3.5 w-3.5" /> Room <span className="text-white">{room}</span>
+              </span>
+              <span className="hidden items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-[var(--blue-100)] ring-1 ring-inset ring-white/15 backdrop-blur-md sm:inline-flex">
+                <Icon name="headset" className="h-3.5 w-3.5" /> Headset {headsetOnline == null ? "…" : headsetOnline ? "online" : "offline"}
+              </span>
+            </div>
+
+            <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-5 px-6 text-center text-white">
+              <div className="relative grid h-20 w-20 place-items-center sm:h-24 sm:w-24">
+                {phase !== "disconnected" && (
+                  <>
+                    <span className="bc-wave absolute inset-0 rounded-full border border-[var(--blue-300)]" aria-hidden />
+                    <span className="bc-wave bc-wave-2 absolute inset-0 rounded-full border border-[var(--blue-300)]" aria-hidden />
+                  </>
+                )}
+                <span className="relative grid h-full w-full place-items-center rounded-full bg-white/10 ring-1 ring-inset ring-white/20 backdrop-blur-md">
+                  <Icon name={waitingIcon} className={`h-9 w-9 text-[var(--blue-100)] sm:h-10 sm:w-10 ${waitingIcon === "loader" ? "animate-spin" : ""}`} />
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-lg font-extrabold tracking-tight sm:text-2xl">{waitingTitle(phase, headsetOnline)}</p>
+                <p className="mx-auto hidden max-w-md text-sm font-medium text-[var(--blue-100)] sm:block">{waitingText(phase, headsetOnline)}</p>
+              </div>
+              <Stepper step={step} />
+            </div>
+
+            <p className="absolute inset-x-0 bottom-3 z-[1] hidden items-center justify-center gap-1.5 text-xs font-semibold text-[var(--blue-300)] sm:flex">
+              <Icon name="shieldCheck" className="h-3.5 w-3.5" /> Video goes from the headset straight to this browser; the server only introduces them.
+            </p>
+          </>
         )}
       </div>
+      {/* On a phone the stage is short, so the explanation sits under it instead. */}
+      {!live && <p className="mt-2 text-sm font-medium text-[var(--muted)] sm:hidden">{waitingText(phase, headsetOnline)}</p>}
 
       {!live && <CommentaryBelow />}
       <CheerBar />
@@ -159,14 +266,26 @@ function BroadcastPanel({ room, header }) {
         </p>
       )}
 
-      <section aria-label="Stream health" className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label="Headset" value={headsetOnline == null ? null : headsetOnline ? "Online" : "Offline"} />
-        <Stat label="Resolution" value={stats?.width ? `${stats.width}×${stats.height}` : null} />
-        <Stat label="Frame rate" value={stats?.fps != null ? `${stats.fps} fps` : null} />
-        <Stat label="Bitrate" value={stats?.kbps != null ? `${(stats.kbps / 1000).toFixed(1)} Mbps` : null} />
-        <Stat label="Round trip" value={stats?.rttMs != null ? `${stats.rttMs} ms` : null} />
-        <Stat label="Packets lost" value={stats ? stats.packetsLost : null} />
-      </section>
+      <Card as="section" aria-label="Stream health" className="mt-5 overflow-hidden">
+        <CardHeader
+          title="Stream health"
+          subtitle="Measured in this browser every second while the video plays"
+          actions={
+            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ring-1 ring-inset ${h.cls}`}>
+              <span className={`h-2 w-2 rounded-full ${h.dot} ${live ? "status-live" : ""}`} aria-hidden />
+              {h.label}
+            </span>
+          }
+        />
+        <div className="grid grid-cols-1 gap-px bg-[var(--border)] min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+          <Stat icon="headset" label="Headset" value={headsetOnline == null ? null : headsetOnline ? "Online" : "Offline"} />
+          <Stat icon="monitor" label="Resolution" value={stats?.width ? `${stats.width}×${stats.height}` : null} />
+          <Stat icon="activity" label="Frame rate" value={stats?.fps != null ? `${stats.fps} fps` : null} />
+          <Stat icon="waveform" label="Bitrate" value={stats?.kbps != null ? `${(stats.kbps / 1000).toFixed(1)} Mbps` : null} />
+          <Stat icon="timer" label="Round trip" value={stats?.rttMs != null ? `${stats.rttMs} ms` : null} />
+          <Stat icon="layers" label="Packets lost" value={stats ? stats.packetsLost : null} />
+        </div>
+      </Card>
     </>
   );
 }
@@ -212,7 +331,7 @@ export default function BroadcastView() {
               <div>
                 <h1 className="text-[length:var(--fs-h1)] font-extrabold tracking-tight">Live broadcast</h1>
                 <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">
-                  {DESCRIPTION} Room <span className="font-semibold text-[var(--ink-secondary)]">{room}</span>
+                  {DESCRIPTION}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">{actions}</div>

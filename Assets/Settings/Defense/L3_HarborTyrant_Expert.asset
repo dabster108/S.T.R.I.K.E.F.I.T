@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 219e115a22ae54b9f93021f3f8424669, type: 3}
+  m_Name: L3_HarborTyrant_Expert
+  m_EditorClassIdentifier: StrikeFit.ExpertAI::StrikeFit.ExpertAI.ExpertAIConfig
+  model: {fileID: 5022602860645237092, guid: 8b82cb98f22b645c686ffac8b3358a7e, type: 3}
+  norm: {fileID: 4900000, guid: 2165298aa32a8480487dcd6ceef45c3b, type: 3}
+  sampleRateHz: 20
+  inferenceHz: 10
+  layersPerFrame: 128
+  budgetMs: 1.5
+  maxAverageMs: 3
+  dominantHand: 0
+  gripThreshold: 0.5
+  mapping:
+    swapHorizontal: 0
+    xSign: -1
+    ySign: -1
+  mappingEvidence: 'ExpertMappingProbe 2026-10-23: best horizontal mean cosine 0.88
+    of 8 candidates on synthetic 0.6 m/s walks (0.5 s horizon); mirror check passed:
+    True. UNVERIFIED on real arm movement.'
+  minMotionEnergy: 0.15
+  aimHorizon: 1
+  dodgeSideways: 0.18
+  wideArcDegrees: 70
+  closingMetres: 0.2
+  maxStrikeDelay: 0.25
+  delayJitter: 0.08
+  maxAimDegrees: 25
+  maxLeadMetres: 0.6
+  warnMinDisplacement: 0.12
+  warnMaxBoost: 0.2
+  normalHitsPerMinute: 25
+  expertHitsAllowance: 1.2

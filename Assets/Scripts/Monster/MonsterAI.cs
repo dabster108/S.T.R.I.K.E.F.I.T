@@ -128,6 +128,10 @@ public class MonsterAI : MonoBehaviour
 
     [Header("Behavior")]
     public float thinkInterval = 0.2f;
+    [Tooltip("Walk-in band (m). 0 = the old behaviour: the monster steps only while it is past attackRange, so a retreating player makes it " +
+             "stop and start every frame at the edge of its reach. > 0: it starts walking when the player is this far beyond attackRange and " +
+             "keeps walking until it is back inside attackRange, one steady approach instead of a stutter.")]
+    public float approachHysteresis = 0f;
     public float stopDistance = 1.6f;
     public bool facePlayer = true;
     public bool canMove = true;
@@ -206,6 +210,31 @@ public class MonsterAI : MonoBehaviour
              "its hits deal parryDamageMultiplier. Unblockable attacks ignore parries.")]
     public bool allowParry = false;
     [Range(0f, 1f)] public float parryDamageMultiplier = 0.35f;
+
+    // Looked up once (they used to be fetched on every think, attack, guard and stagger). A missing component is looked up again.
+    private MonsterHealth healthCache;
+    private MonsterAnimator animCache;
+    MonsterHealth Health => healthCache != null ? healthCache : (healthCache = GetComponent<MonsterHealth>());
+    MonsterAnimator Anim => animCache != null ? animCache : (animCache = GetComponent<MonsterAnimator>());
+    // Reused pick buffers: ChooseFromTable runs once per attack and ChooseRanged on every think while the player is out of
+    // range; neither builds a new List any more. Same contents and order as before, so the picks are unchanged.
+    private readonly System.Collections.Generic.List<AttackDefinition> pickPool = new System.Collections.Generic.List<AttackDefinition>();
+    private readonly System.Collections.Generic.List<AttackDefinition> pickHeavies = new System.Collections.Generic.List<AttackDefinition>();
+    private readonly System.Collections.Generic.List<AttackDefinition> rangedPool = new System.Collections.Generic.List<AttackDefinition>();
+    private static readonly WaitForSeconds BlockFlashWait = new WaitForSeconds(0.06f);
+    // The monster's colour writer (Levels 1-3 prefabs). With it, every tint below becomes a layer and the old per-renderer
+    // writes (TintRenderer, TelegraphFlash) never run, so effects stack instead of overwriting each other.
+    private MonsterColorCompositor colors;
+
+    /// <summary>Level 3 Expert mode (MonsterExpertBrain); null everywhere else.</summary>
+    [System.NonSerialized] public IMonsterAttackAdvisor advisor;
+
+    /// <summary>Where a thrown axe flies: the advisor's lead point (Expert, capped) or the player's position.</summary>
+    public Vector3 ThrowAimPoint(AttackDefinition a)
+    {
+        if (advisor != null && a != null && advisor.LeadTarget(a, out Vector3 t)) return t;
+        return playerTarget != null ? playerTarget.position : transform.position + transform.forward * 2f;
+    }
 
     [Header("Ranged attacks (optional, Level 3)")]
     [Tooltip("Flies the thrown axes of Throw rows.")]
@@ -357,6 +386,9 @@ public class MonsterAI : MonoBehaviour
     /// <summary>The weapon is in an attack's actual swing (not wind-up or recovery). HitDetection uses it to tell a monster
     /// strike meeting the player's weapon (a clash) from the axe drifting through a held weapon.</summary>
     public bool InStrikeWindow => AiTime >= strikeFrom && AiTime <= strikeUntil;
+    /// <summary>AI clock of the current table attack's next hit frame (the moment the strike connects); read-only, for the
+    /// perfect-clash bonus (EngagementTracker). Changes no timing.</summary>
+    public float CurrentHitTime { get; private set; } = -1f;
     [Tooltip("Seconds after each hit frame that still count as the strike (InStrikeWindow).")]
     public float strikeWindowAfterHit = 0.2f;
 
@@ -389,7 +421,8 @@ public class MonsterAI : MonoBehaviour
         float gate = PlayerCombat.Instance != null ? PlayerCombat.Instance.minSwingVelocity : 1.2f;
         if (speed < gate) return;
         CurrentAttackParried = true;
-        if (verboseAttackLogs) Debug.Log($"[MonsterAI] '{CurrentAttack.name}' parried");
+        if (colors != null) colors.NotifyParry();
+        if (verboseAttackLogs) DevLog.Log($"[MonsterAI] '{CurrentAttack.name}' parried");
     }
 
     void Awake()
@@ -399,6 +432,7 @@ public class MonsterAI : MonoBehaviour
         personalSpace = GetComponent<MonsterPersonalSpace>();
         bossPhases = GetComponent<BossPhaseController>();
         if (axeThrow == null) axeThrow = GetComponent<MonsterAxeThrow>();
+        colors = GetComponent<MonsterColorCompositor>();
         mpb = new MaterialPropertyBlock();
         if (sfxAudioSource == null)
             sfxAudioSource = GetComponent<AudioSource>();
@@ -490,9 +524,12 @@ public class MonsterAI : MonoBehaviour
             else if (UsesAttackTable)
             {
                 UpdateTableCooldown();
-                if (controller.CanAttack())
+                // Level 3 Expert (advisor): may hold a due attack a capped moment, or swap the pick for a row that covers where the
+                // player is going. Without an advisor this is the old path.
+                if (controller.CanAttack() && (advisor == null || !advisor.HoldAttack()))
                 {
                     var chosen = ChooseFromTable();
+                    if (advisor != null && chosen != null) chosen = advisor.Advise(chosen) ?? chosen;
                     if (chosen != null)
                         StartCoroutine(TableAttackRoutine(chosen));
                 }
@@ -544,7 +581,11 @@ public class MonsterAI : MonoBehaviour
         if (BattleManager.Instance != null && !BattleManager.Instance.IsBattleActive) return;
 
         float dist = DistanceToTarget();
-        if (dist > controller.attackRange && dist > stopDistance)
+        // With a hysteresis band the walk starts beyond attackRange + band and ends inside attackRange; without one (0) it is the old test.
+        float start = controller.attackRange + approachHysteresis;
+        bool walk = dist > stopDistance && (walking ? dist > controller.attackRange : dist > start);
+        walking = walk;
+        if (walk)
         {
             Vector3 dir = playerTarget.position - transform.position;
             dir.y = 0f;
@@ -552,6 +593,7 @@ public class MonsterAI : MonoBehaviour
             idleSince = Time.time; // walking is not standing still (IdleSlam requirement)
         }
     }
+    private bool walking;
 
     /// <summary>
     /// Telegraphed attack: wind-up (telegraph) → hit frame → recovery.
@@ -564,7 +606,7 @@ public class MonsterAI : MonoBehaviour
 
         attackCycleCount++;
         float hpPercent = 1f;
-        var health = GetComponent<MonsterHealth>();
+        var health = Health;
         if (health != null && health.maxHealth > 0)
             hpPercent = health.currentHealth / health.maxHealth;
 
@@ -591,7 +633,7 @@ public class MonsterAI : MonoBehaviour
         }
 
         if (verboseAttackLogs)
-            Debug.Log($"[MonsterAI] ChooseAttackPattern cycle={attackCycleCount} hp%={hpPercent:0.00} => {chosen}");
+            DevLog.Log($"[MonsterAI] ChooseAttackPattern cycle={attackCycleCount} hp%={hpPercent:0.00} => {chosen}");
         return chosen;
     }
 
@@ -668,9 +710,9 @@ public class MonsterAI : MonoBehaviour
         nextDefendTime = Time.time + defendCooldown * (1f + Random.Range(-defendCooldownJitter, defendCooldownJitter));
         DefendStarted?.Invoke(this);
         if (verboseAttackLogs)
-            Debug.Log(reactive ? "[MonsterAI] Enter Defend (reactive)" : "[MonsterAI] Enter Defend");
+            DevLog.Log(reactive ? "[MonsterAI] Enter Defend (reactive)" : "[MonsterAI] Enter Defend");
 
-        var anim = GetComponent<MonsterAnimator>();
+        var anim = Anim;
         if (anim != null) anim.PlayDefend(trigger);
 
         if (defendBraceClip != null && sfxAudioSource != null && (!reactive || braceSoundOnReactiveGuard))
@@ -681,6 +723,7 @@ public class MonsterAI : MonoBehaviour
         if (flashSeconds > 0f)
         {
             // Raise cue: a short cool flash (never the red attack telegraph), then the guard tint if this monster has one.
+            if (colors != null) colors.Cue(flashColor, flashSeconds);   // the guard layer itself follows IsDefending
             SetBodyTint(flashColor);
             yield return new WaitForSeconds(flashSeconds);
             duration -= flashSeconds;
@@ -699,7 +742,7 @@ public class MonsterAI : MonoBehaviour
         if (defendTintEnabled || flashSeconds > 0f)
             ClearBodyTint();
         if (verboseAttackLogs)
-            Debug.Log("[MonsterAI] Exit Defend");
+            DevLog.Log("[MonsterAI] Exit Defend");
         if (anim != null) anim.PlayState(MonsterAnimState.Idle);
     }
 
@@ -721,7 +764,8 @@ public class MonsterAI : MonoBehaviour
         busy = true;
         IsStaggered = true;
         float end = Time.time + seconds;
-        var anim = GetComponent<MonsterAnimator>();
+        var anim = Anim;
+        if (colors != null) colors.Cue(flashColor, flashSeconds);
         SetBodyTint(flashColor);
         if (anim != null)
         {
@@ -758,7 +802,7 @@ public class MonsterAI : MonoBehaviour
     void ApplyAnimSpeed()
     {
         if (InHitStop) return;
-        var anim = GetComponent<MonsterAnimator>();
+        var anim = Anim;
         if (anim != null && anim.animator != null) anim.animator.speed = Mathf.Max(0.25f, tempoScale) * animSpeedScale * attackTimeScale;
     }
 
@@ -766,7 +810,7 @@ public class MonsterAI : MonoBehaviour
     public bool BeginDodge(string trigger, Vector3 offset, float seconds)
     {
         if (busy || holdActions || controller == null || !controller.isAlive || controller.isAttacking) return false;
-        var anim = GetComponent<MonsterAnimator>();
+        var anim = Anim;
         if (anim == null || !anim.PlayNamedTrigger(trigger)) return false;
         StartCoroutine(DodgeRoutine(offset, seconds));
         return true;
@@ -786,7 +830,7 @@ public class MonsterAI : MonoBehaviour
         }
         busy = false;
         idleSince = Time.time;
-        var anim = GetComponent<MonsterAnimator>();
+        var anim = Anim;
         if (anim != null && controller != null && controller.isAlive) anim.PlayState(MonsterAnimState.Idle);
     }
 
@@ -807,8 +851,9 @@ public class MonsterAI : MonoBehaviour
 
     IEnumerator BlockFlash()
     {
+        if (colors != null) { colors.Cue(Color.white, 0.06f); yield break; }
         SetBodyTint(Color.white);
-        yield return new WaitForSeconds(0.06f);
+        yield return BlockFlashWait;
         if (IsDefending) SetBodyTint(defendTintColor);
     }
 
@@ -821,6 +866,7 @@ public class MonsterAI : MonoBehaviour
 
     IEnumerator FlashTintRoutine(Color c, float seconds)
     {
+        if (colors != null) { colors.Cue(c, seconds); yield break; }   // a cue layer: it can no longer wipe a telegraph
         SetBodyTint(c);
         yield return new WaitForSeconds(seconds);
         if (IsDefending && defendTintEnabled) SetBodyTint(defendTintColor);
@@ -836,14 +882,14 @@ public class MonsterAI : MonoBehaviour
 
     void TintRenderer(Renderer r, Color c)
     {
-        if (r == null) return;
+        if (r == null || colors != null) return;   // the compositor owns this monster's property blocks
         bool perSlot = extraTintRenderers != null && extraTintRenderers.Length > 0;
         if (!perSlot)
         {
             // Levels 1-2: renderer-wide block, exactly as before (TelegraphFlash uses the same block).
             r.GetPropertyBlock(mpb);
-            mpb.SetColor("_BaseColor", c);
-            mpb.SetColor("_Color", c);
+            mpb.SetColor(ShaderIds.BaseColor, c);
+            mpb.SetColor(ShaderIds.Color, c);
             r.SetPropertyBlock(mpb);
             return;
         }
@@ -851,8 +897,8 @@ public class MonsterAI : MonoBehaviour
         for (int i = 0; i < r.sharedMaterials.Length; i++)
         {
             r.GetPropertyBlock(mpb, i);
-            mpb.SetColor("_BaseColor", c);
-            mpb.SetColor("_Color", c);
+            mpb.SetColor(ShaderIds.BaseColor, c);
+            mpb.SetColor(ShaderIds.Color, c);
             r.SetPropertyBlock(mpb, i);
         }
     }
@@ -865,6 +911,7 @@ public class MonsterAI : MonoBehaviour
     /// <summary>Apply the resting tint now (enrage on/off).</summary>
     public void ApplyRestingTint()
     {
+        if (colors != null) return;   // BossPhaseController feeds MonsterColorCompositor.SetRage instead
         if (!IsDefending) SetBodyTint(restingTint);
     }
 
@@ -897,7 +944,7 @@ public class MonsterAI : MonoBehaviour
 
     float HpFraction()
     {
-        var health = GetComponent<MonsterHealth>();
+        var health = Health;
         if (health == null || health.maxHealth <= 0f) return 1f;
         return Mathf.Clamp01(health.currentHealth / health.maxHealth);
     }
@@ -945,7 +992,8 @@ public class MonsterAI : MonoBehaviour
 
         if (chosen == null)
         {
-            var pool = new System.Collections.Generic.List<AttackDefinition>();
+            var pool = pickPool;
+            pool.Clear();
             foreach (var a in attackTable)
                 if (a != lastTableAttack && IsEligible(a, hp, stillFor, false)) pool.Add(a);
             if (pool.Count == 0)
@@ -954,7 +1002,9 @@ public class MonsterAI : MonoBehaviour
 
             if (cyclesSinceHeavy >= heavyPityCycles)
             {
-                var heavies = pool.FindAll(a => IsBigHit(a.category));
+                var heavies = pickHeavies;
+                heavies.Clear();
+                foreach (var a in pool) if (IsBigHit(a.category)) heavies.Add(a);
                 if (heavies.Count > 0) { pool = heavies; reason = "heavy-pity"; }
             }
 
@@ -971,7 +1021,7 @@ public class MonsterAI : MonoBehaviour
         }
 
         if (verboseAttackLogs && chosen != null)
-            Debug.Log($"[MonsterAI] Table pick '{chosen.name}' ({chosen.category}) hp={hp:0.00} still={stillFor:0.0}s reason={reason}");
+            DevLog.Log($"[MonsterAI] Table pick '{chosen.name}' ({chosen.category}) hp={hp:0.00} still={stillFor:0.0}s reason={reason}");
         return chosen;
     }
 
@@ -989,7 +1039,8 @@ public class MonsterAI : MonoBehaviour
     public AttackDefinition ChooseRanged(float dist)
     {
         float hp = HpFraction();
-        var pool = new System.Collections.Generic.List<AttackDefinition>();
+        var pool = rangedPool;
+        pool.Clear();
         foreach (var a in attackTable)
         {
             if (a == null || a.rangedKind == RangedKind.None || string.IsNullOrEmpty(a.animatorTrigger)) continue;
@@ -1007,7 +1058,7 @@ public class MonsterAI : MonoBehaviour
             r -= SelectionWeight(a, hurt);
             if (r <= 0f)
             {
-                if (verboseAttackLogs) Debug.Log($"[MonsterAI] Ranged pick '{a.name}' at {dist:0.00} m hp={hp:0.00}");
+                if (verboseAttackLogs) DevLog.Log($"[MonsterAI] Ranged pick '{a.name}' at {dist:0.00} m hp={hp:0.00}");
                 return a;
             }
         }
@@ -1028,7 +1079,7 @@ public class MonsterAI : MonoBehaviour
     {
         freezeStart = Time.time;
         HitStopCount++;
-        var anim = GetComponent<MonsterAnimator>();
+        var anim = Anim;
         Animator a = anim != null ? anim.animator : null;
         if (a != null) a.speed = 0f;
         yield return new WaitForSecondsRealtime(seconds);
@@ -1046,9 +1097,11 @@ public class MonsterAI : MonoBehaviour
         LastHitDamageMultiplier = multiplier;
     }
 
-    IEnumerator RushTravel(AttackDefinition a, float start, float tempo)
+    IEnumerator RushTravel(AttackDefinition a, float start, float tempo) => RushTravel(a, start, tempo, a.travelWindow);
+
+    IEnumerator RushTravel(AttackDefinition a, float start, float tempo, Vector2 travelWindow)
     {
-        float t0 = start + a.travelWindow.x / tempo, t1 = start + a.travelWindow.y / tempo;
+        float t0 = start + travelWindow.x / tempo, t1 = start + travelWindow.y / tempo;
         LastRushDistance = 0f;
         // Aim lock (MonsterDefense): the charge line is fixed when the wind-up starts, so a sidestep beats it.
         bool aimLocked = defense != null && defense.turnToFacePlayer;
@@ -1121,6 +1174,62 @@ public class MonsterAI : MonoBehaviour
         return true;
     }
 
+    /// <summary>MonsterTactics riposte: drop the guard now (the counter starts from it).</summary>
+    public void CancelGuard()
+    {
+        if (!IsDefending) return;
+        if (guardRoutine != null) { StopCoroutine(guardRoutine); guardRoutine = null; }
+        IsDefending = false;
+        DefendIsReactive = false;
+        busy = false;
+        idleSince = Time.time;
+        ClearBodyTint();
+    }
+
+    /// <summary>
+    /// MonsterTactics counter / punish: start this row now, even inside the attack cooldown (dropping a guard first). The time it
+    /// starts early is added to the next cooldown when <paramref name="repayEarlyStart"/> is set, so the attack frequency stays the
+    /// level's own. <paramref name="closeGap"/> moves the monster to the player during the wind-up (like a Rush row).
+    /// </summary>
+    public bool BeginTacticalAttack(AttackDefinition a, bool closeGap, bool repayEarlyStart)
+    {
+        if (a == null || !UsesAttackTable || holdActions || controller == null || !controller.isAlive || controller.isAttacking) return false;
+        bool fromGuard = IsDefending;
+        if (busy && !fromGuard) return false;
+        if (fromGuard)
+        {
+            CancelGuard();
+            var anim = Anim;
+            if (anim != null) anim.PlayState(MonsterAnimState.Idle);   // attacks start from Idle
+        }
+        StartCoroutine(TacticalAttackRoutine(a, closeGap, repayEarlyStart, fromGuard));
+        return true;
+    }
+
+    /// <summary>A tactical attack (counter / punish) actually started (true) or was refused on the way (false).</summary>
+    public event System.Action<AttackDefinition, bool> TacticalAttackStarted;
+
+    IEnumerator TacticalAttackRoutine(AttackDefinition a, bool closeGap, bool repayEarlyStart, bool fromGuard)
+    {
+        busy = true;
+        var anim = Anim;
+        if (fromGuard && anim != null && anim.animator != null)
+        {
+            // Defend -> Idle first (the attack triggers leave from Idle), at most 0.3 s.
+            float giveUp = Time.time + 0.3f;
+            while (Time.time < giveUp && !InIdleState(anim.animator)) yield return null;
+        }
+        busy = false;
+        if (controller == null || !controller.isAlive || holdActions || controller.isAttacking) { TacticalAttackStarted?.Invoke(a, false); yield break; }
+        float early = controller.SecondsUntilAttackReady;
+        ResolvePlayerTarget();
+        var routine = StartCoroutine(TableAttackRoutine(a, true, closeGap));
+        bool started = controller.isAttacking;   // the routine's first step ran synchronously
+        if (started && repayEarlyStart && early > 0f) controller.DeferNextAttack(early);
+        TacticalAttackStarted?.Invoke(a, started);
+        if (started) yield return routine;
+    }
+
     /// <summary>Debug / verification: run a specific table attack immediately (ignores selection rules).</summary>
     public bool DebugForceAttack(int index)
     {
@@ -1132,7 +1241,9 @@ public class MonsterAI : MonoBehaviour
 
     IEnumerator TableAttackRoutine(AttackDefinition a) => TableAttackRoutine(a, false);
 
-    IEnumerator TableAttackRoutine(AttackDefinition a, bool counter)
+    IEnumerator TableAttackRoutine(AttackDefinition a, bool counter) => TableAttackRoutine(a, counter, false);
+
+    IEnumerator TableAttackRoutine(AttackDefinition a, bool counter, bool closeGap)
     {
         busy = true;
         if (!controller.BeginAttackTrigger(a.animatorTrigger, counter))
@@ -1149,6 +1260,7 @@ public class MonsterAI : MonoBehaviour
         TableAttackCount++;
         cyclesSinceHeavy = IsBigHit(a.category) ? 0 : cyclesSinceHeavy + 1;
         LastHitLanded = false;
+        if (advisor != null) advisor.OnWindUpStart(a);   // Expert: a capped turn toward where the player is going, before the aim locks
         AttackStarted?.Invoke(this, a.name, a.category.ToString());
 
         // Tempo (enrage): every authored time is divided by it; the Animator speed is scaled to match.
@@ -1187,6 +1299,7 @@ public class MonsterAI : MonoBehaviour
 
         float start = AiTime;
         if (a.rangedKind == RangedKind.Rush) StartCoroutine(RushTravel(a, start, tempo));
+        else if (closeGap) StartCoroutine(RushTravel(a, start, 1f, new Vector2(0.05f, windUp * 0.85f)));   // gap-closer punish: arrive before the hit frame
         bool throws = a.rangedKind == RangedKind.Throw && axeThrow != null;
         int hits = 1 + (a.followUpHits != null ? a.followUpHits.Length : 0);
         for (int i = 0; i < hits; i++)
@@ -1195,6 +1308,7 @@ public class MonsterAI : MonoBehaviour
 
             float whooshAt = start + Mathf.Max(0f, hitAt - swingSfxLead);
             strikeFrom = whooshAt; strikeUntil = start + hitAt + strikeWindowAfterHit / tempo;
+            CurrentHitTime = start + hitAt;
             while (AiTime < whooshAt) yield return null;
             if (a.swingClip != null && sfxAudioSource != null)
             {
@@ -1268,6 +1382,7 @@ public class MonsterAI : MonoBehaviour
         // Chain: another attack after a short gap instead of the cooldown (each keeps its own telegraph >= minTelegraph).
         float chainChance = ByPhase(chainChanceByPhase, Phase);
         if (chainChance > 0f && chainLink + 1 < chainMaxAttacks && controller != null && controller.isAlive && !holdActions &&
+            (advisor == null || advisor.AllowChainAfter(a)) &&
             a.rangedKind == RangedKind.None && DistanceToTarget() <= controller.attackRange * 1.15f && Random.value < chainChance)
         {
             var next = ChooseChainFollowUp(a);
@@ -1362,7 +1477,7 @@ public class MonsterAI : MonoBehaviour
         busy = true;
         controller.attackCooldown = Mathf.Max(controller.attackCooldown, minAttackCooldown);
         if (verboseAttackLogs)
-            Debug.Log("[MonsterAI] Attack pattern: " + pattern);
+            DevLog.Log("[MonsterAI] Attack pattern: " + pattern);
 
         controller.BeginAttackVariant(pattern);
         AttackStarted?.Invoke(this, pattern.ToString(), pattern.ToString());
@@ -1412,6 +1527,7 @@ public class MonsterAI : MonoBehaviour
 
     IEnumerator TelegraphFlash(float duration, Color cueColor)
     {
+        if (colors != null) { colors.Telegraph(cueColor, duration); yield break; }   // pulses for the wind-up, over every other layer
         if (telegraphRenderer == null) yield break;
         if (extraTintRenderers != null && extraTintRenderers.Length > 0)
         {
@@ -1424,12 +1540,12 @@ public class MonsterAI : MonoBehaviour
         telegraphRenderer.GetPropertyBlock(mpb);
         baseColor = mpb.GetColor("_BaseColor");
         if (baseColor == Color.clear) baseColor = Color.white;
-        mpb.SetColor("_BaseColor", cueColor);
-        mpb.SetColor("_Color", cueColor);
+        mpb.SetColor(ShaderIds.BaseColor, cueColor);
+        mpb.SetColor(ShaderIds.Color, cueColor);
         telegraphRenderer.SetPropertyBlock(mpb);
         yield return new WaitForSeconds(duration);
-        mpb.SetColor("_BaseColor", baseColor);
-        mpb.SetColor("_Color", baseColor);
+        mpb.SetColor(ShaderIds.BaseColor, baseColor);
+        mpb.SetColor(ShaderIds.Color, baseColor);
         telegraphRenderer.SetPropertyBlock(mpb);
     }
 }

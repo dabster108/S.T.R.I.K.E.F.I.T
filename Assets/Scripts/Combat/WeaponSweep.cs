@@ -69,7 +69,7 @@ public struct SweepShape
     {
         get
         {
-            float s = Mathf.Max(Mathf.Abs(curScale.x), Mathf.Abs(curScale.y), Mathf.Abs(curScale.z));
+            float s = Mathf.Max(Mathf.Abs(curScale.x), Mathf.Max(Mathf.Abs(curScale.y), Mathf.Abs(curScale.z))); // 2-arg Max: the 3-arg overload allocates a params array every call
             switch (kind)
             {
                 case Kind.Box: return Vector3.Scale(size * 0.5f, Abs(curScale)).magnitude;

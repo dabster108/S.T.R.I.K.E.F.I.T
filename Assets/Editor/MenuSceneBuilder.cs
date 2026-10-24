@@ -4,8 +4,8 @@
 //          home column and pages (see Layout below), Exit Game with a confirm panel. Also adds the
 //          OutcomeMenuButtons component to the three level scenes and sets Build Settings (MainMenu 0, Level 1-3, all enabled,
 //          Results listed but disabled). Idempotent: Build() rewrites MainMenu.unity from scratch.
-//          Environment: a dark floor and one thin ring, unlit materials, static (batched), no lights, no shadows, no
-//          post-processing. Layout (2026-10-17): rig at 1.6 m like the levels (EyeLevel origin), a two-column grid on a dark
+//          Environment: the living dungeon hall from MenuDungeonBuilder (it replaced the dark floor and thin ring on
+//          2026-10-23; BuildEnvironment is kept for reference but no longer called). Layout (2026-10-17): rig at 1.6 m like the levels (EyeLevel origin), a two-column grid on a dark
 //          panel (Story Mode | Start Game, Guardians | Scoreboard, Change Name | Exit Game, "Playing as" above), pages: Story
 //          Mode (Continue / New Story / Watch intro), the story slides, Guardians, level select, Scoreboard, name picker, each
 //          with Back.
@@ -77,10 +77,11 @@ public static class MenuSceneBuilder
         RenderSettings.ambientLight = new Color(0.06f, 0.06f, 0.1f);
         RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Custom;
 
-        BuildEnvironment();
         BuildCanvas();
         BuildSystems();
         BuildBreathingTest(rig);
+        // The living-dungeon background (replaces the old flat floor and ring; bake with MenuDungeonBuilder.BakeLighting after).
+        MenuDungeonBuilder.BuildInto(scene);
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         return $"MainMenu.unity built from {SourcePath}: rig kept (laser, EventSystem, OVRRaycaster), battle parts stripped, lights {Object.FindObjectsByType<Light>(FindObjectsInactive.Include).Length}, AudioListeners {Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Include).Length}.";
@@ -134,12 +135,13 @@ public static class MenuSceneBuilder
     }
 
     // ───────────────────────── the menu canvas ─────────────────────────
-    // World-space, 2.5 m in front of the eyes, centre 0.18 m below eye level (rig at 1.6 m, EyeLevel origin = eyes at 1.6 m).
-    // 1200 x 800 units at 2 mm per unit = 2.4 x 1.6 m: +-25.6 deg across, -21.4 to +13.9 deg up, inside the Quest's view without
-    // turning the head. Legacy Text cap height = 0.716 x font size x 2 mm: font 24 = 3.4 cm, 46 = 6.6 cm.
-    public const float CanvasScale = 0.002f;
+    // World-space, 2 m in front of the eyes (was 2.5 m; 2026-10-23, the dungeon menu), centre 0.18 m below eye level (rig at
+    // 1.6 m, EyeLevel origin = eyes at 1.6 m). 1200 x 800 units at 1.6 mm per unit = 1.92 x 1.28 m: +-25.6 deg across (as before),
+    // -22.3 to +13.0 deg up (was -21.4 to +13.9), inside the Quest's view without turning the head. Legacy Text cap height = 0.716 x font
+    // size x 1.6 mm: font 24 = 2.7 cm at 2 m (the same angle as 3.4 cm at 2.5 m).
+    public const float CanvasScale = MenuDungeonBuilder.CanvasScale;
     public static readonly Vector2 CanvasSize = new Vector2(1200f, 800f);
-    public static readonly Vector3 CanvasPosition = new Vector3(0f, 1.42f, 2.5f);
+    public static readonly Vector3 CanvasPosition = MenuDungeonBuilder.CanvasPosition;
     public static readonly Color PagePanel = new Color(0.03f, 0.035f, 0.07f, 0.9f);
     public static readonly Color StartColor = new Color(0.1f, 0.42f, 0.3f, 0.96f);
     public static readonly Color NameColor = new Color(0.2f, 0.35f, 0.6f, 0.96f);

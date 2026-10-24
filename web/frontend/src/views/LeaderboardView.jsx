@@ -74,7 +74,7 @@ function Podium({ entries, openSession }) {
             </span>
             <span className="text-xs font-semibold text-[var(--muted)]">{levelName(s.level)}</span>
           </span>
-          <span className={`rise mt-3 flex w-full ${height} items-start justify-center rounded-t-2xl pt-3 ${block}`} style={{ "--d": `${delay}ms` }}>
+          <span className={`podium-rise mt-3 flex w-full ${height} items-start justify-center rounded-t-2xl pt-3 ${block}`} style={{ "--d": `${delay}ms` }}>
             <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-extrabold ring-2 ${medal}`}>{place}</span>
           </span>
         </button>
