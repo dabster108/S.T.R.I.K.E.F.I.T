@@ -1,7 +1,11 @@
 // StoryPanel.cs
-// Purpose: The story, as a page of the main menu hall (no separate scene): the slides of Resources/story.json (content/story.json)
-//          one at a time on a world-space dark panel, slideSeconds each (7 s; 3 slides = 21 s, always under 45 s). Only the
-//          text fades (CanvasGroup alpha, fadeSeconds in and out); the camera never moves or fades. While it plays, two torches
+// Purpose: The Prologue card, as a page of the main menu's dungeon hall (no separate scene): the prologue title and its 3 to 4
+//          lines from Resources/story.json (content/story.json), faded in one at a time (prologue.lineSeconds apart) and left
+//          on the card, then Begin (a new story: fade to black, Chapter 1 loads) or Continue (back to the menu). Skip on the
+//          laser and B end it at once; the trigger shows the next line, then presses Begin. Leaving goes through a fade to
+//          black (ScreenFade); the camera never moves. Optional narration: StoryAudio.prologueNarration. A file without a
+//          prologue falls back to the old slides: one at a time on the dark panel, slideSeconds each (7 s; 3 slides = 21 s,
+//          always under 45 s), only the text fading (CanvasGroup alpha, fadeSeconds in and out). While it plays, two torches
 //          beside the panel burn and the menu's single realtime light (no shadows) flickers slowly (Perlin noise at flickerHz,
 //          under 1 Hz: nothing flashes faster than 2 Hz). Skip on the laser; the trigger (either hand) goes to the next slide.
 //          Plays once on its own at the first launch (PlayerPrefs StrikeFit.StorySeen) and any time from the Story button,
@@ -51,6 +55,18 @@ public class StoryPanel : MonoBehaviour
     public AudioSource ambient;
 
     public bool Playing { get; private set; }
+    /// <summary>Prologue card (true) or the old slides (a story.json without prologue lines).</summary>
+    public bool PrologueMode { get; private set; }
+    public int LinesShown => shown;
+
+    const int MaxLines = 5;
+    readonly Text[] lineTexts = new Text[MaxLines];
+    Button beginButton;
+    Text beginLabel, titleText;
+    string slidesTitle;
+    int lineCount, shown;
+    float lineTime;
+    AudioSource voice;
 
     StoryContent.Story story;
     int index;
@@ -111,7 +127,8 @@ public class StoryPanel : MonoBehaviour
         if (!storyEnabled || Playing || menu == null || (reason == "button" && menu.Blocked)) return;
         finished = onFinished;
         story = StoryContent.Load();
-        if (story.slides.Length == 0) { MenuLog.Event("story: no slides in Resources/story.json"); return; }
+        PrologueMode = story.prologue.lines.Length > 0;
+        if (!PrologueMode && story.slides.Length == 0) { MenuLog.Event("story: no prologue or slides in Resources/story.json"); return; }
         menu.ShowPage(page, "story (" + reason + ")");
         Playing = true;
         UiBack.Push(BackHandler);
@@ -120,7 +137,71 @@ public class StoryPanel : MonoBehaviour
         if (torches != null) torches.SetActive(torchFlicker);
         if (torchLight != null) torchLight.enabled = torchFlicker;
         if (ambient != null && ambient.clip != null) ambient.Play();
-        ShowSlide(0);
+        if (PrologueMode) ShowPrologue(); else { SetPrologueUi(false); ShowSlide(0); }
+    }
+
+    // ───────────────────────── prologue card ─────────────────────────
+
+    void BuildPrologueUi()
+    {
+        if (beginButton != null) return;
+        var parent = slideGroup.transform.parent;   // the story page
+        var t = page.transform.Find("Title");
+        titleText = t != null ? t.GetComponent<Text>() : null;
+        if (titleText != null) slidesTitle = titleText.text;
+        for (int i = 0; i < MaxLines; i++)
+        {
+            var line = MenuUi.Label(parent, "PrologueLine" + i, "", 40, new Color(0.97f, 0.97f, 1f), TextAnchor.MiddleCenter, Vector2.zero, new Vector2(980f, 70f));
+            line.raycastTarget = false;
+            lineTexts[i] = line;
+        }
+        var skipRt = skipButton != null ? (RectTransform)skipButton.transform : null;
+        var pos = new Vector2(0f, skipRt != null ? skipRt.anchoredPosition.y : -300f);   // centred, on the Skip button's row
+        beginButton = MenuUi.MakeButton(parent, "BeginButton", "Begin", 42, new Color(0.1f, 0.42f, 0.3f, 0.97f), pos, new Vector2(320f, 84f));
+        beginLabel = beginButton.GetComponentInChildren<Text>();
+        beginButton.onClick.AddListener(() => Finish("begin"));
+        beginButton.gameObject.SetActive(false);
+    }
+
+    void SetPrologueUi(bool on)
+    {
+        if (beginButton == null) { if (!on) return; BuildPrologueUi(); }
+        for (int i = 0; i < MaxLines; i++) lineTexts[i].gameObject.SetActive(on && i < lineCount);
+        if (!on) beginButton.gameObject.SetActive(false);
+        slideText.gameObject.SetActive(!on);
+        if (counterText != null) counterText.gameObject.SetActive(!on);
+        if (titleText != null) titleText.text = on ? story.prologue.title : slidesTitle;
+    }
+
+    void ShowPrologue()
+    {
+        var p = story.prologue;
+        lineCount = Mathf.Min(p.lines.Length, MaxLines);
+        BuildPrologueUi();
+        SetPrologueUi(true);
+        float step = 86f, top = 40f + (lineCount - 1) * step * 0.5f;
+        for (int i = 0; i < lineCount; i++)
+        {
+            lineTexts[i].text = p.lines[i];
+            lineTexts[i].rectTransform.anchoredPosition = new Vector2(0f, top - i * step);
+            lineTexts[i].canvasRenderer.SetAlpha(0f);
+        }
+        beginLabel.text = finished != null ? "Begin" : "Continue";
+        shown = 0; lineTime = 0f; index = 0;
+        slideGroup.alpha = 1f;
+        var a = StoryAudio.Get();
+        StoryAudio.Play(a != null ? a.prologueNarration : null, gameObject, ref voice);
+        MenuLog.Event($"prologue '{p.title}' ({lineCount} lines, {p.lineSeconds:0.#}s apart)");
+    }
+
+    void RevealLine()
+    {
+        if (shown >= lineCount) return;
+        lineTexts[shown].canvasRenderer.SetAlpha(0f);
+        lineTexts[shown].CrossFadeAlpha(1f, Mathf.Min(fadeSeconds, story.prologue.lineSeconds), true);
+        index = shown;
+        shown++;
+        lineTime = 0f;
     }
 
     void ShowSlide(int i)
@@ -137,6 +218,7 @@ public class StoryPanel : MonoBehaviour
     {
         if (!Playing) return;
         float dt = Time.unscaledDeltaTime;
+        if (PrologueMode) { UpdatePrologue(dt); return; }
         slideTime += dt;
         float len = story.slideSeconds;
         float fade = Mathf.Min(fadeSeconds, len * 0.5f);
@@ -164,7 +246,24 @@ public class StoryPanel : MonoBehaviour
         }
     }
 
-    /// <summary>Ends the story (skipped or finished) and returns to the menu home. Marks it seen.</summary>
+    void UpdatePrologue(float dt)
+    {
+        lineTime += dt;
+        float pace = story.prologue.lineSeconds;
+        if (shown < lineCount && (shown == 0 ? lineTime >= 0.4f : lineTime >= pace)) RevealLine();
+        else if (shown >= lineCount && !beginButton.gameObject.activeSelf && lineTime >= Mathf.Min(1f, pace)) beginButton.gameObject.SetActive(true);
+        bool trig = ControllerMapping.Active
+            ? ControllerInput.Down(Pad.Trigger, ControllerMapping.PointHand)
+            : OVRInput.GetDown(OVRInput.RawButton.RIndexTrigger) || OVRInput.GetDown(OVRInput.RawButton.LIndexTrigger);
+        var cm = ControllerMapping.Instance;
+        bool overButton = skipHovered || (cm != null && cm.module != null && cm.module.Hovered != null);
+        if (!triggerAdvances || overButton || Time.unscaledTime - startedAt <= triggerGraceSeconds || !trig) return;
+        MenuLog.Event("story next (trigger)");
+        if (shown < lineCount) RevealLine(); else Finish("begin (trigger)");
+    }
+
+    /// <summary>Ends the story (skipped or finished) through a fade to black, then runs the caller's next step (a new story loads
+    /// Chapter 1 and stays black; Watch intro returns to the Story Mode page) or returns to the menu home. Marks it seen.</summary>
     public void Finish(string how)
     {
         if (!Playing) return;
@@ -172,12 +271,18 @@ public class StoryPanel : MonoBehaviour
         UiBack.Remove(BackHandler);
         PlayerPrefs.SetInt(SeenKey, 1);
         PlayerPrefs.Save();
-        if (torchLight != null) { torchLight.enabled = false; torchLight.intensity = baseIntensity; }
-        if (torches != null) torches.SetActive(false);
-        if (ambient != null) ambient.Stop();
-        MenuLog.Event($"story {how} at slide {index + 1} after {Time.unscaledTime - startedAt:0.0}s");
+        MenuLog.Event($"story {how} at {(PrologueMode ? "line" : "slide")} {index + 1} after {Time.unscaledTime - startedAt:0.0}s");
         var cb = finished;
         finished = null;
-        if (cb != null) cb(); else menu.ShowHome();
+        ScreenFade.Out(() =>
+        {
+            if (torchLight != null) { torchLight.enabled = false; torchLight.intensity = baseIntensity; }
+            if (torches != null) torches.SetActive(false);
+            if (ambient != null) ambient.Stop();
+            StoryAudio.Stop(voice);
+            if (PrologueMode) SetPrologueUi(false);
+            if (cb != null) cb(); else menu.ShowHome();
+            if (!ScreenFade.CarryBlack) ScreenFade.In();   // a chapter load keeps the view black into the next scene
+        });
     }
 }

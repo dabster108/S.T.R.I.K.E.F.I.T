@@ -47,6 +47,23 @@ function validate(story) {
   const it = story.interludes || {};
   for (const f of ["afterLevel1", "afterLevel2", "defeat"]) if (typeof it[f] !== "string" || !it[f].trim()) errors.push(`interludes.${f} missing`);
   if (!Array.isArray(it.ending) || it.ending.length < 1 || it.ending.some((t) => typeof t !== "string" || !t.trim())) errors.push("interludes.ending: at least one text");
+  // Story Mode presentation (2026-10-23): the prologue card (3 to 4 short lines, faded in one at a time), each guardian's title
+  // for the chapter card, and the card titles. Optional for older readers, but checked when present.
+  if (story.prologue !== undefined) {
+    const p = story.prologue || {};
+    if (typeof p.title !== "string" || !p.title.trim()) errors.push("prologue.title missing");
+    if (!Array.isArray(p.lines) || p.lines.length < 3 || p.lines.length > 4 || p.lines.some((t) => typeof t !== "string" || !t.trim()))
+      errors.push("prologue.lines: 3 to 4 texts");
+    if (!(Number(p.lineSeconds) > 0)) errors.push("prologue.lineSeconds must be > 0");
+  }
+  guardians.forEach((g, i) => {
+    if (g && g.title !== undefined && (typeof g.title !== "string" || !g.title.trim())) errors.push(`guardians[${i}].title empty`);
+  });
+  if (story.cards !== undefined) {
+    const c = story.cards || {};
+    for (const f of ["chapter", "interlude", "victory", "defeat", "complete"]) if (typeof c[f] !== "string" || !c[f].trim()) errors.push(`cards.${f} missing`);
+    if (typeof c.interlude === "string" && !c.interlude.includes("{0}")) errors.push("cards.interlude needs {0} (the chapter number)");
+  }
   // Plain ASCII everywhere: the Quest font has no glyph for curly quotes or dashes (a box is shown instead).
   const nonAscii = (JSON.stringify(story).match(/[^\x00-\x7e]/g) || []);
   if (nonAscii.length) errors.push(`non-ASCII characters in the story: ${[...new Set(nonAscii)].map((c) => "U+" + c.codePointAt(0).toString(16)).join(", ")}`);

@@ -16,6 +16,16 @@
       "text": "Your pulse is the only light. Keep it burning."
     }
   ],
+  "prologue": {
+    "title": "Prologue",
+    "lines": [
+      "Three guardians remain.",
+      "A tap will not wake them.",
+      "A swing thrown with everything you have will.",
+      "Your pulse is the only light."
+    ],
+    "lineSeconds": 2.5
+  },
   "levels": [
     {
       "level": 1,
@@ -44,6 +54,7 @@
       "level": 1,
       "id": "gatekeeper",
       "name": "The Gatekeeper",
+      "title": "Guardian of the Dungeon Halls",
       "weapon": "Sword",
       "lore": "He has held the first hall longer than anyone remembers. He fights to test you, not to finish you.",
       "tips": [
@@ -55,6 +66,7 @@
       "level": 2,
       "id": "warden",
       "name": "The Crimson Warden",
+      "title": "Guardian of the Vaults Below",
       "weapon": "Two-handed axe",
       "lore": "Hunger made him patient. He watches how you swing and learns it.",
       "tips": [
@@ -66,6 +78,7 @@
       "level": 3,
       "id": "tyrant",
       "name": "The Harbor Tyrant",
+      "title": "Guardian at the Edge of the Sea",
       "weapon": "Twin axes",
       "lore": "The sea gave him a crown of fire. It takes anyone who stands still.",
       "tips": [
@@ -83,5 +96,12 @@
       "Breathe. Your pulse is still burning."
     ],
     "defeat": "Rest. Breathe. The guardians will wait."
+  },
+  "cards": {
+    "chapter": "Chapter",
+    "interlude": "Chapter {0} cleared",
+    "victory": "Victory",
+    "defeat": "Defeat",
+    "complete": "Story complete"
   }
 }

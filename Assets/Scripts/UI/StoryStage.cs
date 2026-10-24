@@ -1,11 +1,15 @@
 // StoryStage.cs
-// Purpose: The story-run panels inside a level: the chapter card before the fight (portrait, chapter, name, intro line, lore,
-//          Begin), the interludes and the ending (slides in the same style as the menu story: dark panel, only the text fades),
-//          and the "Story complete" panel. One world-space canvas, placed 2.5 m ahead of the head at the moment it opens (yaw
-//          only) and then fixed in the world; the camera never moves or fades, nothing flashes. Skip on the laser for every
-//          slide; the pointing hand's trigger (not on a button) shows the next slide. Built once, reused; per-frame work only
-//          while open, no allocations.
-// Dependencies: StoryContent, MenuUi, ControllerInput, ControllerMapping, OVRRaycaster / OVRInputModule
+// Purpose: The story-run cards inside a level, on one world-space canvas placed 2.2 m ahead of the head when a card opens (yaw
+//          only) and then fixed in the world; the camera never moves. Cards:
+//          - Chapter card before the fight: portrait, "Chapter N", guardian name and title, the level's one intro line, Begin.
+//          - Lines card: a title and its lines faded in one at a time (the line between fights, the Victory ending after
+//            Chapter 3, the Defeat card with Retry / Story menu). Its buttons appear once every line is shown.
+//          - Story complete: the run's stats, Return to menu.
+//          Every card has Skip (laser) and B skips too. The pointing hand's trigger off the buttons shows the next line, then
+//          presses the card's main button. Changing card (or leaving one for the fight) goes through a fade to black
+//          (ScreenFade). Optional narrator / stinger clips come from StoryAudio. All text comes from Resources/story.json; only
+//          button labels live here. Built once, reused; per-frame work only while open, no allocations.
+// Dependencies: StoryContent, StoryAudio, ScreenFade, MenuUi, UiBack, ControllerInput, ControllerMapping, OVRRaycaster
 // Attach to: created at runtime by StoryDirector
 
 using System;
@@ -14,33 +18,36 @@ using UnityEngine.UI;
 
 public class StoryStage : MonoBehaviour
 {
-    public float distance = 2.5f;
-    public float slideSeconds = 7f;
-    public float fadeSeconds = 1f;
+    public float distance = 2.2f;
+    public float lineSeconds = 2.5f;
+    public float lineFadeSeconds = 0.8f;
     public float triggerGraceSeconds = 0.6f;
+    public const int MaxLines = 5;
 
     public bool IsOpen => root != null && root.activeSelf;
 
     GameObject root;
-    RectTransform panelRt;
-    GameObject cardGroup, slidesGroup, completeGroup;
-    // card
-    Image portrait; Text cardChapter, cardName, cardWeapon, cardIntro, cardLore; Button beginButton;
-    // slides
-    Text slidesTitle, slideText, slideCounter; CanvasGroup slideFade; Button skipButton, doneButton; Text doneLabel;
+    GameObject cardGroup, linesGroup, completeGroup;
+    // chapter card
+    Image portrait; Text cardChapter, cardName, cardTitle, cardIntro; Button beginButton, cardSkip;
+    // lines card
+    Text linesTitle; readonly Text[] lineTexts = new Text[MaxLines]; Button primaryButton, secondaryButton, linesSkip; Text primaryLabel, secondaryLabel;
     // complete
-    Text completeTitle, completeBody; Button returnButton;
+    Text completeTitle, completeBody; Button returnButton, completeSkip;
     Text loadingText;
+    AudioSource voice;
 
-    string[] texts;
-    int index;
-    float slideTime, openedAt;
-    bool autoAdvance;
-    Action onDone;
+    int lineCount, shown;
+    float lineTime, openedAt;
+    bool buttonsShown;
+    Action onPrimary, onSecondary, onSkip;
 
     static readonly Color Warm = new Color(0.9f, 0.72f, 0.35f);
     static readonly Color Body = new Color(0.94f, 0.95f, 1f);
     static readonly Color Muted = new Color(0.72f, 0.76f, 0.88f);
+    static readonly Color Go = new Color(0.1f, 0.42f, 0.3f, 0.97f);
+    static readonly Color Second = new Color(0.2f, 0.35f, 0.6f, 0.97f);
+    static readonly Color SkipColor = new Color(0.25f, 0.25f, 0.3f, 0.97f);
 
     // ───────────────────────── build ─────────────────────────
 
@@ -54,54 +61,65 @@ public class StoryStage : MonoBehaviour
         canvas.sortingOrder = 38;
         var rt = (RectTransform)root.transform;
         rt.sizeDelta = new Vector2(1120f, 770f);
-        rt.localScale = Vector3.one * 0.002f;   // 2.24 x 1.54 m: the menu canvas scale; text 40 = 5.7 cm cap height at 2.5 m
+        rt.localScale = Vector3.one * 0.00176f;   // 1.97 x 1.36 m at 2.2 m: the angle the 2.5 m card had (text keeps its size)
         root.AddComponent<CanvasScaler>().dynamicPixelsPerUnit = 2f;
         var rc = root.AddComponent<OVRRaycaster>();
         var module = FindAnyObjectByType<UnityEngine.EventSystems.OVRInputModule>();
         rc.pointer = module != null && module.rayTransform != null ? module.rayTransform.gameObject : null;
         rc.sortOrder = 90;
 
-        var panel = MenuUi.Panel(rt, "Panel", Vector2.zero, new Vector2(1120f, 770f), new Color(0.008f, 0.01f, 0.018f, 0.97f));
-        panelRt = (RectTransform)panel.transform;
+        var panel = MenuUi.Panel(rt, "Panel", Vector2.zero, new Vector2(1120f, 770f), new Color(0.008f, 0.01f, 0.018f, 1f));
+        var frame = panel.gameObject.AddComponent<Outline>();
+        frame.effectColor = new Color(0.85f, 0.55f, 0.25f, 0.7f);
+        frame.effectDistance = new Vector2(3f, -3f);
+        var panelRt = (RectTransform)panel.transform;
 
         // Chapter card
         cardGroup = MenuUi.Rect(panelRt, "Card", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero).gameObject;
         var portraitRt = MenuUi.Centred(cardGroup.transform, "Portrait", new Vector2(-300f, 10f), new Vector2(400f, 500f));
         portrait = portraitRt.gameObject.AddComponent<Image>();
         portrait.preserveAspect = true; portrait.raycastTarget = false;
-        cardChapter = MenuUi.Label(cardGroup.transform, "Chapter", "", 32, Warm, TextAnchor.MiddleLeft, new Vector2(200f, 300f), new Vector2(600f, 44f), FontStyle.Bold);
-        cardName = MenuUi.Label(cardGroup.transform, "Name", "", 56, Color.white, TextAnchor.MiddleLeft, new Vector2(200f, 240f), new Vector2(600f, 72f), FontStyle.Bold);
-        cardWeapon = MenuUi.Label(cardGroup.transform, "Weapon", "", 30, Muted, TextAnchor.MiddleLeft, new Vector2(200f, 186f), new Vector2(600f, 40f));
-        cardIntro = MenuUi.Label(cardGroup.transform, "Intro", "", 34, new Color(1f, 0.92f, 0.7f), TextAnchor.UpperLeft, new Vector2(200f, 104f), new Vector2(600f, 100f), FontStyle.Italic);
-        cardLore = MenuUi.Label(cardGroup.transform, "Lore", "", 32, Body, TextAnchor.UpperLeft, new Vector2(200f, -40f), new Vector2(600f, 170f));
-        beginButton = MenuUi.MakeButton(cardGroup.transform, "BeginButton", "Begin", 46, new Color(0.1f, 0.42f, 0.3f, 0.97f), new Vector2(330f, -300f), new Vector2(340f, 96f));
-        MenuUi.Label(cardGroup.transform, "Hint", "Trigger or Begin to start", 24, Muted, TextAnchor.MiddleLeft, new Vector2(-50f, -300f), new Vector2(380f, 34f));
-        beginButton.onClick.AddListener(Finish);
+        cardChapter = MenuUi.Label(cardGroup.transform, "Chapter", "", 34, Warm, TextAnchor.MiddleLeft, new Vector2(200f, 270f), new Vector2(600f, 46f), FontStyle.Bold);
+        cardName = MenuUi.Label(cardGroup.transform, "Name", "", 58, Color.white, TextAnchor.MiddleLeft, new Vector2(200f, 200f), new Vector2(600f, 76f), FontStyle.Bold);
+        cardTitle = MenuUi.Label(cardGroup.transform, "Title", "", 32, Muted, TextAnchor.MiddleLeft, new Vector2(200f, 140f), new Vector2(600f, 44f), FontStyle.Italic);
+        cardIntro = MenuUi.Label(cardGroup.transform, "Intro", "", 36, new Color(1f, 0.92f, 0.7f), TextAnchor.UpperLeft, new Vector2(200f, 10f), new Vector2(600f, 180f));
+        cardIntro.lineSpacing = 1.15f;
+        beginButton = MenuUi.MakeButton(cardGroup.transform, "BeginButton", "Begin", 46, Go, new Vector2(330f, -300f), new Vector2(340f, 96f));
+        cardSkip = MenuUi.MakeButton(cardGroup.transform, "SkipButton", "Skip", 36, SkipColor, new Vector2(40f, -300f), new Vector2(180f, 76f));
+        MenuUi.Label(cardGroup.transform, "Hint", "Trigger, Begin or B", 22, Muted, TextAnchor.MiddleCenter, new Vector2(40f, -355f), new Vector2(300f, 30f));
+        beginButton.onClick.AddListener(() => Press(onPrimary, "begin"));
+        cardSkip.onClick.AddListener(() => Press(onSkip, "skip"));
 
-        // Slides (interlude, ending)
-        slidesGroup = MenuUi.Rect(panelRt, "Slides", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero).gameObject;
-        slidesTitle = MenuUi.Label(slidesGroup.transform, "Title", "", 44, Warm, TextAnchor.MiddleCenter, new Vector2(0f, 318f), new Vector2(900f, 56f), FontStyle.Bold);
-        slideCounter = MenuUi.Label(slidesGroup.transform, "Counter", "", 26, Muted, TextAnchor.MiddleRight, new Vector2(492f, 316f), new Vector2(220f, 34f));
-        var fadeRt = MenuUi.Centred(slidesGroup.transform, "SlideGroup", new Vector2(0f, -10f), new Vector2(980f, 460f));
-        slideFade = fadeRt.gameObject.AddComponent<CanvasGroup>();
-        slideFade.blocksRaycasts = false;
-        slideText = MenuUi.Label(fadeRt, "SlideText", "", 44, new Color(0.97f, 0.97f, 1f), TextAnchor.MiddleCenter, Vector2.zero, new Vector2(940f, 440f));
-        slideText.lineSpacing = 1.25f;
-        skipButton = MenuUi.MakeButton(slidesGroup.transform, "SkipButton", "Skip", 38, new Color(0.25f, 0.25f, 0.3f, 0.97f), new Vector2(398f, -322f), new Vector2(200f, 76f));
-        doneButton = MenuUi.MakeButton(slidesGroup.transform, "DoneButton", "Continue", 42, new Color(0.1f, 0.42f, 0.3f, 0.97f), new Vector2(0f, -322f), new Vector2(380f, 86f));
-        doneLabel = doneButton.GetComponentInChildren<Text>();
-        skipButton.onClick.AddListener(Finish);
-        doneButton.onClick.AddListener(Finish);
+        // Lines card (between fights, victory, defeat)
+        linesGroup = MenuUi.Rect(panelRt, "Lines", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero).gameObject;
+        linesTitle = MenuUi.Label(linesGroup.transform, "Title", "", 56, Warm, TextAnchor.MiddleCenter, new Vector2(0f, 300f), new Vector2(1000f, 76f), FontStyle.Bold);
+        for (int i = 0; i < MaxLines; i++)
+        {
+            var t = MenuUi.Label(linesGroup.transform, "Line" + i, "", 38, Body, TextAnchor.MiddleCenter, Vector2.zero, new Vector2(1000f, 96f));
+            t.lineSpacing = 1.1f;
+            t.raycastTarget = false;
+            lineTexts[i] = t;
+        }
+        primaryButton = MenuUi.MakeButton(linesGroup.transform, "PrimaryButton", "Continue", 42, Go, new Vector2(-230f, -310f), new Vector2(320f, 88f));
+        secondaryButton = MenuUi.MakeButton(linesGroup.transform, "SecondaryButton", "", 38, Second, new Vector2(110f, -310f), new Vector2(320f, 88f));
+        linesSkip = MenuUi.MakeButton(linesGroup.transform, "SkipButton", "Skip", 34, SkipColor, new Vector2(430f, -310f), new Vector2(170f, 76f));
+        primaryLabel = primaryButton.GetComponentInChildren<Text>();
+        secondaryLabel = secondaryButton.GetComponentInChildren<Text>();
+        primaryButton.onClick.AddListener(() => Press(onPrimary, "primary"));
+        secondaryButton.onClick.AddListener(() => Press(onSecondary, "secondary"));
+        linesSkip.onClick.AddListener(() => Press(onSkip, "skip"));
 
         // Story complete
         completeGroup = MenuUi.Rect(panelRt, "Complete", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero).gameObject;
-        completeTitle = MenuUi.Label(completeGroup.transform, "Title", "Story complete", 62, Warm, TextAnchor.MiddleCenter, new Vector2(0f, 280f), new Vector2(1000f, 80f), FontStyle.Bold);
+        completeTitle = MenuUi.Label(completeGroup.transform, "Title", "", 62, Warm, TextAnchor.MiddleCenter, new Vector2(0f, 280f), new Vector2(1000f, 80f), FontStyle.Bold);
         completeBody = MenuUi.Label(completeGroup.transform, "Body", "", 36, Body, TextAnchor.UpperCenter, new Vector2(0f, 20f), new Vector2(940f, 400f));
         completeBody.lineSpacing = 1.2f;
-        returnButton = MenuUi.MakeButton(completeGroup.transform, "ReturnButton", "Return to menu", 42, new Color(0.2f, 0.35f, 0.6f, 0.97f), new Vector2(0f, -300f), new Vector2(460f, 92f));
-        returnButton.onClick.AddListener(Finish);
+        returnButton = MenuUi.MakeButton(completeGroup.transform, "ReturnButton", "Return to menu", 42, Second, new Vector2(-80f, -300f), new Vector2(460f, 92f));
+        completeSkip = MenuUi.MakeButton(completeGroup.transform, "SkipButton", "Skip", 34, SkipColor, new Vector2(300f, -300f), new Vector2(170f, 76f));
+        returnButton.onClick.AddListener(() => Press(onPrimary, "return"));
+        completeSkip.onClick.AddListener(() => Press(onSkip, "skip"));
 
-        loadingText = MenuUi.Label(panelRt, "Loading", "Loading...", 40, new Color(1f, 0.9f, 0.45f), TextAnchor.MiddleCenter, new Vector2(0f, -322f), new Vector2(600f, 60f), FontStyle.Bold);
+        loadingText = MenuUi.Label(panelRt, "Loading", "Loading...", 40, new Color(1f, 0.9f, 0.45f), TextAnchor.MiddleCenter, new Vector2(0f, -310f), new Vector2(600f, 60f), FontStyle.Bold);
         loadingText.gameObject.SetActive(false);
         MenuUi.DrawOnTop(root);   // never hidden behind the monster's body or the weapons in the player's hands
         root.SetActive(false);
@@ -115,135 +133,191 @@ public class StoryStage : MonoBehaviour
         Vector3 fwd = head.forward; fwd.y = 0f;
         if (fwd.sqrMagnitude < 0.01f) fwd = Vector3.forward;
         fwd.Normalize();
-        root.transform.position = head.position + fwd * distance + Vector3.down * 0.15f;
+        root.transform.position = head.position + fwd * distance + Vector3.down * 0.12f;
         root.transform.rotation = Quaternion.LookRotation(fwd, Vector3.up);
     }
 
-    void Open(GameObject group, Action done)
+    /// <summary>Shows a card. fade: through black (a card replacing gameplay or another card); false when the view is already
+    /// black (the scene started black) or the caller fades.</summary>
+    void Open(GameObject group, Action primary, Action secondary, Action skip, bool fade)
     {
         Build();
-        onDone = done;
-        cardGroup.SetActive(group == cardGroup);
-        slidesGroup.SetActive(group == slidesGroup);
-        completeGroup.SetActive(group == completeGroup);
-        loadingText.gameObject.SetActive(false);
-        SetButtons(true);
-        Place();
-        root.SetActive(true);
-        openedAt = Time.unscaledTime;
+        onPrimary = primary; onSecondary = secondary; onSkip = skip ?? primary;
+        Action show = () =>
+        {
+            cardGroup.SetActive(group == cardGroup);
+            linesGroup.SetActive(group == linesGroup);
+            completeGroup.SetActive(group == completeGroup);
+            loadingText.gameObject.SetActive(false);
+            SetButtons(true);
+            Place();
+            root.SetActive(true);
+            openedAt = Time.unscaledTime;
+            UiBack.Push(BackHandler);
+        };
+        if (fade) ScreenFade.Transition(show); else show();
     }
 
     void SetButtons(bool on)
     {
-        beginButton.interactable = on; skipButton.interactable = on; doneButton.interactable = on; returnButton.interactable = on;
+        beginButton.interactable = on; cardSkip.interactable = on;
+        primaryButton.interactable = on; secondaryButton.interactable = on; linesSkip.interactable = on;
+        returnButton.interactable = on; completeSkip.interactable = on;
+    }
+
+    bool BackHandler()
+    {
+        if (!IsOpen) return false;
+        Press(onSkip, "skip (B)");
+        return true;
     }
 
     // ───────────────────────── public API ─────────────────────────
 
-    /// <summary>The chapter card for level 1 to 3. onBegin runs once (Begin, or the trigger off the buttons).</summary>
-    public void ShowChapterCard(int level, Action onBegin)
+    /// <summary>The chapter card for level 1 to 3. Begin, Skip, B or the trigger run onBegin once.</summary>
+    public void ShowChapterCard(int level, Action onBegin, bool fade)
     {
         Build();
+        var story = StoryContent.Load();
         var g = StoryContent.GuardianFor(level);
         var l = StoryContent.ForLevel(level == 1 ? "Easy" : level == 2 ? "Medium" : "Hard");
         portrait.sprite = Resources.Load<Sprite>("Guardians/level" + level);
         portrait.enabled = portrait.sprite != null;
-        cardChapter.text = "CHAPTER " + level;
+        cardChapter.text = ((story.cards.chapter ?? "") + " " + level).Trim().ToUpperInvariant();
         cardName.text = g != null ? g.name : (l != null ? l.guardian : "");
-        cardWeapon.text = g != null ? "Weapon: " + g.weapon : "";
+        cardTitle.text = g != null && !string.IsNullOrEmpty(g.title) ? g.title : "";
         cardIntro.text = l != null ? l.intro : "";
-        cardLore.text = g != null ? g.lore : "";
-        texts = null;
-        Open(cardGroup, onBegin);
+        lineCount = 0;
+        Open(cardGroup, onBegin, null, onBegin, fade);
+        var a = StoryAudio.Get();
+        StoryAudio.Play(StoryAudio.Chapter(level) ?? (a != null ? a.cardOpen : null), gameObject, ref voice);
+        Debug.Log($"{StoryProgress.Tag} card: chapter {level} '{cardName.text}' ({cardTitle.text})");
     }
 
-    /// <summary>Slides (an interlude: one text; the ending: several). Each shows slideSeconds, then the next; the last stays until
-    /// Continue. Skip or the done button ends at once.</summary>
-    public void ShowSlides(string title, string[] slides, string doneText, Action done)
+    /// <summary>A title and up to five lines faded in one at a time; then the buttons. secondary null = one main button. Skip
+    /// (and B) run onSkip, or onPrimary when onSkip is null.</summary>
+    public void ShowLines(string title, string[] lines, string primaryText, Action primary, string secondaryText, Action secondary,
+                          Action skip, AudioClip stinger, bool fade = true)
     {
         Build();
-        texts = slides ?? new string[0];
-        slidesTitle.text = title ?? "";
-        doneLabel.text = string.IsNullOrEmpty(doneText) ? "Continue" : doneText;
-        Open(slidesGroup, done);
-        ShowSlide(0);
+        lines = lines ?? new string[0];
+        lineCount = Mathf.Min(lines.Length, MaxLines);
+        linesTitle.text = title ?? "";
+        // Lines centred as a block between the title and the buttons.
+        float step = lineCount > 3 ? 92f : 110f;
+        float top = 20f + (lineCount - 1) * step * 0.5f;
+        for (int i = 0; i < MaxLines; i++)
+        {
+            var t = lineTexts[i];
+            bool used = i < lineCount;
+            t.gameObject.SetActive(used);
+            if (!used) continue;
+            t.text = lines[i];
+            t.rectTransform.anchoredPosition = new Vector2(0f, top - i * step);
+            t.canvasRenderer.SetAlpha(0f);
+        }
+        primaryLabel.text = string.IsNullOrEmpty(primaryText) ? "Continue" : primaryText;
+        bool two = secondary != null && !string.IsNullOrEmpty(secondaryText);
+        secondaryLabel.text = two ? secondaryText : "";
+        primaryButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(two ? -230f : 0f, -310f);
+        secondaryButton.gameObject.SetActive(false);
+        primaryButton.gameObject.SetActive(false);
+        shown = 0; lineTime = 0f; buttonsShown = false;
+        twoButtons = two;
+        Open(linesGroup, primary, two ? secondary : null, skip, fade);
+        StoryAudio.Play(stinger, gameObject, ref voice);
+        Debug.Log($"{StoryProgress.Tag} card: '{linesTitle.text}' ({lineCount} lines)");
     }
 
-    public void ShowComplete(string body, Action onReturn)
+    bool twoButtons;
+
+    public void ShowComplete(string title, string body, Action onReturn, bool fade = true)
     {
         Build();
+        completeTitle.text = title ?? "";
         completeBody.text = body ?? "";
-        texts = null;
-        Open(completeGroup, onReturn);
+        lineCount = 0;
+        Open(completeGroup, onReturn, null, onReturn, fade);
+        Debug.Log($"{StoryProgress.Tag} card: '{completeTitle.text}'");
     }
 
-    /// <summary>A scene load started from this panel: buttons off, "Loading..." shown (the panel stays until the scene changes).</summary>
+    /// <summary>A scene load started from this card: buttons off, "Loading..." shown (the card stays until the scene changes).</summary>
     public void ShowLoading()
     {
         if (root == null) return;
         SetButtons(false);
-        doneButton.gameObject.SetActive(false); skipButton.gameObject.SetActive(false);
+        primaryButton.gameObject.SetActive(false); secondaryButton.gameObject.SetActive(false);
+        linesSkip.gameObject.SetActive(false);
         loadingText.gameObject.SetActive(true);
     }
 
-    public void Hide()
+    /// <summary>Closes the card. fade: through black (back to the fight).</summary>
+    public void Hide(bool fade = false)
     {
-        if (root != null) root.SetActive(false);
-        onDone = null;
+        onPrimary = onSecondary = onSkip = null;
+        UiBack.Remove(BackHandler);
+        StoryAudio.Stop(voice);
+        if (root == null) return;
+        if (fade) ScreenFade.Transition(() => { if (root != null) root.SetActive(false); });
+        else root.SetActive(false);
     }
 
-    /// <summary>For tests (and the trigger): what the next press would do.</summary>
+    /// <summary>What the trigger does: the next line, then the card's main button.</summary>
     public void Next()
     {
         if (!IsOpen) return;
-        if (texts != null && slidesGroup.activeSelf && index + 1 < texts.Length) { ShowSlide(index + 1); return; }
-        Finish();
+        if (linesGroup.activeSelf && shown < lineCount) { RevealNext(); return; }
+        Press(onPrimary, "next");
     }
 
-    public void Finish()
+    /// <summary>The card's main button (tests).</summary>
+    public void Finish() => Press(onPrimary, "finish");
+    public void Skip() => Press(onSkip, "skip");
+
+    public int SlideIndex => Mathf.Max(0, shown - 1);
+    public int SlideCount => lineCount;
+    public int LinesShown => shown;
+    public bool CardShown => IsOpen && cardGroup.activeSelf;
+    public bool SlidesShown => IsOpen && linesGroup.activeSelf;
+    public bool CompleteShown => IsOpen && completeGroup.activeSelf;
+    public string Title => !IsOpen ? "" : cardGroup.activeSelf ? cardName.text : linesGroup.activeSelf ? linesTitle.text : completeTitle.text;
+
+    void Press(Action cb, string how)
     {
-        if (!IsOpen) return;
-        var cb = onDone;
-        onDone = null;
-        if (cb == null) return;
+        if (!IsOpen || cb == null || ScreenFade.Busy) return;   // one press; nothing while a fade runs
+        onPrimary = onSecondary = onSkip = null;
+        UiBack.Remove(BackHandler);
         SetButtons(false);
+        Debug.Log($"{StoryProgress.Tag} card '{Title}': {how}");
         cb();
     }
 
-    public int SlideIndex => index;
-    public int SlideCount => texts != null ? texts.Length : 0;
-    public bool CardShown => IsOpen && cardGroup.activeSelf;
-    public bool SlidesShown => IsOpen && slidesGroup.activeSelf;
-    public bool CompleteShown => IsOpen && completeGroup.activeSelf;
-
-    void ShowSlide(int i)
+    void RevealNext()
     {
-        index = i;
-        slideTime = 0f;
-        slideText.text = texts.Length > 0 ? texts[i] : "";
-        slideCounter.text = texts.Length > 1 ? (i + 1) + " / " + texts.Length : "";
-        slideFade.alpha = 0f;
-        autoAdvance = i + 1 < texts.Length;
-        // the done button only on the last slide; Skip on every slide
-        doneButton.gameObject.SetActive(!autoAdvance);
-        skipButton.gameObject.SetActive(true);
-        Debug.Log($"{StoryProgress.Tag} slide {i + 1}/{texts.Length} '{slidesTitle.text}'");
+        if (shown >= lineCount) return;
+        lineTexts[shown].canvasRenderer.SetAlpha(0f);
+        lineTexts[shown].CrossFadeAlpha(1f, lineFadeSeconds, true);
+        shown++;
+        lineTime = 0f;
+    }
+
+    void ShowButtons()
+    {
+        buttonsShown = true;
+        primaryButton.gameObject.SetActive(true);
+        secondaryButton.gameObject.SetActive(twoButtons);
     }
 
     void Update()
     {
-        if (root == null || !root.activeSelf || onDone == null) return;
-        float dt = Time.unscaledDeltaTime;
-        if (slidesGroup.activeSelf && texts != null && texts.Length > 0)
+        if (root == null || !root.activeSelf || onPrimary == null) return;
+        if (linesGroup.activeSelf)
         {
-            slideTime += dt;
-            float fade = Mathf.Min(fadeSeconds, slideSeconds * 0.5f);
-            float a = Mathf.Clamp01(slideTime / fade);
-            if (autoAdvance) a = Mathf.Min(a, Mathf.Clamp01((slideSeconds - slideTime) / fade));
-            slideFade.alpha = a;
-            if (autoAdvance && slideTime >= slideSeconds) { ShowSlide(index + 1); return; }
+            lineTime += Time.unscaledDeltaTime;
+            if (shown < lineCount && (shown == 0 ? lineTime >= 0.3f : lineTime >= lineSeconds)) RevealNext();
+            else if (shown >= lineCount && !buttonsShown && lineTime >= Mathf.Min(1f, lineSeconds)) ShowButtons();
         }
-        // The pointing hand's trigger, off the buttons, is "next" (the press that opened the panel is ignored).
+        // The pointing hand's trigger, off the buttons, is "next" (the press that opened the card is ignored).
         var cm = ControllerMapping.Instance;
         bool overButton = cm != null && cm.module != null && cm.module.Hovered != null;
         if (!overButton && Time.unscaledTime - openedAt > triggerGraceSeconds && ControllerInput.Down(Pad.Trigger, ControllerMapping.PointHand))
@@ -252,6 +326,7 @@ public class StoryStage : MonoBehaviour
 
     void OnDestroy()
     {
+        UiBack.Remove(BackHandler);
         if (root != null) Destroy(root);
     }
 }
