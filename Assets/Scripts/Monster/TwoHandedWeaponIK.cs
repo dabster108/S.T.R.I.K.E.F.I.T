@@ -59,7 +59,8 @@ public class TwoHandedWeaponIK : MonoBehaviour
 
         // The right hand's final goal (MonsterGuardIK may move it while guarding), so the grip follows the haft.
         goalPos = guardIK != null && guardIK.isActiveAndEnabled ? guardIK.RightGoal() : animator.GetIKPosition(AvatarIKGoal.RightHand);
-        goalRot = animator.GetIKRotation(AvatarIKGoal.RightHand);
+        // MonsterGuardIK may also turn the right hand for a guard pose: grip relative to that rotation, so the haft stays in the hand.
+        goalRot = guardIK != null && guardIK.isActiveAndEnabled ? guardIK.RightGoalRotation() : animator.GetIKRotation(AvatarIKGoal.RightHand);
         hasGoal = true;
 
         float target = (hasOffset && (controller == null || controller.isAlive)) ? 1f : 0f;

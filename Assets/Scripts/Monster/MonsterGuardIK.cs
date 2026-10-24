@@ -46,6 +46,24 @@ public class MonsterGuardIK : MonoBehaviour
     [Tooltip("How far from the pose anchor toward the predicted contact the weapon goes (0 = anchor only, 1 = the contact).")]
     [Range(0f, 1f)] public float followContact = 0.5f;
 
+    [Header("Distinct pose shapes (Levels 2 and 3, with MonsterTactics)")]
+    [Tooltip("Turn the weapon per pose as well as moving it: SIDE = upright on that side, HIGH = level above the head, LOW = slanted " +
+             "down across the hips (also the thrust guard). Off: only the hand position moves (the clip's hand rotation is kept).")]
+    public bool orientWeapon = false;
+    [Tooltip("Weapon axis (hand -> weapon middle) per pose, monster space (x + = the player's left, y up, z toward the player).")]
+    public Vector3 highAxis = new Vector3(1f, 0.08f, 0.1f);
+    public Vector3 sideAxis = new Vector3(0.12f, 1f, 0.3f);
+    public Vector3 lowAxis = new Vector3(0.75f, -0.55f, 0.35f);
+    [Tooltip("SIDE guard on the far side of the weapon hand (one weapon: the right hand guarding the player's right): the hand cannot " +
+             "cross the body far, so the weapon leans over to that side instead (given for the right hand; mirrored for the left).")]
+    public Vector3 crossSideAxis = new Vector3(-0.7f, 0.7f, 0.25f);
+    [Tooltip("Two weapons: HIGH and LOW guards move both weapons (side guards move the one on that side).")]
+    public bool twinHighLow = false;
+    [Tooltip("Two weapons: for HIGH and LOW both weapons guard, this far (m) either side of the anchor.")]
+    public float twinSpread = 0.16f;
+    [Tooltip("Fastest the hand turns into a pose (deg/s).")]
+    public float maxHandTurn = 900f;
+
     private Animator animator;
     private MonsterDefense defense;
     private MonsterAI ai;
@@ -60,6 +78,10 @@ public class MonsterGuardIK : MonoBehaviour
     private readonly Vector3[] animGoal = new Vector3[2];
     private readonly Quaternion[] animRot = new Quaternion[2];
     private readonly Transform[] handBone = new Transform[2];
+    private readonly Quaternion[] rotGoal = { Quaternion.identity, Quaternion.identity };
+    // Humanoid IK goal rotation -> hand bone rotation (a fixed avatar offset), measured while the IK is idle.
+    private readonly Quaternion[] goalToBone = { Quaternion.identity, Quaternion.identity };
+    private readonly bool[] hasGoalToBone = new bool[2];
     private int computedFrame = -1;
     private static readonly AvatarIKGoal[] Goals = { AvatarIKGoal.RightHand, AvatarIKGoal.LeftHand };
 
@@ -112,6 +134,29 @@ public class MonsterGuardIK : MonoBehaviour
         return Vector3.Lerp(animGoal[0], goal[0], weight[0] * positionWeight);
     }
 
+    /// <summary>Final right-hand IK goal rotation this frame (the clip's when the pose does not turn the weapon).</summary>
+    public Quaternion RightGoalRotation()
+    {
+        Compute();
+        return orientWeapon && weight[0] > 0f ? Quaternion.Slerp(animRot[0], rotGoal[0], weight[0]) : animRot[0];
+    }
+
+    /// <summary>Weapon middle of hand h in monster space (verification: which side / height the guard weapon is on).</summary>
+    public Vector3 WeaponMiddleLocal(int h)
+    {
+        if (h < 0 || h > 1 || !hasWeapon[h]) return Vector3.zero;
+        return root.InverseTransformPoint(handBone[h].TransformPoint(weaponLocal[h]));
+    }
+
+    /// <summary>Weapon axis (hand -> middle) of hand h in monster space, normalised (verification).</summary>
+    public Vector3 WeaponAxisLocal(int h)
+    {
+        if (h < 0 || h > 1 || !hasWeapon[h]) return Vector3.zero;
+        return root.InverseTransformDirection(handBone[h].TransformPoint(weaponLocal[h]) - handBone[h].position).normalized;
+    }
+
+    public bool HasWeapon(int h) => h >= 0 && h < 2 && hasWeapon[h];
+
     // Once per frame, before any SetIKPosition from this component, whichever OnAnimatorIK runs first.
     void Compute()
     {
@@ -120,27 +165,71 @@ public class MonsterGuardIK : MonoBehaviour
         float dt = Time.deltaTime;
         bool active = ikIntercept && defense != null && ai != null && ctrl != null && ctrl.isAlive && ai.IsDefending && defense.swingClasses
                       && (ikOnHighPose || defense.ActivePose != MonsterDefense.GuardPose.High);
+        var pose = defense != null ? defense.ActivePose : MonsterDefense.GuardPose.High;
         Vector3 contact = active ? InterceptPoint() : Vector3.zero;
         int pick = 0;
         if (twoWeapons && hasWeapon[1]) pick = Vector3.Dot(contact - root.position, root.right) >= 0f ? 0 : 1;   // each hand its own side
+        // Two weapons and a HIGH or LOW guard: both weapons guard, side by side (a crossed block).
+        bool both = twoWeapons && hasWeapon[1] && twinHighLow && (pose == MonsterDefense.GuardPose.High || pose == MonsterDefense.GuardPose.Low);
         for (int h = 0; h < 2; h++)
         {
             animGoal[h] = animator.GetIKPosition(Goals[h]);
             animRot[h] = animator.GetIKRotation(Goals[h]);
-            bool mine = active && hasWeapon[h] && h == pick;
-            if (weight[h] <= 0f) goal[h] = animGoal[h];
+            bool mine = active && hasWeapon[h] && (both || h == pick);
+            if (weight[h] <= 0f) { goal[h] = animGoal[h]; rotGoal[h] = animRot[h]; }
             if (mine)
             {
-                // Hand position that puts the weapon's middle on the contact, with the clip's hand rotation.
-                Vector3 midOffset = handBone[h].TransformPoint(weaponLocal[h]) - handBone[h].position;
-                Vector3 want = Clamp(h, contact - midOffset);
-                goal[h] = Vector3.MoveTowards(goal[h], want, maxHandSpeed * dt);
-                LastMissDistance = Vector3.Distance(goal[h] + midOffset, contact);
+                Vector3 target = both ? contact + root.right * (h == 0 ? twinSpread : -twinSpread) : contact;
+                Vector3 worldOff = handBone[h].TransformPoint(weaponLocal[h]) - handBone[h].position;   // hand -> weapon middle now
+                if (orientWeapon && hasGoalToBone[h])
+                {
+                    // Turn the hand so the weapon lies along the pose's axis, then place the hand for that rotation.
+                    Quaternion boneNow = handBone[h].rotation;
+                    Vector3 clipAxis = (animRot[h] * goalToBone[h] * Quaternion.Inverse(boneNow)) * worldOff;
+                    Vector3 axis = root.TransformDirection(AxisFor(pose, h).normalized);
+                    // A level guard can lie either way: keep the direction nearest the clip's.
+                    if (pose == MonsterDefense.GuardPose.High && Vector3.Dot(axis, clipAxis) < 0f) axis = -axis;
+                    Quaternion want = Quaternion.FromToRotation(clipAxis, axis) * animRot[h];
+                    rotGoal[h] = Quaternion.RotateTowards(rotGoal[h], want, maxHandTurn * dt);
+                    // The hand goes where the weapon middle lies along the wanted axis (not where the rotation was predicted to put it).
+                    worldOff = axis * worldOff.magnitude;
+                }
+                Vector3 wantPos = Clamp(h, target - worldOff);
+                goal[h] = Vector3.MoveTowards(goal[h], wantPos, maxHandSpeed * dt);
+                LastMissDistance = Vector3.Distance(goal[h] + worldOff, target);
             }
-            else if (weight[h] > 0f) goal[h] = Vector3.MoveTowards(goal[h], animGoal[h], maxHandSpeed * dt);
+            else if (weight[h] > 0f)
+            {
+                goal[h] = Vector3.MoveTowards(goal[h], animGoal[h], maxHandSpeed * dt);
+                rotGoal[h] = Quaternion.RotateTowards(rotGoal[h], animRot[h], maxHandTurn * dt);
+            }
             weight[h] = Mathf.MoveTowards(weight[h], mine ? 1f : 0f, (mine ? blendIn : blendOut) * dt);
         }
         LastShift = Vector3.Distance(Vector3.Lerp(animGoal[pick], goal[pick], weight[pick] * positionWeight), animGoal[pick]);
+    }
+
+    /// <summary>Weapon axis for a pose in monster space; the left hand's slant is mirrored.</summary>
+    Vector3 AxisFor(MonsterDefense.GuardPose pose, int h)
+    {
+        switch (pose)
+        {
+            case MonsterDefense.GuardPose.High: return highAxis;
+            // The right hand (h 0) lives on +x (SIDE_LEFT); guarding -x (SIDE_RIGHT) it leans across. The left hand mirrors it.
+            case MonsterDefense.GuardPose.SideLeft: return h == 1 ? new Vector3(-crossSideAxis.x, crossSideAxis.y, crossSideAxis.z) : sideAxis;
+            case MonsterDefense.GuardPose.SideRight: return h == 0 ? crossSideAxis : new Vector3(-sideAxis.x, sideAxis.y, sideAxis.z);
+            default: return h == 0 ? lowAxis : new Vector3(-lowAxis.x, lowAxis.y, lowAxis.z);
+        }
+    }
+
+    void LateUpdate()
+    {
+        // While the IK is idle the bone holds the clip's pose: measure the fixed goal -> bone rotation offset.
+        for (int h = 0; h < 2; h++)
+        {
+            if (!hasWeapon[h] || handBone[h] == null || weight[h] > 0f || computedFrame != Time.frameCount) continue;
+            goalToBone[h] = Quaternion.Inverse(animRot[h]) * handBone[h].rotation;
+            hasGoalToBone[h] = true;
+        }
     }
 
     /// <summary>Where the weapon's middle goes: the raised pose's anchor, pulled followContact of the way to the predicted contact.</summary>
@@ -188,7 +277,15 @@ public class MonsterGuardIK : MonoBehaviour
         {
             if (!hasWeapon[h]) continue;
             animator.SetIKPositionWeight(Goals[h], weight[h] * positionWeight);
-            if (keepClipHandRotation)
+            if (orientWeapon)
+            {
+                // Full rotation weight whenever the hand IK is on, blended inside the goal: with a partial rotation weight the
+                // un-driven part of the hand rotation follows the forearm as the position IK swings the arm, which twisted the weapon
+                // far past the pose on Level 3's rig (measured 95 deg from the clip for a 62 deg goal).
+                animator.SetIKRotationWeight(Goals[h], weight[h] > 0f ? 1f : 0f);
+                if (weight[h] > 0f) animator.SetIKRotation(Goals[h], Quaternion.Slerp(animRot[h], rotGoal[h], weight[h]));
+            }
+            else if (keepClipHandRotation)
             {
                 animator.SetIKRotationWeight(Goals[h], weight[h]);
                 if (weight[h] > 0f) animator.SetIKRotation(Goals[h], animRot[h]);
