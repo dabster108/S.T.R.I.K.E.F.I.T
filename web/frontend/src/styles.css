@@ -1103,7 +1103,8 @@
   transform: none;
   transition-delay: 250ms;
 }
-.rise {
+/* the leaderboard podium's blocks grow up from their base (was also named .rise, which overrode the hero's text .rise above) */
+.podium-rise {
   transform-origin: 50% 100%;
   animation: grow-y 0.9s var(--ease-spring) both;
   animation-delay: var(--d, 0ms);
@@ -1621,4 +1622,76 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .wr-progress { animation: none; }
+}
+
+/* ---- Broadcast stage: deep blue with a faint grid, a pulse behind the headset icon and on the current step (transform/opacity only) ---- */
+.bc-stage {
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 45%, rgb(59 130 246 / 0.28), transparent 70%),
+    linear-gradient(rgb(255 255 255 / 0.045) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, rgb(255 255 255 / 0.045) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(160deg, var(--blue-800), var(--blue-900) 55%, #172554);
+}
+@keyframes bc-wave {
+  from { transform: scale(1); opacity: 0.7; }
+  to { transform: scale(1.9); opacity: 0; }
+}
+.bc-wave {
+  animation: bc-wave 2.4s var(--motion-ease) infinite;
+}
+.bc-wave-2 {
+  animation-delay: 1.2s;
+}
+@keyframes bc-ping {
+  from { transform: scale(1); opacity: 0.6; }
+  to { transform: scale(1.7); opacity: 0; }
+}
+.bc-ping {
+  animation: bc-ping 1.6s var(--motion-ease) infinite;
+}
+:root[data-calm] .bc-wave,
+:root[data-calm] .bc-ping {
+  animation: none;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bc-wave,
+  .bc-ping { animation: none; opacity: 0; }
+}
+
+/* ── demo clip frame: <Reveal className="demo-hero"> scales up and settles as it enters view (transform / opacity only) ── */
+.m-reveal.demo-hero {
+  transform: translate3d(0, 18px, 0) scale(0.955);
+  transition:
+    opacity 700ms var(--motion-ease),
+    transform 900ms cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+.m-reveal.demo-hero.is-visible {
+  transform: none;
+}
+:root[data-calm] .m-reveal.demo-hero {
+  transform: none;
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-reveal.demo-hero {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* caption chip on the demo clip: a short pop as each moment appears */
+@keyframes chip-pop {
+  from { opacity: 0; transform: translate3d(0, 6px, 0) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+.chip-pop {
+  animation: chip-pop 260ms var(--motion-ease) both;
+}
+:root[data-calm] .chip-pop {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chip-pop { animation: none; }
 }

@@ -1,15 +1,15 @@
 import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 import Landing from "./views/Landing.jsx";
-import { OverviewSkeleton } from "./components/ui/Skeletons.jsx";
-import { LiveProvider } from "./live/LiveProvider.jsx";
+import { OverviewSkeleton } from "./components/ui/OverviewSkeleton.jsx";
 import DemoRibbon from "./demo/DemoRibbon.jsx";
 import { isDemo } from "./demo/mode.js";
 
 // The dashboard (charts, live stream, every inner page) is its own chunk, so the
 // public landing page never downloads it.
 const DashboardApp = lazy(() => import("./DashboardApp.jsx"));
-const BroadcastView = lazy(() => import("./views/BroadcastView.jsx"));
+// /broadcast and /watch: the page with the live stream it listens to (LiveProvider), both in its own chunk.
+const BroadcastView = lazy(() => import("./views/BroadcastRoute.jsx"));
 const FeedbackView = lazy(() => import("./views/FeedbackView.jsx"));
 const MonstersView = lazy(() => import("./views/MonstersView.jsx"));
 const ChallengeView = lazy(() => import("./views/ChallengeView.jsx"));
@@ -19,6 +19,8 @@ const StudyView = lazy(() => import("./views/StudyView.jsx"));
 const StoryPublicView = lazy(() => import("./views/StoryPublicView.jsx"));
 // STRIKEFIT Wrapped: a player's week as a five-slide story. Its own chunk, so it costs nothing until someone opens it.
 const WrappedView = lazy(() => import("./views/WrappedView.jsx"));
+// /practice: swing-to-damage practice without a headset (phone motion, mouse / touch, demo swing). Its own chunk; sends nothing.
+const PracticeView = lazy(() => import("./views/PracticeView.jsx"));
 
 function DashboardFallback() {
   return (
@@ -56,9 +58,7 @@ function AppRoutes() {
         element={
           <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
             {/* the stats overlay on the video listens to the same live stream the dashboard uses */}
-            <LiveProvider>
-              <BroadcastView />
-            </LiveProvider>
+            <BroadcastView />
           </Suspense>
         }
       />
@@ -75,9 +75,7 @@ function AppRoutes() {
         path="/watch"
         element={
           <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
-            <LiveProvider>
-              <BroadcastView />
-            </LiveProvider>
+            <BroadcastView />
           </Suspense>
         }
       />
@@ -121,6 +119,14 @@ function AppRoutes() {
         element={
           <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
             <MethodView />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/practice"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-[var(--bg)]" />}>
+            <PracticeView />
           </Suspense>
         }
       />

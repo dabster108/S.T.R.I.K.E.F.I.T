@@ -1,10 +1,11 @@
-import { Skeleton } from "./Feedback.jsx";
+import { Skeleton } from "./Skeleton.jsx";
+import { Box, ChartBox, KpiRow, OverviewSkeleton } from "./OverviewSkeleton.jsx";
 import { PlayerTitleShell } from "../players/PlayerTitle.jsx";
 import { PageHeader } from "./Card.jsx";
 
-// Loading placeholders shaped like each page, so nothing jumps when data lands.
+export { OverviewSkeleton };
 
-const Box = ({ className = "", children }) => <div className={`rounded-2xl border border-[var(--border)] bg-[var(--surface)] ${className}`}>{children}</div>;
+// Loading placeholders shaped like each page, so nothing jumps when data lands.
 
 function Header({ avatar = false }) {
   return (
@@ -16,42 +17,6 @@ function Header({ avatar = false }) {
         <Skeleton className="h-3.5 w-80 max-w-[70vw]" />
       </div>
     </div>
-  );
-}
-
-function KpiRow({ n = 4 }) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {Array.from({ length: n }, (_, i) => (
-        <Box key={i} className="p-5">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-8 w-8 rounded-lg" />
-          </div>
-          <Skeleton className="mt-4 h-8 w-24" />
-          <div className="mt-4 flex items-end justify-between">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-7 w-20" />
-          </div>
-        </Box>
-      ))}
-    </div>
-  );
-}
-
-function ChartBox({ className = "", h = "h-56" }) {
-  return (
-    <Box className={`overflow-hidden ${className}`}>
-      <div className="space-y-2 border-b border-[var(--border)] px-5 py-4">
-        <Skeleton className="h-3.5 w-32" />
-        <Skeleton className="h-3 w-52" />
-      </div>
-      <div className={`flex items-end gap-2 px-5 pb-5 pt-6 ${h}`}>
-        {[40, 65, 50, 80, 55, 90, 70, 60, 85, 45, 75, 95].map((v, i) => (
-          <div key={i} className="skeleton flex-1 rounded-md" style={{ height: `${v}%` }} aria-hidden />
-        ))}
-      </div>
-    </Box>
   );
 }
 
@@ -99,18 +64,6 @@ const wrap = (label, children) => (
     {children}
   </div>
 );
-
-export const OverviewSkeleton = () =>
-  (
-    <div className="mt-6 space-y-6" aria-busy="true" aria-label="Loading overview">
-      {/* the title is OverviewHeader, rendered by the dashboard shell above this */}
-      <KpiRow />
-      <div className="grid gap-6 xl:grid-cols-12">
-        <ChartBox className="xl:col-span-8" />
-        <ChartBox className="xl:col-span-4" />
-      </div>
-    </div>
-  );
 
 export const LiveSkeleton = () =>
   wrap(
