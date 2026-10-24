@@ -38,3 +38,20 @@ in the config. Then open `src/content/showcaseShots.js` and, for that shot, set:
 - Clips load lazily: only metadata is fetched until that shot is on show, and they play only while on screen.
 
 Check it with `npm run dev` and scroll to the section; each tab swaps the frame.
+
+### The Level 2 demo clip (`DEMO_CLIP`)
+
+Frame 02 ("Swing to hit") and the Level 2 card in the Levels section play one clip: `public/video/level2-demo.mp4` (H.264,
+720p), `level2-demo.webm` (VP9, offered first) and `level2-demo.jpg` (poster). It is scripted footage from the Unity Editor, and
+the page says so on the clip ("Scripted demo footage recorded in the Unity Editor (not a live player)", with the level and the
+guardian's name from `story.json`). How it was recorded and encoded, and how to swap in real Quest footage:
+`docs/demo-clip.md`.
+
+- `webm` (optional): a VP9 copy, tried before the MP4.
+- `seconds` (optional): how long the walkthrough stays on that frame (the clip's length) instead of 6 s.
+- `credit: "demo"`: shows the demo credit line on the clip.
+
+Playback rules (`components/ui/DemoVideo.jsx`, `lib/videoCoordinator.js`): muted, looping, inline; it plays only while it is on
+screen (and, in the walkthrough, the frame on show). Only one clip plays at a time. It never starts by itself under reduced motion,
+Calm mode or Data Saver: the poster shows with a Play button instead. Every clip has its own play / pause button. A missing file,
+or one that fails to load, shows the placeholder card in the same box.

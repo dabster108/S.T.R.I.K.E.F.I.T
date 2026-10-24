@@ -1,0 +1,19 @@
+{
+  "source": "CinematicCapture log of the recorded take (2026-10-23 21:53, Captures/Demo/level2_demo_raw.mp4). Clip time = game time - 15.75 s (recording start). Damage values are the logged ones.",
+  "durationSeconds": 21,
+  "level": "Medium",
+  "guardian": "The Crimson Warden",
+  "markers": [
+    { "t": 0.0,   "type": "start",      "label": "Fight starts" },
+    { "t": 3.0,   "type": "warning",    "label": "Slam wind-up" },
+    { "t": 4.4,   "type": "dodge",      "label": "Sidestep" },
+    { "t": 4.63,  "type": "hit",        "label": "Medium hit, 18.9", "chip": "Medium hit 18.9, then full power 28.5" },
+    { "t": 4.83,  "type": "hit",        "label": "Full-power hit, 28.5" },
+    { "t": 8.2,   "type": "guard",      "label": "Guard raised", "chip": "Guard raised" },
+    { "t": 8.93,  "type": "guardedHit", "label": "Guarded hit, 7.2", "chip": "Guarded hit 7.2" },
+    { "t": 11.8,  "type": "clash",      "label": "Clash", "chip": "Weapons clash" },
+    { "t": 12.87, "type": "warning",    "label": "Counter attack" },
+    { "t": 17.33, "type": "hit",        "label": "Final full-power hit, 28.2", "chip": "Full-power hit 28.2" },
+    { "t": 17.8,  "type": "low",        "label": "12 % health left" }
+  ]
+}

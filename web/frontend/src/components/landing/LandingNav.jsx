@@ -40,7 +40,7 @@ function useActiveSection() {
 export function Brand() {
   return (
     <span className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent)] text-sm font-extrabold text-white shadow-[var(--shadow-glow)]">SF</span>
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent)] text-sm font-extrabold text-white shadow-[var(--shadow-glow)]" aria-hidden>SF</span>
       <span className="text-[0.95rem] font-extrabold tracking-tight text-[var(--ink)]">STRIKEFIT</span>
     </span>
   );
@@ -74,30 +74,34 @@ export default function LandingNav({ live }) {
   return (
     <header ref={header} className="site-nav sticky top-0 z-40 isolate">
       <div className="mx-auto flex h-[var(--nav-h)] max-w-6xl items-center gap-3 px-4 sm:gap-6 sm:px-6">
-        <a href="#top" className="press rounded-xl" aria-label="STRIKEFIT, back to top">
+        <a href="#top" className="press rounded-xl">
           <Brand />
+          <span className="sr-only">, back to top</span>
         </a>
-        <nav aria-label="Sections" className="hidden flex-1 items-center justify-center gap-5 lg:flex xl:gap-7">
+        <nav aria-label="Sections" className="hidden flex-1 items-center justify-center gap-4 lg:flex xl:gap-6">
           {SECTIONS.map(([id, label]) => (
             <a
               key={id}
               href={`#${id}`}
               aria-current={active === id ? "true" : undefined}
-              className={`nav-link rounded text-sm font-semibold transition-colors hover:text-[var(--accent)] ${active === id ? "text-[var(--accent)]" : "text-[var(--ink-secondary)]"}`}
+              className={`nav-link whitespace-nowrap rounded text-sm font-semibold transition-colors hover:text-[var(--accent)] ${active === id ? "text-[var(--accent)]" : "text-[var(--ink-secondary)]"}`}
             >
               {label}
             </a>
           ))}
+          <Link to="/practice" className="nav-link whitespace-nowrap rounded text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:text-[var(--accent)]">
+            Practice
+          </Link>
           <Link to="/monsters" className="nav-link hidden rounded text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:text-[var(--accent)] xl:inline">
             Monsters
           </Link>
         </nav>
         <div className="ml-auto flex items-center gap-2 lg:ml-0">
-          <Link to="/dashboard/live" className={buttonClass("secondary", "md", "max-sm:hidden")}>
+          <Link to="/dashboard/live" className={buttonClass("secondary", "md", "whitespace-nowrap max-sm:hidden")}>
             <span className={`h-2 w-2 rounded-full ${live ? "status-live bg-[var(--good)]" : "bg-[var(--border-strong)]"}`} aria-hidden />
             Watch Live
           </Link>
-          <Link to="/dashboard" className={buttonClass("primary", "md")}>
+          <Link to="/dashboard" className={buttonClass("primary", "md", "whitespace-nowrap")}>
             <span className="sm:hidden">Dashboard</span>
             <span className="hidden sm:inline">Open Dashboard</span>
           </Link>
@@ -129,6 +133,9 @@ export default function LandingNav({ live }) {
               {label}
             </a>
           ))}
+          <Link to="/practice" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]">
+            Practice your swing
+          </Link>
           <Link to="/monsters" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]">
             Monsters
           </Link>

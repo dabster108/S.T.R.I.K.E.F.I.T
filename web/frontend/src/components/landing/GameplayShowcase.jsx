@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { SHOWCASE_SHOTS, shotType } from "../../content/showcaseShots.js";
 import { useOnScreen, useReducedMotion } from "../../hooks/motion.js";
+import { demoCredit } from "../../lib/demoCredit.js";
+import DemoVideo from "../ui/DemoVideo.jsx";
 import Icon from "../ui/Icon.jsx";
 import { Reveal, SectionHead } from "./shared.jsx";
 
@@ -9,9 +11,8 @@ const CYCLE_MS = 6000; // time on each shot while auto-cycling
 const urlOf = (path) => (path ? BASE + path.replace(/^\//, "") : null);
 const srcOf = (shot) => urlOf(shot.path);
 
-// path -> "ok" | "missing". Checks off-DOM so a missing file never shows a broken image; a shot with no path is "missing" from the
-// start (it shows the empty-state card, with no network request). A video is checked with a HEAD request that must answer with a
-// video content type: a missing file on this site answers 200 with the HTML shell, which must not count as a clip.
+// Image path -> "ok" | "missing". Checks off-DOM so a missing file never shows a broken image; a shot with no path is "missing"
+// from the start (it shows the empty-state card, with no network request). Clips check themselves (DemoVideo).
 function useShotStatus(shots) {
   const [status, setStatus] = useState({});
   const key = shots.map((s) => `${shotType(s)}:${s.path || ""}`).join("|");
@@ -20,13 +21,7 @@ function useShotStatus(shots) {
     const set = (path, v) => alive && setStatus((s) => ({ ...s, [path]: v }));
     for (const shot of shots) {
       const src = srcOf(shot);
-      if (!src) continue;
-      if (shotType(shot) === "video") {
-        fetch(src, { method: "HEAD" })
-          .then((r) => set(shot.path, r.ok && /^video\//.test(r.headers.get("content-type") || "") ? "ok" : "missing"))
-          .catch(() => set(shot.path, "missing"));
-        continue;
-      }
+      if (!src || shotType(shot) === "video") continue;
       const img = new Image();
       img.onload = () => set(shot.path, img.naturalWidth > 0 ? "ok" : "missing");
       img.onerror = () => set(shot.path, "missing");
@@ -38,33 +33,6 @@ function useShotStatus(shots) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return status;
-}
-
-// A clip: muted, looping, inline (iOS), lazy (metadata only until it is the shot on show). It plays only while it is the active
-// shot, on screen, and the visitor has not asked for reduced motion; otherwise it sits on its poster with the browser's own controls.
-function ShotVideo({ shot, on, playing, reduced, index }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const v = ref.current;
-    if (!v) return;
-    if (playing && on) v.play().catch(() => {});
-    else v.pause();
-  }, [playing, on]);
-  return (
-    <video
-      ref={ref}
-      src={srcOf(shot)}
-      poster={urlOf(shot.poster) || undefined}
-      muted
-      loop
-      playsInline
-      controls={reduced}
-      preload={index === 0 || on ? "metadata" : "none"}
-      aria-label={on ? shot.alt : undefined}
-      aria-hidden={on ? undefined : true}
-      className="h-full w-full object-cover"
-    />
-  );
 }
 
 // The designed empty state for a frame that has no capture yet: a gradient frame around a soft grid, the frame number,
@@ -182,8 +150,18 @@ export default function GameplayShowcase() {
                 const on = i === active;
                 return (
                   <div key={s.title} className={`showcase-shot absolute inset-0 ${on ? "is-active" : ""}`} aria-hidden={!on}>
-                    {s.path && status[s.path] === "ok" && shotType(s) === "video" ? (
-                      <ShotVideo shot={s} on={on} playing={!reduced && !stopped && inView} reduced={reduced} index={i} />
+                    {s.path && shotType(s) === "video" ? (
+                      // muted loop; plays only while it is the shot on show and on screen, never by itself under reduced motion /
+                      // Calm mode / Data Saver; the empty-state card while the file is checked or if it is missing
+                      <DemoVideo
+                        mp4={s.path}
+                        webm={s.webm}
+                        poster={s.poster}
+                        label={s.alt}
+                        credit={s.credit === "demo" ? demoCredit() : null}
+                        active={on}
+                        fallback={<EmptyShot shot={s} index={i} count={SHOWCASE_SHOTS.length} />}
+                      />
                     ) : s.path && status[s.path] === "ok" ? (
                       <img src={srcOf(s)} alt={on ? s.alt : ""} className="h-full w-full object-cover" loading={i ? "lazy" : "eager"} decoding="async" />
                     ) : (
@@ -270,7 +248,7 @@ export default function GameplayShowcase() {
                           <span
                             key={active}
                             className="showcase-progress block h-full rounded-full bg-[var(--accent)]"
-                            style={{ animationDuration: `${CYCLE_MS}ms`, animationPlayState: running ? "running" : "paused" }}
+                            style={{ animationDuration: `${s.seconds ? s.seconds * 1000 : CYCLE_MS}ms`, animationPlayState: running ? "running" : "paused" }}
                             onAnimationEnd={() => select(active + 1)}
                           />
                         </span>
