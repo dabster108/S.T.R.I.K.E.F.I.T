@@ -35,7 +35,8 @@ in the config. Then open `src/content/showcaseShots.js` and, for that shot, set:
 - Clips: H.264 MP4, no audio track needed (they always play muted), 3–8 s, under 4 MB each. Loops automatically.
 - Prefer a clip over a GIF: a GIF cannot be paused for visitors who ask for reduced motion, and is several times larger.
 - A video only counts if the server answers with a `video/*` content type; a wrong file name falls back to the placeholder.
-- Clips load lazily: only metadata is fetched until that shot is on show, and they play only while on screen.
+- A clip on show downloads with the page, starts by itself and loops; scrolling does not stop it. A walkthrough frame that is not
+  on show fetches only its metadata.
 
 Check it with `npm run dev` and scroll to the section; each tab swaps the frame.
 
@@ -51,7 +52,9 @@ guardian's name from `story.json`). How it was recorded and encoded, and how to 
 - `seconds` (optional): how long the walkthrough stays on that frame (the clip's length) instead of 6 s.
 - `credit: "demo"`: shows the demo credit line on the clip.
 
-Playback rules (`components/ui/DemoVideo.jsx`, `lib/videoCoordinator.js`): muted, looping, inline; it plays only while it is on
-screen (and, in the walkthrough, the frame on show). Only one clip plays at a time. It never starts by itself under reduced motion,
-Calm mode or Data Saver: the poster shows with a Play button instead. Every clip has its own play / pause button. A missing file,
-or one that fails to load, shows the placeholder card in the same box.
+Playback rules (`components/ui/DemoVideo.jsx`, `lib/videoCoordinator.js`): muted, looping, inline, and continuous like a product
+page's hero clip: it starts as soon as the page has it (in the walkthrough, while its frame is on show) and keeps playing while the
+visitor scrolls. Every clip has its own play / pause button; a pause lasts until Play is pressed, and pressing Play on one clip pauses
+the clip the visitor started before. "Expand" takes over from the page copy while it is open. It never starts by itself under reduced
+motion, Calm mode or Data Saver: the poster shows with a Play button instead, and only the metadata is fetched. A missing file, or
+one that fails to load, shows the placeholder card in the same box.
