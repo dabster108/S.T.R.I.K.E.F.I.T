@@ -235,10 +235,17 @@ function parseArgs(argv) {
   );
 }
 
-module.exports = { runFight, parseArgs, assertSafeTarget, mulberry32, CFG };
+// The command line's options: never the seed script's name exemption (a typed --allow-any-name must not switch the ZZTEST rule off).
+function cliOptions(argv) {
+  const args = parseArgs(argv);
+  delete args.allowAnyName;
+  return args;
+}
+
+module.exports = { runFight, parseArgs, cliOptions, assertSafeTarget, mulberry32, CFG };
 
 if (require.main === module) {
-  const args = parseArgs(process.argv.slice(2));
+  const args = cliOptions(process.argv.slice(2));
   const run = args.scenario ? require("./scenarios").runScenario(String(args.scenario), args) : runFight(args);
   run.catch((err) => {
     console.error("\n[sim] failed:", err.message);
