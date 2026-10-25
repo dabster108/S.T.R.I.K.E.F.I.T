@@ -19,11 +19,6 @@ export function release(el) {
   if (owner === el) owner = null;
 }
 
-/** Another clip is playing right now. */
-export function otherPlaying(el) {
-  return owner !== null && owner !== el && !owner.paused;
-}
-
 /** navigator.connection.saveData (Chrome / Android "Data Saver", "Lite mode"). */
 export function saveDataOn(nav = globalThis.navigator) {
   return Boolean(nav && nav.connection && nav.connection.saveData);
