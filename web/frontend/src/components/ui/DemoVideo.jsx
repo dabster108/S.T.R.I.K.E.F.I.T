@@ -21,23 +21,6 @@ function checkClip(src) {
   return checks.get(src);
 }
 
-// On screen = at least 40 % visible (a clip half scrolled past stops).
-function useVisible(threshold = 0.4) {
-  const [el, setEl] = useState(null);
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    if (!el) return undefined;
-    if (typeof IntersectionObserver === "undefined") {
-      setOn(true);
-      return undefined;
-    }
-    const io = new IntersectionObserver(([it]) => setOn(it.isIntersecting && it.intersectionRatio >= threshold), { threshold: [0, threshold, 1] });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [el, threshold]);
-  return [setEl, on];
-}
-
 /**
  * A muted, looping demo clip that fills its (fixed-ratio) parent.
  *   - plays only while on screen and `active`, one clip per page at a time (lib/videoCoordinator.js);
@@ -53,7 +36,6 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
   const [status, setStatus] = useState("checking");
   const [choice, setChoice] = useState(null);
   const [playing, setPlaying] = useState(false);
-  const [boxRef, onScreen] = useVisible();
   const ref = useRef(null);
   const src = urlOf(mp4);
 
@@ -102,7 +84,7 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
   const failed = (e) => e.target === e.currentTarget && setStatus("missing");
 
   return (
-    <div ref={boxRef} className={`absolute inset-0 ${className}`}>
+    <div className={`absolute inset-0 ${className}`}>
       {status !== "ok" ? (
         fallback
       ) : (
