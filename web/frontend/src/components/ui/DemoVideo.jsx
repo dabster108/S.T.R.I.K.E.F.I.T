@@ -71,10 +71,10 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
     };
   }, [src]);
 
-  // the visitor's choice lasts until the clip leaves the screen or stops being the active one
+  // the visitor's choice lasts until the clip stops being the active one (the larger copy opened over it)
   useEffect(() => {
-    if (!onScreen || !active) setChoice(null);
-  }, [onScreen, active]);
+    if (!active) setChoice(null);
+  }, [active]);
 
   useEffect(() => {
     const v = ref.current;
