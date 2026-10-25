@@ -68,7 +68,7 @@ async function runFight(opts = {}) {
   const FAST = Boolean(opts.fast);
   const KEEP = Boolean(opts.keep);
   const quiet = Boolean(opts.quiet);
-  assertSafeTarget(BASE, PLAYER);
+  assertSafeTarget(BASE, PLAYER, process.env, { allowAnyName: opts.allowAnyName === true });
 
   const cfg = CFG[LEVEL];
   const attacks = Object.entries(ATTACK_TABLE.levels[LEVEL]).map(([name, a]) => ({ name, ...a }));
