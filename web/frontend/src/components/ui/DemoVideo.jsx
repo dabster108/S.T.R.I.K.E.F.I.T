@@ -60,7 +60,7 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
 
   useEffect(() => {
     const v = ref.current;
-    if (!v || status !== "ok") return;
+    if (!v || status === "missing") return;
     v.muted = true; // React does not always set the attribute; autoplay needs the property
     if (shouldPlay({ active, choice, reduced, saveData })) {
       if (choice === "play") claim(v);
@@ -74,7 +74,7 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
   }, [status]);
 
   useEffect(() => {
-    if (onVideoRef) onVideoRef(status === "ok" ? ref.current : null);
+    if (onVideoRef) onVideoRef(status !== "missing" ? ref.current : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
@@ -86,7 +86,7 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
 
   return (
     <div className={`absolute inset-0 ${className}`}>
-      {status !== "ok" ? (
+      {status === "missing" ? (
         fallback
       ) : (
         <>
