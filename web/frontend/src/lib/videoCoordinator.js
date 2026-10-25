@@ -1,9 +1,9 @@
-// One clip at a time on a page, and when a clip may start by itself. Pure (the elements only need play / pause / paused), so the
-// rules are unit tested; components/ui/DemoVideo.jsx is the one caller.
+// When a clip plays, and which one has the page when the visitor picks one. Pure (the elements only need play / pause / paused),
+// so the rules are unit tested; components/ui/DemoVideo.jsx is the one caller.
 //
-//   - A clip the visitor starts (Play button) takes the page: whatever else was playing is paused.
-//   - A clip may start by itself only when it is on screen, autoplay is allowed, and no other clip is playing (an autoplaying clip
-//     never interrupts one the visitor is watching).
+//   - Every active clip starts by itself, muted, and loops for as long as the page is open (like a product page's hero clip).
+//     Scrolling does not stop it; the browser already throttles off-screen muted video.
+//   - A clip the visitor starts (Play button) takes the page: the clip the visitor last started is paused.
 //   - Autoplay is off under reduced motion (the OS setting or the site's Calm mode) and when the browser asks to save data.
 
 let owner = null;
