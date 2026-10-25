@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "../../hooks/motion.js";
-import { claim, otherPlaying, release, saveDataOn, shouldPlay } from "../../lib/videoCoordinator.js";
+import { claim, release, saveDataOn, shouldPlay } from "../../lib/videoCoordinator.js";
 import Icon from "./Icon.jsx";
 
 const BASE = import.meta.env.BASE_URL;
@@ -62,8 +62,8 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
     const v = ref.current;
     if (!v || status !== "ok") return;
     v.muted = true; // React does not always set the attribute; autoplay needs the property
-    if (shouldPlay({ active, choice, reduced, saveData, othersPlaying: otherPlaying(v) })) {
-      claim(v);
+    if (shouldPlay({ active, choice, reduced, saveData })) {
+      if (choice === "play") claim(v);
       v.play().catch(() => {});
     } else if (!v.paused) v.pause();
   }, [status, active, choice, reduced, saveData]);
