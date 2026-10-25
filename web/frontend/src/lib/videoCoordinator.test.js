@@ -35,15 +35,14 @@ test("autoplay: off under reduced motion / Calm mode and Data Saver", () => {
   assert.equal(saveDataOn(undefined), false);
 });
 
-test("shouldPlay: on screen and active only; the visitor's choice wins; autoplay never interrupts another clip", () => {
-  const base = { active: true, onScreen: true, choice: null, reduced: false, saveData: false, othersPlaying: false };
+test("shouldPlay: active only, wherever it is on the page; the visitor's choice wins; autoplay never interrupts another clip", () => {
+  const base = { active: true, choice: null, reduced: false, saveData: false, othersPlaying: false };
   assert.equal(shouldPlay(base), true);
-  assert.equal(shouldPlay({ ...base, onScreen: false }), false);
   assert.equal(shouldPlay({ ...base, active: false }), false);
   assert.equal(shouldPlay({ ...base, othersPlaying: true }), false);
   assert.equal(shouldPlay({ ...base, reduced: true }), false);
   assert.equal(shouldPlay({ ...base, saveData: true }), false);
   assert.equal(shouldPlay({ ...base, reduced: true, choice: "play" }), true);
   assert.equal(shouldPlay({ ...base, choice: "pause" }), false);
-  assert.equal(shouldPlay({ ...base, onScreen: false, choice: "play" }), false);
+  assert.equal(shouldPlay({ ...base, active: false, choice: "play" }), false);
 });

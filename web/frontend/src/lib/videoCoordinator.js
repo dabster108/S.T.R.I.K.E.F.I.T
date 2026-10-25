@@ -37,8 +37,8 @@ export function autoplayAllowed({ reduced, saveData }) {
  * Whether a clip should be playing now.
  *   choice: null (no choice yet), "play" or "pause" (the visitor pressed the button)
  */
-export function shouldPlay({ active, onScreen, choice, reduced, saveData, othersPlaying }) {
-  if (!active || !onScreen) return false;
+export function shouldPlay({ active, choice, reduced, saveData, othersPlaying }) {
+  if (!active) return false;
   if (choice === "pause") return false;
   if (choice === "play") return true;
   return autoplayAllowed({ reduced, saveData }) && !othersPlaying;
