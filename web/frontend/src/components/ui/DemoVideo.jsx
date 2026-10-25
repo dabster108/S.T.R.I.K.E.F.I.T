@@ -80,11 +80,11 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
     const v = ref.current;
     if (!v || status !== "ok") return;
     v.muted = true; // React does not always set the attribute; autoplay needs the property
-    if (shouldPlay({ active, onScreen, choice, reduced, saveData, othersPlaying: otherPlaying(v) })) {
+    if (shouldPlay({ active, choice, reduced, saveData, othersPlaying: otherPlaying(v) })) {
       claim(v);
       v.play().catch(() => {});
     } else if (!v.paused) v.pause();
-  }, [status, active, onScreen, choice, reduced, saveData]);
+  }, [status, active, choice, reduced, saveData]);
 
   useEffect(() => {
     const v = ref.current;
