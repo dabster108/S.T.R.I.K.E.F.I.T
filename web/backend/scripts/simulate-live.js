@@ -51,11 +51,12 @@ function mulberry32(seed) {
   };
 }
 
-function assertSafeTarget(base, player, env = process.env) {
+// allowAnyName: only the demo seed script (scripts/seed-demo.js) passes it, to post its named demo players; the host rule still holds.
+function assertSafeTarget(base, player, env = process.env, { allowAnyName = false } = {}) {
   const host = new URL(base).hostname;
   const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
   if (!local && env.ALLOW_PROD_DB !== "1") throw new Error(`refusing to post to ${host}: only this machine is allowed (ALLOW_PROD_DB=1 to override)`);
-  if (!/^ZZTEST/.test(player)) throw new Error(`player name "${player}" must start with ZZTEST so the test rows can be found and removed`);
+  if (!allowAnyName && !/^ZZTEST/.test(player)) throw new Error(`player name "${player}" must start with ZZTEST so the test rows can be found and removed`);
 }
 
 async function runFight(opts = {}) {
