@@ -22,11 +22,15 @@ function checkClip(src) {
 }
 
 /**
- * A muted, looping demo clip that fills its (fixed-ratio) parent.
- *   - plays only while on screen and `active`, one clip per page at a time (lib/videoCoordinator.js);
- *   - no autoplay under reduced motion, Calm mode or Data Saver: the poster shows with a Play button;
- *   - a play / pause button (keyboard: Tab, then Enter or Space); out of the tab order while not `active` (a hidden walkthrough shot);
- *   - while the file is checked, and if it is missing or fails to load, `fallback` shows in the same box (no layout shift).
+ * A muted demo clip that fills its (fixed-ratio) parent and, like a product page's hero clip, starts by itself and loops for as long
+ * as the page is open.
+ *   - downloads with the page (preload="auto") and starts as soon as it can (native autoplay); scrolling never stops it;
+ *   - every active clip on the page plays; one the visitor starts with Play pauses the one they started before
+ *     (lib/videoCoordinator.js); the "Expand" copy takes over while it is open (the page copy is not `active`);
+ *   - no autoplay under reduced motion, Calm mode or Data Saver: the poster shows with a Play button and nothing preloads;
+ *   - a play / pause button (keyboard: Tab, then Enter or Space); a pause lasts until Play is pressed; out of the tab order while
+ *     not `active`;
+ *   - the clip shows at once while the file is checked; if it is missing or fails to load, `fallback` shows in the same box.
  * mp4 / webm / poster are paths under public/. `label` is the clip's text alternative, `credit` a short line shown on the clip,
  * onStatus("checking" | "ok" | "missing") lets the parent show things that only make sense with a real clip.
  */
