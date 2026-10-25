@@ -51,11 +51,12 @@ function mulberry32(seed) {
   };
 }
 
-function assertSafeTarget(base, player, env = process.env) {
+// allowAnyName: only the demo seed script (scripts/seed-demo.js) passes it, to post its named demo players; the host rule still holds.
+function assertSafeTarget(base, player, env = process.env, { allowAnyName = false } = {}) {
   const host = new URL(base).hostname;
   const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
   if (!local && env.ALLOW_PROD_DB !== "1") throw new Error(`refusing to post to ${host}: only this machine is allowed (ALLOW_PROD_DB=1 to override)`);
-  if (!/^ZZTEST/.test(player)) throw new Error(`player name "${player}" must start with ZZTEST so the test rows can be found and removed`);
+  if (!allowAnyName && !/^ZZTEST/.test(player)) throw new Error(`player name "${player}" must start with ZZTEST so the test rows can be found and removed`);
 }
 
 async function runFight(opts = {}) {
@@ -67,7 +68,7 @@ async function runFight(opts = {}) {
   const FAST = Boolean(opts.fast);
   const KEEP = Boolean(opts.keep);
   const quiet = Boolean(opts.quiet);
-  assertSafeTarget(BASE, PLAYER);
+  assertSafeTarget(BASE, PLAYER, process.env, { allowAnyName: opts.allowAnyName === true });
 
   const cfg = CFG[LEVEL];
   const attacks = Object.entries(ATTACK_TABLE.levels[LEVEL]).map(([name, a]) => ({ name, ...a }));
@@ -234,10 +235,17 @@ function parseArgs(argv) {
   );
 }
 
-module.exports = { runFight, parseArgs, assertSafeTarget, mulberry32, CFG };
+// The command line's options: never the seed script's name exemption (a typed --allow-any-name must not switch the ZZTEST rule off).
+function cliOptions(argv) {
+  const args = parseArgs(argv);
+  delete args.allowAnyName;
+  return args;
+}
+
+module.exports = { runFight, parseArgs, cliOptions, assertSafeTarget, mulberry32, CFG };
 
 if (require.main === module) {
-  const args = parseArgs(process.argv.slice(2));
+  const args = cliOptions(process.argv.slice(2));
   const run = args.scenario ? require("./scenarios").runScenario(String(args.scenario), args) : runFight(args);
   run.catch((err) => {
     console.error("\n[sim] failed:", err.message);

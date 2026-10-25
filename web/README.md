@@ -29,6 +29,11 @@ npm run dev:db              # run it in this terminal (Ctrl+C stops it); npm run
 npm run dev:seed            # seed an already running dev backend
 npm run dev:seed-study      # 10 ZZTEST study participants (consent, pre/post answers, fights) for the Lab's study section
                             #   -- --reset removes them first; refuses anything but the local dev database; add --url for other ports
+
+# named demo players for a presentation (Dikshanta, Gaurav, Pratyush: 4-5 simulated fights each over the last ten days)
+cd web/backend && node scripts/seed-demo.js --url http://localhost:4000
+#   --remove deletes exactly what it added (only fights marked "simulated"); --force adds them even if the player exists
+#   a deployed backend needs ALLOW_PROD_DB=1 in front; this script is the only one allowed to use names without ZZTEST
 ```
 
 **Demo mode** (for the viva): open any page with `?demo=1` (or press "Demo mode" in a footer). The whole site then runs on recorded data

@@ -62,6 +62,12 @@ The script prints each size, codec and resolution, and fails if a limit is broke
 See `web/frontend/src/content/README.md`. `DEMO_CLIP` in `src/content/showcaseShots.js` drives frame 02 of "Inside the headset" and
 the Level 2 card.
 
+The clip plays the way a product page's hero clip does: muted, looping, and started by the browser as soon as the page has it
+(`autoPlay`, `preload="auto"`), so it is already moving when the visitor scrolls to it and keeps going while they scroll on. The
+file is encoded with `+faststart`, so playback begins before the whole file has arrived. Visitors can pause it (the pause lasts until
+they press Play) or open the larger "Expand" copy. With reduced motion, the site's Calm mode or Data Saver on, it does not start by
+itself: the poster shows with a Play button and only the metadata is fetched.
+
 ## Replacing it with real Quest footage
 
 1. Record on the Quest (casting or the headset's own recorder), trim it to about 20 s, and keep it 16:9.

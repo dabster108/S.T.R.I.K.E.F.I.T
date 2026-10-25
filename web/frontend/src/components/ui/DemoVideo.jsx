@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "../../hooks/motion.js";
-import { claim, otherPlaying, release, saveDataOn, shouldPlay } from "../../lib/videoCoordinator.js";
+import { autoplayAllowed, claim, release, saveDataOn, shouldPlay } from "../../lib/videoCoordinator.js";
 import Icon from "./Icon.jsx";
 
 const BASE = import.meta.env.BASE_URL;
@@ -21,29 +21,16 @@ function checkClip(src) {
   return checks.get(src);
 }
 
-// On screen = at least 40 % visible (a clip half scrolled past stops).
-function useVisible(threshold = 0.4) {
-  const [el, setEl] = useState(null);
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    if (!el) return undefined;
-    if (typeof IntersectionObserver === "undefined") {
-      setOn(true);
-      return undefined;
-    }
-    const io = new IntersectionObserver(([it]) => setOn(it.isIntersecting && it.intersectionRatio >= threshold), { threshold: [0, threshold, 1] });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [el, threshold]);
-  return [setEl, on];
-}
-
 /**
- * A muted, looping demo clip that fills its (fixed-ratio) parent.
- *   - plays only while on screen and `active`, one clip per page at a time (lib/videoCoordinator.js);
- *   - no autoplay under reduced motion, Calm mode or Data Saver: the poster shows with a Play button;
- *   - a play / pause button (keyboard: Tab, then Enter or Space); out of the tab order while not `active` (a hidden walkthrough shot);
- *   - while the file is checked, and if it is missing or fails to load, `fallback` shows in the same box (no layout shift).
+ * A muted demo clip that fills its (fixed-ratio) parent and, like a product page's hero clip, starts by itself and loops for as long
+ * as the page is open.
+ *   - downloads with the page (preload="auto") and starts as soon as it can (native autoplay); scrolling never stops it;
+ *   - every active clip on the page plays; one the visitor starts with Play pauses the one they started before
+ *     (lib/videoCoordinator.js); the "Expand" copy takes over while it is open (the page copy is not `active`);
+ *   - no autoplay under reduced motion, Calm mode or Data Saver: the poster shows with a Play button and nothing preloads;
+ *   - a play / pause button (keyboard: Tab, then Enter or Space); a pause lasts until Play is pressed; out of the tab order while
+ *     not `active`;
+ *   - the clip shows at once while the file is checked; if it is missing or fails to load, `fallback` shows in the same box.
  * mp4 / webm / poster are paths under public/. `label` is the clip's text alternative, `credit` a short line shown on the clip,
  * onStatus("checking" | "ok" | "missing") lets the parent show things that only make sense with a real clip.
  */
@@ -53,7 +40,6 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
   const [status, setStatus] = useState("checking");
   const [choice, setChoice] = useState(null);
   const [playing, setPlaying] = useState(false);
-  const [boxRef, onScreen] = useVisible();
   const ref = useRef(null);
   const src = urlOf(mp4);
 
@@ -71,20 +57,20 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
     };
   }, [src]);
 
-  // the visitor's choice lasts until the clip leaves the screen or stops being the active one
+  // the visitor's choice lasts until the clip stops being the active one (the larger copy opened over it)
   useEffect(() => {
-    if (!onScreen || !active) setChoice(null);
-  }, [onScreen, active]);
+    if (!active) setChoice(null);
+  }, [active]);
 
   useEffect(() => {
     const v = ref.current;
-    if (!v || status !== "ok") return;
+    if (!v || status === "missing") return;
     v.muted = true; // React does not always set the attribute; autoplay needs the property
-    if (shouldPlay({ active, onScreen, choice, reduced, saveData, othersPlaying: otherPlaying(v) })) {
-      claim(v);
+    if (shouldPlay({ active, choice, reduced, saveData })) {
+      if (choice === "play") claim(v);
       v.play().catch(() => {});
     } else if (!v.paused) v.pause();
-  }, [status, active, onScreen, choice, reduced, saveData]);
+  }, [status, active, choice, reduced, saveData]);
 
   useEffect(() => {
     const v = ref.current;
@@ -92,7 +78,7 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
   }, [status]);
 
   useEffect(() => {
-    if (onVideoRef) onVideoRef(status === "ok" ? ref.current : null);
+    if (onVideoRef) onVideoRef(status !== "missing" ? ref.current : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
@@ -100,10 +86,11 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
   // Only the video's own error (a decode failure) or the last source's (every source failed). React hands a <source>'s error to
   // the <video>'s onError as well, and the WebM source failing is normal where WebM is not served or not supported.
   const failed = (e) => e.target === e.currentTarget && setStatus("missing");
+  const auto = active && autoplayAllowed({ reduced, saveData });
 
   return (
-    <div ref={boxRef} className={`absolute inset-0 ${className}`}>
-      {status !== "ok" ? (
+    <div className={`absolute inset-0 ${className}`}>
+      {status === "missing" ? (
         fallback
       ) : (
         <>
@@ -112,7 +99,8 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
             muted
             loop
             playsInline
-            preload="none" // nothing is fetched until it plays (in view, or on Play); the poster shows meanwhile
+            autoPlay={auto}
+            preload={auto ? "auto" : "metadata"} // with autoplay off only the first frame's data is fetched until Play
             poster={urlOf(poster) || undefined}
             aria-label={label}
             onPlay={() => setPlaying(true)}

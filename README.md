@@ -469,6 +469,7 @@ What the dashboard does:
 - **Scoreboard.** Best score per player, by week, all time or level.
 - **Survey.** A short rating form for players after a session.
 - **Practice (`/practice`).** Try the swing-to-damage rule without a headset, with phone motion, a mouse or touch. Nothing is sent.
+- **Landing demo clip.** A scripted Level 2 fight that starts by itself, muted, and loops, with a pause button, a larger "Expand" view and a timeline of the fight's moments (no autoplay under reduced motion or Calm mode).
 - Also: session history, player pages, compare, analytics, calendar and weekly recap, CSV export and the story page.
 
 The backend is Node and Express on Render, storing every session and event in Postgres (hosted on Layerbase, earlier on Neon). The dashboard is React on Vercel and listens to the backend over Server-Sent Events.
