@@ -96,7 +96,7 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
             loop
             playsInline
             autoPlay={auto}
-            preload="none" // nothing is fetched until it plays (in view, or on Play); the poster shows meanwhile
+            preload={auto ? "auto" : "metadata"} // with autoplay off only the first frame's data is fetched until Play
             poster={urlOf(poster) || undefined}
             aria-label={label}
             onPlay={() => setPlaying(true)}
