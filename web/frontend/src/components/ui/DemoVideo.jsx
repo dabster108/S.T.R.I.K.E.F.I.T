@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "../../hooks/motion.js";
-import { claim, release, saveDataOn, shouldPlay } from "../../lib/videoCoordinator.js";
+import { autoplayAllowed, claim, release, saveDataOn, shouldPlay } from "../../lib/videoCoordinator.js";
 import Icon from "./Icon.jsx";
 
 const BASE = import.meta.env.BASE_URL;
@@ -82,6 +82,7 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
   // Only the video's own error (a decode failure) or the last source's (every source failed). React hands a <source>'s error to
   // the <video>'s onError as well, and the WebM source failing is normal where WebM is not served or not supported.
   const failed = (e) => e.target === e.currentTarget && setStatus("missing");
+  const auto = active && autoplayAllowed({ reduced, saveData });
 
   return (
     <div className={`absolute inset-0 ${className}`}>
@@ -94,6 +95,7 @@ export default function DemoVideo({ mp4, webm, poster, label, credit, active = t
             muted
             loop
             playsInline
+            autoPlay={auto}
             preload="none" // nothing is fetched until it plays (in view, or on Play); the poster shows meanwhile
             poster={urlOf(poster) || undefined}
             aria-label={label}
