@@ -310,25 +310,10 @@ The game is built in Unity 6 with the Universal Render Pipeline, targeting Meta 
 
 Monster animation uses Humanoid-retargeted Mixamo clips (idle, several attack variants, defend, hit reaction and death), driven by Unity Animator Controllers. In Level 2, every attack starts from Idle on its own trigger and only Death can interrupt from any state, so a player's hit can never cancel a monster's swing halfway through.
 
-```mermaid
-flowchart LR
-    C[Touch controllers] --> PC[PlayerCombat<br/>swing speed per hand]
-    PC --> HD[HitDetection<br/>speed gate + damage]
-    HD --> MC[MonsterController]
-    MC --> MH[MonsterHealth]
-    AI[MonsterAI<br/>attack table / tiers, defend] --> MC
-    MT[MonsterTactics<br/>swing prediction, guard<br/>Levels 2-3] --> AI
-    EX[MonsterExpertBrain<br/>head forecast, Level 3 Expert only] -.-> AI
-    FC[MotionForecaster<br/>ONNX, Inference Engine] --> EX
-    MC --> MA[MonsterAnimator]
-    MC -->|attack hit| PH[PlayerHealth]
-    BM[BattleManager<br/>start, spawn, victory, defeat] --> MC
-    BM --> UI[CombatUIController<br/>HUD + panels]
-    BM --> SR[SessionReporter]
-    SR -->|HTTPS| BE[Node backend<br/>Render]
-    BE --> PG[(Postgres<br/>hosted)]
-    BE -->|Server-Sent Events| DB[React dashboard<br/>Vercel]
-```
+<p align="center">
+  <a href="docs/images/systemarchitecture.png"><img src="docs/images/systemarchitecture.png" alt="System architecture of the VR combat and fitness game: local Unity runtime on Meta Quest (VR input, player combat, game logic, combat state, session analytics) and deployed cloud infrastructure (Node.js backend, PostgreSQL, React dashboard on Vercel)" width="100%"></a>
+</p>
+<p align="center"><sub>Local Quest runtime and the deployed cloud side. Solid arrows are synchronous calls; dashed arrows are asynchronous events (hits and server-sent events). Click for full size.</sub></p>
 
 | Script | Responsibility |
 |---|---|
