@@ -380,6 +380,14 @@
 }
 
 /* ---------------------------------------------------------------- charts */
+.chart-shell {
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgb(37 99 235 / 0.03), transparent 34%);
+}
+.chart-shell-muted {
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgb(17 24 39 / 0.02), transparent 40%);
+}
 .chart-line {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
