@@ -2,18 +2,18 @@ import Icon from "../ui/Icon.jsx";
 import { formatPercent } from "../../lib/format.js";
 import { winRate as rateOf } from "../../lib/outcomes.js";
 import { useCountUp, useInView, useReducedMotion } from "../../hooks/motion.js";
+import DonutChart from "./DonutChart.jsx";
 
 // Victory / defeat share as one stacked bar (2px surface gap between segments)
 // with an icon + label legend so the split never relies on color alone.
 // The headline rate is the shared rule (lib/outcomes.js): victories / (victories + defeats). Abandoned fights are
 // not part of it; they get their own row and a grey segment so the bar still adds up to every fight.
 export default function OutcomeSplit({ victories, defeats, abandoned = 0, other = 0 }) {
-  const total = victories + defeats + abandoned + other;
   const segments = [
-    { key: "victory", label: "Victories", value: victories, bar: "bg-[var(--good)]", text: "text-[var(--good-ink)]", icon: "check" },
-    { key: "defeat", label: "Defeats", value: defeats, bar: "bg-[var(--bad)]", text: "text-[var(--bad)]", icon: "xCircle" },
-    { key: "abandoned", label: "Abandoned", value: abandoned, bar: "bg-gray-300", text: "text-[var(--muted)]", icon: "clock" },
-    { key: "other", label: "Other", value: other, bar: "bg-gray-200", text: "text-[var(--muted)]", icon: "clock" },
+    { key: "victory", label: "Victories", value: victories, color: "var(--good)", text: "text-[var(--good-ink)]", icon: "check" },
+    { key: "defeat", label: "Defeats", value: defeats, color: "var(--bad)", text: "text-[var(--bad)]", icon: "xCircle" },
+    { key: "abandoned", label: "Abandoned", value: abandoned, color: "#6b7280", text: "text-[var(--muted)]", icon: "clock" },
+    { key: "other", label: "Other", value: other, color: "#9ca3af", text: "text-[var(--muted)]", icon: "clock" },
   ].filter((s) => s.value > 0 || (s.key !== "other" && s.key !== "abandoned"));
 
   const winRate = rateOf(victories, defeats); // null when nothing was decided
@@ -29,16 +29,8 @@ export default function OutcomeSplit({ victories, defeats, abandoned = 0, other 
         <span className="text-xs font-semibold text-[var(--muted)]">win rate · decided fights</span>
       </div>
 
-      <div className="mt-4 flex h-3 w-full gap-[2px] overflow-hidden rounded-full bg-gray-100" role="img" aria-label={`${victories} victories, ${defeats} defeats, ${abandoned} abandoned`}>
-        {total > 0 &&
-          inView &&
-          segments
-            .filter((s) => s.value > 0)
-            .map((s, i) => (
-              <div key={s.key} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${(s.value / total) * 100}%` }} title={`${s.label}: ${s.value}`}>
-                <div className={`${s.bar} grow-x h-full w-full`} style={{ "--i": i * 2 }} />
-              </div>
-            ))}
+      <div className="mt-4">
+        {inView && <DonutChart segments={segments} ariaLabel={`${victories} victories, ${defeats} defeats, ${abandoned} abandoned`} />}
       </div>
 
       <p className="mt-3 text-xs font-medium text-[var(--muted)]">
