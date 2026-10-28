@@ -107,7 +107,7 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
 
         {geo.points.map((p) => {
           const last = p.i === geo.points.length - 1;
-          const on = active === p.i || (!active && last);
+          const on = active === p.i || (active === null && last);
           return (
             <g key={p.s.id}>
               {on && <circle cx={p.x} cy={p.y} r="11" fill="var(--accent)" opacity="0.16" />}
