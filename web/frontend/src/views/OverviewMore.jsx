@@ -176,12 +176,12 @@ export default function OverviewMore({ sessions, stats, levels, recs, trend, ope
         <Card className="overflow-hidden xl:col-span-4">
           <CardHeader title="Outcomes" subtitle="Victories vs defeats; abandoned fights shown apart" />
           <OutcomeSplit victories={stats.victories} defeats={stats.defeats} abandoned={stats.abandoned} other={stats.other} />
-          <dl className="grid grid-cols-2 gap-px border-t border-[var(--border)] bg-[var(--border)]">
+          <dl className="grid grid-cols-2 gap-2 border-t border-[var(--border)] bg-[var(--surface-muted)] p-3">
             {[
               ["Current streak", stats.currentStreak],
               ["Best streak", stats.bestStreak],
             ].map(([k, v]) => (
-              <div key={k} className="bg-[var(--surface)] px-5 py-3.5">
+              <div key={k} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
                 <dt className="t-kicker">{k}</dt>
                 <dd className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-[var(--ink)]">{v}</dd>
               </div>
