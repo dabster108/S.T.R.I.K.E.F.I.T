@@ -38,7 +38,7 @@ function ActivityCards() {
     <div className="grid gap-6 xl:grid-cols-12">
       <Card className="overflow-hidden xl:col-span-7">
         <CardHeader title="Sessions per day" subtitle="Fights started each day, last 14 days" />
-        <div className="px-3 pb-3 pt-4 sm:px-5">
+        <div className="chart-shell-muted px-3 pb-3 pt-4 sm:px-5">
           {error && !data ? (
             <EmptyState icon="clock" title="Activity will appear here" description="It loads as soon as the server answers." />
           ) : !data ? (
@@ -169,7 +169,7 @@ export default function OverviewMore({ sessions, stats, levels, recs, trend, ope
             title="Score trend"
             subtitle={trend.length ? `Last ${trend.length} battle${trend.length === 1 ? "" : "s"} · click a point for details` : "Per battle, oldest to newest"}
           />
-          <div className="px-3 pb-3 pt-4 sm:px-5">
+          <div className="chart-shell px-3 pb-3 pt-4 sm:px-5">
             <ScoreTrendChart sessions={trend} onSelect={(s) => openSession(s.id)} />
           </div>
         </Card>
