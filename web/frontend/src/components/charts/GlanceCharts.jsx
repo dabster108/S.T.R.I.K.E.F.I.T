@@ -67,6 +67,10 @@ export function OutcomeMeter({ stats }) {
         <span className="text-5xl font-extrabold leading-none tracking-tight tabular-nums text-[var(--ink)]">{winRateText(stats)}</span>
         <span className="text-sm font-semibold text-[var(--muted)]">win rate</span>
       </p>
+      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[var(--ink-secondary)]">
+        <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1">{formatNumber(stats.victories || 0)} wins</span>
+        <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1">{formatNumber(stats.defeats || 0)} losses</span>
+      </div>
       <p className="mt-1.5 text-xs font-medium text-[var(--muted)]">
         of {formatNumber(decided)} decided {decided === 1 ? "battle" : "battles"}
         {stats.abandoned ? `, ${formatNumber(stats.abandoned)} abandoned not counted` : ""}
