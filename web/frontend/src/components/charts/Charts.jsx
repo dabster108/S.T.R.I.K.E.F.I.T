@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { smoothPath } from "../../lib/effort.js";
 import { useElementWidth } from "./useElementWidth.js";
 
 // Multi-series charts in the same style as ScoreTrendChart: 10.5px muted tick
@@ -91,7 +92,21 @@ function SrTable({ caption, head, rows }) {
  * tooltip line. `exact` lists only the points at the hovered x ("—" for a series without one) instead of
  * each series' nearest point, for series that share an x scale but not a length.
  */
-export function LineChart({ series, height = 220, xFormat = fmtDefault, yFormat = fmtDefault, xTicks: xTicksProp, yDomain, caption = "Line chart", markers = "auto", step = false, exact = false }) {
+export function LineChart({
+  series,
+  height = 220,
+  xFormat = fmtDefault,
+  yFormat = fmtDefault,
+  xTicks: xTicksProp,
+  yDomain,
+  caption = "Line chart",
+  markers = "auto",
+  step = false,
+  exact = false,
+  curve = false,
+  dashedGrid = false,
+  filledMarkers = false,
+}) {
   const [ref, width] = useElementWidth();
   const [tip, setTip] = useState(null);
   const pad = { t: 14, r: 16, b: 28, l: 44 };
@@ -112,7 +127,9 @@ export function LineChart({ series, height = 220, xFormat = fmtDefault, yFormat 
   const allX = useMemo(() => [...new Set(xs)].sort((a, b) => a - b), [xs.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const path = (pts) =>
-    pts.map((p, i) => (i === 0 ? `M${sx(p.x)},${sy(p.y)}` : step ? `H${sx(p.x)}V${sy(p.y)}` : `L${sx(p.x)},${sy(p.y)}`)).join("");
+    curve && !step
+      ? smoothPath(pts.map((p) => ({ x: Number(sx(p.x).toFixed(1)), y: Number(sy(p.y).toFixed(1)) })))
+      : pts.map((p, i) => (i === 0 ? `M${sx(p.x)},${sy(p.y)}` : step ? `H${sx(p.x)}V${sy(p.y)}` : `L${sx(p.x)},${sy(p.y)}`)).join("");
 
   const showAt = (x) => {
     let nearest = null;
@@ -151,12 +168,23 @@ export function LineChart({ series, height = 220, xFormat = fmtDefault, yFormat 
         >
           {yTicks.map((t) => (
             <g key={t}>
-              <line x1={pad.l} x2={width - pad.r} y1={sy(t)} y2={sy(t)} stroke={t === y0 ? "var(--border-strong)" : "var(--grid)"} />
+              <line
+                x1={pad.l}
+                x2={width - pad.r}
+                y1={sy(t)}
+                y2={sy(t)}
+                stroke={dashedGrid || t === y0 ? "var(--border-strong)" : "var(--grid)"}
+                strokeDasharray={dashedGrid ? "4 5" : undefined}
+              />
               <text x={pad.l - 8} y={sy(t) + 3.5} textAnchor="end" fontSize="11" fill="var(--muted)" className="tabular-nums">
                 {yFormat(t)}
               </text>
             </g>
           ))}
+          {dashedGrid &&
+            xTicks.map((t) => (
+              <line key={`grid-${t}`} x1={sx(t)} x2={sx(t)} y1={pad.t} y2={pad.t + ih} stroke="var(--border-strong)" strokeDasharray="4 5" />
+            ))}
           {xTicks.map((t) => (
             <text key={t} x={sx(t)} y={height - 10} textAnchor="middle" fontSize="11" fill="var(--muted)">
               {xFormat(t)}
@@ -171,18 +199,22 @@ export function LineChart({ series, height = 220, xFormat = fmtDefault, yFormat 
               {(showMarkers || s.points.length === 1) &&
                 s.points.map((p, i) => {
                   const hot = tip?.rows.some((r) => r.p === p);
+                  const last = i === s.points.length - 1;
+                  const halo = hot || (filledMarkers && !tip && last);
                   return (
-                    <circle
-                      key={i}
-                      cx={sx(p.x)}
-                      cy={sy(p.y)}
-                      r={hot ? 5.5 : 4}
-                      fill={hot ? s.color : "var(--surface)"}
-                      stroke={s.color}
-                      strokeWidth={hot ? 2.5 : 2}
-                      className="dot-in"
-                      style={{ "--i": Math.min(i, 30) }}
-                    />
+                    <g key={i}>
+                      {halo && <circle cx={sx(p.x)} cy={sy(p.y)} r="11" fill={s.color} opacity="0.16" />}
+                      <circle
+                        cx={sx(p.x)}
+                        cy={sy(p.y)}
+                        r={halo ? 5 : 4}
+                        fill={filledMarkers || hot ? s.color : "var(--surface)"}
+                        stroke={filledMarkers ? "none" : s.color}
+                        strokeWidth={filledMarkers ? 0 : hot ? 2.5 : 2}
+                        className="dot-in"
+                        style={{ "--i": Math.min(i, 30) }}
+                      />
+                    </g>
                   );
                 })}
               {!showMarkers && tip?.rows.filter((r) => r.label === s.label && r.p).map((r) => (
