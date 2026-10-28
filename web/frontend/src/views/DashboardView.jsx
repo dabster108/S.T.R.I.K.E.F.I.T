@@ -86,15 +86,15 @@ function AtAGlance({ sessions, stats, levels, rangeLabel }) {
   const top = busiestPlayer(sessions);
   return (
     <Card className="overflow-hidden" aria-label="At a glance">
-      <CardHeader title={`At a glance · ${rangeLabel}`} subtitle="Point at a bar, or tab to a level, for its numbers" />
+      <CardHeader title={`At a glance · ${rangeLabel}`} subtitle="Outcome mix, win rate, and battle volume by level" />
       {sessions.length ? (
         <>
-          <div className="stagger grid divide-y divide-[var(--border)] lg:grid-cols-5 lg:divide-x lg:divide-y-0">
-            <div className="min-w-0 px-5 py-5 lg:col-span-2">
+          <div className="stagger grid divide-y divide-[var(--border)] lg:grid-cols-12 lg:divide-x lg:divide-y-0">
+            <div className="min-w-0 px-5 py-5 lg:col-span-4">
               <h3 className="t-kicker mb-4 text-[var(--ink-secondary)]">Outcomes</h3>
               <OutcomeMeter stats={stats} />
             </div>
-            <div className="min-w-0 px-5 py-5 lg:col-span-3">
+            <div className="min-w-0 px-5 py-5 lg:col-span-8">
               <h3 className="t-kicker mb-4 text-[var(--ink-secondary)]">Battles by level</h3>
               <LevelBars levels={levels} />
             </div>
