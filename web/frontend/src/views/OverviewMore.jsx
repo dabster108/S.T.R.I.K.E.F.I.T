@@ -5,7 +5,7 @@ import { useApi, useThrottledCallback } from "../hooks/useApi.js";
 import { useRecordFlags } from "../hooks/useRecordFlags.js";
 import { useMemo } from "react";
 import { useLiveMessages } from "../live/LiveProvider.jsx";
-import { BarChart } from "../components/charts/Charts.jsx";
+import { LineChart } from "../components/charts/Charts.jsx";
 import { LevelBadge } from "../components/ui/Badge.jsx";
 import { formatDuration, formatNumber, formatPercent, formatRelative } from "../lib/format.js";
 import { Card, CardHeader, SectionRule } from "../components/ui/Card.jsx";
@@ -48,10 +48,15 @@ function ActivityCards() {
               ))}
             </div>
           ) : days.some((d) => d.sessions) ? (
-            <BarChart
+            <LineChart
               caption="Sessions per day, last 14 days"
-              categories={days.map((d) => d.day.slice(5).replace("-", "/"))}
-              series={[{ key: "s", label: "Sessions", color: "var(--accent)", values: days.map((d) => d.sessions) }]}
+              curve
+              dashedGrid
+              filledMarkers
+              height={230}
+              xTicks={days.map((_, i) => i).filter((i) => i % Math.ceil(days.length / 6) === 0 || i === days.length - 1)}
+              xFormat={(x) => (days[x] ? days[x].day.slice(5).replace("-", "/") : "")}
+              series={[{ key: "s", label: "Sessions", color: "var(--accent)", points: days.map((d, i) => ({ x: i, y: d.sessions })) }]}
               yFormat={(v) => formatNumber(v)}
             />
           ) : (
