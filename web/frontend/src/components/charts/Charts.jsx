@@ -44,13 +44,13 @@ export function Tooltip({ tip, width }) {
   if (!tip) return null;
   return (
     <div
-      className="pointer-events-none absolute z-10 w-44 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-xs shadow-lg"
-      style={{ left: Math.min(Math.max(tip.x - 88, 0), Math.max(0, width - 176)), top: Math.max(0, tip.y - 12), transform: "translateY(-100%)" }}
+      className="pointer-events-none absolute z-10 w-48 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 text-xs shadow-lg"
+      style={{ left: Math.min(Math.max(tip.x - 96, 0), Math.max(0, width - 192)), top: Math.max(0, tip.y - 12), transform: "translateY(-100%)" }}
       role="status"
     >
-      {tip.title && <p className="mb-1 font-semibold text-[var(--muted)]">{tip.title}</p>}
+      {tip.title && <p className="mb-1.5 font-semibold text-[var(--muted)]">{tip.title}</p>}
       {tip.rows.map((r) => (
-        <div key={r.label}>
+        <div key={r.label} className="last:mb-0 mb-1">
           <p className="flex items-center gap-2">
             <span className="h-0.5 w-3 shrink-0 rounded-full" style={{ background: r.color }} aria-hidden />
             <span className="font-bold tabular-nums text-[var(--ink)]">{r.value}</span>
