@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatNumber, formatPercent } from "../../lib/format.js";
 import { levelName } from "../../lib/game.js";
+import DonutChart from "./DonutChart.jsx";
 
 // Outcome colours do a status job (victory / defeat), always with a text label beside them; "abandoned" is the neutral
 // non-result (gray on purpose, so it never reads as a third category). Validated with the dataviz palette script (light
@@ -51,13 +52,17 @@ function Segments({ counts, total, scale = 1, height = "h-3", onTip, name }) {
   );
 }
 
-/** Win rate as the headline, the outcome split as a meter, and the counts as labelled rows. */
+/** Win rate as the headline, with a donut split and counted legend. */
 export function OutcomeMeter({ stats }) {
-  const [tip, setTip] = useState(null);
-  const total = OUTCOMES.reduce((a, o) => a + (stats[o.key] || 0), 0);
   const decided = (stats.victories || 0) + (stats.defeats || 0);
+  const donut = OUTCOMES.filter((o) => o.key !== "abandoned" || stats.abandoned > 0).map((o) => ({
+    key: o.key,
+    label: o.label,
+    value: stats[o.key] || 0,
+    color: o.color,
+  }));
   return (
-    <div data-tip-root className="@container relative">
+    <div className="@container">
       <p className="flex items-baseline gap-2">
         <span className="text-5xl font-extrabold leading-none tracking-tight tabular-nums text-[var(--ink)]">{winRateText(stats)}</span>
         <span className="text-sm font-semibold text-[var(--muted)]">win rate</span>
@@ -66,24 +71,9 @@ export function OutcomeMeter({ stats }) {
         of {formatNumber(decided)} decided {decided === 1 ? "battle" : "battles"}
         {stats.abandoned ? `, ${formatNumber(stats.abandoned)} abandoned not counted` : ""}
       </p>
-      <div className="mt-5" role="img" aria-label={`Battle outcomes: ${OUTCOMES.map((o) => `${o.label} ${stats[o.key] || 0}`).join(", ")}`}>
-        <Segments counts={stats} total={total} height="h-3.5" onTip={setTip} />
+      <div className="mt-5">
+        <DonutChart ariaLabel={`Battle outcomes: ${donut.map((o) => `${o.label} ${o.value}`).join(", ")}`} segments={donut} />
       </div>
-      {/* labelled rows in a narrow panel, three cells once the panel has room for the full labels */}
-      <ul className="mt-4 grid gap-1.5 @xs:grid-cols-3 @xs:gap-2">
-        {OUTCOMES.map((o) => (
-          <li key={o.key} className="flex min-w-0 items-baseline justify-between gap-3 rounded-lg px-1 @xs:block @xs:rounded-xl @xs:border @xs:border-[var(--border)] @xs:px-3 @xs:py-2">
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-[var(--muted)] @xs:text-xs">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: o.color }} aria-hidden />
-              {o.label}
-            </p>
-            <p className="shrink-0 text-base font-extrabold tabular-nums text-[var(--ink)] @xs:mt-0.5 @xs:text-lg">
-              {formatNumber(stats[o.key] || 0)} <span className="text-xs font-semibold text-[var(--muted)]">{share(stats[o.key] || 0, total)}</span>
-            </p>
-          </li>
-        ))}
-      </ul>
-      <Readout tip={tip} />
     </div>
   );
 }
