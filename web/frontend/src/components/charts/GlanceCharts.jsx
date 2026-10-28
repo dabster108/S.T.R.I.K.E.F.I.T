@@ -90,7 +90,7 @@ export function LevelBars({ levels }) {
         <span>Battles by outcome</span>
         <span className="text-right">Battles · win</span>
       </div>
-      <ul className="space-y-1">
+      <ul className="space-y-2">
         {levels.map((l) => {
           const name = levelName(l.level);
           const summary = `${name}: ${l.sessions} battles, ${OUTCOMES.map((o) => `${o.label.toLowerCase()} ${l[o.key] || 0}`).join(", ")}, win rate ${winRateText(l)}`;
@@ -105,7 +105,7 @@ export function LevelBars({ levels }) {
                 setTip({ x: r.left - box.left + r.width / 2, y: r.top - box.top, value: formatNumber(l.sessions), label: `battles · ${name} · ${OUTCOMES.filter((o) => l[o.key]).map((o) => `${l[o.key]} ${o.label.toLowerCase()}`).join(", ")}` });
               }}
               onBlur={() => setTip(null)}
-              className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 rounded-lg px-1 py-2 outline-none @sm:grid-cols-[5.5rem_1fr_6.5rem] transition-colors hover:bg-[var(--surface-muted)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+              className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 rounded-xl border border-transparent px-2 py-2.5 outline-none @sm:grid-cols-[5.5rem_1fr_6.5rem] transition-colors hover:border-[var(--border)] hover:bg-[var(--surface-muted)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
             >
               <span className="truncate text-sm font-bold text-[var(--ink)]">{name}</span>
               <span className="order-last col-span-2 @sm:order-none @sm:col-span-1">
@@ -120,7 +120,7 @@ export function LevelBars({ levels }) {
         })}
       </ul>
       {/* recessive axis under the bar column */}
-      <div className="mt-1 grid grid-cols-[1fr] gap-3 @sm:grid-cols-[5.5rem_1fr_6.5rem]" aria-hidden>
+      <div className="mt-2 grid grid-cols-[1fr] gap-3 @sm:grid-cols-[5.5rem_1fr_6.5rem]" aria-hidden>
         <span className="hidden @sm:block" />
         <span className="relative h-4 border-t border-[var(--border)] text-[0.68rem] font-semibold tabular-nums text-[var(--muted)]">
           {ticks.map((t) => (
