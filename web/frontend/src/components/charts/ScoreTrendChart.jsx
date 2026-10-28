@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { formatDateTime, formatNumber, formatShortDate } from "../../lib/format.js";
 import { smoothPath } from "../../lib/effort.js";
 import { sessionTime } from "../../lib/derive.js";
@@ -22,7 +22,6 @@ function niceMax(v) {
 export default function ScoreTrendChart({ sessions, onSelect }) {
   const [ref, width] = useElementWidth(320);
   const [active, setActive] = useState(null);
-  const gradId = useId().replace(/:/g, "");
 
   const geo = useMemo(() => {
     const n = sessions.length;
@@ -36,13 +35,12 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
     // a monotone curve: smooth, but it never overshoots a real score (lib/effort.js smoothPath)
     const line = smoothPath(points.map((p) => ({ x: Number(p.x.toFixed(1)), y: Number(p.y.toFixed(1)) })));
     const base = PAD.top + innerH;
-    const area = n > 1 ? `${line} L${points[n - 1].x.toFixed(1)},${base} L${points[0].x.toFixed(1)},${base} Z` : null;
     const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => ({ v: Math.round(maxY * f), y: y(maxY * f) }));
     const labelEvery = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(innerW / 70))));
     // Label with clock time when everything falls within ~a day, otherwise with dates.
     const spanMs = sessionTime(sessions[n - 1]) - sessionTime(sessions[0]);
     const label = spanMs < 36 * 3600 * 1000 ? formatHourMinute : formatShortDate;
-    return { points, line, area, ticks, base, labelEvery, label };
+    return { points, line, ticks, base, labelEvery, label };
   }, [sessions, width]);
 
   if (!geo) {
@@ -88,51 +86,39 @@ export default function ScoreTrendChart({ sessions, onSelect }) {
         className="block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
         style={{ cursor: onSelect && hover ? "pointer" : "default" }}
       >
-        <defs>
-          <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-
         {geo.ticks.map((t) => (
           <g key={t.v}>
-            <line x1={PAD.left} x2={width - PAD.right} y1={t.y} y2={t.y} stroke={t.v === 0 ? "var(--border-strong)" : "var(--grid)"} />
+            <line x1={PAD.left} x2={width - PAD.right} y1={t.y} y2={t.y} stroke="var(--border-strong)" strokeDasharray="4 5" />
             <text x={PAD.left - 8} y={t.y + 3.5} textAnchor="end" fontSize="11" fill="var(--muted)" className="tabular-nums">
               {formatNumber(t.v)}
             </text>
           </g>
         ))}
+        {geo.points.map((p) => {
+          const last = p.i === geo.points.length - 1;
+          if (p.i % geo.labelEvery !== 0 && !last) return null;
+          if (!last && geo.points.length - 1 - p.i < geo.labelEvery && p.i !== 0) return null;
+          return <line key={`v-${p.s.id}`} x1={p.x} x2={p.x} y1={PAD.top} y2={geo.base} stroke="var(--border-strong)" strokeDasharray="4 5" />;
+        })}
 
-        {geo.area && <path d={geo.area} fill={`url(#${gradId})`} className="chart-area" />}
         {geo.points.length > 1 && (
           <path d={geo.line} pathLength="1" fill="none" stroke="var(--accent)" strokeWidth="2.25" strokeLinejoin="round" strokeLinecap="round" className="chart-line" />
         )}
 
-        {hover && <line x1={hover.x} x2={hover.x} y1={PAD.top} y2={geo.base} stroke="var(--border-strong)" strokeDasharray="3 3" />}
-
         {geo.points.map((p) => {
           const last = p.i === geo.points.length - 1;
-          const on = active === p.i;
-          // small dots for the history; the latest battle is a filled point with a halo and its score beside it
+          const on = active === p.i || (!active && last);
           return (
             <g key={p.s.id}>
-              {last && <circle cx={p.x} cy={p.y} r="10" fill="var(--accent)" opacity="0.14" />}
+              {on && <circle cx={p.x} cy={p.y} r="11" fill="var(--accent)" opacity="0.16" />}
               <circle
                 cx={p.x}
                 cy={p.y}
-                r={on || last ? 5.5 : geo.points.length > 24 ? 2.5 : 3.5}
-                fill={on || last ? "var(--accent)" : "var(--surface)"}
-                stroke="var(--accent)"
-                strokeWidth={on || last ? 2.5 : 1.75}
+                r={on ? 5 : 4}
+                fill="var(--accent)"
                 className="dot-in"
                 style={{ "--i": Math.min(p.i, 30) }}
               />
-              {last && !hover && (
-                <text x={p.x - 10} y={Math.max(PAD.top + 10, p.y - 12)} textAnchor="end" fontSize="12" fontWeight="800" fill="var(--ink)" className="tabular-nums">
-                  {formatNumber(p.s.score)} pts
-                </text>
-              )}
             </g>
           );
         })}
