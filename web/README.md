@@ -2,6 +2,7 @@
 
 - `backend/`: Node + Express API on Render, data in Neon Postgres, live updates over Server-Sent Events. See `backend/README.md`.
 - `frontend/`: Vite + React + Tailwind + React Router app on Vercel: the public landing page (`/`) and the real-time dashboard (`/dashboard/*`), in the original blue-and-white design. All colours, radii and shadows live in `frontend/src/styles/tokens.css`.
+- Overview charts use a shared visual language: smooth trend lines, dotted reference grids, filled marker points, and donut splits for outcome ratios.
 
 The Unity game (`Assets/Scripts/Networking/SessionReporter.cs`) posts to the backend while a fight is being played.
 
