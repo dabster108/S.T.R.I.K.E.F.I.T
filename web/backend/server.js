@@ -463,6 +463,18 @@ app.get("/api/ping", (_req, res) => {
   res.set("Cache-Control", "no-store").status(200).json({ ok: true });
 });
 
+// Lightweight database liveness check for external monitors. This touches Postgres
+// with one SELECT and avoids the heavier /api/health aggregates.
+app.get("/api/db-ping", route(async (_req, res) => {
+  const t0 = Date.now();
+  try {
+    await query("SELECT 1");
+    return res.status(200).json({ ok: true, database: { ok: true, latencyMs: Date.now() - t0 } });
+  } catch (err) {
+    return res.status(503).json({ ok: false, database: { ok: false, error: "Database unavailable" } });
+  }
+}));
+
 app.get("/api/health", route(async (_req, res) => {
   const database = { ok: false, latencyMs: null };
   let counts = { sessions: null, events: null, live: null };
@@ -1107,7 +1119,7 @@ ready.then(() => server.listen(PORT, "0.0.0.0", () => {
   setInterval(() => sweepStaleSessions().catch((err) => console.error("[live] sweep failed:", err.message)), SWEEP_INTERVAL_MS).unref();
   for (const url of lanUrls()) console.log(`  LAN / headset: ${url}`);
   console.log(`  CORS: localhost + ${ALLOWED_ORIGINS.length ? `${ALLOWED_ORIGINS.length} origin(s) from ALLOWED_ORIGINS` : "no ALLOWED_ORIGINS set"}`);
-  console.log("  GET    /api/health | /api/stats | /api/players | /api/players/:name");
+  console.log("  GET    /api/ping | /api/db-ping | /api/health | /api/stats | /api/players | /api/players/:name");
   console.log("  GET    /api/sessions[?player&level&outcome&status&limit] | /api/sessions/:id");
   console.log("  GET    /api/events[?limit&type&sessionId&player] | /api/live[?player]");
   console.log("  GET    /api/overview | /api/public-stats | /api/analytics | /api/export/{sessions,events}.csv");

@@ -19,13 +19,14 @@ connectionUrl.searchParams.delete("sslmode");
 
 // A Postgres on this machine (local testing) has no TLS; everything else must use it.
 const isLocal = ["localhost", "127.0.0.1", "::1"].includes(connectionUrl.hostname);
+const verifyTlsCert = !/^(0|false|no|off)$/i.test(String(process.env.DB_SSL_REJECT_UNAUTHORIZED ?? "true").trim());
 
 // One small shared pool for the whole backend (a Render free instance and a database that scales to zero need few connections). The
 // provider (Neon, Layerbase) serves a publicly trusted certificate, so the certificate is always verified. Idle clients are closed after
 // 10 s, so the pool never holds a connection open that would keep the database awake.
 const pool = new Pool({
   connectionString: connectionUrl.toString(),
-  ssl: isLocal ? false : { rejectUnauthorized: true },
+  ssl: isLocal ? false : { rejectUnauthorized: verifyTlsCert },
   // Development sets DB_POOL_MAX=1: the local PGlite database is single-session, and one connection keeps transactions whole.
   max: Number(process.env.DB_POOL_MAX) > 0 ? Number(process.env.DB_POOL_MAX) : 5,
   min: 0, // do not keep idle clients alive on a sleeping database
