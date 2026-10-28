@@ -7,8 +7,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
+    "db:check": "node scripts/db-check.js",
     "db:schema": "node scripts/apply-schema.js",
     "db:migrate": "node scripts/migrate-json-to-postgres.js",
+    "seed": "node scripts/seed.js",
     "simulate": "node scripts/simulate-live.js",
     "test": "node --test test/*.test.js",
     "dev:db": "node scripts/dev-db.js",
