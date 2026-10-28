@@ -32,10 +32,13 @@ export function ChartBox({ className = "", h = "h-56" }) {
         <Skeleton className="h-3.5 w-32" />
         <Skeleton className="h-3 w-52" />
       </div>
-      <div className={`flex items-end gap-2 px-5 pb-5 pt-6 ${h}`}>
-        {[40, 65, 50, 80, 55, 90, 70, 60, 85, 45, 75, 95].map((v, i) => (
-          <div key={i} className="skeleton flex-1 rounded-md" style={{ height: `${v}%` }} aria-hidden />
-        ))}
+      <div className={`px-5 pb-5 pt-6 ${h}`}>
+        <Skeleton className="h-full w-full rounded-xl" />
+        <div className="-mt-12 flex items-end justify-between px-2" aria-hidden>
+          {[20, 34, 18, 26, 10, 24].map((v, i) => (
+            <div key={i} className="skeleton w-3 rounded-full" style={{ height: `${v}%` }} />
+          ))}
+        </div>
       </div>
     </Box>
   );
