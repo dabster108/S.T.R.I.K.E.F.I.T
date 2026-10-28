@@ -37,15 +37,16 @@ export default function DonutChart({ segments = [], ariaLabel = "Donut chart" })
       return { ...seg, d };
     });
 
+  const summary = segments.map((seg) => `${seg.label} ${formatNumber(seg.value || 0)}`).join(", ");
   return (
     <figure className="mx-auto w-full max-w-[240px]">
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label={ariaLabel} className="block h-auto w-full">
+      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label={ariaLabel || summary} className="block h-auto w-full">
         {total === 0 && <circle cx={CENTER} cy={CENTER} r={RADIUS} fill="none" stroke="var(--border)" strokeWidth={STROKE} />}
         {arcs.map((seg) => (
           <path key={seg.key} d={seg.d} fill="none" stroke={seg.color} strokeWidth={STROKE} strokeLinecap="butt" />
         ))}
       </svg>
-      <ul className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-semibold text-[var(--ink-secondary)]">
+      <ul className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-semibold text-[var(--ink-secondary)]" aria-hidden>
         {segments.map((seg) => (
           <li key={seg.key} className="inline-flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: seg.color }} aria-hidden />
